@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getVersion } from '@tauri-apps/api/app'
 import { backupService, type BackupNotice } from '../data/backupService.ts'
 import {
   createLibraryExport,
@@ -11,6 +12,8 @@ import type { FilmLibrary, ProfileSummary } from '../data/filmsRepository.ts'
 import { filmsRepository } from '../data/filmsRepository.ts'
 import { confirmValidatedImport } from '../data/libraryTransferService.ts'
 import { pickImportJson, saveExportJson, type BackupSettings } from '../data/nativePortability.ts'
+import { UpdaterSettings } from './UpdaterSettings.tsx'
+import type { AvailableUpdate } from '../data/updaterService.ts'
 
 type SelectedImport = {
   fileName: string
@@ -30,6 +33,9 @@ type PortabilityProps = {
   onSwitchProfile: (profileId: string) => Promise<void>
   onImported: (library: FilmLibrary) => void
   onBackupNotice: (notice: BackupNotice) => void
+  availableUpdate: AvailableUpdate | null
+  onUpdateAvailable: (update: AvailableUpdate) => void
+  onUpdateHandled: () => void
 }
 
 export function Portability({
@@ -39,6 +45,9 @@ export function Portability({
   onSwitchProfile,
   onImported,
   onBackupNotice,
+  availableUpdate,
+  onUpdateAvailable,
+  onUpdateHandled,
 }: PortabilityProps) {
   const [exportState, setExportState] = useState<'idle' | 'saving'>('idle')
   const [exportMessage, setExportMessage] = useState<string | null>(null)
@@ -54,6 +63,25 @@ export function Portability({
   const [choosingBackupDirectory, setChoosingBackupDirectory] = useState(false)
   const [savingBackup, setSavingBackup] = useState(false)
   const [backupMessage, setBackupMessage] = useState<BackupNotice | null>(null)
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    getVersion().then(
+      (version) => {
+        if (!cancelled) setInstalledVersion(version)
+      },
+      (error: unknown) => {
+        console.error('Impossible de lire la version installée depuis Tauri.', error)
+        if (!cancelled) setInstalledVersion(null)
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -205,21 +233,27 @@ export function Portability({
   return (
     <main className="main portability-main">
       <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onBack}>← Retour aux films</button>
+        <button className="back-button" type="button" onClick={onBack}>← Retour à l’accueil</button>
       </header>
 
       <div className="portability-heading">
-        <p className="eyebrow">Données locales</p>
-        <h1 className="display-title">Profils et JSON</h1>
-        <p>Exportez le profil courant ou restaurez un export dans un nouveau profil séparé.</p>
+        <p className="eyebrow">Réglages locaux</p>
+        <h1 className="display-title">Paramètres</h1>
+        <p>Retrouvez les profils, les exports JSON et les sauvegardes de cette bibliothèque locale.</p>
       </div>
 
-      <div className="portability-grid">
-        <section className="portability-card" aria-labelledby="profiles-title">
+      <div className="settings-sections">
+        <section className="settings-section" aria-labelledby="profiles-title">
+          <div className="settings-section-heading">
+            <p className="card-kicker">Bibliothèque locale</p>
+            <h2 id="profiles-title">Profils</h2>
+            <p>Ouvrez un profil existant. Le profil courant reste toujours indiqué.</p>
+          </div>
+          <div className="portability-card profile-card">
           <div className="portability-card-heading">
             <div>
-              <p className="card-kicker">Profils locaux</p>
-              <h2 id="profiles-title">Profil courant</h2>
+              <p className="card-kicker">Profil actif</p>
+              <h3>Profil courant</h3>
             </div>
             <span className="profile-badge">{library.profile.name}</span>
           </div>
@@ -245,85 +279,123 @@ export function Portability({
             })}
           </div>
           {profileError && <p className="inline-report error" role="alert">{profileError}</p>}
+          </div>
         </section>
 
-        <section className="portability-card" aria-labelledby="export-title">
-          <div className="portability-card-heading">
-            <div>
-              <p className="card-kicker">JSON version 1</p>
-              <h2 id="export-title">Exporter ce profil</h2>
-            </div>
+        <section className="settings-section" aria-labelledby="data-title">
+          <div className="settings-section-heading">
+            <p className="card-kicker">Formats portables</p>
+            <h2 id="data-title">Données et sauvegardes</h2>
+            <p>Les exports, imports et snapshots restent séparés de la base SQLite active.</p>
           </div>
-          <p>L’export contient le profil et tous ses champs Films V1. Il ne télécharge aucune affiche et ne contient aucun secret.</p>
-          <dl className="transfer-summary">
-            <div><dt>Profil</dt><dd>{library.profile.name}</dd></div>
-            <div><dt>Films</dt><dd>{library.films.length}</dd></div>
-            <div><dt>Format</dt><dd>sylloge-films · v1</dd></div>
-          </dl>
-          <button className="primary-button" type="button" onClick={exportProfile} disabled={exportState === 'saving'}>
-            {exportState === 'saving' ? 'Choix du fichier…' : 'Exporter en JSON'}
-          </button>
-          {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
-        </section>
 
-        <section className="portability-card backup-card" aria-labelledby="backup-title">
-          <div className="portability-card-heading">
-            <div>
-              <p className="card-kicker">Snapshots JSON v1</p>
-              <h2 id="backup-title">Sauvegardes portables</h2>
-            </div>
-          </div>
-          <p>
-            Choisissez un dossier local. Il peut déjà être synchronisé par votre propre service, mais Sylloge ne copie jamais la base SQLite active.
-          </p>
-
-          {loadingBackupSettings ? (
-            <p className="backup-state" role="status">Lecture du réglage local…</p>
-          ) : backupSettings ? (
-            <>
-              <dl className="backup-summary">
-                <div><dt>Dossier</dt><dd title={backupSettings.backupDirectory}>{backupSettings.backupDirectory}</dd></div>
-                <div><dt>Automatique</dt><dd>{backupSettings.lastAutomaticSnapshotDay ?? 'Pas encore créé'}</dd></div>
-                <div><dt>Conservation</dt><dd>30 snapshots par profil</dd></div>
-              </dl>
-              <p className="backup-policy">
-                Un snapshot est tenté après le premier changement réussi de ce profil chaque jour local. « Sauvegarder maintenant » crée toujours un nouveau JSON.
-              </p>
-              <div className="backup-actions">
-                <button className="primary-button" type="button" onClick={saveManualBackup} disabled={savingBackup || choosingBackupDirectory}>
-                  {savingBackup ? 'Sauvegarde…' : 'Sauvegarder maintenant'}
-                </button>
-                <button className="secondary-button" type="button" onClick={chooseBackupDirectory} disabled={savingBackup || choosingBackupDirectory}>
-                  {choosingBackupDirectory ? 'Choix du dossier…' : 'Changer de dossier'}
-                </button>
+          <div className="settings-action-grid">
+            <section className="portability-card" aria-labelledby="export-title">
+              <div className="portability-card-heading">
+                <div>
+                  <p className="card-kicker">JSON version 1</p>
+                  <h3 id="export-title">Exporter ce profil</h3>
+                </div>
               </div>
-            </>
-          ) : (
-            <>
-              <p className="backup-state">Les sauvegardes automatiques sont inactives pour ce profil tant qu’aucun dossier local n’est choisi.</p>
-              <button className="primary-button" type="button" onClick={chooseBackupDirectory} disabled={choosingBackupDirectory}>
-                {choosingBackupDirectory ? 'Choix du dossier…' : 'Choisir un dossier de sauvegarde'}
+              <p>L’export contient le profil et tous ses champs Films V1. Il ne télécharge aucune affiche et ne contient aucun secret.</p>
+              <dl className="transfer-summary">
+                <div><dt>Profil</dt><dd>{library.profile.name}</dd></div>
+                <div><dt>Films</dt><dd>{library.films.length}</dd></div>
+                <div><dt>Format</dt><dd>sylloge-films · v1</dd></div>
+              </dl>
+              <button className="primary-button" type="button" onClick={exportProfile} disabled={exportState === 'saving'}>
+                {exportState === 'saving' ? 'Choix du fichier…' : 'Exporter en JSON'}
               </button>
-            </>
-          )}
-          {backupMessage && <p className={`inline-report ${backupMessage.kind === 'error' ? 'error' : ''}`} role={backupMessage.kind === 'error' ? 'alert' : 'status'}>{backupMessage.message}</p>}
+              {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
+            </section>
+
+            <section className="portability-card backup-card" aria-labelledby="backup-title">
+              <div className="portability-card-heading">
+                <div>
+                  <p className="card-kicker">Snapshots JSON v1</p>
+                  <h3 id="backup-title">Sauvegardes portables</h3>
+                </div>
+              </div>
+              <p>
+                Choisissez un dossier local. Il peut déjà être synchronisé par votre propre service, mais Sylloge ne copie jamais la base SQLite active.
+              </p>
+
+              {loadingBackupSettings ? (
+                <p className="backup-state" role="status">Lecture du réglage local…</p>
+              ) : backupSettings ? (
+                <>
+                  <dl className="backup-summary">
+                    <div><dt>Dossier</dt><dd title={backupSettings.backupDirectory}>{backupSettings.backupDirectory}</dd></div>
+                    <div><dt>Automatique</dt><dd>{backupSettings.lastAutomaticSnapshotDay ?? 'Pas encore créé'}</dd></div>
+                    <div><dt>Conservation</dt><dd>30 snapshots par profil</dd></div>
+                  </dl>
+                  <p className="backup-policy">
+                    Un snapshot est tenté après le premier changement réussi de ce profil chaque jour local. « Sauvegarder maintenant » crée toujours un nouveau JSON.
+                  </p>
+                  <div className="backup-actions">
+                    <button className="primary-button" type="button" onClick={saveManualBackup} disabled={savingBackup || choosingBackupDirectory}>
+                      {savingBackup ? 'Sauvegarde…' : 'Sauvegarder maintenant'}
+                    </button>
+                    <button className="secondary-button" type="button" onClick={chooseBackupDirectory} disabled={savingBackup || choosingBackupDirectory}>
+                      {choosingBackupDirectory ? 'Choix du dossier…' : 'Changer de dossier'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="backup-state">Les sauvegardes automatiques sont inactives pour ce profil tant qu’aucun dossier local n’est choisi.</p>
+                  <button className="primary-button" type="button" onClick={chooseBackupDirectory} disabled={choosingBackupDirectory}>
+                    {choosingBackupDirectory ? 'Choix du dossier…' : 'Choisir un dossier de sauvegarde'}
+                  </button>
+                </>
+              )}
+              {backupMessage && <p className={`inline-report ${backupMessage.kind === 'error' ? 'error' : ''}`} role={backupMessage.kind === 'error' ? 'alert' : 'status'}>{backupMessage.message}</p>}
+            </section>
+
+            <section className="portability-card import-card" aria-labelledby="import-title">
+              <div className="portability-card-heading">
+                <div>
+                  <p className="card-kicker">Import contrôlé</p>
+                  <h3 id="import-title">Importer dans un nouveau profil</h3>
+                </div>
+              </div>
+              <p>Le fichier est lu et validé en entier avant toute écriture. Le profil courant n’est ni fusionné, ni écrasé.</p>
+              <button className="secondary-button" type="button" onClick={chooseImport} disabled={choosingImport || importing}>
+                {choosingImport ? 'Choix du fichier…' : 'Choisir un JSON Sylloge'}
+              </button>
+
+              {selectedImport && <ImportPreviewPanel selected={selectedImport} importing={importing} onConfirm={confirmImport} />}
+              {importError && <p className="inline-report error" role="alert">{importError}</p>}
+              {report && <ImportReportPanel report={report} />}
+            </section>
+          </div>
         </section>
 
-        <section className="portability-card import-card" aria-labelledby="import-title">
-          <div className="portability-card-heading">
-            <div>
-              <p className="card-kicker">Import contrôlé</p>
-              <h2 id="import-title">Importer dans un nouveau profil</h2>
-            </div>
+        <section className="settings-section settings-information" aria-labelledby="application-title">
+          <div className="settings-section-heading">
+            <p className="card-kicker">Fonctionnement local</p>
+            <h2 id="application-title">Application</h2>
           </div>
-          <p>Le fichier est lu et validé en entier avant toute écriture. Le profil courant n’est ni fusionné, ni écrasé.</p>
-          <button className="secondary-button" type="button" onClick={chooseImport} disabled={choosingImport || importing}>
-            {choosingImport ? 'Choix du fichier…' : 'Choisir un JSON Sylloge'}
-          </button>
+          <UpdaterSettings
+            availableUpdate={availableUpdate}
+            onUpdateAvailable={onUpdateAvailable}
+            onUpdateHandled={onUpdateHandled}
+          />
+          <dl className="settings-facts">
+            <div><dt>Données</dt><dd>La bibliothèque reste enregistrée localement dans SQLite.</dd></div>
+          </dl>
+        </section>
 
-          {selectedImport && <ImportPreviewPanel selected={selectedImport} importing={importing} onConfirm={confirmImport} />}
-          {importError && <p className="inline-report error" role="alert">{importError}</p>}
-          {report && <ImportReportPanel report={report} />}
+        <section className="settings-section settings-information" aria-labelledby="about-title">
+          <div className="settings-section-heading">
+            <p className="card-kicker">Sylloge</p>
+            <h2 id="about-title">À propos</h2>
+          </div>
+          <dl className="settings-facts">
+            <div><dt>Application</dt><dd>Sylloge</dd></div>
+            <div><dt>Version installée</dt><dd>{installedVersion ?? 'Indisponible'}</dd></div>
+            <div><dt>Collection disponible</dt><dd>Films</dd></div>
+          </dl>
         </section>
       </div>
     </main>

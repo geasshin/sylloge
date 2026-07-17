@@ -34,5 +34,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0005_create_backup_snapshots.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "create_updater_preferences",
+            sql: include_str!("../migrations/0006_create_updater_preferences.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

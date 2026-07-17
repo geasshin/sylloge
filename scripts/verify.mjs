@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { SqliteFilmsRepository, toFilm } from '../src/data/filmsRepository.ts'
 import { BackupService } from '../src/data/backupService.ts'
 import { confirmValidatedImport } from '../src/data/libraryTransferService.ts'
+import { UpdaterPreferencesService } from '../src/data/updaterPreferences.ts'
+import { TauriUpdaterService, isMissingReleaseManifestError } from '../src/data/updaterService.ts'
 import { EMPTY_FILM_FORM, localToday, validateFilmForm } from '../src/domain/filmForm.ts'
 import {
   createLibraryExport,
@@ -35,6 +41,140 @@ const filmRow = {
   poster_url: null,
   created_at: '2026-07-17T10:00:00.000Z',
   updated_at: '2026-07-17T10:00:00.000Z',
+}
+
+{
+  const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'))
+  const capabilities = JSON.parse(readFileSync('src-tauri/capabilities/default.json', 'utf8'))
+  const cargoManifest = readFileSync('src-tauri/Cargo.toml', 'utf8')
+
+  assert.equal(tauriConfig.bundle.createUpdaterArtifacts, true, 'Le bundle doit générer les artefacts d’updater')
+  assert.equal(
+    tauriConfig.plugins.updater.pubkey,
+    'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFQkI1NTZERjA5OTczRjEKUldUeGM1bndiVlc3cmxLL1JnbE1LM0w3V29taDVkQ0ZJSGE2SnJkelFzNnhONFluNU5EbjZwcmYK',
+    'La clé publique d’updater doit être celle décidée pour Sylloge',
+  )
+  assert.deepEqual(
+    tauriConfig.plugins.updater.endpoints,
+    ['https://github.com/geasshin/sylloge/releases/latest/download/latest.json'],
+    'L’updater doit consulter uniquement la release GitHub statique attendue',
+  )
+  assert.equal(tauriConfig.plugins.updater.dangerousInsecureTransportProtocol, false, 'Le transport HTTP non sécurisé doit rester interdit')
+  assert.ok(capabilities.permissions.includes('updater:default'), 'La fenêtre principale doit pouvoir vérifier les updates')
+  assert.ok(capabilities.permissions.includes('process:default'), 'La fenêtre principale doit pouvoir relancer l’application après installation')
+  assert.match(cargoManifest, /^tauri-plugin-updater = "2"$/m, 'Le plugin updater Rust officiel doit être déclaré')
+  assert.match(cargoManifest, /^tauri-plugin-process = "2"$/m, 'Le plugin process Rust officiel doit être déclaré')
+}
+
+{
+  const directory = mkdtempSync(join(tmpdir(), 'sylloge-updater-manifest-'))
+  const notesPath = join(directory, 'notes.md')
+  const signaturePath = join(directory, 'Sylloge.app.tar.gz.sig')
+  const outputPath = join(directory, 'latest.json')
+  writeFileSync(notesPath, 'Notes de la fixture\n', 'utf8')
+  writeFileSync(signaturePath, 'signature de fixture\n', 'utf8')
+
+  try {
+    const result = spawnSync(process.execPath, [
+      fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
+      '--version', '0.3.0',
+      '--notes-file', notesPath,
+      '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+      '--signature-file', signaturePath,
+      '--target', 'darwin-aarch64',
+      '--output', outputPath,
+    ], { encoding: 'utf8' })
+    assert.equal(result.status, 0, `Le générateur latest.json doit réussir : ${result.stderr}`)
+    assert.deepEqual(JSON.parse(readFileSync(outputPath, 'utf8')), {
+      version: '0.3.0',
+      notes: 'Notes de la fixture',
+      platforms: {
+        'darwin-aarch64': {
+          signature: 'signature de fixture',
+          url: 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+        },
+      },
+    }, 'Le manifeste Tauri doit reprendre la signature .sig et une URL HTTPS de façon déterministe')
+
+    for (const invalidVersion of ['01.3.1', '0.3.1-01', '0.3.1-preview..1']) {
+      const invalidResult = spawnSync(process.execPath, [
+        fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
+        '--version', invalidVersion,
+        '--notes-file', notesPath,
+        '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+        '--signature-file', signaturePath,
+        '--target', 'darwin-aarch64',
+        '--output', outputPath,
+      ], { encoding: 'utf8' })
+      assert.notEqual(invalidResult.status, 0, `La version invalide ${invalidVersion} doit être refusée`)
+      assert.match(invalidResult.stderr, /Semantic Versioning valide/, 'Le refus doit expliquer la contrainte SemVer')
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
+{
+  let automaticChecksEnabled = true
+  let ignoredVersion = null
+  const preferencesService = new UpdaterPreferencesService({
+    async get() {
+      return {
+        automaticChecksEnabled,
+        ignoredVersion,
+        updatedAt: '2026-07-18T10:00:00.000Z',
+      }
+    },
+    async setAutomaticChecksEnabled(value) {
+      automaticChecksEnabled = value
+      return this.get()
+    },
+    async setIgnoredVersion(value) {
+      ignoredVersion = value
+      return this.get()
+    },
+  })
+
+  assert.equal((await preferencesService.get()).automaticChecksEnabled, true, 'La recherche automatique doit être activée par défaut')
+  assert.equal((await preferencesService.setAutomaticChecksEnabled(false)).automaticChecksEnabled, false, 'Le réglage automatique doit être persistant côté bridge')
+  assert.equal((await preferencesService.ignoreVersion('0.3.1')).ignoredVersion, '0.3.1', 'Une seule version doit pouvoir être ignorée')
+  assert.equal((await preferencesService.restoreIgnoredVersion()).ignoredVersion, null, 'La version ignorée doit pouvoir être rétablie')
+}
+
+{
+  let checkCount = 0
+  let downloadCount = 0
+  let relaunchCount = 0
+  const updater = new TauriUpdaterService(
+    async () => {
+      checkCount += 1
+      return {
+        version: '0.3.1',
+        body: 'Notes de release',
+        async downloadAndInstall() {
+          downloadCount += 1
+        },
+      }
+    },
+    async () => {
+      relaunchCount += 1
+    },
+  )
+
+  const update = await updater.check()
+  assert.equal(checkCount, 1, 'La vérification doit appeler uniquement l’API check')
+  assert.equal(downloadCount, 0, 'La vérification ne doit jamais télécharger une mise à jour')
+  assert.equal(update?.version, '0.3.1', 'La version détectée doit être transmise à l’interface')
+  if (update) await updater.downloadAndInstall(update)
+  assert.equal(downloadCount, 1, 'Le téléchargement et l’installation exigent une action distincte')
+  assert.equal(relaunchCount, 1, 'Le redémarrage intervient seulement après l’installation')
+  assert.equal(
+    isMissingReleaseManifestError(new Error('Could not fetch a valid release JSON from the remote')),
+    true,
+    'Un manifeste absent ou invalide doit être reconnu sans faux succès',
+  )
+  assert.equal(isMissingReleaseManifestError(new Error('HTTP status 404')), false, 'Un code HTTP isolé ne doit pas être interprété à tort')
+  assert.equal(isMissingReleaseManifestError(new Error('network unavailable')), false, 'Une erreur réseau ne doit pas être présentée comme un manifeste absent')
 }
 
 {

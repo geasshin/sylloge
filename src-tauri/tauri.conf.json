@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Sylloge",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "com.aurelientrouble.sylloge",
   "build": {
     "frontendDist": "../dist",
@@ -26,11 +26,19 @@
   "plugins": {
     "sql": {
       "preload": ["sqlite:sylloge.db"]
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFQkI1NTZERjA5OTczRjEKUldUeGM1bndiVlc3cmxLL1JnbE1LM0w3V29taDVkQ0ZJSGE2SnJkelFzNnhONFluNU5EbjZwcmYK",
+      "endpoints": [
+        "https://github.com/geasshin/sylloge/releases/latest/download/latest.json"
+      ],
+      "dangerousInsecureTransportProtocol": false
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
+    "createUpdaterArtifacts": true,
+    "targets": ["app", "dmg"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

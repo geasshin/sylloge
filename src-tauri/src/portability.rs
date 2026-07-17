@@ -795,6 +795,7 @@ mod tests {
             include_str!("../migrations/0003_track_current_profile.sql"),
             include_str!("../migrations/0004_create_backup_settings.sql"),
             include_str!("../migrations/0005_create_backup_snapshots.sql"),
+            include_str!("../migrations/0006_create_updater_preferences.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
