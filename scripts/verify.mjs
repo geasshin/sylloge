@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { SqliteFilmsRepository, toFilm } from '../src/data/filmsRepository.ts'
+import { BackupService } from '../src/data/backupService.ts'
 import { confirmValidatedImport } from '../src/data/libraryTransferService.ts'
 import { EMPTY_FILM_FORM, localToday, validateFilmForm } from '../src/domain/filmForm.ts'
 import {
@@ -126,6 +127,53 @@ const completeExport = createLibraryExport({
   },
   films: [completeTransferFilm],
 }, '2026-07-17T12:00:00.000Z')
+
+{
+  const automaticSnapshots = []
+  const manualSnapshots = []
+  let automaticCallCount = 0
+  const service = new BackupService({
+    async getBackupSettings() {
+      return {
+        backupDirectory: '/dossier-de-test',
+        lastAutomaticSnapshotDay: null,
+      }
+    },
+    async pickBackupDirectory() {
+      return null
+    },
+    async saveManualBackupSnapshot(profileId, contents) {
+      manualSnapshots.push({ profileId, contents })
+      return { fileName: 'sylloge-films-v1-default-manuel.json', retainedSnapshotCount: 2 }
+    },
+    async saveAutomaticBackupSnapshot(profileId, contents, automaticDay) {
+      automaticSnapshots.push({ profileId, contents, automaticDay })
+      automaticCallCount += 1
+      return automaticCallCount === 1
+        ? { outcome: 'saved', fileName: 'sylloge-films-v1-default-auto.json' }
+        : { outcome: 'alreadySaved', fileName: null }
+    },
+  }, () => new Date(2026, 6, 17, 12, 0, 0))
+  const library = { profile: completeExport.profile, films: completeExport.films }
+
+  const automaticNotice = await service.tryAutomaticSnapshot(library)
+  assert.equal(automaticNotice?.kind, 'success', 'Le premier snapshot automatique doit être annoncé après une mutation réussie')
+  assert.equal(automaticSnapshots[0].automaticDay, '2026-07-17', 'Le service doit demander le jour local au moment du snapshot')
+  const automaticPreview = validateLibraryImport(automaticSnapshots[0].contents)
+  assert.equal(automaticPreview.document?.format, 'sylloge-films', 'Le snapshot automatique doit réutiliser le format JSON v1')
+  assert.equal(automaticPreview.validFilmCount, 1, 'Le snapshot automatique doit être réimportable par le validateur existant')
+
+  const secondAutomaticNotice = await service.tryAutomaticSnapshot(library)
+  assert.equal(secondAutomaticNotice, null, 'Un résultat natif déjà sauvegardé ne doit pas annoncer un second snapshot automatique')
+  const manualNotice = await service.saveManualSnapshot(library)
+  assert.equal(manualNotice.kind, 'success', 'Le snapshot manuel doit rester disponible après le snapshot automatique')
+  assert.equal(manualSnapshots.length, 1, 'La sauvegarde manuelle doit appeler sa commande native dédiée')
+  assert.equal(
+    validateLibraryImport(manualSnapshots[0].contents).validFilmCount,
+    1,
+    'Le snapshot manuel doit rester compatible avec l’import JSON existant',
+  )
+}
 
 {
   const serialized = serializeLibraryExport(completeExport)
@@ -406,7 +454,10 @@ const repositorySource = readFileSync(new URL('../src/data/filmsRepository.ts', 
 const migrationSource = readFileSync(new URL('../src-tauri/migrations/0001_create_profiles_and_films.sql', import.meta.url), 'utf8')
 const defaultProfileMigration = readFileSync(new URL('../src-tauri/migrations/0002_create_default_profile.sql', import.meta.url), 'utf8')
 const currentProfileMigration = readFileSync(new URL('../src-tauri/migrations/0003_track_current_profile.sql', import.meta.url), 'utf8')
+const backupSettingsMigration = readFileSync(new URL('../src-tauri/migrations/0004_create_backup_settings.sql', import.meta.url), 'utf8')
+const backupSnapshotsMigration = readFileSync(new URL('../src-tauri/migrations/0005_create_backup_snapshots.sql', import.meta.url), 'utf8')
 const capabilitySource = readFileSync(new URL('../src-tauri/capabilities/default.json', import.meta.url), 'utf8')
+const stylesSource = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 
 assert.doesNotMatch(mainSource, /\bSELECT\b|\bINSERT INTO films\b|\bUPDATE films\b|\bDELETE FROM films\b/i, 'Les composants React ne doivent contenir aucun SQL brut')
 assert.match(mainSource, /createFilm/, 'La vue doit relier la création au dépôt SQLite')
@@ -418,6 +469,9 @@ assert.match(mainSource, /libraryContext/, 'Le contexte de recherche et de filtr
 assert.match(mainSource, /libraryScrollPosition/, 'La position de consultation doit être restaurée au retour')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
 assert.match(posterSource, /alt={`Affiche du film/, 'Une affiche chargée doit conserver un texte alternatif pertinent')
+assert.match(stylesSource, /\.film-card-info b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre d’une carte doit pouvoir couper une suite de caractères sans espace')
+assert.match(stylesSource, /\.poster-fallback b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre du fallback d’affiche doit pouvoir couper une suite de caractères sans espace')
+assert.match(stylesSource, /\.reading-section p \{[^}]*overflow-wrap: anywhere;/s, 'Le texte personnel de détail doit pouvoir couper une suite de caractères sans espace')
 assert.match(formSource, /Aperçu de l’affiche/, 'Le formulaire doit afficher un aperçu de poster_url')
 assert.match(formSource, /<Poster title={previewTitle} src={previewUrl}/, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
 assert.match(formSource, /Utiliser aujourd’hui/, 'Le statut terminé doit proposer la date du jour sans la saisir automatiquement')
@@ -430,14 +484,22 @@ assert.match(migrationSource, /CREATE TABLE IF NOT EXISTS profiles/, 'La migrati
 assert.match(migrationSource, /CREATE TABLE IF NOT EXISTS films/, 'La migration doit créer les films')
 assert.match(defaultProfileMigration, /ON CONFLICT\(id\) DO NOTHING/, 'Le profil default doit être initialisé sans écrasement')
 assert.match(currentProfileMigration, /CREATE TABLE IF NOT EXISTS current_profile/, 'Le profil courant doit être persisté pour survivre à une relance')
+assert.match(backupSettingsMigration, /CREATE TABLE IF NOT EXISTS backup_settings/, 'Les réglages de sauvegarde doivent être persistés localement')
+assert.match(backupSettingsMigration, /profile_id TEXT PRIMARY KEY/, 'Le réglage de sauvegarde doit être isolé par profil')
+assert.match(backupSettingsMigration, /last_automatic_snapshot_day TEXT/, 'Le dernier jour automatique doit être mémorisé sans être requis')
+assert.match(backupSnapshotsMigration, /CREATE TABLE IF NOT EXISTS backup_snapshots/, 'Le registre d’appartenance des snapshots doit être persisté localement')
+assert.match(backupSnapshotsMigration, /PRIMARY KEY \(profile_id, file_name\)/, 'Le registre doit lier chaque snapshot à son profil et son nom de fichier')
 assert.match(transferSource, /SYLLOGE_EXPORT_VERSION = 1/, 'Le format JSON doit avoir une version explicite')
 assert.match(portabilitySource, /Créer le nouveau profil et importer/, 'La confirmation d’import doit nommer explicitement la création du profil')
 assert.match(portabilitySource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
 assert.match(nativePortabilitySource, /\.begin\(\)/, 'L’import doit démarrer une transaction SQLite atomique côté Rust')
 assert.match(nativePortabilitySource, /\.commit\(\)/, 'L’import doit valider explicitement la transaction SQLite')
+assert.match(nativePortabilitySource, /write_snapshot_atomically/, 'Les snapshots doivent passer par une écriture atomique native')
+assert.match(nativePortabilitySource, /SNAPSHOT_RETENTION_COUNT: usize = 30/, 'La rétention native doit être limitée à 30 snapshots')
+assert.match(mainSource, /requestAutomaticBackup/, 'Chaque mutation réussie doit pouvoir tenter une sauvegarde automatique non bloquante')
 assert.doesNotMatch(capabilitySource, /fs:allow|dialog:allow/, 'Le frontend ne doit recevoir aucune permission générale de fichier ou de dialogue')
 assert.match(capabilitySource, /sql:allow-load/, 'Tauri doit autoriser le chargement SQLite')
 assert.match(capabilitySource, /sql:allow-select/, 'Tauri doit autoriser les lectures SQLite')
 assert.match(capabilitySource, /sql:allow-execute/, 'Tauri doit autoriser les écritures SQLite')
 
-console.log('Vérification réussie : Films SQLite, JSON v1 strict, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')
+console.log('Vérification réussie : Films SQLite, JSON v1 strict et réimportable pour les snapshots, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')

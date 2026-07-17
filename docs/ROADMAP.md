@@ -1,6 +1,6 @@
 # Sylloge — feuille de route vers la V1 publique
 
-> **Statut :** feuille de route active, initialisée avec la baseline `0.1.0`.
+> **Statut :** feuille de route active. Le jalon `0.2.0` est livré ; le prochain jalon proposé est `0.3.0`.
 >
 > Les versions sont des hypothèses de séquencement, pas des promesses de calendrier. Une version ne démarre qu’après la validation de la précédente et peut être découpée si l’audit technique montre qu’elle est trop large.
 
@@ -64,17 +64,26 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 ### `0.2.0` — Sauvegardes portables dans un dossier choisi
 
-**But :** rendre la durabilité concrète sans construire une synchronisation propriétaire.
+**Statut : livré et validé localement sur macOS.**
 
-- Choix explicite d’un dossier de sauvegarde local, qui peut être un dossier déjà synchronisé par iCloud Drive, Dropbox, Google Drive ou OneDrive.
-- Création d’instantanés JSON nommés, versionnés et cohérents selon une politique visible.
-- Rétention locale prudente, restauration via le flux d’import contrôlé et explication claire de ce qui est sauvegardé.
-- Prévention explicite de la synchronisation directe des fichiers SQLite vivants.
-- Tests de restauration sur un profil séparé et après redémarrage.
+- Dossier choisi explicitement par profil, snapshots JSON v1 atomiques après le premier changement quotidien ou à la demande, conservation de 30 snapshots suivis et restauration par l’import contrôlé existant.
+- Le registre local des snapshots garantit que la rétention ne supprime jamais un fichier seulement ressemblant à une sauvegarde Sylloge.
+- La base SQLite vivante, son WAL et son SHM ne sont ni copiés ni synchronisés.
 
-**Décision à prendre avant implémentation :** fréquence de snapshot, rétention et comportement si le dossier choisi devient inaccessible.
+### `0.3.0` — Paramètres et mises à jour distribuées
 
-### `0.3.0` — Interopérabilité CSV
+**But :** rendre les réglages locaux compréhensibles et préparer un vrai cycle de mise à jour, sans confondre une branche Git avec une application distribuée.
+
+- Remplacer l’entrée « Profils et JSON » de la navigation par une icône Paramètres claire et accessible ; y organiser des sections sobres : profils et données, sauvegardes portables, import/export JSON et À propos.
+- À propos affiche le nom, la version installée, les informations locales utiles et l’état de recherche de mise à jour.
+- Mettre en place un mécanisme de mise à jour Tauri qui consulte uniquement des **releases publiées et signées** ; l’application ne doit jamais traiter une nouvelle révision de `main` comme une mise à jour téléchargeable.
+- Lorsqu’une release plus récente existe : alerte accessible avec version et notes ; choix « Télécharger et installer », « Plus tard » et « Ignorer cette version » ; réglage explicite pour désactiver la recherche automatique tout en gardant une vérification manuelle dans À propos.
+- Valider les migrations et l’ouverture d’une bibliothèque existante après installation d’un nouveau bundle ; une mise à jour ne doit jamais effacer, déplacer ni synchroniser la SQLite vivante.
+- Définir une publication de jalon : version cohérente dans les manifestes, artefact macOS, signature de l’updater, tag Git et release GitHub. La source de mise à jour est cette release, non le dépôt de travail.
+
+**Gates avant implémentation :** choisir le mode de signature de l’updater, vérifier l’accès des installations au canal de releases GitHub et définir une politique de conservation/rotation des clés. Aucun faux bouton « Mettre à jour » ne doit être affiché avant l’existence d’un artefact réellement installable.
+
+### `0.4.0` — Interopérabilité CSV
 
 **But :** permettre une migration raisonnable depuis des tableaux personnels sans transformer l’import en boîte noire.
 
@@ -85,7 +94,7 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 **Exclusions :** automatisation opaque des correspondances, import de plateformes sans export réel.
 
-### `0.4.0` — Import Notion Markdown + CSV
+### `0.5.0` — Import Notion Markdown + CSV
 
 **But :** récupérer proprement les collections existantes d’Aurélien et préparer un import réutilisable par d’autres personnes.
 
@@ -96,7 +105,7 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 **Exclusions :** traitement d’URLs Notion temporaires comme affiches permanentes.
 
-### `0.5.0` — Métadonnées Films assistées
+### `0.6.0` — Métadonnées Films assistées
 
 **But :** accélérer l’ajout de films sans abandonner le contrôle éditorial local.
 
@@ -118,24 +127,24 @@ Avant de programmer les versions suivantes, Aurélien doit trancher l’un des d
 
 La feuille de route ci-dessous suppose par défaut l’**option B**, parce que le produit est présenté comme une bibliothèque culturelle globale. Elle sera ajustée après décision.
 
-### `0.6.0` — Socle multi-médiums
+### `0.7.0` — Socle multi-médiums
 
 - Faire évoluer les fondations de données sans casser les exports Films existants.
 - Définir les champs communs et les champs strictement spécifiques ; aucune abstraction générique qui gommerait les différences réelles.
 - Étendre recherche, filtres, collections, profils, exports et sauvegardes aux nouveaux types.
 - Écrire des migrations et tests de compatibilité avec les bibliothèques `0.1.x–0.5.x`.
 
-### `0.6.1` — Séries
+### Lot interne du jalon `0.7.0` — Séries
 
 - Statuts, fiche, création manuelle et données propres aux séries.
 - Décider explicitement si le suivi par saison/épisode est une fonction de V1 ou une amélioration ultérieure ; ne pas le faire à moitié.
 
-### `0.7.0` — Livres
+### Lot interne du jalon `0.7.0` — Livres
 
 - Fiche Livre, création manuelle, statut, notes personnelles, recherche, import/export et enrichissement ultérieur.
 - Décider avant implémentation si pagination, édition, traduction et relecture sont nécessaires au premier parcours.
 
-### `0.7.1` — Jeux et Art
+### Lot interne du jalon `0.7.0` — Jeux et Art
 
 - Deux verticales séparées, avec modèles adaptés plutôt qu’une copie de Films.
 - Jeux : plateforme, temps ou sessions seulement si leur utilité est validée.

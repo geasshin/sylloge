@@ -11,6 +11,21 @@ export type ImportLibraryResult = {
   filmCount: number
 }
 
+export type BackupSettings = {
+  backupDirectory: string
+  lastAutomaticSnapshotDay: string | null
+}
+
+export type BackupSnapshotResult = {
+  fileName: string
+  retainedSnapshotCount: number
+}
+
+export type AutomaticBackupSnapshotResult = {
+  outcome: 'saved' | 'alreadySaved' | 'notConfigured'
+  fileName: string | null
+}
+
 type NativeImportProfile = {
   id: string
   name: string
@@ -34,6 +49,26 @@ export function pickImportJson(): Promise<PickedJsonFile | null> {
 
 export function saveExportJson(suggestedName: string, contents: string): Promise<string | null> {
   return invoke('save_export_json', { suggestedName, contents })
+}
+
+export function getBackupSettings(profileId: string): Promise<BackupSettings | null> {
+  return invoke('get_backup_settings', { profileId })
+}
+
+export function pickBackupDirectory(profileId: string): Promise<BackupSettings | null> {
+  return invoke('pick_backup_directory', { profileId })
+}
+
+export function saveManualBackupSnapshot(profileId: string, contents: string): Promise<BackupSnapshotResult> {
+  return invoke('save_manual_backup_snapshot', { profileId, contents })
+}
+
+export function saveAutomaticBackupSnapshot(
+  profileId: string,
+  contents: string,
+  automaticDay: string,
+): Promise<AutomaticBackupSnapshotResult> {
+  return invoke('save_automatic_backup_snapshot', { profileId, contents, automaticDay })
 }
 
 export function importLibraryAtomically(payload: NativeImportPayload): Promise<ImportLibraryResult> {
