@@ -8,9 +8,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-sql": "^2.4.0",
     "@vitejs/plugin-react": "latest",
     "react": "latest",
     "react-dom": "latest",
@@ -18,6 +23,7 @@
     "vite": "latest"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3"
   }
