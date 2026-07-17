@@ -1,75 +1,237 @@
 export type FilmStatus = 'À découvrir' | 'Terminé'
-export type SeriesStatus = 'À découvrir' | 'En cours' | 'Terminée'
+export type SeriesStatus = 'À découvrir' | 'Terminée' | 'En pause'
 export type FilmFilter = 'Tout' | 'À découvrir' | 'Terminés' | 'Favoris'
-export type SeriesFilter = 'Tout' | 'À découvrir' | 'En cours' | 'Terminées' | 'Favoris'
+export type SeriesFilter = 'Tout' | 'À découvrir' | 'Terminées' | 'En pause' | 'Favoris'
 export type Page = 'home' | 'films' | 'series'
+
+export type Rating = {
+  score: number
+  label: string
+}
 
 export type Film = {
   id: string
   title: string
-  director: string
-  year: number
-  duration: string
+  director?: string
+  year?: number
   status: FilmStatus
-  rating?: number
+  rating?: Rating
   favorite?: boolean
   watchedAt?: string
-  note?: string
-  country: string
-  palette: string
-  mark: string
-  cover?: 'text'
+  summary?: string
+  poster: string
 }
 
 export type Series = {
   id: string
   title: string
-  creator: string
-  years: string
+  creator?: string
+  kind?: string
   status: SeriesStatus
-  seasonsSeen: number
-  seasonsTotal?: number
-  rating?: number
+  rating?: Rating
   favorite?: boolean
-  lastWatchedAt?: string
-  personalNote?: string
-  summary: string
-  country: string
-  palette: string
-  mark: string
+  completedAt?: string
+  summary?: string
+  poster: string
 }
 
+export type RecentItem =
+  | { medium: 'Film'; date: string; item: Film }
+  | { medium: 'Série'; date: string; item: Series }
+
+// Échantillon réel issu des trackers Notion Movies_DB et Shows_DB, consulté le 17 juillet 2026.
+// Les champs absents dans Notion restent volontairement absents ici : aucune durée, saison, pays
+// ou note personnelle n'est inventé pour le prototype.
 export const films: Film[] = [
-  { id: 'aftersun', title: 'Aftersun', director: 'Charlotte Wells', year: 2022, duration: '1 h 42', status: 'Terminé', rating: 4.5, favorite: true, watchedAt: '12 juillet 2026', country: 'Royaume-Uni', palette: 'sunset', mark: 'AF', note: "Je repense surtout à ce que le film laisse hors champ. La douceur des vacances devient peu à peu une manière d’approcher une absence, sans jamais la souligner. La dernière danse reste avec moi, comme un souvenir dont on ne sait plus très bien à qui il appartient." },
-  { id: 'in-the-mood', title: 'In the Mood for Love', director: 'Wong Kar-wai', year: 2000, duration: '1 h 38', status: 'Terminé', rating: 5, favorite: true, watchedAt: '4 juillet 2026', country: 'Hong Kong', palette: 'red', mark: '花樣年華' },
-  { id: 'perfect-days', title: 'Perfect Days', director: 'Wim Wenders', year: 2023, duration: '2 h 04', status: 'Terminé', rating: 4, watchedAt: '28 juin 2026', country: 'Japon', palette: 'sky', mark: '日々' },
-  { id: 'the-zone', title: 'La Zone d’intérêt', director: 'Jonathan Glazer', year: 2023, duration: '1 h 45', status: 'Terminé', rating: 4.5, watchedAt: '17 juin 2026', country: 'Royaume-Uni', palette: 'garden', mark: 'TZ' },
-  { id: 'past-lives', title: 'Past Lives', director: 'Celine Song', year: 2023, duration: '1 h 46', status: 'À découvrir', country: 'États-Unis', palette: 'lavender', mark: 'P', note: "À voir un soir où l’on a envie d’un film de conversations, de temps qui passe et de villes lointaines." },
-  { id: 'drive-my-car', title: 'Drive My Car', director: 'Ryūsuke Hamaguchi', year: 2021, duration: '2 h 59', status: 'Terminé', rating: 4, watchedAt: '2 juin 2026', country: 'Japon', palette: 'car', mark: 'DM' },
-  { id: 'anatomy', title: 'Anatomie d’une chute', director: 'Justine Triet', year: 2023, duration: '2 h 31', status: 'Terminé', rating: 4, watchedAt: '23 mai 2026', country: 'France', palette: 'snow', mark: 'A' },
-  { id: 'portrait', title: 'Portrait de la jeune fille en feu', director: 'Céline Sciamma', year: 2019, duration: '2 h 02', status: 'Terminé', rating: 5, favorite: true, watchedAt: '11 mai 2026', country: 'France', palette: 'fire', mark: 'P' },
-  { id: 'mishima', title: 'Mishima', director: 'Paul Schrader', year: 1985, duration: '2 h 00', status: 'À découvrir', country: 'États-Unis', palette: 'mishima', mark: 'M' },
-  { id: 'decision', title: 'Decision to Leave', director: 'Park Chan-wook', year: 2022, duration: '2 h 19', status: 'Terminé', rating: 4.5, watchedAt: '27 avril 2026', country: 'Corée du Sud', palette: 'sea', mark: '헤' },
-  { id: 'petite-maman', title: 'Petite maman', director: 'Céline Sciamma', year: 2021, duration: '1 h 12', status: 'Terminé', rating: 4.5, watchedAt: '9 avril 2026', country: 'France', palette: 'woods', mark: 'PM' },
-  { id: 'dogtooth', title: 'Canine', director: 'Yórgos Lánthimos', year: 2009, duration: '1 h 37', status: 'À découvrir', country: 'Grèce', palette: 'textual', mark: 'ΚΥΝΟΔΟΝΤΑΣ', cover: 'text' },
-  { id: 'paris-texas', title: 'Paris, Texas', director: 'Wim Wenders', year: 1984, duration: '2 h 25', status: 'Terminé', rating: 5, favorite: true, watchedAt: '28 mars 2026', country: 'Allemagne', palette: 'desert', mark: 'PT' },
-  { id: 'memoria', title: 'Memoria', director: 'Apichatpong Weerasethakul', year: 2021, duration: '2 h 16', status: 'À découvrir', country: 'Colombie', palette: 'memoria', mark: 'M' },
+  {
+    id: 'paddington-au-perou',
+    title: 'Paddington au Pérou',
+    director: 'Dougal Wilson',
+    year: 2024,
+    status: 'Terminé',
+    rating: { score: 7, label: 'Très bon' },
+    watchedAt: '2026-01-09',
+    summary: 'Alors que Paddington rend visite à sa tante Lucy, la famille Brown et notre ours préféré plongent dans un voyage inattendu à travers la forêt amazonienne et jusqu’aux sommets du Machu Picchu.',
+    poster: '/posters/paddington-au-perou.jpg',
+  },
+  {
+    id: 'drive',
+    title: 'Drive',
+    director: 'Nicolas Winding Refn',
+    year: 2011,
+    status: 'Terminé',
+    rating: { score: 8, label: 'Excellent' },
+    favorite: true,
+    watchedAt: '2025-10-13',
+    summary: 'Le jour, un cascadeur solitaire travaille pour le cinéma à Hollywood. La nuit, il conduit pour des truands selon son propre code de conduite.',
+    poster: '/posters/drive.jpg',
+  },
+  {
+    id: 'une-bataille-apres-lautre',
+    title: 'Une bataille après l’autre',
+    director: 'Paul Thomas Anderson',
+    year: 2025,
+    status: 'Terminé',
+    rating: { score: 9, label: 'Chef-d’œuvre' },
+    favorite: true,
+    watchedAt: '2025-09-29',
+    summary: 'Ancien révolutionnaire désabusé et paranoïaque, Bob vit en marge de la société avec sa fille Willa. Quand son ennemi juré refait surface, il doit affronter les conséquences de son passé.',
+    poster: '/posters/une-bataille-apres-lautre.jpg',
+  },
+  {
+    id: 'the-phoenician-scheme',
+    title: 'The Phoenician Scheme',
+    director: 'Wes Anderson',
+    year: 2025,
+    status: 'Terminé',
+    rating: { score: 7, label: 'Très bon' },
+    watchedAt: '2025-06-29',
+    summary: 'En 1950, l’industriel Anatole Korda survit à une nouvelle tentative d’assassinat alors qu’il prépare un projet d’infrastructure aux enjeux vertigineux.',
+    poster: '/posters/the-phoenician-scheme.jpg',
+  },
+  {
+    id: 'pauvres-creatures',
+    title: 'Pauvres Créatures',
+    director: 'Yórgos Lánthimos',
+    year: 2023,
+    status: 'Terminé',
+    rating: { score: 8, label: 'Excellent' },
+    watchedAt: '2025-03-19',
+    summary: 'Bella, ramenée à la vie par le docteur Godwin Baxter, découvre le monde et s’émancipe des préjugés de son époque.',
+    poster: '/posters/pauvres-creatures.jpg',
+  },
+  {
+    id: 'portrait-de-la-jeune-fille-en-feu',
+    title: 'Portrait de la jeune fille en feu',
+    director: 'Céline Sciamma',
+    year: 2019,
+    status: 'Terminé',
+    rating: { score: 8, label: 'Excellent' },
+    favorite: true,
+    watchedAt: '2025-03-18',
+    summary: 'En 1770, Marianne doit réaliser secrètement le portrait de mariage d’Héloïse, qui refuse de poser.',
+    poster: '/posters/portrait-de-la-jeune-fille-en-feu.jpg',
+  },
+  {
+    id: 'la-jeune-femme-a-laiguille',
+    title: 'La Jeune femme à l’aiguille',
+    director: 'Magnus von Horn',
+    year: 2025,
+    status: 'Terminé',
+    rating: { score: 9, label: 'Chef-d’œuvre' },
+    favorite: true,
+    watchedAt: '2025-03-10',
+    summary: 'À Copenhague en 1918, Karoline lutte pour survivre et rencontre Dagmar, qui dirige une agence d’adoption clandestine.',
+    poster: '/posters/la-jeune-femme-a-laiguille.jpg',
+  },
+  {
+    id: 'bugonia',
+    title: 'Bugonia',
+    status: 'À découvrir',
+    poster: '/posters/bugonia.jpg',
+  },
 ]
 
 export const series: Series[] = [
-  { id: 'the-bear', title: 'The Bear', creator: 'Christopher Storer', years: '2022 à aujourd’hui', status: 'En cours', seasonsSeen: 3, seasonsTotal: 4, rating: 4.5, favorite: true, lastWatchedAt: '29 juin 2026', country: 'États-Unis', palette: 'kitchen', mark: '03', summary: 'Reprendre avant que les voix, le métal et le rythme de la cuisine ne s’éloignent trop.' },
-  { id: 'severance', title: 'Severance', creator: 'Dan Erickson', years: '2022 à aujourd’hui', status: 'En cours', seasonsSeen: 1, seasonsTotal: 2, rating: 4.5, lastWatchedAt: '18 juin 2026', country: 'États-Unis', palette: 'corridor', mark: 'LUMON', summary: 'Une saison vue, et cette impression nette que chaque couloir en cache un autre.' },
-  { id: 'fleabag', title: 'Fleabag', creator: 'Phoebe Waller-Bridge', years: '2016-2019', status: 'Terminée', seasonsSeen: 2, seasonsTotal: 2, rating: 5, favorite: true, lastWatchedAt: '5 juin 2026', country: 'Royaume-Uni', palette: 'stage', mark: 'FB', summary: 'Deux saisons brèves, précises, qui savent exactement quand détourner le regard.', personalNote: 'La drôlerie ne protège jamais complètement de ce qui arrive. Tout tient dans l’adresse au public, puis dans la façon délicate dont ce refuge finit par devenir inutile.' },
-  { id: 'atlanta', title: 'Atlanta', creator: 'Donald Glover', years: '2016-2022', status: 'Terminée', seasonsSeen: 4, seasonsTotal: 4, rating: 4.5, lastWatchedAt: '22 mai 2026', country: 'États-Unis', palette: 'city', mark: 'ATL', summary: 'Une ville familière et impossible, traversée comme un rêve qui change ses propres règles.', personalNote: 'La série peut être drôle, inquiétante ou presque abstraite sans jamais perdre ses personnages. Elle laisse surtout une manière nouvelle de regarder les lieux ordinaires.' },
-  { id: 'pachinko', title: 'Pachinko', creator: 'Soo Hugh', years: '2022 à aujourd’hui', status: 'En cours', seasonsSeen: 2, seasonsTotal: 2, rating: 4, lastWatchedAt: '8 mai 2026', country: 'Corée du Sud', palette: 'tide', mark: '波', summary: 'Deux saisons vues. Garder le fil des générations avant la suite.' },
-  { id: 'twin-peaks', title: 'Twin Peaks', creator: 'Mark Frost et David Lynch', years: '1990-2017', status: 'Terminée', seasonsSeen: 3, seasonsTotal: 3, rating: 5, favorite: true, lastWatchedAt: '20 avril 2026', country: 'États-Unis', palette: 'lodge', mark: 'TP', summary: 'Une petite ville, trois saisons et des images qui continuent de revenir seules.', personalNote: 'Le feuilleton, le burlesque et la peur habitent le même lieu. Certaines scènes sont devenues moins des souvenirs que des pièces dans lesquelles on peut encore entrer.' },
-  { id: 'the-leftovers', title: 'The Leftovers', creator: 'Damon Lindelof et Tom Perrotta', years: '2014-2017', status: 'Terminée', seasonsSeen: 3, seasonsTotal: 3, rating: 5, favorite: true, lastWatchedAt: '2 avril 2026', country: 'États-Unis', palette: 'weather', mark: '2%', summary: 'Une disparition impossible et tout ce que les vivants inventent pour continuer.', personalNote: 'La série accueille le doute au lieu de le résoudre. À la fin, ce qui compte n’est pas la réponse mais le choix fragile de croire une personne.' },
-  { id: 'shogun', title: 'Shōgun', creator: 'Rachel Kondo et Justin Marks', years: '2024 à aujourd’hui', status: 'À découvrir', seasonsSeen: 0, seasonsTotal: 1, country: 'États-Unis', palette: 'ink', mark: '将軍', summary: 'À commencer pour la durée, les silences et la précision annoncée du monde.' },
-  { id: 'i-may-destroy-you', title: 'I May Destroy You', creator: 'Michaela Coel', years: '2020', status: 'Terminée', seasonsSeen: 1, seasonsTotal: 1, rating: 4.5, lastWatchedAt: '11 mars 2026', country: 'Royaume-Uni', palette: 'night', mark: 'IMDY', summary: 'Une saison qui déplace sans cesse le point de vue et refuse les conclusions simples.', personalNote: 'La série reste mobile, libre, parfois inconfortable. Sa force vient de tout ce qu’elle autorise à être contradictoire dans une même expérience.' },
+  {
+    id: 'empathie',
+    title: 'Empathie',
+    creator: 'Florence Longpré',
+    kind: 'Série',
+    status: 'Terminée',
+    rating: { score: 6, label: 'Bon' },
+    completedAt: '2025-10-22',
+    summary: 'Suzanne, ancienne criminologue devenue psychiatre, arrive à l’Institut psychiatrique Mont-Royal et rencontre des patients qui ne laissent personne indifférent.',
+    poster: '/posters/empathie.jpg',
+  },
+  {
+    id: 'andor',
+    title: 'Andor',
+    creator: 'Tony Gilroy',
+    kind: 'Série',
+    status: 'À découvrir',
+    summary: 'Une série prequel consacrée au personnage de Cassian Andor, apparu au cinéma dans Rogue One.',
+    poster: '/posters/andor.jpg',
+  },
+  {
+    id: 'blue-eye-samurai',
+    title: 'Blue Eye Samurai',
+    creator: 'Michael Green, Amber Noizumi',
+    kind: 'Animation japonaise',
+    status: 'En pause',
+    rating: { score: 9, label: 'Chef-d’œuvre' },
+    favorite: true,
+    summary: 'Un maître d’armes métis vit sous une fausse identité et cherche à se venger dans le Japon de l’époque d’Edo.',
+    poster: '/posters/blue-eye-samurai.jpg',
+  },
+  {
+    id: 'fleabag',
+    title: 'Fleabag',
+    creator: 'Phoebe Waller-Bridge',
+    kind: 'Série',
+    status: 'Terminée',
+    rating: { score: 8, label: 'Excellent' },
+    favorite: true,
+    summary: 'Le quotidien drôle et touchant de Fleabag, une femme à la répartie cinglante, en colère et assaillie par le deuil.',
+    poster: '/posters/fleabag.jpg',
+  },
+  {
+    id: 'shogun',
+    title: 'Shōgun',
+    creator: 'Justin Marks, Rachel Kondo',
+    kind: 'Série',
+    status: 'Terminée',
+    rating: { score: 8, label: 'Excellent' },
+    summary: 'Au Japon en 1600, John Blackthorne arrive au cœur d’une guerre civile où les destins de Toranaga et de sa traductrice Mariko se nouent.',
+    poster: '/posters/shogun.jpg',
+  },
+  {
+    id: 'bojack-horseman',
+    title: 'BoJack Horseman',
+    creator: 'Raphael Bob-Waksberg',
+    kind: 'Série',
+    status: 'Terminée',
+    rating: { score: 9, label: 'Chef-d’œuvre' },
+    favorite: true,
+    summary: 'À Los Angeles, BoJack essaie tant bien que mal de raviver une gloire passée au milieu de ses amis et de son amertume.',
+    poster: '/posters/bojack-horseman.jpg',
+  },
+  {
+    id: 'severance',
+    title: 'Severance',
+    creator: 'Dan Erickson',
+    kind: 'Série',
+    status: 'En pause',
+    rating: { score: 9, label: 'Chef-d’œuvre' },
+    summary: 'Mark Scout travaille chez Lumon, où une opération sépare les souvenirs professionnels des souvenirs privés.',
+    poster: '/posters/severance.jpg',
+  },
+  {
+    id: 'dark',
+    title: 'Dark',
+    creator: 'Baran bo Odar, Jantje Friese',
+    kind: 'Série',
+    status: 'Terminée',
+    rating: { score: 10, label: 'Perfection' },
+    favorite: true,
+    poster: '/posters/dark.jpg',
+  },
 ]
 
+export const recentlyLived = ([
+  { medium: 'Film', date: '2026-01-09', item: films[0] },
+  { medium: 'Film', date: '2025-10-13', item: films[1] },
+  { medium: 'Série', date: '2025-10-22', item: series[0] },
+  { medium: 'Film', date: '2025-09-29', item: films[2] },
+] satisfies RecentItem[]).sort((a, b) => b.date.localeCompare(a.date))
+
 export const filmFilters: FilmFilter[] = ['Tout', 'À découvrir', 'Terminés', 'Favoris']
-export const seriesFilters: SeriesFilter[] = ['Tout', 'À découvrir', 'En cours', 'Terminées', 'Favoris']
+export const seriesFilters: SeriesFilter[] = ['Tout', 'À découvrir', 'Terminées', 'En pause', 'Favoris']
+
+export function formatDate(value?: string) {
+  if (!value) return undefined
+  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${value}T12:00:00`))
+}
 
 function normalize(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr')
@@ -78,7 +240,7 @@ function normalize(value: string) {
 export function filterFilms(items: readonly Film[], query: string, filter: FilmFilter) {
   const normalizedQuery = normalize(query.trim())
   return items.filter((film) => {
-    const matchesQuery = normalize(`${film.title} ${film.director}`).includes(normalizedQuery)
+    const matchesQuery = normalize(`${film.title} ${film.director ?? ''}`).includes(normalizedQuery)
     const matchesFilter = filter === 'Tout'
       || (filter === 'Favoris' ? Boolean(film.favorite) : filter === 'Terminés' ? film.status === 'Terminé' : film.status === 'À découvrir')
     return matchesQuery && matchesFilter
@@ -88,7 +250,7 @@ export function filterFilms(items: readonly Film[], query: string, filter: FilmF
 export function filterSeries(items: readonly Series[], query: string, filter: SeriesFilter) {
   const normalizedQuery = normalize(query.trim())
   return items.filter((show) => {
-    const matchesQuery = normalize(`${show.title} ${show.creator}`).includes(normalizedQuery)
+    const matchesQuery = normalize(`${show.title} ${show.creator ?? ''}`).includes(normalizedQuery)
     const matchesFilter = filter === 'Tout'
       || (filter === 'Favoris' ? Boolean(show.favorite) : filter === 'Terminées' ? show.status === 'Terminée' : show.status === filter)
     return matchesQuery && matchesFilter

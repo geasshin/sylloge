@@ -6,40 +6,42 @@ import {
   films,
   filterFilms,
   filterSeries,
+  formatDate,
   libraryHash,
+  recentlyLived,
   routeFromHash,
   series,
   seriesFilters,
   type Film,
   type FilmFilter,
   type Page,
+  type RecentItem,
   type Series,
   type SeriesFilter,
 } from './catalog'
 import './styles.css'
 
-const recentFilms = films.filter((film) => film.watchedAt).slice(0, 4)
 const icon = (name: string) => <span className={`icon icon-${name}`} aria-hidden="true" />
 
-function FilmCover({ film, large = false }: { film: Film; large?: boolean }) {
-  return (
-    <div className={`cover film-cover cover-${film.palette} ${large ? 'cover-large' : ''} ${film.cover ? 'cover-text' : ''}`}>
-      <span className="cover-grain" />
-      <span className="cover-mark">{film.mark}</span>
-      <span className="cover-title">{film.title}</span>
-      <span className="cover-year">{film.year}</span>
-    </div>
-  )
+type PosterProps = {
+  title: string
+  src: string
+  large?: boolean
 }
 
-function SeriesCover({ show, large = false }: { show: Series; large?: boolean }) {
+function Poster({ title, src, large = false }: PosterProps) {
+  const [missing, setMissing] = useState(false)
+
   return (
-    <div className={`cover series-cover series-${show.palette} ${large ? 'cover-large' : ''}`}>
-      <span className="series-frame" />
-      <span className="series-kind">Série</span>
-      <span className="series-mark">{show.mark}</span>
-      <span className="cover-title">{show.title}</span>
-      <span className="cover-year">{show.years}</span>
+    <div className={`poster ${large ? 'poster-large' : ''}`}>
+      {missing ? (
+        <div className="poster-fallback" role="img" aria-label={`Affiche indisponible pour ${title}`}>
+          <span>Affiche indisponible</span>
+          <b>{title}</b>
+        </div>
+      ) : (
+        <img src={src} alt={`Affiche de ${title}`} onError={() => setMissing(true)} />
+      )}
     </div>
   )
 }
@@ -75,11 +77,16 @@ function Sidebar({ page, goHome, goFilms, goSeries }: SidebarProps) {
   )
 }
 
-function MiniFilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
+function RecentCard({ entry, onOpen }: { entry: RecentItem; onOpen: () => void }) {
+  const { item } = entry
   return (
-    <button className="mini-card" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
-      <FilmCover film={film} />
-      <span className="mini-info"><b>{film.title}</b><small>{film.watchedAt}</small></span>
+    <button className="mini-card" onClick={onOpen} aria-label={`Ouvrir la fiche de ${item.title}`}>
+      <Poster title={item.title} src={item.poster} />
+      <span className="mini-info">
+        <span className="mini-reference">{entry.medium}</span>
+        <b>{item.title}</b>
+        <small>{formatDate(entry.date)}</small>
+      </span>
     </button>
   )
 }
@@ -87,39 +94,39 @@ function MiniFilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
 type HomeProps = {
   onOpenFilm: (film: Film) => void
   onOpenSeries: (show: Series) => void
-  goFilms: () => void
 }
 
-function Home({ onOpenFilm, onOpenSeries, goFilms }: HomeProps) {
-  const ongoing = series.find((show) => show.id === 'the-bear')!
+function Home({ onOpenFilm, onOpenSeries }: HomeProps) {
+  const paused = series.find((show) => show.id === 'severance')!
+  const openRecent = (entry: RecentItem) => entry.medium === 'Film' ? onOpenFilm(entry.item) : onOpenSeries(entry.item)
+
   return (
     <main className="main home-main">
       <header className="home-header">
-        <p className="eyebrow">Vendredi 17 juillet</p>
+        <p className="eyebrow">Échantillon personnel</p>
         <h1 className="display-title">Quelques traces,<br /><em>pour y revenir.</em></h1>
         <p className="lede">Une bibliothèque personnelle de ce qui a compté, de ce qui attend encore.</p>
       </header>
 
       <section className="home-section">
         <div className="section-heading">
-          <div><p className="eyebrow">Ces dernières semaines</p><h2 className="display-title">Récemment vécu</h2></div>
-          <button className="quiet-button" onClick={goFilms}>Voir les films <span>↗</span></button>
+          <div><p className="eyebrow">Derniers éléments datés</p><h2 className="display-title">Récemment vécu</h2></div>
         </div>
         <div className="recent-grid">
-          {recentFilms.map((film) => <MiniFilmCard key={film.id} film={film} onOpen={() => onOpenFilm(film)} />)}
+          {recentlyLived.map((entry) => <RecentCard key={`${entry.medium}-${entry.item.id}`} entry={entry} onOpen={() => openRecent(entry)} />)}
         </div>
       </section>
 
       <section className="in-progress">
         <div className="in-progress-copy">
-          <p className="eyebrow">À poursuivre · Série</p>
-          <h2>{ongoing.title}</h2>
-          <p>{ongoing.creator} · {ongoing.seasonsSeen} saisons vues</p>
-          <p className="note-preview">{ongoing.summary}</p>
-          <button className="text-link" onClick={() => onOpenSeries(ongoing)}>Ouvrir la fiche <span>→</span></button>
+          <p className="eyebrow">À reprendre · {paused.kind}</p>
+          <h2>{paused.title}</h2>
+          <p>{[paused.creator, paused.status].filter(Boolean).join(' · ')}</p>
+          {paused.summary && <p className="note-preview">{paused.summary}</p>}
+          <button className="text-link" onClick={() => onOpenSeries(paused)}>Ouvrir la fiche <span>→</span></button>
         </div>
-        <button className="featured-cover" onClick={() => onOpenSeries(ongoing)} aria-label={`Ouvrir la fiche de ${ongoing.title}`}>
-          <SeriesCover show={ongoing} />
+        <button className="featured-poster" onClick={() => onOpenSeries(paused)} aria-label={`Ouvrir la fiche de ${paused.title}`}>
+          <Poster title={paused.title} src={paused.poster} />
         </button>
       </section>
     </main>
@@ -154,8 +161,23 @@ function CollectionMeta({ count, singular, plural, filter }: { count: number; si
   return (
     <div className="collection-meta">
       <p aria-live="polite">{count} {count > 1 ? plural : singular} {filter !== 'Tout' ? `· ${filter.toLocaleLowerCase('fr')}` : ''}</p>
-      <button type="button">Trier par ajout <span>⌄</span></button>
     </div>
+  )
+}
+
+function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
+  const creatorAndYear = [film.director, film.year].filter((value) => value !== undefined).join(' · ')
+  return (
+    <button className="film-card" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
+      <Poster title={film.title} src={film.poster} />
+      <span className="film-card-info">
+        <span className="film-card-top"><b>{film.title}</b>{film.favorite && <i aria-label="Favori">♥</i>}</span>
+        {creatorAndYear && <small>{creatorAndYear}</small>}
+        <span className={`status-line ${film.status === 'À découvrir' ? 'to-discover' : ''}`}>
+          {film.watchedAt ? `Vu le ${formatDate(film.watchedAt)}` : film.status}
+        </span>
+      </span>
+    </button>
   )
 }
 
@@ -167,32 +189,30 @@ function FilmsLibrary({ onOpen }: { onOpen: (film: Film) => void }) {
     <main className="main library-main">
       <header className="library-header">
         <div><p className="eyebrow">Collection personnelle</p><h1 className="display-title">Films</h1></div>
-        <button className="add-button" type="button">Ajouter un film <span>+</span></button>
       </header>
       <LibraryTools query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} filters={filmFilters} placeholder="Rechercher un titre, un réalisateur…" label="Rechercher un film" />
       <CollectionMeta count={results.length} singular="film" plural="films" filter={filter} />
       {results.length ? (
         <div className="film-grid">
-          {results.map((film) => (
-            <button className="film-card" key={film.id} onClick={() => onOpen(film)} aria-label={`Ouvrir la fiche de ${film.title}`}>
-              <FilmCover film={film} />
-              <span className="film-card-info">
-                <span className="film-card-top"><b>{film.title}</b>{film.favorite && <i aria-label="Favori">♥</i>}</span>
-                <small>{film.director} · {film.year}</small>
-                {film.status === 'Terminé' && <span className="seen">Vu {film.watchedAt?.replace(' 2026', '')}</span>}
-              </span>
-            </button>
-          ))}
+          {results.map((film) => <FilmCard film={film} key={film.id} onOpen={() => onOpen(film)} />)}
         </div>
       ) : <EmptyState label="Aucun film ne correspond à cette recherche." onReset={() => { setQuery(''); setFilter('Tout') }} />}
     </main>
   )
 }
 
-function seriesProgress(show: Series) {
-  if (show.status === 'À découvrir') return 'À découvrir'
-  const noun = show.seasonsSeen > 1 ? 'saisons vues' : 'saison vue'
-  return `${show.seasonsSeen} ${noun}`
+function SeriesCard({ show, onOpen }: { show: Series; onOpen: () => void }) {
+  const attribution = [show.kind, show.creator].filter(Boolean).join(' · ')
+  return (
+    <button className="film-card series-card" onClick={onOpen} aria-label={`Ouvrir la fiche de ${show.title}`}>
+      <Poster title={show.title} src={show.poster} />
+      <span className="film-card-info">
+        <span className="film-card-top"><b>{show.title}</b>{show.favorite && <i aria-label="Favori">♥</i>}</span>
+        {attribution && <small>{attribution}</small>}
+        <span className={`status-line ${show.status === 'À découvrir' ? 'to-discover' : ''} ${show.status === 'En pause' ? 'is-paused' : ''}`}>{show.status}</span>
+      </span>
+    </button>
+  )
 }
 
 function SeriesLibrary({ onOpen }: { onOpen: (show: Series) => void }) {
@@ -203,22 +223,12 @@ function SeriesLibrary({ onOpen }: { onOpen: (show: Series) => void }) {
     <main className="main library-main series-main">
       <header className="library-header">
         <div><p className="eyebrow">Collection personnelle</p><h1 className="display-title">Séries</h1></div>
-        <button className="add-button" type="button">Ajouter une série <span>+</span></button>
       </header>
       <LibraryTools query={query} setQuery={setQuery} filter={filter} setFilter={setFilter} filters={seriesFilters} placeholder="Rechercher un titre, une création…" label="Rechercher une série" />
       <CollectionMeta count={results.length} singular="série" plural="séries" filter={filter} />
       {results.length ? (
         <div className="film-grid series-grid">
-          {results.map((show) => (
-            <button className="film-card series-card" key={show.id} onClick={() => onOpen(show)} aria-label={`Ouvrir la fiche de ${show.title}`}>
-              <SeriesCover show={show} />
-              <span className="film-card-info">
-                <span className="film-card-top"><b>{show.title}</b>{show.favorite && <i aria-label="Favori">♥</i>}</span>
-                <small>{show.creator} · {show.years}</small>
-                <span className={`seen series-progress ${show.status === 'À découvrir' ? 'to-discover' : ''}`}>{seriesProgress(show)}</span>
-              </span>
-            </button>
-          ))}
+          {results.map((show) => <SeriesCard show={show} key={show.id} onOpen={() => onOpen(show)} />)}
         </div>
       ) : <EmptyState label="Aucune série ne correspond à cette recherche." onReset={() => { setQuery(''); setFilter('Tout') }} />}
     </main>
@@ -255,40 +265,52 @@ function DetailShell({ title, closeLabel, onClose, visual, children }: DetailShe
   )
 }
 
+function DetailStates({ status, rating, favorite }: { status: string; rating?: Film['rating']; favorite?: boolean }) {
+  return (
+    <div className="detail-state">
+      <span>{status}</span>
+      {rating && <span>{rating.score} / 10 · {rating.label}</span>}
+      {favorite && <span>Favori</span>}
+    </div>
+  )
+}
+
 function FilmDetail({ film, onClose }: { film: Film; onClose: () => void }) {
   return (
-    <DetailShell title={film.title} closeLabel="Retour aux films" onClose={onClose} visual={<FilmCover film={film} large />}>
+    <DetailShell title={film.title} closeLabel="Retour aux films" onClose={onClose} visual={<Poster title={film.title} src={film.poster} large />}>
       <div className="detail-content">
-        <p className="eyebrow">Film · {film.country}</p>
+        <p className="eyebrow">Film</p>
         <h1 className="display-title">{film.title}</h1>
-        <p className="detail-creator">{film.director}</p>
-        <p className="detail-meta">{film.year} <i /> {film.duration}</p>
-        <div className="detail-state"><span>{film.status}</span>{film.rating && <span>{film.rating.toString().replace('.', ',')} / 5</span>}{film.favorite && <span>Favori</span>}</div>
-        {film.watchedAt && <p className="watched">Vu le {film.watchedAt}</p>}
-        <div className="detail-divider" />
-        <section className="personal-note"><p className="eyebrow">Note personnelle</p><p>{film.note || 'Une œuvre conservée ici, à revoir ou à découvrir quand le moment sera juste.'}</p></section>
-        <section className="details-list"><div><span>Réalisé par</span><b>{film.director}</b></div><div><span>Année</span><b>{film.year}</b></div><div><span>Durée</span><b>{film.duration}</b></div></section>
+        {film.director && <p className="detail-creator">{film.director}</p>}
+        {film.year && <p className="detail-meta">{film.year}</p>}
+        <DetailStates status={film.status} rating={film.rating} favorite={film.favorite} />
+        {film.watchedAt && <p className="watched">Vu le {formatDate(film.watchedAt)}</p>}
+        {film.summary && (
+          <section className="summary">
+            <h2 className="display-title">Résumé</h2>
+            <p>{film.summary}</p>
+          </section>
+        )}
       </div>
     </DetailShell>
   )
 }
 
 function SeriesDetail({ show, onClose }: { show: Series; onClose: () => void }) {
-  const total = show.seasonsTotal ? ` sur ${show.seasonsTotal}` : ''
-  const seasonsLabel = show.seasonsSeen === 1 ? 'saison vue' : 'saisons vues'
-  const noteLabel = show.status === 'Terminée' ? 'Note personnelle' : 'À garder en tête'
   return (
-    <DetailShell title={show.title} closeLabel="Retour aux séries" onClose={onClose} visual={<SeriesCover show={show} large />}>
+    <DetailShell title={show.title} closeLabel="Retour aux séries" onClose={onClose} visual={<Poster title={show.title} src={show.poster} large />}>
       <div className="detail-content series-detail-content">
-        <p className="eyebrow">Série · {show.country}</p>
+        <p className="eyebrow">{show.kind ?? 'Série'}</p>
         <h1 className="display-title">{show.title}</h1>
-        <p className="detail-creator">{show.creator}</p>
-        <p className="detail-meta">{show.years} <i /> {show.seasonsSeen}{total} {seasonsLabel}</p>
-        <div className="detail-state"><span>{show.status}</span>{show.rating && <span>{show.rating.toString().replace('.', ',')} / 5</span>}{show.favorite && <span>Favori</span>}</div>
-        {show.lastWatchedAt && <p className="watched">Dernière saison vue le {show.lastWatchedAt}</p>}
-        <div className="detail-divider" />
-        <section className="personal-note"><p className="eyebrow">{noteLabel}</p><p>{show.personalNote || show.summary}</p></section>
-        <section className="details-list"><div><span>Création</span><b>{show.creator}</b></div><div><span>Années</span><b>{show.years}</b></div><div><span>Saisons vues</span><b>{show.seasonsSeen}{show.seasonsTotal ? ` / ${show.seasonsTotal}` : ''}</b></div></section>
+        {show.creator && <p className="detail-creator">{show.creator}</p>}
+        <DetailStates status={show.status} rating={show.rating} favorite={show.favorite} />
+        {show.completedAt && <p className="watched">Terminée le {formatDate(show.completedAt)}</p>}
+        {show.summary && (
+          <section className="summary">
+            <h2 className="display-title">Résumé</h2>
+            <p>{show.summary}</p>
+          </section>
+        )}
       </div>
     </DetailShell>
   )
@@ -323,7 +345,7 @@ function App() {
   return (
     <div className="app">
       <Sidebar page={route.page} goHome={goHome} goFilms={goFilms} goSeries={goSeries} />
-      {route.page === 'home' && <Home onOpenFilm={openFilm} onOpenSeries={openSeries} goFilms={goFilms} />}
+      {route.page === 'home' && <Home onOpenFilm={openFilm} onOpenSeries={openSeries} />}
       {route.page === 'films' && <FilmsLibrary onOpen={openFilm} />}
       {route.page === 'series' && <SeriesLibrary onOpen={openSeries} />}
       {selectedFilm && <FilmDetail film={selectedFilm} onClose={closeDetail} />}
