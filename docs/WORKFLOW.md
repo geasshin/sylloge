@@ -13,7 +13,9 @@ Sylloge est développé par incréments vérifiables : une version contient un l
 | Codex | Exécute un lot de code borné dans le dépôt, avec critères d’acceptation et rapport exact. Il ne décide pas seul du produit ni de l’architecture future. |
 | Git | Historique fiable : une baseline, des commits lisibles et des tags de version. |
 
-Hermes peut aussi modifier directement du code lorsque le changement est très local, bien compris et facile à vérifier. Pour une fonctionnalité transversale ou une refonte, Codex reste le lane d’implémentation privilégié ; Hermes conserve la maîtrise du périmètre et de la vérification.
+Pour Sylloge, chaque fonctionnalité ou correctif produit passe par un run Codex borné. Hermes n’écrit pas le code de ces lots : il transforme l’idée en brief précis, supervise l’exécution, contrôle le diff et les preuves, puis revient vers Aurélien avant le lot suivant. Hermes peut modifier les documents d’orchestration et de vérification ; Codex reste le lane d’implémentation de code.
+
+Les runs Codex demandent explicitement **GPT-5.6 Terra avec effort very high**. Si cette combinaison est indisponible ou refusée, Hermes s’arrête et le signale au lieu de substituer silencieusement un modèle. Une nouvelle idée est triée avant tout prompt : elle rejoint le lot courant seulement si elle est nécessaire sans en modifier le contrat ; sinon elle est distribuée dans la prochaine version cohérente ou le backlog. Une direction ambiguë, coûteuse ou structurante exige un arbitrage d’Aurélien avant implémentation.
 
 ## Versionnement
 
@@ -49,6 +51,8 @@ Pour les correctifs minuscules, une branche reste recommandée mais peut être �
 ### 1. Pré-vol — gate bloquant
 
 Avant de coder : lire `ROADMAP.md`, vérifier la branche, `git status`, le dernier tag, les documents concernés et les prérequis techniques. Un arbre inattendu, un test rouge ou une décision produit ambiguë bloque le départ.
+
+Chaque lot de code est suivi d’un retour factuel à Aurélien — comportement livré, preuves automatisées et comportementales, limites — avant qu’un nouveau brief Codex soit lancé.
 
 ### 2. Brief borné
 
