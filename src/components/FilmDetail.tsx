@@ -10,11 +10,12 @@ function formatWatchedDate(value: string): string {
 type FilmDetailProps = {
   film: Film
   onBack: () => void
+  backLabel: string
   onEdit: () => void
   onDelete: () => Promise<void>
 }
 
-export function FilmDetail({ film, onBack, onEdit, onDelete }: FilmDetailProps) {
+export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete }: FilmDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -35,7 +36,7 @@ export function FilmDetail({ film, onBack, onEdit, onDelete }: FilmDetailProps) 
   return (
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
-        <button className="back-button" type="button" onClick={onBack}>← Retour aux films</button>
+        <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
         <button className="secondary-button" type="button" onClick={onEdit}>Modifier</button>
       </header>
 

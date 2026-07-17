@@ -20,18 +20,20 @@ npm install
 npm run tauri:dev
 ~~~
 
-Pour créer le bundle macOS release :
+Pour créer un bundle macOS local non publiable :
 
 ~~~bash
-npm run tauri:build
+npm run tauri:build -- --no-sign
 open src-tauri/target/release/bundle/macos/Sylloge.app
 ~~~
+
+Pour un bundle signé distribuable et la publication GitHub, suivre `docs/TAURI_UPDATER_SETUP.md`. Le build release produit un DMG pour l’installation initiale et une archive `.app.tar.gz` signée pour l’updater.
 
 ## Données et sauvegarde
 
 Les données macOS sont dans ~/Library/Application Support/com.aurelientrouble.sylloge/. La base est sylloge.db, accompagnée si nécessaire de sylloge.db-wal et sylloge.db-shm. Ne pas les copier pendant que l’application est ouverte.
 
-Dans l’écran « Profils et JSON » actuel, l’export `sylloge-films` v1 reste lisible et ne contient ni secret ni image. Un import est d’abord validé, puis crée toujours un nouveau profil : le profil existant n’est jamais écrasé. Un dossier de sauvegarde explicite peut aussi créer des snapshots JSON atomiques après le premier changement du jour par profil ou à la demande ; seuls les 30 snapshots enregistrés par Sylloge les plus récents sont conservés. Ne jamais copier la SQLite active, son WAL ou son SHM pendant que l’application est ouverte.
+Dans Paramètres, l’export `sylloge-films` v1 reste lisible et ne contient ni secret ni image. Un import est d’abord validé, puis crée toujours un nouveau profil : le profil existant n’est jamais écrasé. Un dossier de sauvegarde explicite peut aussi créer des snapshots JSON atomiques après le premier changement du jour par profil ou à la demande ; seuls les 30 snapshots enregistrés par Sylloge les plus récents sont conservés. Ne jamais copier la SQLite active, son WAL ou son SHM pendant que l’application est ouverte.
 
 ## Vérifier
 
@@ -44,4 +46,4 @@ cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy -
 
 ## Périmètre actuel
 
-Films uniquement : saisie manuelle, recherche, filtres, favoris, notes, profils locaux, import/export JSON et sauvegardes portables. Les Séries, Livres, Jeux, Art, la synchronisation et la distribution signée avec mise à jour intégrée restent des évolutions futures.
+Films uniquement : saisie manuelle, recherche, filtres, favoris, notes, profils locaux, import/export JSON, sauvegardes portables, Accueil éditorial et Paramètres. La chaîne d’updater Tauri est configurée pour des GitHub Releases signées ; sa première preuve de distribution nécessite encore deux versions réellement signées. Les Séries, Livres, Jeux, Art et la synchronisation restent des évolutions futures.

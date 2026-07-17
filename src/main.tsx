@@ -4,6 +4,8 @@ import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability } from './components/Portability.tsx'
+import { updaterPreferencesService } from './data/updaterPreferences.ts'
+import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
 import {
@@ -16,31 +18,41 @@ import {
 import type { FilmWriteInput } from './domain/filmForm.ts'
 import './styles.css'
 
-type IconName = 'archive' | 'film' | 'search'
+type IconName = 'film' | 'home' | 'search' | 'settings'
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
 
 type SidebarProps = {
   count: number | null
   currentProfileName: string | null
-  portabilityActive: boolean
-  onReturn: () => void
-  onPortability: () => void
+  activeItem: 'home' | 'library' | 'settings'
+  onHome: () => void
+  onLibrary: () => void
+  onSettings: () => void
 }
 
-function Sidebar({ count, currentProfileName, portabilityActive, onReturn, onPortability }: SidebarProps) {
+function Sidebar({ count, currentProfileName, activeItem, onHome, onLibrary, onSettings }: SidebarProps) {
   return (
     <aside className="sidebar">
-      <button className="wordmark" onClick={onReturn} aria-label="Retour à la bibliothèque Films">
+      <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
         <span className="wordmark-mark">S</span>
         <span>Sylloge</span>
       </button>
       <nav aria-label="Navigation principale">
-        <p className="nav-label">Collection</p>
+        <p className="nav-label">Bibliothèque</p>
         <button
-          className={`nav-item ${portabilityActive ? '' : 'active'}`}
-          onClick={onReturn}
-          aria-current={portabilityActive ? undefined : 'page'}
+          className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
+          type="button"
+          onClick={onHome}
+          aria-current={activeItem === 'home' ? 'page' : undefined}
+        >
+          {icon('home')} Accueil
+        </button>
+        <button
+          className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
+          type="button"
+          onClick={onLibrary}
+          aria-current={activeItem === 'library' ? 'page' : undefined}
         >
           {icon('film')} Films
           {count !== null && <span className="nav-count">{count}</span>}
@@ -49,12 +61,12 @@ function Sidebar({ count, currentProfileName, portabilityActive, onReturn, onPor
       <div className="sidebar-bottom">
         {currentProfileName && <p className="sidebar-profile" title={currentProfileName}>{currentProfileName}</p>}
         <button
-          className={`nav-item ${portabilityActive ? 'active' : ''}`}
+          className={`nav-item ${activeItem === 'settings' ? 'active' : ''}`}
           type="button"
-          onClick={onPortability}
-          aria-current={portabilityActive ? 'page' : undefined}
+          onClick={onSettings}
+          aria-current={activeItem === 'settings' ? 'page' : undefined}
         >
-          {icon('archive')} Profils et JSON
+          {icon('settings')} Paramètres
         </button>
       </div>
     </aside>
@@ -110,6 +122,210 @@ function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
       <p>Ajoutez un premier film, avec un titre seulement si vous le souhaitez.</p>
       <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un film</button>
     </div>
+  )
+}
+
+function compareTitles(first: Film, second: Film): number {
+  return first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }) || first.id.localeCompare(second.id)
+}
+
+function compareByCreatedAt(first: Film, second: Film): number {
+  return second.createdAt.localeCompare(first.createdAt) || compareTitles(first, second)
+}
+
+function compareByWatchedAt(first: Film, second: Film): number {
+  return (second.watchedAt ?? '').localeCompare(first.watchedAt ?? '') || compareByCreatedAt(first, second)
+}
+
+function formatCalendarDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatWatchedDay(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
+}
+
+type CalendarDay = {
+  date: Date
+  key: string
+  filmCount: number
+}
+
+function buildCalendarDays(films: Film[]): CalendarDay[] {
+  const filmCounts = new Map<string, number>()
+  films.forEach((film) => {
+    if (film.status === 'terminé' && film.watchedAt) {
+      filmCounts.set(film.watchedAt, (filmCounts.get(film.watchedAt) ?? 0) + 1)
+    }
+  })
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const weekday = today.getDay() || 7
+  const firstDay = new Date(today)
+  firstDay.setDate(today.getDate() - weekday + 1 - 28)
+
+  return Array.from({ length: 35 }, (_, index) => {
+    const date = new Date(firstDay)
+    date.setDate(firstDay.getDate() + index)
+    const key = formatCalendarDate(date)
+    return { date, key, filmCount: filmCounts.get(key) ?? 0 }
+  })
+}
+
+function HomeFilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
+  const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
+
+  return (
+    <button className="home-film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
+      <Poster title={film.title} src={film.posterUrl} className="home-film-poster" />
+      <span className="home-film-card-info">
+        <b>{film.title}</b>
+        {attribution && <small>{attribution}</small>}
+      </span>
+    </button>
+  )
+}
+
+function HomeFilmModule({
+  title,
+  description,
+  films,
+  emptyMessage,
+  className = '',
+  onOpen,
+}: {
+  title: string
+  description: string
+  films: Film[]
+  emptyMessage: string
+  className?: string
+  onOpen: (film: Film) => void
+}) {
+  const headingId = `${title.toLocaleLowerCase('fr').replaceAll(' ', '-')}-title`
+
+  return (
+    <section className={`home-module ${className}`.trim()} aria-labelledby={headingId}>
+      <header className="home-module-heading">
+        <div>
+          <p className="card-kicker">Films</p>
+          <h2 id={headingId}>{title}</h2>
+        </div>
+        <p>{description}</p>
+      </header>
+      {films.length > 0 ? (
+        <div className="home-film-list">
+          {films.map((film) => <HomeFilmCard key={film.id} film={film} onOpen={() => onOpen(film)} />)}
+        </div>
+      ) : (
+        <p className="home-module-empty">{emptyMessage}</p>
+      )}
+    </section>
+  )
+}
+
+type HomeProps = {
+  library: FilmLibrary
+  onOpen: (film: Film) => void
+}
+
+function Home({ library, onOpen }: HomeProps) {
+  const recentlyWatched = library.films
+    .filter((film) => film.status === 'terminé' && film.watchedAt)
+    .sort(compareByWatchedAt)
+    .slice(0, 4)
+  const favorites = library.films
+    .filter((film) => film.isFavorite)
+    .sort(compareByCreatedAt)
+    .slice(0, 4)
+  const waiting = library.films
+    .filter((film) => film.status === 'en attente')
+    .sort(compareByCreatedAt)
+    .slice(0, 4)
+  const recentlyAdded = [...library.films].sort(compareByCreatedAt).slice(0, 4)
+  const calendarDays = buildCalendarDays(library.films)
+  const hasViewedFilm = calendarDays.some((day) => day.filmCount > 0)
+  const contextualFilms = waiting.length > 0 ? waiting : recentlyAdded
+  const contextualTitle = waiting.length > 0 ? 'En attente' : 'Ajoutés récemment'
+  const contextualDescription = waiting.length > 0 ? 'Films marqués en attente' : 'Films ajoutés récemment à la bibliothèque'
+  const contextualEmptyMessage = waiting.length > 0
+    ? 'Aucun film en attente n’est disponible à afficher.'
+    : 'Aucun film n’a encore été ajouté à la bibliothèque.'
+
+  return (
+    <main className="main home-main" aria-label="Accueil">
+      <div className="home-content">
+        <header className="home-heading">
+          <p className="eyebrow">Bibliothèque locale</p>
+          <h1 className="display-title">Accueil</h1>
+        </header>
+
+        <div className="home-grid">
+          <HomeFilmModule
+            title="Vus récemment"
+            description="Films terminés avec une date de visionnage"
+            films={recentlyWatched}
+            emptyMessage="Aucun film terminé avec une date de visionnage."
+            className="home-module-recent"
+            onOpen={onOpen}
+          />
+          <HomeFilmModule
+            title="Favoris"
+            description="Films marqués comme favoris"
+            films={favorites}
+            emptyMessage="Aucun film n’est marqué comme favori."
+            className="home-module-favorites"
+            onOpen={onOpen}
+          />
+          <HomeFilmModule
+            title={contextualTitle}
+            description={contextualDescription}
+            films={contextualFilms}
+            emptyMessage={contextualEmptyMessage}
+            className="home-module-context"
+            onOpen={onOpen}
+          />
+          <section className="home-module home-module-calendar" aria-labelledby="watched-calendar-title">
+            <header className="home-module-heading">
+              <div>
+                <p className="card-kicker">Films</p>
+                <h2 id="watched-calendar-title">Films vus</h2>
+              </div>
+              <p>Les cinq dernières semaines</p>
+            </header>
+            <div className="home-calendar" aria-label="Calendrier des films vus pendant les cinq dernières semaines">
+              <div className="home-calendar-weekdays" aria-hidden="true">
+                {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
+              </div>
+              <ol className="home-calendar-days">
+                {calendarDays.map(({ date, key, filmCount }) => {
+                  const dayLabel = formatWatchedDay(key)
+                  const countLabel = filmCount === 1 ? '1 film vu' : `${filmCount} films vus`
+                  return (
+                    <li
+                      className={filmCount > 0 ? 'viewed' : ''}
+                      key={key}
+                      aria-label={filmCount > 0 ? `${dayLabel} : ${countLabel}` : dayLabel}
+                    >
+                      <time dateTime={key} aria-hidden="true">{date.getDate()}</time>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
+            <p className={hasViewedFilm ? 'home-calendar-note' : 'home-module-empty'}>
+              {hasViewedFilm
+                ? 'Les jours marqués correspondent à au moins un film terminé et daté.'
+                : 'Aucun film terminé daté au cours des cinq dernières semaines.'}
+            </p>
+          </section>
+        </div>
+      </div>
+    </main>
   )
 }
 
@@ -230,11 +446,12 @@ type LibraryState =
   | { status: 'error' }
 
 type View =
+  | { name: 'home' }
   | { name: 'library' }
-  | { name: 'portability' }
+  | { name: 'settings' }
   | { name: 'create' }
-  | { name: 'detail'; filmId: string }
-  | { name: 'edit'; filmId: string }
+  | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
+  | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
@@ -244,11 +461,12 @@ type SqliteFilmDetailProps = {
   profileId: string
   filmId: string
   onBack: () => void
+  backLabel: string
   onEdit: () => void
   onDelete: () => Promise<void>
 }
 
-function SqliteFilmDetail({ profileId, filmId, onBack, onEdit, onDelete }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -274,13 +492,13 @@ function SqliteFilmDetail({ profileId, filmId, onBack, onEdit, onDelete }: Sqlit
   }, [attempt, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} onEdit={onEdit} onDelete={onDelete} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} />
   }
 
   return (
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
-        <button className="back-button" type="button" onClick={onBack}>← Retour aux films</button>
+        <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
       </header>
       {state.status === 'loading' ? (
         <div className="library-state" role="status">
@@ -305,10 +523,11 @@ function App() {
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
   const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', filter: 'all' })
-  const [view, setView] = useState<View>({ name: 'library' })
+  const [view, setView] = useState<View>({ name: 'home' })
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [searchAttempt, setSearchAttempt] = useState(0)
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
+  const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
 
@@ -333,6 +552,28 @@ function App() {
       cancelled = true
     }
   }, [loadAttempt])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const preferences = await updaterPreferencesService.get()
+        if (cancelled || !preferences.automaticChecksEnabled) return
+
+        const update = await tauriUpdaterService.check()
+        if (!cancelled && update && preferences.ignoredVersion !== update.version) {
+          setAvailableUpdate(update)
+        }
+      } catch (error) {
+        console.error('La recherche automatique des mises à jour a échoué.', error)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (libraryState.status !== 'ready') return
@@ -378,7 +619,7 @@ function App() {
   }, [view])
 
   const leaveLibrary = (nextView: View) => {
-    libraryScrollPosition.current = window.scrollY
+    if (view.name === 'library') libraryScrollPosition.current = window.scrollY
     setView(nextView)
     window.scrollTo({ top: 0 })
   }
@@ -400,21 +641,28 @@ function App() {
 
   if (libraryState.status === 'loading') {
     content = (
-      <main className="main library-main">
-        <header className="library-header">
-          <div><p className="eyebrow">Collection personnelle</p><h1 className="display-title">Films</h1></div>
+      <main className="main home-main">
+        <header className="home-heading">
+          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
         </header>
         <LoadingState />
       </main>
     )
   } else if (libraryState.status === 'error') {
     content = (
-      <main className="main library-main">
-        <header className="library-header">
-          <div><p className="eyebrow">Collection personnelle</p><h1 className="display-title">Films</h1></div>
+      <main className="main home-main">
+        <header className="home-heading">
+          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
         </header>
         <ErrorState onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
       </main>
+    )
+  } else if (view.name === 'home') {
+    content = (
+      <Home
+        library={libraryState.library}
+        onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'home' })}
+      />
     )
   } else if (view.name === 'create') {
     const { library } = libraryState
@@ -429,18 +677,18 @@ function App() {
             library: updatedLibrary,
           })
           requestAutomaticBackup(updatedLibrary)
-          setView({ name: 'detail', filmId: film.id })
+          setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
           window.scrollTo({ top: 0 })
         }}
       />
     )
-  } else if (view.name === 'portability') {
+  } else if (view.name === 'settings') {
     const { library } = libraryState
     content = (
       <Portability
         library={library}
         profiles={profiles}
-        onBack={returnToLibrary}
+        onBack={() => leaveLibrary({ name: 'home' })}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
           setLibraryContext({ query: '', filter: 'all' })
@@ -455,6 +703,9 @@ function App() {
           })
         }}
         onBackupNotice={setBackupNotice}
+        availableUpdate={availableUpdate}
+        onUpdateAvailable={setAvailableUpdate}
+        onUpdateHandled={() => setAvailableUpdate(null)}
       />
     )
   } else if (view.name === 'detail') {
@@ -463,8 +714,9 @@ function App() {
       <SqliteFilmDetail
         profileId={library.profile.id}
         filmId={view.filmId}
-        onBack={returnToLibrary}
-        onEdit={() => setView({ name: 'edit', filmId: view.filmId })}
+        onBack={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}
+        backLabel={view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
+        onEdit={() => setView({ name: 'edit', filmId: view.filmId, returnTo: view.returnTo })}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
           const updatedLibrary: FilmLibrary = {
@@ -476,7 +728,8 @@ function App() {
             library: updatedLibrary,
           })
           requestAutomaticBackup(updatedLibrary)
-          returnToLibrary()
+          if (view.returnTo === 'home') leaveLibrary({ name: 'home' })
+          else returnToLibrary()
         }}
       />
     )
@@ -488,7 +741,9 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={returnToLibrary}>← Retour aux films</button>
+            <button className="back-button" type="button" onClick={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}>
+              {view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
+            </button>
           </header>
           <div className="library-state error-state" role="alert">
             <h2>Ce film ne peut pas être modifié.</h2>
@@ -500,7 +755,7 @@ function App() {
       content = (
         <FilmForm
           film={film}
-          onCancel={() => setView({ name: 'detail', filmId: film.id })}
+          onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: view.returnTo })}
           onSave={async (input: FilmWriteInput) => {
             const updatedAt = await filmsRepository.updateFilm(library.profile.id, film.id, input)
             const updatedFilm: Film = { ...film, ...input, updatedAt }
@@ -513,7 +768,7 @@ function App() {
               library: updatedLibrary,
             })
             requestAutomaticBackup(updatedLibrary)
-            setView({ name: 'detail', filmId: film.id })
+            setView({ name: 'detail', filmId: film.id, returnTo: view.returnTo })
             window.scrollTo({ top: 0 })
           }}
         />
@@ -528,7 +783,7 @@ function App() {
         onContextChange={setLibraryContext}
         onRetrySearch={() => setSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => leaveLibrary({ name: 'create' })}
-        onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id })}
+        onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })}
       />
     )
   }
@@ -538,12 +793,10 @@ function App() {
       <Sidebar
         count={count}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
-        portabilityActive={view.name === 'portability'}
-        onReturn={returnToLibrary}
-        onPortability={() => {
-          setView({ name: 'portability' })
-          window.scrollTo({ top: 0 })
-        }}
+        activeItem={libraryState.status !== 'ready' || view.name === 'home' ? 'home' : view.name === 'settings' ? 'settings' : 'library'}
+        onHome={() => leaveLibrary({ name: 'home' })}
+        onLibrary={returnToLibrary}
+        onSettings={() => leaveLibrary({ name: 'settings' })}
       />
       {content}
       {backupNotice && (

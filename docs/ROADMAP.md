@@ -1,6 +1,6 @@
 # Sylloge — feuille de route vers la V1 publique
 
-> **Statut :** feuille de route active. Le jalon `0.2.0` est livré ; le prochain jalon proposé est `0.3.0`.
+> **Statut :** feuille de route active. Le jalon `0.2.0` est livré ; le code du jalon `0.3.0` est prêt pour sa validation native et sa première distribution signée de test.
 >
 > Les versions sont des hypothèses de séquencement, pas des promesses de calendrier. Une version ne démarre qu’après la validation de la précédente et peut être découpée si l’audit technique montre qu’elle est trop large.
 
@@ -74,7 +74,9 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 **But :** rendre les réglages locaux compréhensibles et préparer un vrai cycle de mise à jour, sans confondre une branche Git avec une application distribuée.
 
-- Ajouter une page Accueil calme, distincte de la grille Films et non conçue comme un dashboard : profil courant, point d’entrée pour ajouter un film ou parcourir la collection, et repères minimaux sur la bibliothèque locale.
+**État :** code, migrations, chaîne de signature Tauri, manifestes et guide de release prêts ; reste la preuve native à deux versions réellement signées et publiées. La première installation demeure manuelle et la distribution macOS reste sans Developer ID.
+
+- Ajouter une page Accueil calme, distincte de la grille Films et non conçue comme un dashboard : composition éditoriale pleine page fondée exclusivement sur les Films locaux réels, avec Vus récemment, Favoris, Films vus et un module contextuel. Les actions d’ajout et de parcours restent dans Films.
 - Remplacer l’entrée « Profils et JSON » de la navigation par une icône Paramètres claire et accessible ; y organiser des sections sobres : **Profils**, **Données et sauvegardes**, **Application** et **À propos**.
 - Dans Profils : ouvrir, créer, renommer et supprimer un profil local. La suppression doit être explicitement confirmée, annoncer le nombre de films concernés, ne jamais supprimer le dernier profil utilisable ni le profil actuellement ouvert : il faut d’abord ouvrir un autre profil. Un import ne doit jamais déclencher une suppression.
 - Dans Données et sauvegardes : regrouper snapshots portables, export JSON et import dans un nouveau profil. Sylloge utilise SQLite locale ; aucun serveur MySQL ou administration de base distante n’entre dans le produit.

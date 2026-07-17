@@ -1,5 +1,6 @@
 mod database;
 mod portability;
+mod updater_preferences;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -11,6 +12,8 @@ pub fn run() {
                 .add_migrations(database::DATABASE_URL, database::migrations())
                 .build(),
         )
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             portability::pick_import_json,
             portability::save_export_json,
@@ -19,6 +22,9 @@ pub fn run() {
             portability::save_manual_backup_snapshot,
             portability::save_automatic_backup_snapshot,
             portability::import_library_atomically,
+            updater_preferences::get_updater_preferences,
+            updater_preferences::set_updater_automatic_checks_enabled,
+            updater_preferences::set_ignored_updater_version,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
