@@ -1,93 +1,47 @@
-# Sylloge — version 0.1.0
+# Sylloge
 
-Sylloge est une première baseline privée d’une bibliothèque culturelle personnelle, locale et actuellement centrée sur les Films. La base SQLite locale est la source de vérité. Aucune API, aucun compte et aucune connexion ne sont nécessaires pour créer, consulter ou modifier une fiche.
+Sylloge est une bibliothèque culturelle personnelle, locale et durable. La première version couvre les Films. SQLite est la source de vérité : aucun compte, API ou accès réseau n’est nécessaire pour créer, consulter ou modifier une fiche.
 
-La documentation active de pilotage et la feuille de route sont dans [`docs/`](docs/README.md).
+## Structure
 
-## Lancer l'application
+- src/domain : modèle Film, validation et format JSON versionné.
+- src/data : accès SQLite et pont vers les commandes Tauri.
+- src/components : fiche, formulaire, affiche et portabilité.
+- src-tauri : application Rust, migrations SQLite et dialogues natifs.
+- DESIGN.md : direction visuelle validée.
+- docs : feuille de route et mode de travail versionnés.
 
-Prérequis de développement : Node.js avec npm, Rust avec Cargo et les Xcode Command Line Tools.
+## Lancer
 
-Après récupération du dépôt, installer les dépendances une fois :
+Prérequis : Node.js avec npm, Rust avec Cargo et les Xcode Command Line Tools.
 
-```bash
+~~~bash
 npm install
-```
-
-Pour lancer Sylloge en développement dans une fenêtre Tauri :
-
-```bash
 npm run tauri:dev
-```
+~~~
 
-Pour produire le bundle macOS release :
+Pour créer le bundle macOS release :
 
-```bash
+~~~bash
 npm run tauri:build
-```
-
-Le bundle local canonique est alors :
-
-```text
-src-tauri/target/release/bundle/macos/Sylloge.app
-```
-
-Il peut être ouvert depuis le Finder ou depuis la racine du dépôt :
-
-```bash
 open src-tauri/target/release/bundle/macos/Sylloge.app
-```
+~~~
 
-Le bundle `release` est celui à utiliser. Un éventuel bundle sous `src-tauri/target/debug/` est un artefact de développement et ne doit pas être présenté comme l'application finale. Le build ne copie rien dans `/Applications` ni dans `~/Applications`.
+## Données et sauvegarde
 
-## Données locales AppConfig
+Les données macOS sont dans ~/Library/Application Support/com.aurelientrouble.sylloge/. La base est sylloge.db, accompagnée si nécessaire de sylloge.db-wal et sylloge.db-shm. Ne pas les copier pendant que l’application est ouverte.
 
-L'identifiant macOS est `com.aurelientrouble.sylloge`. Tauri place les données AppConfig de cette application dans :
+Pour une sauvegarde cohérente, utiliser Profils et JSON. L’export sylloge-films v1 est lisible et ne contient ni secret ni image. Un import est d’abord validé, puis crée toujours un nouveau profil : le profil existant n’est jamais écrasé.
 
-```text
-~/Library/Application Support/com.aurelientrouble.sylloge/
-```
+## Vérifier
 
-La base principale est :
-
-```text
-~/Library/Application Support/com.aurelientrouble.sylloge/sylloge.db
-```
-
-SQLite peut aussi créer `sylloge.db-wal` et `sylloge.db-shm`. Ces fichiers font partie de son fonctionnement normal. Ne pas déplacer, modifier ou copier la base pendant que Sylloge est ouverte. Pour une sauvegarde portable et cohérente, utiliser l'export JSON intégré.
-
-## Export manuel et restauration
-
-Pour sauvegarder le profil courant :
-
-1. Ouvrir `Profils et JSON` dans la barre latérale.
-2. Vérifier le profil courant et le nombre de films.
-3. Choisir `Exporter en JSON`.
-4. Choisir le dossier et le nom du fichier dans la fenêtre macOS, puis enregistrer.
-
-Le fichier est un JSON lisible au format `sylloge-films`, version 1. Il contient le profil et tous les champs Films V1. Il ne contient ni image téléchargée ni secret.
-
-Pour vérifier ou restaurer cet export sans écraser un profil existant :
-
-1. Dans `Profils et JSON`, choisir `Choisir un JSON Sylloge`.
-2. Sélectionner le fichier exporté.
-3. Lire l'aperçu de validation et le nombre d'erreurs.
-4. Si le document est valide, choisir `Créer le nouveau profil et importer`.
-5. Vérifier le rapport final et le nouveau profil courant.
-
-L'import crée toujours un nouveau profil. Un document invalide est bloqué avant écriture.
-
-## Contrôles du dépôt
-
-```bash
+~~~bash
 npm run typecheck
 npm run verify
 npm run build
 cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy --all-targets -- -D warnings
-```
+~~~
 
-Le bundle release complet se construit séparément avec `npm run tauri:build` depuis la racine.
+## Périmètre actuel
 
-## Limites de la version 0.1.0
-
-Cette baseline couvre uniquement les films, la saisie manuelle, la recherche, les filtres, les profils locaux minimaux et la portabilité JSON Sylloge v1. Elle n'inclut pas l'import Notion ou CSV, Letterboxd, TMDB, les autres médiums, la synchronisation, les sauvegardes automatiques, le thème sombre ni une distribution signée Developer ID et notarisée.
+Films uniquement : saisie manuelle, recherche, filtres, favoris, notes, profils locaux et portabilité JSON. Les Séries, Livres, Jeux, Art, la synchronisation, les sauvegardes automatiques et la distribution signée restent des évolutions futures.

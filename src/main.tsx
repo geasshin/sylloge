@@ -5,11 +5,19 @@ import { FilmForm } from './components/FilmForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability } from './components/Portability.tsx'
 import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
-import type { Film, FilmFilter, FilmStatus } from './domain/film.ts'
+import {
+  FILM_FILTER_LABELS,
+  FILM_FILTERS,
+  FILM_STATUS_LABELS,
+  type Film,
+  type FilmFilter,
+} from './domain/film.ts'
 import type { FilmWriteInput } from './domain/filmForm.ts'
 import './styles.css'
 
-const icon = (name: string) => <span className={`icon icon-${name}`} aria-hidden="true" />
+type IconName = 'archive' | 'film' | 'search'
+
+const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
 
 type SidebarProps = {
   count: number | null
@@ -52,22 +60,6 @@ function Sidebar({ count, currentProfileName, portabilityActive, onReturn, onPor
   )
 }
 
-const STATUS_LABELS: Record<FilmStatus, string> = {
-  'à découvrir': 'À découvrir',
-  'en attente': 'En attente',
-  'terminé': 'Terminé',
-  'abandonné': 'Abandonné',
-}
-
-const FILTER_LABELS: Record<FilmFilter, string> = {
-  all: 'Tous',
-  'to-discover': 'À découvrir',
-  completed: 'Terminés',
-  favorites: 'Favoris',
-}
-
-const FILTERS = Object.keys(FILTER_LABELS) as FilmFilter[]
-
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
 
@@ -81,7 +73,7 @@ function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
         </span>
         {attribution && <small>{attribution}</small>}
         <span className={`status-line ${film.status === 'à découvrir' ? 'to-discover' : ''}`}>
-          {STATUS_LABELS[film.status]}
+          {FILM_STATUS_LABELS[film.status]}
         </span>
       </span>
     </button>
@@ -178,7 +170,7 @@ function FilmsLibrary({
               />
             </label>
             <div className="filters" role="group" aria-label="Filtrer les films">
-              {FILTERS.map((filter) => (
+              {FILM_FILTERS.map((filter) => (
                 <button
                   className={`filter ${context.filter === filter ? 'active' : ''}`}
                   type="button"
@@ -186,7 +178,7 @@ function FilmsLibrary({
                   key={filter}
                   onClick={() => onContextChange({ ...context, filter })}
                 >
-                  {FILTER_LABELS[filter]}
+                  {FILM_FILTER_LABELS[filter]}
                 </button>
               ))}
             </div>

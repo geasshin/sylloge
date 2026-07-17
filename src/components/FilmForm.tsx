@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { FILM_STATUSES, type Film } from '../domain/film.ts'
+import { FILM_STATUSES, FILM_STATUS_LABELS, type Film } from '../domain/film.ts'
 import {
   EMPTY_FILM_FORM,
   filmToFormValues,
@@ -10,13 +10,6 @@ import {
   type FilmWriteInput,
 } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
-
-const STATUS_LABELS = {
-  'à découvrir': 'À découvrir',
-  'en attente': 'En attente',
-  'terminé': 'Terminé',
-  'abandonné': 'Abandonné',
-} as const
 
 const RATINGS = Array.from({ length: 10 }, (_, index) => (index + 1) / 2)
 
@@ -109,7 +102,7 @@ export function FilmForm({ film, onCancel, onSave }: FilmFormProps) {
               aria-invalid={Boolean(errors.status)}
               aria-describedby={errors.status ? 'status-error' : undefined}
             >
-              {FILM_STATUSES.map((status) => <option value={status} key={status}>{STATUS_LABELS[status]}</option>)}
+              {FILM_STATUSES.map((status) => <option value={status} key={status}>{FILM_STATUS_LABELS[status]}</option>)}
             </select>
             {errors.status && <p className="field-error" id="status-error">{errors.status}</p>}
           </div>

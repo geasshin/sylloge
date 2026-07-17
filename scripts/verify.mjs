@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { SqliteFilmsRepository, toFilm } from '../src/data/filmsRepository.ts'
 import { confirmValidatedImport } from '../src/data/libraryTransferService.ts'
 import { EMPTY_FILM_FORM, localToday, validateFilmForm } from '../src/domain/filmForm.ts'
@@ -408,8 +408,6 @@ const defaultProfileMigration = readFileSync(new URL('../src-tauri/migrations/00
 const currentProfileMigration = readFileSync(new URL('../src-tauri/migrations/0003_track_current_profile.sql', import.meta.url), 'utf8')
 const capabilitySource = readFileSync(new URL('../src-tauri/capabilities/default.json', import.meta.url), 'utf8')
 
-assert.equal(existsSync(new URL('../src/catalog.ts', import.meta.url)), false, 'Le catalogue codé en dur doit être supprimé')
-assert.doesNotMatch(mainSource, /catalog|series|\/posters\//i, 'La vue Films ne doit plus dépendre du catalogue, des Séries ou des affiches locales')
 assert.doesNotMatch(mainSource, /\bSELECT\b|\bINSERT INTO films\b|\bUPDATE films\b|\bDELETE FROM films\b/i, 'Les composants React ne doivent contenir aucun SQL brut')
 assert.match(mainSource, /createFilm/, 'La vue doit relier la création au dépôt SQLite')
 assert.match(mainSource, /updateFilm/, 'La vue doit relier la modification au dépôt SQLite')

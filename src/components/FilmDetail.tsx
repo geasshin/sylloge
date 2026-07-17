@@ -1,13 +1,6 @@
 import { useState } from 'react'
-import type { Film, FilmStatus } from '../domain/film.ts'
+import { FILM_STATUS_LABELS, type Film } from '../domain/film.ts'
 import { Poster } from './Poster.tsx'
-
-const STATUS_LABELS: Record<FilmStatus, string> = {
-  'à découvrir': 'À découvrir',
-  'en attente': 'En attente',
-  'terminé': 'Terminé',
-  'abandonné': 'Abandonné',
-}
 
 function formatWatchedDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -60,7 +53,7 @@ export function FilmDetail({ film, onBack, onEdit, onDelete }: FilmDetailProps) 
           <dl className="film-facts">
             <div>
               <dt>Statut</dt>
-              <dd>{STATUS_LABELS[film.status]}</dd>
+              <dd>{FILM_STATUS_LABELS[film.status]}</dd>
             </div>
             {film.isFavorite && (
               <div>
