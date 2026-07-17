@@ -54,13 +54,13 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 **But :** rendre Films agréable à consulter et à alimenter longtemps, sans changer sa promesse.
 
-- Revue visuelle de l’application native à des tailles de fenêtre réalistes.
+- Stabilisation visuelle de l’application native à des tailles de fenêtre réalistes, sans préjuger du front-end définitif prévu avant la V1.
 - Corrections ciblées de hiérarchie, densité, formulaires, fiches, états vides et retours de navigation.
 - Mouvement discret seulement là où il clarifie une transition ; pas d’animation décorative.
 - Stabilisation des comportements de fenêtre, de la sidebar et des longs titres / notes / accents.
 - Contrôle de la lisibilité de l’icône, de l’identité Archive calme et des fallbacks de visuels.
 
-**Exclusions :** thème sombre, nouvelles collections ou métriques d’activité.
+**Exclusions :** refonte complète du front-end, thème sombre, nouvelles collections ou métriques d’activité.
 
 ### `0.2.0` — Sauvegardes portables dans un dossier choisi
 
@@ -74,14 +74,18 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 **But :** rendre les réglages locaux compréhensibles et préparer un vrai cycle de mise à jour, sans confondre une branche Git avec une application distribuée.
 
-- Remplacer l’entrée « Profils et JSON » de la navigation par une icône Paramètres claire et accessible ; y organiser des sections sobres : profils et données, sauvegardes portables, import/export JSON et À propos.
+- Ajouter une page Accueil calme, distincte de la grille Films et non conçue comme un dashboard : profil courant, point d’entrée pour ajouter un film ou parcourir la collection, et repères minimaux sur la bibliothèque locale.
+- Remplacer l’entrée « Profils et JSON » de la navigation par une icône Paramètres claire et accessible ; y organiser des sections sobres : **Profils**, **Données et sauvegardes**, **Application** et **À propos**.
+- Dans Profils : ouvrir, créer, renommer et supprimer un profil local. La suppression doit être explicitement confirmée, annoncer le nombre de films concernés, ne jamais supprimer le dernier profil utilisable ni le profil actuellement ouvert : il faut d’abord ouvrir un autre profil. Un import ne doit jamais déclencher une suppression.
+- Dans Données et sauvegardes : regrouper snapshots portables, export JSON et import dans un nouveau profil. Sylloge utilise SQLite locale ; aucun serveur MySQL ou administration de base distante n’entre dans le produit.
+- Ajouter un onboarding obligatoire de premier lancement : choisir un nom de profil puis démarrer une bibliothèque vide ou importer un JSON existant. Il reste accessible plus tard depuis les Paramètres, ne force ni import ni compte et ne réapparaît pas après une configuration réussie.
 - À propos affiche le nom, la version installée, les informations locales utiles et l’état de recherche de mise à jour.
 - Mettre en place un mécanisme de mise à jour Tauri qui consulte uniquement des **releases publiées et signées** ; l’application ne doit jamais traiter une nouvelle révision de `main` comme une mise à jour téléchargeable.
 - Lorsqu’une release plus récente existe : alerte accessible avec version et notes ; choix « Télécharger et installer », « Plus tard » et « Ignorer cette version » ; réglage explicite pour désactiver la recherche automatique tout en gardant une vérification manuelle dans À propos.
 - Valider les migrations et l’ouverture d’une bibliothèque existante après installation d’un nouveau bundle ; une mise à jour ne doit jamais effacer, déplacer ni synchroniser la SQLite vivante.
 - Définir une publication de jalon : version cohérente dans les manifestes, artefact macOS, signature de l’updater, tag Git et release GitHub. La source de mise à jour est cette release, non le dépôt de travail.
 
-**Gates avant implémentation :** choisir le mode de signature de l’updater, vérifier l’accès des installations au canal de releases GitHub et définir une politique de conservation/rotation des clés. Aucun faux bouton « Mettre à jour » ne doit être affiché avant l’existence d’un artefact réellement installable.
+**Gates avant implémentation :** politiques produit validées : un autre profil doit être ouvert avant toute suppression du profil courant ; le premier lancement demande un nom et le choix entre bibliothèque vide ou import. Restent à choisir le mode de signature de l’updater, à vérifier l’accès des installations au canal de releases GitHub et à définir une politique de conservation/rotation des clés. Aucun faux bouton « Mettre à jour » ne doit être affiché avant l’existence d’un artefact réellement installable.
 
 ### `0.4.0` — Interopérabilité CSV
 
@@ -152,7 +156,23 @@ La feuille de route ci-dessous suppose par défaut l’**option B**, parce que l
 
 ## 5. Préparation de la V1 publique
 
-### `0.8.0` — Fiabilité, qualité et confidentialité
+### `0.8.0` — Front-end définitif et langage visuel de V1
+
+**But :** faire de Sylloge une application desktop visuellement cohérente, agréable et pleinement maîtrisée avant la V1, sans ajouter de capacité produit.
+
+- Établir le contrat visuel définitif dans `DESIGN.md` : palette par rôles, hiérarchie typographique, échelles d’espacement, rayons, bordures, icônes, états et règles de composition. La direction « Archive calme » reste le socle ; il ne s’agit ni d’un look SaaS ni d’un dashboard.
+- Définir puis implémenter les tailles **minimale**, de référence et **maximale** de la fenêtre native, avec un comportement explicite en plein écran. L’application ne doit plus pouvoir être réduite à une largeur ou hauteur qui rend ses flux inutilisables.
+- Concevoir les compositions desktop dans la plage de tailles retenue : sidebar, page Accueil, bibliothèque, recherche et filtres, fiches, formulaires, Paramètres, onboarding, dialogues et états vides / erreur / chargement. Le responsive ne doit pas dériver vers une interface mobile improvisée.
+- Reprendre les composants communs de manière systématique : boutons, champs, sélecteurs, filtres, navigation, cartes, panneaux, alertes et confirmations ; chaque état normal, survolé, actif, désactivé, focus clavier et erreur doit être défini et cohérent.
+- Donner une identité éditoriale à la page Accueil et aux vues de collection : rythme, densité, surfaces, images et espaces négatifs au service des œuvres, plutôt qu’une accumulation de widgets ou de métriques.
+- Définir un langage de mouvement utile et sobre pour les changements de vue, ouverture de fiche, dialogues et retours d’action ; respecter `prefers-reduced-motion` et ne jamais faire dépendre la compréhension d’une animation.
+- Valider visuellement et au clavier les parcours principaux sur les tailles de fenêtre cibles, avec contenus courts, longs, incomplets et affiches absentes ou cassées.
+
+**Gates avant implémentation :** inventorier toutes les surfaces V1 réellement présentes ; valider une direction visuelle unique et ses écrans de référence ; fixer les valeurs de fenêtre minimale, de référence et maximale après essai natif ; documenter les critères d’acceptation accessibles et les règles de mouvement. Aucun nouveau médium ni flux fonctionnel ne doit être ajouté au prétexte du redesign.
+
+**Exclusions :** thème sombre, données de démonstration inventées, nouveau médium, API, cloud, compte, synchronisation, modification du modèle de données ou des formats d’import/export.
+
+### `0.9.0` — Fiabilité, qualité et confidentialité
 
 - Tests de migration, import/export, compatibilité de formats et scénarios de restauration.
 - Régression visuelle et d’accessibilité sur les flux principaux.
@@ -160,7 +180,7 @@ La feuille de route ci-dessous suppose par défaut l’**option B**, parce que l
 - Documentation d’usage, sauvegarde, récupération, limites et politique de confidentialité locale.
 - Audit des dépendances, permissions Tauri et licences des contenus / fournisseurs externes.
 
-### `0.9.0` — Distribution macOS et Windows
+### `0.10.0` — Distribution macOS et Windows
 
 - Build reproductible et test réel sur macOS et Windows.
 - Installateurs appropriés, icônes, nom, version, documentation d’installation et mécanisme de mise à jour à décider.
