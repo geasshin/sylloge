@@ -31,7 +31,7 @@ open src-tauri/target/release/bundle/macos/Sylloge.app
 
 Les données macOS sont dans ~/Library/Application Support/com.aurelientrouble.sylloge/. La base est sylloge.db, accompagnée si nécessaire de sylloge.db-wal et sylloge.db-shm. Ne pas les copier pendant que l’application est ouverte.
 
-Pour une sauvegarde cohérente, utiliser Profils et JSON. L’export sylloge-films v1 est lisible et ne contient ni secret ni image. Un import est d’abord validé, puis crée toujours un nouveau profil : le profil existant n’est jamais écrasé.
+Dans l’écran « Profils et JSON » actuel, l’export `sylloge-films` v1 reste lisible et ne contient ni secret ni image. Un import est d’abord validé, puis crée toujours un nouveau profil : le profil existant n’est jamais écrasé. Un dossier de sauvegarde explicite peut aussi créer des snapshots JSON atomiques après le premier changement du jour par profil ou à la demande ; seuls les 30 snapshots enregistrés par Sylloge les plus récents sont conservés. Ne jamais copier la SQLite active, son WAL ou son SHM pendant que l’application est ouverte.
 
 ## Vérifier
 
@@ -44,4 +44,4 @@ cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy -
 
 ## Périmètre actuel
 
-Films uniquement : saisie manuelle, recherche, filtres, favoris, notes, profils locaux et portabilité JSON. Les Séries, Livres, Jeux, Art, la synchronisation, les sauvegardes automatiques et la distribution signée restent des évolutions futures.
+Films uniquement : saisie manuelle, recherche, filtres, favoris, notes, profils locaux, import/export JSON et sauvegardes portables. Les Séries, Livres, Jeux, Art, la synchronisation et la distribution signée avec mise à jour intégrée restent des évolutions futures.

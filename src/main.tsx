@@ -4,6 +4,7 @@ import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability } from './components/Portability.tsx'
+import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
 import {
   FILM_FILTER_LABELS,
@@ -307,6 +308,7 @@ function App() {
   const [view, setView] = useState<View>({ name: 'library' })
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [searchAttempt, setSearchAttempt] = useState(0)
+  const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
 
@@ -387,6 +389,12 @@ function App() {
     setView({ name: 'library' })
   }
 
+  const requestAutomaticBackup = (library: FilmLibrary) => {
+    void backupService.tryAutomaticSnapshot(library).then((notice) => {
+      if (notice) setBackupNotice(notice)
+    })
+  }
+
   const count = libraryState.status === 'ready' ? libraryState.library.films.length : null
   let content
 
@@ -415,10 +423,12 @@ function App() {
         onCancel={returnToLibrary}
         onSave={async (input) => {
           const film = await filmsRepository.createFilm(library.profile.id, input)
+          const updatedLibrary: FilmLibrary = { ...library, films: sortFilms([...library.films, film]) }
           setLibraryState({
             status: 'ready',
-            library: { ...library, films: sortFilms([...library.films, film]) },
+            library: updatedLibrary,
           })
+          requestAutomaticBackup(updatedLibrary)
           setView({ name: 'detail', filmId: film.id })
           window.scrollTo({ top: 0 })
         }}
@@ -439,10 +449,12 @@ function App() {
         onImported={(importedLibrary) => {
           setLibraryContext({ query: '', filter: 'all' })
           setLibraryState({ status: 'ready', library: importedLibrary })
+          requestAutomaticBackup(importedLibrary)
           filmsRepository.listProfiles().then(setProfiles, (error: unknown) => {
             console.error('Impossible de rafraîchir la liste des profils.', error)
           })
         }}
+        onBackupNotice={setBackupNotice}
       />
     )
   } else if (view.name === 'detail') {
@@ -455,10 +467,15 @@ function App() {
         onEdit={() => setView({ name: 'edit', filmId: view.filmId })}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
+          const updatedLibrary: FilmLibrary = {
+            ...library,
+            films: library.films.filter((entry) => entry.id !== view.filmId),
+          }
           setLibraryState({
             status: 'ready',
-            library: { ...library, films: library.films.filter((entry) => entry.id !== view.filmId) },
+            library: updatedLibrary,
           })
+          requestAutomaticBackup(updatedLibrary)
           returnToLibrary()
         }}
       />
@@ -487,13 +504,15 @@ function App() {
           onSave={async (input: FilmWriteInput) => {
             const updatedAt = await filmsRepository.updateFilm(library.profile.id, film.id, input)
             const updatedFilm: Film = { ...film, ...input, updatedAt }
+            const updatedLibrary: FilmLibrary = {
+              ...library,
+              films: sortFilms(library.films.map((entry) => entry.id === film.id ? updatedFilm : entry)),
+            }
             setLibraryState({
               status: 'ready',
-              library: {
-                ...library,
-                films: sortFilms(library.films.map((entry) => entry.id === film.id ? updatedFilm : entry)),
-              },
+              library: updatedLibrary,
             })
+            requestAutomaticBackup(updatedLibrary)
             setView({ name: 'detail', filmId: film.id })
             window.scrollTo({ top: 0 })
           }}
@@ -527,6 +546,12 @@ function App() {
         }}
       />
       {content}
+      {backupNotice && (
+        <div className={`backup-notice ${backupNotice.kind}`} role={backupNotice.kind === 'error' ? 'alert' : 'status'} aria-atomic="true">
+          <p>{backupNotice.message}</p>
+          <button type="button" onClick={() => setBackupNotice(null)} aria-label="Fermer le message de sauvegarde">Fermer</button>
+        </div>
+      )}
     </div>
   )
 }

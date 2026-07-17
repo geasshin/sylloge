@@ -37,12 +37,12 @@ Le libellé oral « 0.11 » est ambigu : dans un outil technique, il signifie g�
 
 ### Règle simple pour Sylloge
 
-1. `main` contient uniquement une version vérifiée, taguée et poussée.
-2. Un lot de code non trivial part dans une branche courte, par exemple `release/0.1.1-stabilisation`.
-3. Hermes relit le diff et lance les contrôles.
-4. Aurélien valide le résultat d’usage.
-5. Hermes demande explicitement l’accord avant fusion dans `main`.
-6. Une fois fusionné : tag de version et mise à jour des documents. Un dépôt distant ne sera configuré ou alimenté que sur demande d’Aurélien.
+1. `main` contient uniquement les **jalons publiés** : `0.2.0`, `0.3.0`, `0.4.0`…, vérifiés, tagués et poussés.
+2. Une branche de jalon, par exemple `release/0.2.0-sauvegardes`, peut contenir plusieurs lots internes et commits cohérents avant sa fusion ; les numéros intermédiaires ne sont pas des releases publiques.
+3. Hermes relit chaque diff et lance les contrôles applicables ; Aurélien exerce la QA visible avant chaque commit de lot.
+4. Une pull request n’est pas requise pour ce dépôt individuel. Un commit et un merge restent deux opérations distinctes : le commit fige la branche, le merge intègre son historique dans `main`.
+5. Hermes demande explicitement l’accord avant la fusion d’un jalon dans `main`.
+6. Une fois fusionné : mettre à jour les manifestes et documents, créer le tag de version, puis **proposer** le push de `main` et du tag vers GitHub. Un merge local ne pousse jamais automatiquement quoi que ce soit.
 
 Pour les correctifs minuscules, une branche reste recommandée mais peut être évitée si Aurélien demande explicitement une intervention directe sur `main`.
 

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { backupService, type BackupNotice } from '../data/backupService.ts'
 import {
   createLibraryExport,
   exportFileName,
@@ -9,7 +10,7 @@ import {
 import type { FilmLibrary, ProfileSummary } from '../data/filmsRepository.ts'
 import { filmsRepository } from '../data/filmsRepository.ts'
 import { confirmValidatedImport } from '../data/libraryTransferService.ts'
-import { pickImportJson, saveExportJson } from '../data/nativePortability.ts'
+import { pickImportJson, saveExportJson, type BackupSettings } from '../data/nativePortability.ts'
 
 type SelectedImport = {
   fileName: string
@@ -28,9 +29,17 @@ type PortabilityProps = {
   onBack: () => void
   onSwitchProfile: (profileId: string) => Promise<void>
   onImported: (library: FilmLibrary) => void
+  onBackupNotice: (notice: BackupNotice) => void
 }
 
-export function Portability({ library, profiles, onBack, onSwitchProfile, onImported }: PortabilityProps) {
+export function Portability({
+  library,
+  profiles,
+  onBack,
+  onSwitchProfile,
+  onImported,
+  onBackupNotice,
+}: PortabilityProps) {
   const [exportState, setExportState] = useState<'idle' | 'saving'>('idle')
   const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [choosingImport, setChoosingImport] = useState(false)
@@ -40,6 +49,41 @@ export function Portability({ library, profiles, onBack, onSwitchProfile, onImpo
   const [report, setReport] = useState<ImportReport | null>(null)
   const [switchingProfileId, setSwitchingProfileId] = useState<string | null>(null)
   const [profileError, setProfileError] = useState<string | null>(null)
+  const [backupSettings, setBackupSettings] = useState<BackupSettings | null>(null)
+  const [loadingBackupSettings, setLoadingBackupSettings] = useState(true)
+  const [choosingBackupDirectory, setChoosingBackupDirectory] = useState(false)
+  const [savingBackup, setSavingBackup] = useState(false)
+  const [backupMessage, setBackupMessage] = useState<BackupNotice | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoadingBackupSettings(true)
+    setBackupMessage(null)
+
+    backupService.getSettings(library.profile.id).then(
+      (settings) => {
+        if (!cancelled) setBackupSettings(settings)
+      },
+      (error: unknown) => {
+        console.error('Impossible de lire le réglage de sauvegarde.', error)
+        if (!cancelled) {
+          const notice: BackupNotice = {
+            kind: 'error',
+            message: 'Le réglage de sauvegarde n’a pas pu être lu. Les films restent disponibles dans SQLite.',
+          }
+          setBackupSettings(null)
+          setBackupMessage(notice)
+          onBackupNotice(notice)
+        }
+      },
+    ).finally(() => {
+      if (!cancelled) setLoadingBackupSettings(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [library.profile.id, onBackupNotice])
 
   const exportProfile = async () => {
     setExportState('saving')
@@ -120,6 +164,44 @@ export function Portability({ library, profiles, onBack, onSwitchProfile, onImpo
     }
   }
 
+  const chooseBackupDirectory = async () => {
+    setChoosingBackupDirectory(true)
+    setBackupMessage(null)
+    try {
+      const settings = await backupService.pickDirectory(library.profile.id)
+      if (!settings) {
+        setBackupMessage({ kind: 'success', message: 'Choix du dossier annulé. Les sauvegardes automatiques restent inchangées.' })
+        return
+      }
+      const notice: BackupNotice = {
+        kind: 'success',
+        message: 'Dossier de sauvegarde enregistré pour ce profil. La prochaine modification pourra créer le snapshot automatique du jour.',
+      }
+      setBackupSettings(settings)
+      setBackupMessage(notice)
+      onBackupNotice(notice)
+    } catch (error) {
+      console.error('Impossible d’enregistrer le dossier de sauvegarde.', error)
+      const notice: BackupNotice = {
+        kind: 'error',
+        message: 'Le dossier choisi ne peut pas être utilisé pour les sauvegardes. Aucun réglage n’a été modifié.',
+      }
+      setBackupMessage(notice)
+      onBackupNotice(notice)
+    } finally {
+      setChoosingBackupDirectory(false)
+    }
+  }
+
+  const saveManualBackup = async () => {
+    setSavingBackup(true)
+    setBackupMessage(null)
+    const notice = await backupService.saveManualSnapshot(library)
+    setBackupMessage(notice)
+    onBackupNotice(notice)
+    setSavingBackup(false)
+  }
+
   return (
     <main className="main portability-main">
       <header className="page-action-bar">
@@ -182,6 +264,49 @@ export function Portability({ library, profiles, onBack, onSwitchProfile, onImpo
             {exportState === 'saving' ? 'Choix du fichier…' : 'Exporter en JSON'}
           </button>
           {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
+        </section>
+
+        <section className="portability-card backup-card" aria-labelledby="backup-title">
+          <div className="portability-card-heading">
+            <div>
+              <p className="card-kicker">Snapshots JSON v1</p>
+              <h2 id="backup-title">Sauvegardes portables</h2>
+            </div>
+          </div>
+          <p>
+            Choisissez un dossier local. Il peut déjà être synchronisé par votre propre service, mais Sylloge ne copie jamais la base SQLite active.
+          </p>
+
+          {loadingBackupSettings ? (
+            <p className="backup-state" role="status">Lecture du réglage local…</p>
+          ) : backupSettings ? (
+            <>
+              <dl className="backup-summary">
+                <div><dt>Dossier</dt><dd title={backupSettings.backupDirectory}>{backupSettings.backupDirectory}</dd></div>
+                <div><dt>Automatique</dt><dd>{backupSettings.lastAutomaticSnapshotDay ?? 'Pas encore créé'}</dd></div>
+                <div><dt>Conservation</dt><dd>30 snapshots par profil</dd></div>
+              </dl>
+              <p className="backup-policy">
+                Un snapshot est tenté après le premier changement réussi de ce profil chaque jour local. « Sauvegarder maintenant » crée toujours un nouveau JSON.
+              </p>
+              <div className="backup-actions">
+                <button className="primary-button" type="button" onClick={saveManualBackup} disabled={savingBackup || choosingBackupDirectory}>
+                  {savingBackup ? 'Sauvegarde…' : 'Sauvegarder maintenant'}
+                </button>
+                <button className="secondary-button" type="button" onClick={chooseBackupDirectory} disabled={savingBackup || choosingBackupDirectory}>
+                  {choosingBackupDirectory ? 'Choix du dossier…' : 'Changer de dossier'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="backup-state">Les sauvegardes automatiques sont inactives pour ce profil tant qu’aucun dossier local n’est choisi.</p>
+              <button className="primary-button" type="button" onClick={chooseBackupDirectory} disabled={choosingBackupDirectory}>
+                {choosingBackupDirectory ? 'Choix du dossier…' : 'Choisir un dossier de sauvegarde'}
+              </button>
+            </>
+          )}
+          {backupMessage && <p className={`inline-report ${backupMessage.kind === 'error' ? 'error' : ''}`} role={backupMessage.kind === 'error' ? 'alert' : 'status'}>{backupMessage.message}</p>}
         </section>
 
         <section className="portability-card import-card" aria-labelledby="import-title">

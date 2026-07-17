@@ -1,6 +1,6 @@
 [package]
 name = "sylloge"
-version = "0.1.0"
+version = "0.2.0"
 description = "Bibliothèque culturelle personnelle et locale."
 license = "UNLICENSED"
 edition = "2021"
