@@ -46,5 +46,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0007_normalize_film_optional_data.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "create_film_tmdb_cache",
+            sql: include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

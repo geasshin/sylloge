@@ -1,5 +1,6 @@
 mod database;
 mod portability;
+mod tmdb;
 mod updater_preferences;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -27,6 +28,11 @@ pub fn run() {
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,
+            tmdb::get_tmdb_key_status,
+            tmdb::configure_tmdb_key,
+            tmdb::delete_tmdb_key,
+            tmdb::get_film_tmdb_cache,
+            tmdb::purge_expired_tmdb_cache,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -36,6 +42,7 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            tmdb::schedule_expired_cache_purge(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())
