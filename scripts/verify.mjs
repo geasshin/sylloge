@@ -351,6 +351,75 @@ const completeExport = createLibraryExport({
 }
 
 {
+  const historicalDocument = structuredClone(completeExport)
+  Object.assign(historicalDocument.films[0], {
+    originalTitle: '',
+    watchedAt: '',
+    personalNote: 'Texte  historique  préservé.',
+    director: '',
+    summary: '',
+    providerName: 'Source historique',
+    providerId: '',
+    posterUrl: '',
+  })
+
+  const jsonPreview = validateLibraryImport(JSON.stringify(historicalDocument))
+  assert.equal(jsonPreview.errors.length, 0, 'Un JSON v1 historique avec des chaînes facultatives vides doit rester réimportable')
+  assert.deepEqual(
+    jsonPreview.document?.films[0],
+    {
+      ...completeTransferFilm,
+      originalTitle: null,
+      watchedAt: null,
+      personalNote: 'Texte  historique  préservé.',
+      director: null,
+      summary: null,
+      providerName: null,
+      providerId: null,
+      posterUrl: null,
+    },
+    'Le JSON v1 historique doit devenir canonique sans tronquer un texte ni inventer une provenance',
+  )
+  const canonicalJson = serializeLibraryExport(historicalDocument)
+  assert.match(canonicalJson, /"providerName": null/, 'La réexportation JSON doit écrire une provenance partielle normalisée')
+  assert.match(canonicalJson, /Texte  historique  préservé/, 'La réexportation JSON doit garder les espaces internes du texte')
+
+  const historicalCsv = serializeFilmsCsvExport(completeExport)
+    .replace('Fournisseur de test,provider-test-id', 'Fournisseur de test,')
+  const csvSource = {
+    name: 'sylloge-historique.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate(historicalCsv, 'sylloge-historique.csv')],
+    markdownPages: [],
+  }
+  const csvSession = prepareFilmCsvImport(csvSource)
+  const csvPreview = previewFilmCsvImport(
+    csvSession,
+    csvSource,
+    initialFilmImportConfiguration(csvSession),
+  )
+  assert.equal(csvPreview.errors.length, 0, 'Un CSV Sylloge v1 historique avec provenance partielle doit rester réimportable')
+  assert.deepEqual(
+    [csvPreview.document?.films[0].providerName, csvPreview.document?.films[0].providerId],
+    [null, null],
+    'Le CSV Sylloge doit effacer une provenance partielle en paire sans compléter la donnée',
+  )
+  const canonicalCsv = serializeFilmsCsvExport(csvPreview.document)
+  const canonicalCsvSource = { ...csvSource, csvCandidates: [csvCandidate(canonicalCsv, 'sylloge-canonique.csv')] }
+  const canonicalCsvSession = prepareFilmCsvImport(canonicalCsvSource)
+  const canonicalCsvPreview = previewFilmCsvImport(
+    canonicalCsvSession,
+    canonicalCsvSource,
+    initialFilmImportConfiguration(canonicalCsvSession),
+  )
+  assert.deepEqual(
+    canonicalCsvPreview.document,
+    csvPreview.document,
+    'Un CSV canonique réexporté doit se réimporter sans autre transformation',
+  )
+}
+
+{
   const fixture = JSON.parse(readFileSync('fixtures/csv-films-v1/anonymized-library.json', 'utf8'))
   const expectedCsv = readFileSync('fixtures/csv-films-v1/expected-export.csv', 'utf8')
   const document = createLibraryExport(fixture, fixture.exportedAt)
@@ -424,6 +493,11 @@ const completeExport = createLibraryExport({
     csvImportPreview.document,
     document,
     'Le CSV Sylloge v1 doit reconstituer le document Films v1 exact, y compris les apostrophes de protection tableur retirées une seule fois',
+  )
+  assert.deepEqual(
+    [csvImportPreview.document?.films[0].providerName, csvImportPreview.document?.films[0].providerId],
+    ['Catalogue local', 'source-ete-42'],
+    'La fixture Sylloge doit conserver une provenance complète comme paire atomique',
   )
 }
 
@@ -508,6 +582,11 @@ const completeExport = createLibraryExport({
   assert.equal(preview.document?.films[0].year, null, 'Une année générique doit rester hors import')
   assert.equal(preview.document?.films[0].director, null, 'Un réalisateur générique doit rester hors import')
   assert.equal(preview.document?.films[0].summary, null, 'Un résumé générique doit rester hors import')
+  assert.deepEqual(
+    [preview.document?.films[0].providerName, preview.document?.films[0].providerId],
+    [null, null],
+    'Le CSV générique ne doit jamais créer de provenance éditoriale',
+  )
   assert.equal(preview.document?.films[0].posterUrl, null, 'Une affiche temporaire ne doit jamais être conservée à l’import')
   assert.ok(preview.ignoredColumns.includes('Actors'), 'Les colonnes sans destination doivent être visibles dans le rapport')
   assert.ok(preview.ignoredColumns.includes('Poster'), 'Les affiches externes doivent être signalées comme ignorées')
@@ -796,6 +875,11 @@ const completeExport = createLibraryExport({
   assert.equal(preview.document?.films[0].isFavorite, true, 'La valeur Notion Yes doit devenir un favori')
   assert.equal(preview.document?.films[0].director, null, 'Le réalisateur Notion doit rester une métadonnée non importée')
   assert.equal(preview.document?.films[0].summary, null, 'Le résumé Notion doit rester une métadonnée non importée')
+  assert.deepEqual(
+    [preview.document?.films[0].providerName, preview.document?.films[0].providerId, preview.document?.films[0].posterUrl],
+    [null, null, null],
+    'Notion ne doit importer ni provenance ni couverture temporaire',
+  )
   assert.equal(preview.document?.films[0].personalNote, 'Note CSV', 'Une colonne CSV déjà mappée vers Note personnelle doit rester la seule source de cette destination')
   assert.equal(configuration?.markdownNotes, false, 'Les pages Notion Notes restent ignorées par défaut quand une colonne texte occupe déjà Note personnelle')
   if (!configuration) throw new Error('Configuration Notion absente')
@@ -1326,6 +1410,24 @@ assert.throws(
   'Une valeur de statut inconnue ne doit pas entrer silencieusement dans le domaine',
 )
 
+assert.deepEqual(
+  toFilm({
+    ...filmRow,
+    original_title: '',
+    personal_note: 'Texte  SQLite  préservé.',
+    provider_name: 'Source SQLite',
+    provider_id: '',
+  }),
+  {
+    ...toFilm(filmRow),
+    originalTitle: null,
+    personalNote: 'Texte  SQLite  préservé.',
+    providerName: null,
+    providerId: null,
+  },
+  'Une lecture SQLite historique doit présenter la forme canonique avant même la migration native',
+)
+
 {
   const minimal = validateFilmForm({ ...EMPTY_FILM_FORM, title: '  Un titre  ' })
   assert.equal(minimal.success, true, 'Le titre seul doit suffire à créer un film')
@@ -1518,15 +1620,58 @@ assert.throws(
     'L’INSERT SQLite doit écrire les deux valeurs de provenance ensemble',
   )
 
+  const canonicalCreated = await repository.createFilm(
+    'default',
+    {
+      ...input,
+      title: 'Film canonique de test',
+      originalTitle: '',
+      watchedAt: '',
+      personalNote: 'Texte  local  préservé.',
+      director: '',
+      summary: '',
+      posterUrl: '',
+    },
+    { providerName: 'Source incomplète', providerId: '' },
+  )
+  assert.deepEqual(
+    {
+      originalTitle: canonicalCreated.originalTitle,
+      watchedAt: canonicalCreated.watchedAt,
+      personalNote: canonicalCreated.personalNote,
+      director: canonicalCreated.director,
+      summary: canonicalCreated.summary,
+      posterUrl: canonicalCreated.posterUrl,
+      providerName: canonicalCreated.providerName,
+      providerId: canonicalCreated.providerId,
+    },
+    {
+      originalTitle: null,
+      watchedAt: null,
+      personalNote: 'Texte  local  préservé.',
+      director: null,
+      summary: null,
+      posterUrl: null,
+      providerName: null,
+      providerId: null,
+    },
+    'Les écritures locales doivent devenir canoniques sans retirer les espaces internes',
+  )
+  assert.deepEqual(
+    calls[2].bindValues.slice(3, 15),
+    [null, input.year, input.status, 1, input.rating, null, 'Texte  local  préservé.', null, null, null, null, null],
+    'L’INSERT SQLite local doit recevoir seulement les valeurs canoniques, y compris false ou zéro lorsqu’ils sont fournis',
+  )
+
   const updatedAt = await repository.updateFilm('default', 'film-uuid', { ...input, title: 'Titre modifié' })
   assert.equal(updatedAt, '2026-07-17T12:34:56.000Z', 'La modification doit produire un horodatage UTC')
-  assert.match(calls[2].query, /^UPDATE films/m, 'La modification doit passer par le dépôt SQLite')
-  assert.doesNotMatch(calls[2].query, /provider_name|provider_id/, 'La modification manuelle ne doit pas effacer la provenance existante')
-  assert.deepEqual(calls[2].bindValues.slice(-2), ['film-uuid', 'default'], 'La modification doit cibler le film et le profil courant')
+  assert.match(calls[3].query, /^UPDATE films/m, 'La modification doit passer par le dépôt SQLite')
+  assert.doesNotMatch(calls[3].query, /provider_name|provider_id/, 'La modification manuelle ne doit pas effacer la provenance existante')
+  assert.deepEqual(calls[3].bindValues.slice(-2), ['film-uuid', 'default'], 'La modification doit cibler le film et le profil courant')
 
   await repository.deleteFilm('default', 'film-uuid')
-  assert.match(calls[3].query, /^DELETE FROM films/m, 'La suppression doit être définitive dans SQLite')
-  assert.deepEqual(calls[3].bindValues, ['film-uuid', 'default'], 'La suppression doit cibler le film et le profil courant')
+  assert.match(calls[4].query, /^DELETE FROM films/m, 'La suppression doit être définitive dans SQLite')
+  assert.deepEqual(calls[4].bindValues, ['film-uuid', 'default'], 'La suppression doit cibler le film et le profil courant')
 }
 
 {
@@ -1556,6 +1701,8 @@ const tauriLibrarySource = readFileSync(new URL('../src-tauri/src/lib.rs', impor
 const repositorySource = readFileSync(new URL('../src/data/filmsRepository.ts', import.meta.url), 'utf8')
 const metadataAssistanceSource = readFileSync(new URL('../src/domain/filmMetadataAssistance.ts', import.meta.url), 'utf8')
 const migrationSource = readFileSync(new URL('../src-tauri/migrations/0001_create_profiles_and_films.sql', import.meta.url), 'utf8')
+const normalizationMigration = readFileSync(new URL('../src-tauri/migrations/0007_normalize_film_optional_data.sql', import.meta.url), 'utf8')
+const databaseMigrationSource = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
 const defaultProfileMigration = readFileSync(new URL('../src-tauri/migrations/0002_create_default_profile.sql', import.meta.url), 'utf8')
 const currentProfileMigration = readFileSync(new URL('../src-tauri/migrations/0003_track_current_profile.sql', import.meta.url), 'utf8')
 const backupSettingsMigration = readFileSync(new URL('../src-tauri/migrations/0004_create_backup_settings.sql', import.meta.url), 'utf8')
@@ -1594,6 +1741,10 @@ assert.match(repositorySource, /WHERE id = \$13 AND profile_id = \$14/, 'La modi
 assert.match(repositorySource, /WHERE id = \$1 AND profile_id = \$2/, 'La suppression doit être limitée au film du profil courant')
 assert.match(migrationSource, /CREATE TABLE IF NOT EXISTS profiles/, 'La migration doit créer les profils')
 assert.match(migrationSource, /CREATE TABLE IF NOT EXISTS films/, 'La migration doit créer les films')
+assert.match(normalizationMigration, /UPDATE films/, 'La migration de canonisation doit rester limitée aux Films historiques')
+assert.match(normalizationMigration, /NULLIF\(original_title, ''\)/, 'La migration doit convertir les chaînes facultatives vides sans toucher les textes non vides')
+assert.match(normalizationMigration, /provider_name = CASE/, 'La migration doit traiter la provenance comme une paire atomique')
+assert.match(databaseMigrationSource, /version: 7/, 'La migration de canonisation doit rester séquentielle')
 assert.match(defaultProfileMigration, /ON CONFLICT\(id\) DO NOTHING/, 'Le profil default doit être initialisé sans écrasement')
 assert.match(currentProfileMigration, /CREATE TABLE IF NOT EXISTS current_profile/, 'Le profil courant doit être persisté pour survivre à une relance')
 assert.match(backupSettingsMigration, /CREATE TABLE IF NOT EXISTS backup_settings/, 'Les réglages de sauvegarde doivent être persistés localement')
@@ -1658,4 +1809,4 @@ assert.match(capabilitySource, /sql:allow-load/, 'Tauri doit autoriser le charge
 assert.match(capabilitySource, /sql:allow-select/, 'Tauri doit autoriser les lectures SQLite')
 assert.match(capabilitySource, /sql:allow-execute/, 'Tauri doit autoriser les écritures SQLite')
 
-console.log('Vérification réussie : Films SQLite, métadonnées assistées sans source ni réseau, JSON v1 strict et réimportable, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')

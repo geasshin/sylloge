@@ -39,3 +39,30 @@ export type Film = {
   createdAt: string
   updatedAt: string
 }
+
+/**
+ * Les formats Films v1 historiques peuvent contenir des chaînes facultatives
+ * vides. La donnée locale canonique les représente par null. Cette fonction ne
+ * retire aucun caractère d'une chaîne non vide.
+ */
+export function normalizeFilm(film: Film): Film {
+  const providerName = emptyOptionalTextToNull(film.providerName)
+  const providerId = emptyOptionalTextToNull(film.providerId)
+  const hasCompleteProvenance = providerName !== null && providerId !== null
+
+  return {
+    ...film,
+    originalTitle: emptyOptionalTextToNull(film.originalTitle),
+    watchedAt: emptyOptionalTextToNull(film.watchedAt),
+    personalNote: emptyOptionalTextToNull(film.personalNote),
+    director: emptyOptionalTextToNull(film.director),
+    summary: emptyOptionalTextToNull(film.summary),
+    providerName: hasCompleteProvenance ? providerName : null,
+    providerId: hasCompleteProvenance ? providerId : null,
+    posterUrl: emptyOptionalTextToNull(film.posterUrl),
+  }
+}
+
+function emptyOptionalTextToNull(value: string | null): string | null {
+  return value === '' ? null : value
+}

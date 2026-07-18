@@ -1,4 +1,4 @@
-import type { Film } from './film.ts'
+import { normalizeFilm, type Film } from './film.ts'
 import type { SyllogeExportDocument } from './libraryTransfer.ts'
 
 export const SYLLOGE_FILMS_CSV_FORMAT = 'sylloge-films-csv' as const
@@ -68,25 +68,27 @@ function exportRow(document: SyllogeExportDocument, film: Film | null): CsvCell[
     return [...exportValues, ...Array<string>(FILM_CSV_HEADERS.length).fill('')]
   }
 
+  const canonicalFilm = normalizeFilm(film)
+
   return [
     ...exportValues,
-    film.id,
-    film.profileId,
-    film.title,
-    film.originalTitle,
-    film.year,
-    film.status,
-    film.isFavorite,
-    film.rating,
-    film.watchedAt,
-    film.personalNote,
-    film.director,
-    film.summary,
-    film.providerName,
-    film.providerId,
-    film.posterUrl,
-    film.createdAt,
-    film.updatedAt,
+    canonicalFilm.id,
+    canonicalFilm.profileId,
+    canonicalFilm.title,
+    canonicalFilm.originalTitle,
+    canonicalFilm.year,
+    canonicalFilm.status,
+    canonicalFilm.isFavorite,
+    canonicalFilm.rating,
+    canonicalFilm.watchedAt,
+    canonicalFilm.personalNote,
+    canonicalFilm.director,
+    canonicalFilm.summary,
+    canonicalFilm.providerName,
+    canonicalFilm.providerId,
+    canonicalFilm.posterUrl,
+    canonicalFilm.createdAt,
+    canonicalFilm.updatedAt,
   ]
 }
 

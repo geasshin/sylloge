@@ -1001,6 +1001,15 @@ async fn write_import(
         .map_err(|error| format!("Impossible de créer le nouveau profil : {error}"))?;
 
     for film in &payload.films {
+        let original_title = canonical_optional_text(&film.original_title);
+        let watched_at = canonical_optional_text(&film.watched_at);
+        let personal_note = canonical_optional_text(&film.personal_note);
+        let director = canonical_optional_text(&film.director);
+        let summary = canonical_optional_text(&film.summary);
+        let poster_url = canonical_optional_text(&film.poster_url);
+        let (provider_name, provider_id) =
+            canonical_provenance(&film.provider_name, &film.provider_id);
+
         sqlx::query(
             "INSERT INTO films (
                 id, profile_id, title, original_title, year, status, is_favorite, rating,
@@ -1013,18 +1022,18 @@ async fn write_import(
         .bind(&film.id)
         .bind(&film.profile_id)
         .bind(&film.title)
-        .bind(&film.original_title)
+        .bind(original_title)
         .bind(film.year)
         .bind(&film.status)
         .bind(if film.is_favorite { 1 } else { 0 })
         .bind(film.rating)
-        .bind(&film.watched_at)
-        .bind(&film.personal_note)
-        .bind(&film.director)
-        .bind(&film.summary)
-        .bind(&film.provider_name)
-        .bind(&film.provider_id)
-        .bind(&film.poster_url)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
         .bind(&film.created_at)
         .bind(&film.updated_at)
         .execute(&mut *transaction)
@@ -1051,12 +1060,54 @@ async fn write_import(
     Ok(())
 }
 
+fn canonical_optional_text(value: &Option<String>) -> Option<&str> {
+    value.as_deref().filter(|value| !value.is_empty())
+}
+
+fn canonical_provenance<'a>(
+    provider_name: &'a Option<String>,
+    provider_id: &'a Option<String>,
+) -> (Option<&'a str>, Option<&'a str>) {
+    let provider_name = canonical_optional_text(provider_name);
+    let provider_id = canonical_optional_text(provider_id);
+
+    if provider_name.is_some() && provider_id.is_some() {
+        (provider_name, provider_id)
+    } else {
+        (None, None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
 
+    type CanonicalFilmRow = (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+        f64,
+    );
+
     async fn test_pool() -> sqlx::SqlitePool {
+        let pool = legacy_test_pool().await;
+        sqlx::raw_sql(include_str!(
+            "../migrations/0007_normalize_film_optional_data.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("migration de normalisation de test");
+        pool
+    }
+
+    async fn legacy_test_pool() -> sqlx::SqlitePool {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -1128,6 +1179,175 @@ mod tests {
             assert_eq!(settings.last_automatic_snapshot_day, None);
 
             fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+        });
+    }
+
+    #[test]
+    fn normalization_migration_canonicalizes_historical_films_only() {
+        tauri::async_runtime::block_on(async {
+            let pool = legacy_test_pool().await;
+            insert_profile(&pool, "legacy-profile").await;
+            sqlx::query(
+                "INSERT INTO backup_settings (profile_id, backup_directory)
+                 VALUES ('legacy-profile', '/tmp/legacy-backup')",
+            )
+            .execute(&pool)
+            .await
+            .expect("réglage hors Films de test");
+            sqlx::query(
+                "INSERT INTO films (
+                    id, profile_id, title, original_title, year, status, is_favorite, rating,
+                    watched_at, personal_note, director, summary, provider_name, provider_id,
+                    poster_url, created_at, updated_at
+                 ) VALUES (
+                    'legacy-partial', 'legacy-profile', 'Film historique', '', 1999, 'terminé', 0, 0.5,
+                    '', 'Texte  historique  préservé.', '', '', 'Source partielle', '', '',
+                    '2026-07-17T10:00:00.000Z', '2026-07-17T10:00:00.000Z'
+                 )",
+            )
+            .execute(&pool)
+            .await
+            .expect("film historique partiel");
+            sqlx::query(
+                "INSERT INTO films (
+                    id, profile_id, title, status, is_favorite, provider_name, provider_id, created_at, updated_at
+                 ) VALUES (
+                    'legacy-complete', 'legacy-profile', 'Film complet', 'à découvrir', 1,
+                    'Source complète', 'id-complet', '2026-07-17T10:00:00.000Z', '2026-07-17T10:00:00.000Z'
+                 )",
+            )
+            .execute(&pool)
+            .await
+            .expect("film historique complet");
+
+            sqlx::raw_sql(include_str!(
+                "../migrations/0007_normalize_film_optional_data.sql"
+            ))
+            .execute(&pool)
+            .await
+            .expect("exécution de la migration historique");
+
+            let normalized: CanonicalFilmRow = sqlx::query_as(
+                "SELECT original_title, watched_at, personal_note, director, summary, poster_url,
+                        provider_name, provider_id, is_favorite, rating
+                 FROM films WHERE id = 'legacy-partial'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture du Film historique normalisé");
+            assert_eq!(
+                normalized,
+                (
+                    None,
+                    None,
+                    Some("Texte  historique  préservé.".to_string()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0,
+                    0.5,
+                ),
+                "la migration doit vider seulement les chaînes facultatives vides et une provenance partielle"
+            );
+
+            let complete_provenance: (Option<String>, Option<String>) = sqlx::query_as(
+                "SELECT provider_name, provider_id FROM films WHERE id = 'legacy-complete'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la provenance complète");
+            assert_eq!(
+                complete_provenance,
+                (
+                    Some("Source complète".to_string()),
+                    Some("id-complet".to_string())
+                ),
+                "une provenance complète doit rester intacte"
+            );
+
+            let profile_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM profiles")
+                .fetch_one(&pool)
+                .await
+                .expect("compte profils après migration");
+            let backup_directory: (String,) = sqlx::query_as(
+                "SELECT backup_directory FROM backup_settings WHERE profile_id = 'legacy-profile'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture du réglage hors Films");
+            assert_eq!(
+                profile_count.0, 2,
+                "la migration ne doit ni créer ni modifier de profil"
+            );
+            assert_eq!(
+                backup_directory.0, "/tmp/legacy-backup",
+                "la migration ne doit toucher aucune donnée hors Films"
+            );
+        });
+    }
+
+    #[test]
+    fn write_import_canonicalizes_optional_values_before_sqlite_write() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            let timestamp = "2026-07-17T13:00:00.000Z".to_string();
+            let payload = ImportLibraryPayload {
+                profile: ImportProfile {
+                    id: "normalized-import".to_string(),
+                    name: "Import normalisé".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "normalized-film".to_string(),
+                    profile_id: "normalized-import".to_string(),
+                    title: "Film importé".to_string(),
+                    original_title: Some(String::new()),
+                    year: Some(2001),
+                    status: "terminé".to_string(),
+                    is_favorite: false,
+                    rating: Some(0.5),
+                    watched_at: Some(String::new()),
+                    personal_note: Some("Texte  importé  préservé.".to_string()),
+                    director: Some(String::new()),
+                    summary: Some(String::new()),
+                    provider_name: Some("Source incomplète".to_string()),
+                    provider_id: Some(String::new()),
+                    poster_url: Some(String::new()),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp,
+                }],
+            };
+
+            write_import(&pool, &payload)
+                .await
+                .expect("import canonique");
+            let stored: CanonicalFilmRow = sqlx::query_as(
+                "SELECT original_title, watched_at, personal_note, director, summary, poster_url,
+                        provider_name, provider_id, is_favorite, rating
+                 FROM films WHERE id = 'normalized-film'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de l’import canonique");
+            assert_eq!(
+                stored,
+                (
+                    None,
+                    None,
+                    Some("Texte  importé  préservé.".to_string()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0,
+                    0.5,
+                ),
+                "le pont atomique doit écrire la forme canonique sans modifier false, 0.5 ou les espaces internes"
+            );
         });
     }
 

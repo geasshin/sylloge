@@ -1,4 +1,4 @@
-import type { Film, FilmStatus } from './film.ts'
+import { normalizeFilm, type Film, type FilmStatus } from './film.ts'
 import {
   SYLLOGE_FILMS_CSV_FORMAT,
   SYLLOGE_FILMS_CSV_HEADER,
@@ -547,7 +547,7 @@ function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPre
     if (value.isFavorite !== 'true' && value.isFavorite !== 'false') {
       errors.push({ path: `Ligne ${row.line}.film_is_favorite`, message: 'Le favori Sylloge doit valoir true ou false.' })
     }
-    films.push({
+    films.push(normalizeFilm({
       id: value.filmId,
       profileId: value.filmProfileId,
       title: value.title,
@@ -565,7 +565,7 @@ function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPre
       posterUrl: emptyToNull(value.posterUrl),
       createdAt: value.createdAt,
       updatedAt: value.updatedAt,
-    })
+    }))
   }
 
   const document: SyllogeExportDocument = {
@@ -657,7 +657,7 @@ function previewGenericCsv(
     const isFavorite = parseFavorite(value.isFavorite, `Ligne ${row.line}.coup de cœur`, errors)
 
     if (errors.length === beforeErrors && title !== null) {
-      films.push({
+      films.push(normalizeFilm({
         id: `import-preview-${row.line}`,
         profileId: 'import-preview-profile',
         title,
@@ -675,7 +675,7 @@ function previewGenericCsv(
         posterUrl: null,
         createdAt: importedAt,
         updatedAt: importedAt,
-      })
+      }))
       validFilmCount += 1
     }
   }
@@ -942,19 +942,25 @@ function containsOnlyMarkdownStructure(value: string): boolean {
 }
 
 function requiredText(value: string | null, path: string, errors: ImportValidationError[]): string | null {
-  const text = optionalText(value)
-  if (text === null) errors.push({ path, message: 'Le titre est obligatoire.' })
-  return text
+  if (value === null || value.trim().length === 0) {
+    errors.push({ path, message: 'Le titre est obligatoire.' })
+    return null
+  }
+  return value
 }
 
 function optionalText(value: string | null): string | null {
+  return value === '' ? null : value
+}
+
+function normalizedInputText(value: string | null): string | null {
   if (value === null) return null
   const text = value.trim()
   return text ? text : null
 }
 
 function parseStatus(value: string | null, path: string, errors: ImportValidationError[]): FilmStatus {
-  const text = optionalText(value)
+  const text = normalizedInputText(value)
   if (text === null) return 'à découvrir'
   const status = STATUS_ALIASES.get(normalize(text))
   if (status) return status
@@ -963,7 +969,7 @@ function parseStatus(value: string | null, path: string, errors: ImportValidatio
 }
 
 function parseFavorite(value: string | null, path: string, errors: ImportValidationError[]): boolean {
-  const text = optionalText(value)
+  const text = normalizedInputText(value)
   if (text === null) return false
   const normalized = normalize(text)
   if (['true', 'yes', 'oui', '1'].includes(normalized)) return true
@@ -993,7 +999,7 @@ function parseRating(
   path: string,
   errors: ImportValidationError[],
 ): number | null {
-  const text = optionalText(value)
+  const text = normalizedInputText(value)
   if (text === null) return null
   const parsed = parseRatingValue(text)
   if (!parsed) {
@@ -1053,7 +1059,7 @@ function initialRatingScale(table: CsvTable, mapping: FilmImportMapping): Rating
 }
 
 function parseWatchedAt(value: string | null, path: string, errors: ImportValidationError[]): string | null {
-  const text = optionalText(value)
+  const text = normalizedInputText(value)
   if (text === null) return null
   const numeric = parseNumericDate(text)
   if (numeric) return numeric

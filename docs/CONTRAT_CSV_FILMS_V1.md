@@ -1,6 +1,6 @@
 # Contrat CSV Films v1
 
-**Statut :** normatif pour l’export CSV du jalon interne `0.3.1` et pour la réimportation contrôlée du CSV Sylloge Films v1 livrée au jalon `0.3.2`. Le format reste une représentation portable et lisible des données Films V1.
+**Statut :** normatif pour l’export CSV du jalon interne `0.3.1` et pour la réimportation contrôlée du CSV Sylloge Films v1 livrée au jalon `0.3.2`. Le format reste une représentation portable et lisible des données Films V1. La décision par source et par champ est dans [CONTRAT_FILMS_V1.md](CONTRAT_FILMS_V1.md).
 
 ## Encodage et structure
 
@@ -41,13 +41,13 @@ Les colonnes `film_*` reprennent les champs Films JSON v1 sans les renommer sém
 | `film_watched_at` | `AAAA-MM-JJ` ou vide | date calendrier ou `null` |
 | `film_created_at`, `film_updated_at` | UTC ISO 8601 | horodatages Films v1 |
 
-Une cellule vide pour un champ Film nullable représente `null`. L'interface actuelle normalise déjà les champs facultatifs vides vers `null`. Un JSON v1 historique qui contiendrait exceptionnellement une chaîne vide reste accepté par l'import JSON existant, mais son export CSV est volontairement normalisé vers une cellule vide et est lu comme `null` par l’import CSV contrôlé. Les champs obligatoires vides ou les colonnes inconnues ne seront jamais rendus valides implicitement.
+Une cellule vide pour un champ Film nullable représente `null`. Les chaînes facultatives vides exactes d'un export historique restent acceptées puis deviennent `null`, sans retirer de caractère à un texte non vide. `film_provider_name` et `film_provider_id` sont une paire atomique : une paire complète est conservée, une moitié absente ou vide devient `null` dans les deux cellules. Les champs obligatoires vides ou les colonnes inconnues ne seront jamais rendus valides implicitement.
 
 `film_profile_id` est conservé pour refléter explicitement Films V1. Dans chaque ligne Film, il est égal à `profile_id`. Les identifiants source sont portables pour le contrôle, mais l’import contrôlé recrée les identifiants locaux comme l'import JSON v1 actuel.
 
 ## Compatibilité et limites
 
-- JSON `sylloge-films` v1, ses snapshots et son import strict restent inchangés. Le CSV ne modifie ni SQLite ni les migrations.
+- JSON `sylloge-films` v1, ses snapshots et son import strict restent inchangés. La réimportation v1 préserve tous les champs à l'exception de la canonisation non destructive des chaînes facultatives vides et des provenances partielles historiques, documentée dans le contrat Films.
 - Les lignes suivent l'ordre stable du profil courant fourni par le dépôt Films : titre SQLite `NOCASE`, puis date de création. Avec les mêmes données et le même horodatage, le CSV est déterministe.
 - Toutes les valeurs exportées proviennent du profil et des Films courants. Le fichier ne contient pas de secret, de donnée téléchargée, de fichier image ni de nouvelle métadonnée externe. `film_poster_url` peut être vide et, lorsqu'il est renseigné, reste seulement l'URL déjà enregistrée : aucune affiche n'est téléchargée.
 - L’import contrôlé reconnaît seulement l’en-tête exact et ordonné de ce contrat. Il valide toutes les lignes avant écriture, reconstitue le document Films JSON v1, crée un nouveau profil avec de nouveaux identifiants locaux et n’écrase jamais le profil ouvert.

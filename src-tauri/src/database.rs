@@ -40,5 +40,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0006_create_updater_preferences.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "normalize_film_optional_data",
+            sql: include_str!("../migrations/0007_normalize_film_optional_data.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

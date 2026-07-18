@@ -1,5 +1,4 @@
-import type { Film, FilmFilter, FilmStatus } from '../domain/film.ts'
-import { FILM_STATUSES } from '../domain/film.ts'
+import { FILM_STATUSES, normalizeFilm, type Film, type FilmFilter, type FilmStatus } from '../domain/film.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
@@ -89,7 +88,7 @@ function toProfile(row: ProfileRow): Profile {
 }
 
 export function toFilm(row: FilmRow): Film {
-  return {
+  return normalizeFilm({
     id: row.id,
     profileId: row.profile_id,
     title: row.title,
@@ -107,7 +106,7 @@ export function toFilm(row: FilmRow): Film {
     posterUrl: row.poster_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  }
+  })
 }
 
 export class SqliteFilmsRepository {
@@ -248,7 +247,7 @@ export class SqliteFilmsRepository {
         updatedAt: importedAt,
       },
       films: document.films.map((film) => ({
-        ...film,
+        ...normalizeFilm(film),
         id: this.createId(),
         profileId,
       })),
@@ -354,6 +353,15 @@ export class SqliteFilmsRepository {
     const database = await this.loadDatabase()
     const id = this.createId()
     const now = this.now()
+    const film = normalizeFilm({
+      id,
+      profileId,
+      ...input,
+      providerName: provenance?.providerName ?? null,
+      providerId: provenance?.providerId ?? null,
+      createdAt: now,
+      updatedAt: now,
+    })
     const result = await database.execute(
       `INSERT INTO films (
          id,
@@ -375,23 +383,23 @@ export class SqliteFilmsRepository {
          updated_at
        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
-        id,
-        profileId,
-        input.title,
-        input.originalTitle,
-        input.year,
-        input.status,
-        input.isFavorite ? 1 : 0,
-        input.rating,
-        input.watchedAt,
-        input.personalNote,
-        input.director,
-        input.summary,
-        provenance?.providerName ?? null,
-        provenance?.providerId ?? null,
-        input.posterUrl,
-        now,
-        now,
+        film.id,
+        film.profileId,
+        film.title,
+        film.originalTitle,
+        film.year,
+        film.status,
+        film.isFavorite ? 1 : 0,
+        film.rating,
+        film.watchedAt,
+        film.personalNote,
+        film.director,
+        film.summary,
+        film.providerName,
+        film.providerId,
+        film.posterUrl,
+        film.createdAt,
+        film.updatedAt,
       ],
     )
 
@@ -399,20 +407,21 @@ export class SqliteFilmsRepository {
       throw new Error('La création du film n’a modifié aucune ligne SQLite.')
     }
 
-    return {
-      id,
-      profileId,
-      ...input,
-      providerName: provenance?.providerName ?? null,
-      providerId: provenance?.providerId ?? null,
-      createdAt: now,
-      updatedAt: now,
-    }
+    return film
   }
 
   async updateFilm(profileId: string, id: string, input: FilmWriteInput): Promise<string> {
     const database = await this.loadDatabase()
     const updatedAt = this.now()
+    const film = normalizeFilm({
+      id,
+      profileId,
+      ...input,
+      providerName: null,
+      providerId: null,
+      createdAt: updatedAt,
+      updatedAt,
+    })
     const result = await database.execute(
       `UPDATE films
        SET
@@ -430,17 +439,17 @@ export class SqliteFilmsRepository {
          updated_at = $12
        WHERE id = $13 AND profile_id = $14`,
       [
-        input.title,
-        input.originalTitle,
-        input.year,
-        input.status,
-        input.isFavorite ? 1 : 0,
-        input.rating,
-        input.watchedAt,
-        input.personalNote,
-        input.director,
-        input.summary,
-        input.posterUrl,
+        film.title,
+        film.originalTitle,
+        film.year,
+        film.status,
+        film.isFavorite ? 1 : 0,
+        film.rating,
+        film.watchedAt,
+        film.personalNote,
+        film.director,
+        film.summary,
+        film.posterUrl,
         updatedAt,
         id,
         profileId,
