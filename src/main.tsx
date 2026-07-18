@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { Poster } from './components/Poster.tsx'
-import { Portability } from './components/Portability.tsx'
+import { Portability, type PortabilitySection } from './components/Portability.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
@@ -19,8 +19,17 @@ import type { FilmWriteInput } from './domain/filmForm.ts'
 import './styles.css'
 
 type IconName = 'film' | 'home' | 'search' | 'settings'
+type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
+
+const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
+  { id: 'profiles', label: 'Profils' },
+  { id: 'transfer', label: 'Importer et exporter' },
+  { id: 'backups', label: 'Sauvegardes' },
+  { id: 'application', label: 'Application' },
+  { id: 'about', label: 'À propos' },
+]
 
 type SidebarProps = {
   count: number | null
@@ -29,45 +38,82 @@ type SidebarProps = {
   onHome: () => void
   onLibrary: () => void
   onSettings: () => void
+  settingsSection: SettingsSection
+  onSettingsSection: (section: SettingsSection) => void
+  onReturnToLibrary: () => void
 }
 
-function Sidebar({ count, currentProfileName, activeItem, onHome, onLibrary, onSettings }: SidebarProps) {
+function Sidebar({
+  count,
+  currentProfileName,
+  activeItem,
+  onHome,
+  onLibrary,
+  onSettings,
+  settingsSection,
+  onSettingsSection,
+  onReturnToLibrary,
+}: SidebarProps) {
+  const settingsOpen = activeItem === 'settings'
+
   return (
     <aside className="sidebar">
       <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
         <span className="wordmark-mark">S</span>
         <span>Sylloge</span>
       </button>
-      <nav aria-label="Navigation principale">
-        <p className="nav-label">Bibliothèque</p>
-        <button
-          className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
-          type="button"
-          onClick={onHome}
-          aria-current={activeItem === 'home' ? 'page' : undefined}
-        >
-          {icon('home')} Accueil
-        </button>
-        <button
-          className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
-          type="button"
-          onClick={onLibrary}
-          aria-current={activeItem === 'library' ? 'page' : undefined}
-        >
-          {icon('film')} Films
-          {count !== null && <span className="nav-count">{count}</span>}
-        </button>
-      </nav>
+      {settingsOpen ? (
+        <nav aria-label="Navigation des paramètres">
+          <p className="nav-label">Paramètres</p>
+          {SETTINGS_NAVIGATION.map((item) => (
+            <button
+              className={`nav-item ${settingsSection === item.id ? 'active' : ''}`}
+              type="button"
+              key={item.id}
+              onClick={() => onSettingsSection(item.id)}
+              aria-current={settingsSection === item.id ? 'location' : undefined}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      ) : (
+        <nav aria-label="Navigation principale">
+          <p className="nav-label">Bibliothèque</p>
+          <button
+            className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
+            type="button"
+            onClick={onHome}
+            aria-current={activeItem === 'home' ? 'page' : undefined}
+          >
+            {icon('home')} Accueil
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
+            type="button"
+            onClick={onLibrary}
+            aria-current={activeItem === 'library' ? 'page' : undefined}
+          >
+            {icon('film')} Films
+            {count !== null && <span className="nav-count">{count}</span>}
+          </button>
+        </nav>
+      )}
       <div className="sidebar-bottom">
         {currentProfileName && <p className="sidebar-profile" title={currentProfileName}>{currentProfileName}</p>}
-        <button
-          className={`nav-item ${activeItem === 'settings' ? 'active' : ''}`}
-          type="button"
-          onClick={onSettings}
-          aria-current={activeItem === 'settings' ? 'page' : undefined}
-        >
-          {icon('settings')} Paramètres
-        </button>
+        {settingsOpen ? (
+          <button className="nav-item muted" type="button" onClick={onReturnToLibrary}>
+            {icon('film')} Retour à la bibliothèque
+          </button>
+        ) : (
+          <button
+            className="nav-item"
+            type="button"
+            onClick={onSettings}
+          >
+            {icon('settings')} Paramètres
+          </button>
+        )}
       </div>
     </aside>
   )
@@ -524,6 +570,7 @@ function App() {
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
   const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', filter: 'all' })
   const [view, setView] = useState<View>({ name: 'home' })
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [searchAttempt, setSearchAttempt] = useState(0)
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
@@ -630,6 +677,15 @@ function App() {
     setView({ name: 'library' })
   }
 
+  const showSettingsSection = (section: SettingsSection) => {
+    setSettingsSection(section)
+    if (view.name === 'settings') {
+      window.scrollTo({ top: 0 })
+      return
+    }
+    leaveLibrary({ name: 'settings' })
+  }
+
   const requestAutomaticBackup = (library: FilmLibrary) => {
     void backupService.tryAutomaticSnapshot(library).then((notice) => {
       if (notice) setBackupNotice(notice)
@@ -686,9 +742,9 @@ function App() {
     const { library } = libraryState
     content = (
       <Portability
+        section={settingsSection}
         library={library}
         profiles={profiles}
-        onBack={() => leaveLibrary({ name: 'home' })}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
           setLibraryContext({ query: '', filter: 'all' })
@@ -796,7 +852,10 @@ function App() {
         activeItem={libraryState.status !== 'ready' || view.name === 'home' ? 'home' : view.name === 'settings' ? 'settings' : 'library'}
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
-        onSettings={() => leaveLibrary({ name: 'settings' })}
+        onSettings={() => showSettingsSection('profiles')}
+        settingsSection={settingsSection}
+        onSettingsSection={showSettingsSection}
+        onReturnToLibrary={returnToLibrary}
       />
       {content}
       {backupNotice && (

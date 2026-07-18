@@ -20,6 +20,16 @@ import {
   serializeFilmsCsvExport,
   SYLLOGE_FILMS_CSV_HEADER,
 } from '../src/domain/csvFilmExport.ts'
+import {
+  NOTION_MARKDOWN_NOTES_SOURCE,
+  conciseFilmImportReportSource,
+  initialFilmImportConfiguration,
+  inspectFilmCsvImportSource,
+  parseCsv,
+  prepareFilmCsvImport,
+  previewFilmCsvImport,
+  setFilmImportSourceDestination,
+} from '../src/domain/filmCsvImport.ts'
 
 const profileRow = {
   id: 'default',
@@ -46,6 +56,10 @@ const filmRow = {
   poster_url: null,
   created_at: '2026-07-17T10:00:00.000Z',
   updated_at: '2026-07-17T10:00:00.000Z',
+}
+
+function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
+  return { id, name, contents }
 }
 
 {
@@ -360,7 +374,7 @@ const completeExport = createLibraryExport({
   )
   assert.match(csv, /"'=Carnet, ""été"""/, 'Un texte de profil commençant par = doit être neutralisé dans une cellule CSV citée')
   assert.match(csv, /"'\+Café, ""matin"""/, 'Un titre commençant par + doit être neutralisé dans une cellule CSV citée')
-  assert.match(csv, /,''Café du matin,2024,/, 'Une source commençant déjà par une apostrophe doit recevoir exactement une seconde apostrophe pour permettre un retrait unique au futur import')
+  assert.match(csv, /,''Café du matin,2024,/, 'Une source commençant déjà par une apostrophe doit recevoir exactement une seconde apostrophe pour permettre un retrait unique lors de l’import contrôlé')
   assert.match(csv, /"'-Première note\.\nDeuxième ligne, avec ""guillemets""\."/, 'Une note commençant par - doit être neutralisée dans une cellule CSV citée et multiligne')
   assert.match(csv, /"'\t@Résumé, déjà lu\."/, 'Un résumé commençant par une tabulation puis @ doit être neutralisé sans perdre la tabulation dans une cellule CSV citée')
   assert.match(csv, /Café/, 'Les caractères accentués doivent rester lisibles dans le CSV')
@@ -388,6 +402,781 @@ const completeExport = createLibraryExport({
   assert.equal(emptyRows.length, 3, 'Un profil vide doit avoir un en-tête, une ligne de profil et une fin de fichier')
   assert.equal(emptyRows[1].split(',').length, SYLLOGE_FILMS_CSV_HEADER.length, 'La ligne d’un profil vide doit conserver toutes les colonnes')
   assert.ok(emptyFilmCells.every((cell) => cell === ''), 'Un profil vide ne doit inventer aucun Film')
+
+  const session = prepareFilmCsvImport({
+    name: 'sylloge-films.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate(csv, 'sylloge-films.csv')],
+    markdownPages: [],
+  })
+  const csvImportPreview = previewFilmCsvImport(session, {
+    name: 'sylloge-films.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate(csv, 'sylloge-films.csv')],
+    markdownPages: [],
+  }, initialFilmImportConfiguration(session), fixture.exportedAt)
+  assert.deepEqual(
+    csvImportPreview.document,
+    document,
+    'Le CSV Sylloge v1 doit reconstituer le document Films v1 exact, y compris les apostrophes de protection tableur retirées une seule fois',
+  )
+}
+
+{
+  const validQuotedTable = parseCsv('Titre,Note personnelle\n"Le café, ""après"" minuit","Première ligne\nDeuxième ligne"\n')
+  assert.deepEqual(validQuotedTable.errors, [], 'Les cellules CSV citées, échappées et multiligne doivent rester valides')
+  assert.deepEqual(
+    validQuotedTable.rows[0]?.cells,
+    ['Le café, "après" minuit', 'Première ligne\nDeuxième ligne'],
+    'Les cellules CSV citées valides doivent conserver virgules, guillemets échappés et retours à la ligne',
+  )
+
+  const explicitlyEmptyQuotedTable = parseCsv('Titre\n""')
+  assert.deepEqual(
+    explicitlyEmptyQuotedTable.rows,
+    [{ cells: [''], line: 2 }],
+    'Une dernière ligne CSV explicitement vide et citée doit rester une ligne du tableau',
+  )
+  const explicitlyEmptyQuotedSource = {
+    name: 'titre-vide-cite.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre\n""', 'titre-vide-cite.csv')],
+    markdownPages: [],
+  }
+  const explicitlyEmptyQuotedSession = prepareFilmCsvImport(explicitlyEmptyQuotedSource)
+  const explicitlyEmptyQuotedConfiguration = initialFilmImportConfiguration(explicitlyEmptyQuotedSession)
+  const explicitlyEmptyQuotedPreview = previewFilmCsvImport(
+    explicitlyEmptyQuotedSession,
+    explicitlyEmptyQuotedSource,
+    explicitlyEmptyQuotedConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(explicitlyEmptyQuotedPreview.totalFilmCount, 1, 'La ligne CSV citée vide doit être comptée dans l’aperçu')
+  assert.equal(explicitlyEmptyQuotedPreview.document, null, 'Une ligne CSV citée sans titre ne doit pas créer un profil vide valide')
+  assert.ok(
+    explicitlyEmptyQuotedPreview.errors.some((error) => /titre est obligatoire/i.test(error.message)),
+    'Une ligne CSV citée sans titre doit être refusée explicitement dans l’aperçu',
+  )
+
+  const malformedQuotedTable = parseCsv('Titre,Note\n"A"tail,4\n')
+  assert.ok(
+    malformedQuotedTable.errors.some((error) => /doit être suivie d’une virgule ou de la fin de ligne/i.test(error.message)),
+    'Une donnée après la fermeture d’une cellule CSV citée doit être refusée',
+  )
+
+  const malformedQuotedSource = {
+    name: 'cellule-citee-invalide.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Note\n"A"tail,4\n', 'cellule-citee-invalide.csv')],
+    markdownPages: [],
+  }
+  const malformedQuotedSession = prepareFilmCsvImport(malformedQuotedSource)
+  const malformedQuotedPreview = previewFilmCsvImport(
+    malformedQuotedSession,
+    malformedQuotedSource,
+    initialFilmImportConfiguration(malformedQuotedSession),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(malformedQuotedPreview.document, null, 'Un CSV contenant « "A"tail » doit rester bloqué avant toute écriture')
+
+
+  const csvContents = readFileSync('fixtures/import-films-csv-notion/generic-films.csv', 'utf8')
+  const source = { name: 'films-generiques.csv', kind: 'csv', csvCandidates: [csvCandidate(csvContents, 'films-generiques.csv')], markdownPages: [] }
+  const session = prepareFilmCsvImport(source)
+  assert.equal(session.kind, 'generic', 'Un CSV sans contrat Sylloge doit ouvrir le parcours de mapping générique')
+  const configuration = initialFilmImportConfiguration(session)
+  assert.ok(configuration, 'Le CSV générique doit préremplir une configuration modifiable')
+  if (!configuration) throw new Error('Configuration générique absente')
+  assert.equal(configuration.mapping.title, 'Title', 'Les alias Title et Name doivent préremplir le titre')
+  assert.equal(configuration.mapping.watchedAt, 'Date watched', 'Les alias anglais de date doivent être détectés')
+  assert.equal(configuration.ratingScale, 10, 'Une échelle /10 explicitement présente doit être détectée')
+
+  const preview = previewFilmCsvImport(session, source, configuration, '2026-07-18T10:00:00.000Z')
+  assert.equal(preview.document?.films.length, 2, 'Le CSV générique échappé et multiligne doit produire ses deux Films')
+  assert.equal(preview.document?.films[0].title, 'Le café, après minuit', 'Le titre CSV cité doit conserver sa virgule')
+  assert.equal(preview.document?.films[0].rating, 4, 'Une note 8/10 doit être convertie visiblement en 4/5')
+  assert.equal(preview.document?.films[0].watchedAt, '2024-07-18', 'Une date française écrite doit être normalisée')
+  assert.equal(preview.document?.films[0].personalNote, 'Première ligne\nDeuxième ligne', 'Une cellule CSV multiligne doit conserver la note personnelle')
+  assert.equal(preview.document?.films[0].isFavorite, true, 'Une colonne Favorite doit devenir un coup de cœur')
+  assert.equal(preview.document?.films[1].isFavorite, false, 'Une valeur Non doit devenir un coup de cœur désactivé')
+  assert.equal(preview.document?.films[0].originalTitle, null, 'Un titre original générique doit rester hors import')
+  assert.equal(preview.document?.films[0].year, null, 'Une année générique doit rester hors import')
+  assert.equal(preview.document?.films[0].director, null, 'Un réalisateur générique doit rester hors import')
+  assert.equal(preview.document?.films[0].summary, null, 'Un résumé générique doit rester hors import')
+  assert.equal(preview.document?.films[0].posterUrl, null, 'Une affiche temporaire ne doit jamais être conservée à l’import')
+  assert.ok(preview.ignoredColumns.includes('Actors'), 'Les colonnes sans destination doivent être visibles dans le rapport')
+  assert.ok(preview.ignoredColumns.includes('Poster'), 'Les affiches externes doivent être signalées comme ignorées')
+
+  const metadataSource = {
+    name: 'metadonnees.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Année de sortie,Réalisateur,Résumé,Acteurs,Affiche,Cinéma,Revisionnage\nFilm daté,1977,Nom,Texte,Distribution,https://example.invalid/poster.jpg,Oui,Non\n', 'metadonnees.csv')],
+    markdownPages: [],
+  }
+  const metadataSession = prepareFilmCsvImport(metadataSource)
+  const metadataConfiguration = initialFilmImportConfiguration(metadataSession)
+  if (!metadataConfiguration) throw new Error('Configuration des métadonnées absente')
+  const metadataPreview = previewFilmCsvImport(
+    metadataSession,
+    metadataSource,
+    metadataConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(metadataPreview.document?.films[0].year, null, 'Année de sortie doit rester une métadonnée non importée')
+  assert.deepEqual(
+    metadataPreview.ignoredColumns.filter((column) => ['Année de sortie', 'Réalisateur', 'Résumé', 'Acteurs', 'Affiche', 'Cinéma', 'Revisionnage'].includes(column)),
+    ['Année de sortie', 'Réalisateur', 'Résumé', 'Acteurs', 'Affiche', 'Cinéma', 'Revisionnage'],
+    'Les sources de métadonnées et de fonctionnalités futures doivent rester ignorées',
+  )
+
+  const manipulatedMetadataPreview = previewFilmCsvImport(metadataSession, metadataSource, {
+    ...metadataConfiguration,
+    mapping: { ...metadataConfiguration.mapping, originalTitle: 'Année de sortie' },
+  }, '2026-07-18T10:00:00.000Z')
+  assert.equal(manipulatedMetadataPreview.document, null, 'Une destination metadata ajoutée hors interface doit être bloquée')
+  assert.ok(manipulatedMetadataPreview.errors.some((error) => /métadonnée Films/i.test(error.message)), 'Le blocage d’une destination metadata doit être explicite')
+
+  const manipulatedSourcePreview = previewFilmCsvImport(metadataSession, metadataSource, {
+    ...metadataConfiguration,
+    mapping: { ...metadataConfiguration.mapping, isFavorite: 'Cinéma' },
+  }, '2026-07-18T10:00:00.000Z')
+  assert.equal(manipulatedSourcePreview.document, null, 'Une source Cinéma ajoutée hors interface doit être bloquée')
+  assert.ok(manipulatedSourcePreview.errors.some((error) => /fonctionnalité future/i.test(error.message)), 'Le blocage d’une source future doit être explicite')
+
+  const unknownStatusSource = {
+    name: 'statut-invalide.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Statut\nFilm test,À relire\n', 'statut-invalide.csv')],
+    markdownPages: [],
+  }
+  const unknownStatusSession = prepareFilmCsvImport(unknownStatusSource)
+  const unknownStatusConfiguration = initialFilmImportConfiguration(unknownStatusSession)
+  const unknownStatusPreview = previewFilmCsvImport(unknownStatusSession, unknownStatusSource, unknownStatusConfiguration, '2026-07-18T10:00:00.000Z')
+  assert.equal(unknownStatusPreview.document, null, 'Un statut non reconnu doit bloquer l’import avant toute écriture')
+  assert.match(unknownStatusPreview.errors[0].message, /pas reconnu/i, 'Le statut refusé doit être expliqué localement')
+
+  const ambiguousRatingSource = {
+    name: 'notes-ambigues.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Note,Vu le\nFilm test,8,04/05/2024\n', 'notes-ambigues.csv')],
+    markdownPages: [],
+  }
+  const ambiguousRatingSession = prepareFilmCsvImport(ambiguousRatingSource)
+  const ambiguousRatingConfiguration = initialFilmImportConfiguration(ambiguousRatingSession)
+  if (!ambiguousRatingConfiguration) throw new Error('Configuration de note supérieure à 5 absente')
+  assert.equal(ambiguousRatingConfiguration.ratingScale, 10, 'Une note syntaxiquement valide supérieure à 5 doit déduire /10')
+  const ambiguousRatingPreview = previewFilmCsvImport(ambiguousRatingSession, ambiguousRatingSource, ambiguousRatingConfiguration, '2026-07-18T10:00:00.000Z')
+  assert.equal(ambiguousRatingPreview.document, null, 'Une date ambiguë ne doit jamais être décidée silencieusement')
+  assert.equal(ambiguousRatingPreview.errors.some((error) => /échelle/i.test(error.message)), false, 'Une note supérieure à 5 prouvée ne doit pas être faussement signalée ambiguë')
+  assert.ok(ambiguousRatingPreview.errors.some((error) => /date/i.test(error.path)), 'La date numérique ambiguë doit être localisée')
+  const explicitRatingPreview = previewFilmCsvImport(ambiguousRatingSession, ambiguousRatingSource, {
+    ...ambiguousRatingConfiguration,
+    ratingScale: 10,
+  }, '2026-07-18T10:00:00.000Z')
+  assert.equal(explicitRatingPreview.document, null, 'Le choix d’échelle ne doit pas masquer une date ambiguë')
+
+  const descriptiveRatingSource = {
+    name: 'notes-notion-descriptives.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Note\nFilm excellent,8 (Excellent)\nFilm très bon,7 (Très bon)\n', 'notes-notion-descriptives.csv')],
+    markdownPages: [],
+  }
+  const descriptiveRatingSession = prepareFilmCsvImport(descriptiveRatingSource)
+  const descriptiveRatingConfiguration = initialFilmImportConfiguration(descriptiveRatingSession)
+  assert.ok(descriptiveRatingConfiguration, 'Les notes descriptives doivent ouvrir une configuration générique')
+  if (!descriptiveRatingConfiguration) throw new Error('Configuration de notes descriptives absente')
+  assert.equal(descriptiveRatingConfiguration.ratingScale, 10, 'Des notes descriptives toutes valides avec une valeur supérieure à 5 doivent déduire /10')
+  const descriptiveRatingPreview = previewFilmCsvImport(
+    descriptiveRatingSession,
+    descriptiveRatingSource,
+    descriptiveRatingConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.deepEqual(
+    descriptiveRatingPreview.document?.films.map((film) => film.rating),
+    [4, 3.5],
+    'Une note descriptive /10 déduite doit être convertie en demi-notes /5 sans choix supplémentaire',
+  )
+  const descriptiveRatingOnTenPreview = previewFilmCsvImport(
+    descriptiveRatingSession,
+    descriptiveRatingSource,
+    { ...descriptiveRatingConfiguration, ratingScale: 10 },
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.deepEqual(
+    descriptiveRatingOnTenPreview.document?.films.map((film) => film.rating),
+    [4, 3.5],
+    'Les valeurs 8 (Excellent) et 7 (Très bon) doivent être converties strictement en demi-notes /5 après choix /10',
+  )
+
+  const dualScaleDescriptiveSource = {
+    name: 'note-descriptive-ambigue.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Note\nFilm précis,4 (Bien)\n', 'note-descriptive-ambigue.csv')],
+    markdownPages: [],
+  }
+  const dualScaleDescriptiveSession = prepareFilmCsvImport(dualScaleDescriptiveSource)
+  const dualScaleDescriptiveConfiguration = initialFilmImportConfiguration(dualScaleDescriptiveSession)
+  if (!dualScaleDescriptiveConfiguration) throw new Error('Configuration de note descriptive ambiguë absente')
+  assert.equal(dualScaleDescriptiveConfiguration.ratingScale, null, 'Des notes limitées à 0-5 sans échelle explicite doivent rester ambiguës')
+  const ratingOnFive = previewFilmCsvImport(
+    dualScaleDescriptiveSession,
+    dualScaleDescriptiveSource,
+    { ...dualScaleDescriptiveConfiguration, ratingScale: 5 },
+    '2026-07-18T10:00:00.000Z',
+  )
+  const ratingOnTen = previewFilmCsvImport(
+    dualScaleDescriptiveSession,
+    dualScaleDescriptiveSource,
+    { ...dualScaleDescriptiveConfiguration, ratingScale: 10 },
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(ratingOnFive.document?.films[0].rating, 4, 'Le choix explicite /5 doit être conservé pour une note descriptive ambiguë')
+  assert.equal(ratingOnTen.document?.films[0].rating, 2, 'Le choix explicite /10 doit être conservé pour une note descriptive ambiguë')
+
+  const nonHalfDescriptiveSource = {
+    name: 'note-descriptive-invalide.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Note\nFilm impossible,"7,5 (Très bon)"\n', 'note-descriptive-invalide.csv')],
+    markdownPages: [],
+  }
+  const nonHalfDescriptiveSession = prepareFilmCsvImport(nonHalfDescriptiveSource)
+  const nonHalfDescriptiveConfiguration = initialFilmImportConfiguration(nonHalfDescriptiveSession)
+  if (!nonHalfDescriptiveConfiguration) throw new Error('Configuration de note descriptive invalide absente')
+  const nonHalfDescriptivePreview = previewFilmCsvImport(
+    nonHalfDescriptiveSession,
+    nonHalfDescriptiveSource,
+    { ...nonHalfDescriptiveConfiguration, ratingScale: 10 },
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(nonHalfDescriptivePreview.document, null, 'Une note descriptive convertie hors demi-points doit bloquer l’import')
+  assert.ok(nonHalfDescriptivePreview.errors.some((error) => /demi-points/i.test(error.message)), 'Le refus des notes descriptives hors demi-points doit être expliqué')
+
+  const invalidRatingColumnSource = {
+    name: 'notes-incompletes.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Note\nFilm valide,8 (Très bon)\nFilm invalide,pas une note\n', 'notes-incompletes.csv')],
+    markdownPages: [],
+  }
+  const invalidRatingColumnSession = prepareFilmCsvImport(invalidRatingColumnSource)
+  const invalidRatingColumnConfiguration = initialFilmImportConfiguration(invalidRatingColumnSession)
+  if (!invalidRatingColumnConfiguration) throw new Error('Configuration de colonne de notes invalide absente')
+  assert.equal(invalidRatingColumnConfiguration.ratingScale, null, 'Une seule note non syntaxique doit empêcher la déduction automatique de /10')
+  const invalidRatingColumnPreview = previewFilmCsvImport(
+    invalidRatingColumnSession,
+    invalidRatingColumnSource,
+    invalidRatingColumnConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(invalidRatingColumnPreview.document, null, 'Une colonne de notes non valide doit rester bloquée avant écriture')
+  assert.ok(invalidRatingColumnPreview.errors.some((error) => /échelle/i.test(error.message)), 'Une colonne qui ne prouve pas son échelle doit demander un choix humain')
+
+  const contradictoryRatingSource = {
+    name: 'notes-contradictoires.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Note\nFilm ambigu,8 (Très bon)\nFilm explicite,4/5\n', 'notes-contradictoires.csv')],
+    markdownPages: [],
+  }
+  const contradictoryRatingSession = prepareFilmCsvImport(contradictoryRatingSource)
+  const contradictoryRatingConfiguration = initialFilmImportConfiguration(contradictoryRatingSession)
+  if (!contradictoryRatingConfiguration) throw new Error('Configuration de notes contradictoires absente')
+  assert.equal(contradictoryRatingConfiguration.ratingScale, null, 'Une échelle /5 explicite contradictoire doit empêcher la déduction /10')
+
+  const qaNotionRows = Array.from(
+    { length: 401 },
+    (_, index) => `Film QA ${index + 1},Watched,8 (Très bon),Yes`,
+  ).join('\n')
+  const qaNotionSource = {
+    name: 'Export-Notion-93e75f21-8bf4-4ff4-a90c-0b8249f6a521.zip',
+    kind: 'notion',
+    csvCandidates: [csvCandidate(
+      `Name,Status,Note,Coup de coeur\n${qaNotionRows}\n`,
+      'Export Notion/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521.csv',
+    )],
+    markdownPages: [],
+  }
+  const qaNotionSession = prepareFilmCsvImport(qaNotionSource)
+  const qaNotionConfiguration = initialFilmImportConfiguration(qaNotionSession)
+  if (!qaNotionConfiguration) throw new Error('Configuration Notion de QA absente')
+  assert.equal(qaNotionConfiguration.profileName, 'Films', 'Le profil Notion proposé doit retirer le suffixe UUID technique de la table')
+  assert.equal(qaNotionConfiguration.mapping.title, 'Name', 'La colonne Name doit être proposée une seule fois pour le titre')
+  assert.equal(qaNotionConfiguration.mapping.rating, 'Note', 'La colonne Note doit être proposée pour la notation')
+  assert.equal(qaNotionConfiguration.mapping.personalNote, null, 'Une colonne Note de notation ne doit jamais devenir une note personnelle')
+  assert.equal(qaNotionConfiguration.mapping.isFavorite, 'Coup de coeur', 'Coup de coeur doit alimenter le suivi favori')
+  const assignedQaColumns = Object.values(qaNotionConfiguration.mapping).filter((column) => column !== null)
+  assert.equal(new Set(assignedQaColumns).size, assignedQaColumns.length, 'La détection automatique ne doit réutiliser aucune colonne')
+  assert.equal(qaNotionConfiguration.ratingScale, 10, 'Les 401 notes Notion descriptives supérieures à 5 doivent déduire /10')
+  const qaNotionPreview = previewFilmCsvImport(
+    qaNotionSession,
+    qaNotionSource,
+    qaNotionConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(qaNotionPreview.errors.length, 0, 'Les 401 Films Notion convertibles ne doivent produire aucune erreur')
+  assert.equal(qaNotionPreview.validFilmCount, 401, 'Les 401 Films Notion de QA doivent être convertibles')
+  assert.equal(
+    qaNotionPreview.document?.films.every((film) => film.rating === 4 && film.personalNote === null && film.isFavorite && film.year === null),
+    true,
+    'Les notes Notion doivent être converties en /5, avec favori et sans métadonnée éditoriale',
+  )
+
+  const reassignedQaConfiguration = setFilmImportSourceDestination(qaNotionConfiguration, 'Note', 'personalNote')
+  assert.equal(reassignedQaConfiguration.mapping.rating, null, 'Déplacer une colonne source doit libérer son ancienne destination')
+  assert.equal(reassignedQaConfiguration.mapping.personalNote, null, 'Une colonne de notation ne doit jamais devenir une note personnelle')
+  const reassignedQaColumns = Object.values(reassignedQaConfiguration.mapping).filter((column) => column !== null)
+  assert.equal(new Set(reassignedQaColumns).size, reassignedQaColumns.length, 'Le déplacement d’une source ne doit créer aucun doublon interne')
+
+  const manipulatedRatingAsPersonalPreview = previewFilmCsvImport(
+    qaNotionSession,
+    qaNotionSource,
+    {
+      ...qaNotionConfiguration,
+      mapping: { ...qaNotionConfiguration.mapping, rating: null, personalNote: 'Note' },
+    },
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(
+    manipulatedRatingAsPersonalPreview.document,
+    null,
+    'Un Note=8 manipulé vers Note personnelle avec une évaluation nulle doit rester bloqué avant toute écriture',
+  )
+  assert.ok(
+    manipulatedRatingAsPersonalPreview.errors.some((error) => /évaluation chiffrée.*Évaluation.*Ne pas importer/i.test(error.message)),
+    'Le domaine doit expliquer qu’une colonne de notation ne peut pas devenir une note personnelle',
+  )
+
+  const duplicateQaPreview = previewFilmCsvImport(
+    qaNotionSession,
+    qaNotionSource,
+    {
+      ...qaNotionConfiguration,
+      markdownNotes: false,
+      mapping: { ...qaNotionConfiguration.mapping, personalNote: 'Status' },
+    },
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(duplicateQaPreview.document, null, 'Un mapping dupliqué construit hors interface doit rester bloqué par le domaine')
+  assert.ok(
+    duplicateQaPreview.errors.some((error) => /une source ne peut avoir qu’une destination/i.test(error.message)),
+    'Le domaine doit expliquer le doublon de mapping avant toute écriture',
+  )
+
+  let writeCount = 0
+  await assert.rejects(
+    confirmValidatedImport(unknownStatusPreview, async () => {
+      writeCount += 1
+      return null
+    }),
+    /invalide/i,
+    'Un CSV invalide doit rester bloqué avant l’importeur SQLite',
+  )
+  assert.equal(writeCount, 0, 'Le CSV invalide ne doit créer ni profil ni Film')
+}
+
+{
+  const csvContents = readFileSync('fixtures/import-films-csv-notion/notion-films.csv', 'utf8')
+  const markdownContents = readFileSync('fixtures/import-films-csv-notion/Le Passage.md', 'utf8')
+  const emptyNotesMarkdownContents = readFileSync('fixtures/import-films-csv-notion/Notes vides avec séparateurs.md', 'utf8')
+  const source = {
+    name: 'notion-export.zip',
+    kind: 'notion',
+    csvCandidates: [csvCandidate(csvContents, 'Export/Films/Films.csv')],
+    markdownPages: [{ name: 'Export/Films/Le Passage.md', contents: markdownContents }],
+  }
+  const session = prepareFilmCsvImport(source)
+  const configuration = initialFilmImportConfiguration(session)
+  const preview = previewFilmCsvImport(session, source, configuration, '2026-07-18T10:00:00.000Z')
+  assert.equal(preview.document?.films[0].status, 'à découvrir', 'Le statut Notion To Watch doit être converti vers le statut Films V1')
+  assert.equal(configuration?.mapping.isFavorite, 'Coup de coeur', 'Coup de coeur doit être prérempli vers le favori')
+  assert.equal(preview.document?.films[0].isFavorite, true, 'La valeur Notion Yes doit devenir un favori')
+  assert.equal(preview.document?.films[0].director, null, 'Le réalisateur Notion doit rester une métadonnée non importée')
+  assert.equal(preview.document?.films[0].summary, null, 'Le résumé Notion doit rester une métadonnée non importée')
+  assert.equal(preview.document?.films[0].personalNote, 'Note CSV', 'Une colonne CSV déjà mappée vers Note personnelle doit rester la seule source de cette destination')
+  assert.equal(configuration?.markdownNotes, false, 'Les pages Notion Notes restent ignorées par défaut quand une colonne texte occupe déjà Note personnelle')
+  if (!configuration) throw new Error('Configuration Notion absente')
+  const markdownNotesConfiguration = setFilmImportSourceDestination(configuration, NOTION_MARKDOWN_NOTES_SOURCE, 'personalNote')
+  const markdownNotesPreview = previewFilmCsvImport(session, source, markdownNotesConfiguration, '2026-07-18T10:00:00.000Z')
+  assert.equal(markdownNotesPreview.document?.films[0].personalNote, 'Note Markdown associée.', 'Les pages Notion Notes peuvent alimenter explicitement Note personnelle sans être confondues avec l’évaluation')
+  assert.equal(preview.warnings.length, 0, 'Une page Markdown Notion associée de façon unique ne doit pas produire d’avertissement')
+
+  const emptyNotesSource = {
+    ...source,
+    markdownPages: [{ name: 'Export/Films/Notes vides avec séparateurs.md', contents: emptyNotesMarkdownContents }],
+  }
+  const emptyNotesSession = prepareFilmCsvImport(emptyNotesSource)
+  const emptyNotesConfiguration = initialFilmImportConfiguration(emptyNotesSession)
+  if (!emptyNotesConfiguration) throw new Error('Configuration des Notes vides absente')
+  const emptyNotesPreview = previewFilmCsvImport(
+    emptyNotesSession,
+    emptyNotesSource,
+    setFilmImportSourceDestination(emptyNotesConfiguration, NOTION_MARKDOWN_NOTES_SOURCE, 'personalNote'),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(
+    emptyNotesPreview.document?.films[0].personalNote,
+    null,
+    'Une section Notes ne contenant que des règles horizontales et des puces vides Markdown ne doit pas créer de note personnelle',
+  )
+  assert.equal(emptyNotesPreview.warnings.length, 0, 'Une section Notes vide ne doit pas produire d’avertissement')
+
+  const listNoteSource = {
+    ...source,
+    markdownPages: [{
+      name: 'Export/Films/Notes avec texte.md',
+      contents: '# Le Passage\n\n### Notes :\n\n- Première puce.\n* Deuxième puce.\n+ Troisième puce.\n\n### Informations\n\nFixture synthétique.\n',
+    }],
+  }
+  const listNoteSession = prepareFilmCsvImport(listNoteSource)
+  const listNoteConfiguration = initialFilmImportConfiguration(listNoteSession)
+  if (!listNoteConfiguration) throw new Error('Configuration de la liste Notes absente')
+  const listNotePreview = previewFilmCsvImport(
+    listNoteSession,
+    listNoteSource,
+    setFilmImportSourceDestination(listNoteConfiguration, NOTION_MARKDOWN_NOTES_SOURCE, 'personalNote'),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(
+    listNotePreview.document?.films[0].personalNote,
+    '- Première puce.\n* Deuxième puce.\n+ Troisième puce.',
+    'Une puce Markdown suivie de texte doit rester une note personnelle',
+  )
+  assert.equal(listNotePreview.warnings.length, 0, 'Une note Markdown listée associée de façon unique ne doit pas produire d’avertissement')
+
+  const ambiguousSource = {
+    ...source,
+    csvCandidates: [csvCandidate('Name\nLe Passage\nLe Passage\n', 'Export/Films/Films.csv')],
+    markdownPages: [
+      { name: 'Export/Films/Le Passage.md', contents: markdownContents },
+      { name: 'Export/Films/Inconnu.md', contents: '# Inconnu\n\n### Notes :\n\nSans Film CSV.\n' },
+    ],
+  }
+  const ambiguousSession = prepareFilmCsvImport(ambiguousSource)
+  const ambiguousPreview = previewFilmCsvImport(
+    ambiguousSession,
+    ambiguousSource,
+    initialFilmImportConfiguration(ambiguousSession),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(ambiguousPreview.document?.films.length, 2, 'Une ambiguïté Markdown ne doit pas empêcher l’import des lignes CSV valides')
+  assert.equal(ambiguousPreview.document?.films[0].personalNote, null, 'Une note Markdown ambiguë ne doit jamais être attachée au mauvais Film')
+  assert.equal(ambiguousPreview.warnings.length, 2, 'Les notes Markdown ambiguës ou sans Film doivent rester visibles dans le rapport')
+}
+
+{
+  const fixtureDirectory = 'fixtures/import-films-csv-notion/notion-roots'
+  const sharedTitle = 'Titre partagé'
+  const tableCsv = readFileSync(`${fixtureDirectory}/sibling-view/Table.csv`, 'utf8')
+  const tableAllCsv = readFileSync(`${fixtureDirectory}/sibling-view/Table_all.csv`, 'utf8')
+  const tableAllNote = readFileSync(`${fixtureDirectory}/sibling-view/Table/Page.md`, 'utf8')
+  const unrelatedTableAllNote = readFileSync(`${fixtureDirectory}/sibling-view/Table 11111111111111111111111111111111/Page.md`, 'utf8')
+  const tableAllSource = {
+    name: 'notion-table-all.zip',
+    kind: 'notion',
+    csvCandidates: [
+      csvCandidate(tableCsv, 'Export/Table.csv', 'table'),
+      csvCandidate(tableAllCsv, 'Export/Table_all.csv', 'table-all'),
+    ],
+    markdownPages: [
+      { name: 'Export/Table/Page.md', contents: tableAllNote },
+      { name: 'Export/Table 11111111111111111111111111111111/Page.md', contents: unrelatedTableAllNote },
+    ],
+  }
+  const tableAllSelection = inspectFilmCsvImportSource(tableAllSource)
+  assert.equal(tableAllSelection.defaultCandidateId, 'table-all', 'Table_all.csv doit être retenue parmi les deux vues Notion')
+  assert.equal(tableAllSelection.selectionRequired, false, 'Table.csv et Table_all.csv ne doivent pas être proposées comme deux bases')
+  assert.match(tableAllSelection.automaticSelectionMessage ?? '', /vue complète est retenue automatiquement/i, 'La vue complète retenue doit être expliquée sans jargon')
+  const tableAllSession = prepareFilmCsvImport(tableAllSource)
+  const tableAllConfiguration = initialFilmImportConfiguration(tableAllSession)
+  if (!tableAllConfiguration) throw new Error('Configuration de Table_all.csv absente')
+  assert.equal(tableAllConfiguration.profileName, 'Table', 'Le suffixe de vue _all doit être retiré du nom de profil')
+  assert.deepEqual(tableAllConfiguration.mapping, {
+    title: 'Name',
+    status: 'Status',
+    rating: 'Note',
+    watchedAt: 'Vu le',
+    personalNote: null,
+    isFavorite: 'Coup de coeur',
+  }, 'La vue complète doit préremplir seulement les données personnelles de suivi')
+  assert.equal(tableAllConfiguration.markdownNotes, true, 'Les pages Notion Notes doivent préremplir la note personnelle lorsqu’aucune colonne ne la remplace')
+  const tableAllPreview = previewFilmCsvImport(
+    tableAllSession,
+    tableAllSource,
+    tableAllConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(tableAllPreview.document?.films[0].title, sharedTitle, 'La fixture Table_all doit lire le Film synthétique attendu')
+  assert.equal(tableAllPreview.document?.films[0].rating, 4, 'La vue complète doit conserver l’évaluation /10 convertie')
+  assert.equal(tableAllPreview.document?.films[0].isFavorite, false, 'La valeur No de Notion doit devenir un favori désactivé')
+  assert.equal(tableAllPreview.document?.films[0].year, null, 'Les métadonnées de la vue complète doivent rester null')
+  assert.equal(tableAllPreview.document?.films[0].personalNote, 'Note depuis Table_all.', 'Table_all.csv doit associer les pages du dossier Table dérivé')
+  assert.doesNotMatch(tableAllPreview.document?.films[0].personalNote ?? '', /autre table/u, 'Une table distincte portant le même titre doit rester exclue')
+
+  const nestedTableCsv = readFileSync(`${fixtureDirectory}/table-folder/Table/Table.csv`, 'utf8')
+  const nestedTableNote = readFileSync(`${fixtureDirectory}/table-folder/Table/Page.md`, 'utf8')
+  const unrelatedNestedTableNote = readFileSync(`${fixtureDirectory}/table-folder/Table 11111111111111111111111111111111/Page.md`, 'utf8')
+  const nestedTableSource = {
+    name: 'notion-table-folder.zip',
+    kind: 'notion',
+    csvCandidates: [csvCandidate(nestedTableCsv, 'Export/Table/Table.csv')],
+    markdownPages: [
+      { name: 'Export/Table/Page.md', contents: nestedTableNote },
+      { name: 'Export/Table 11111111111111111111111111111111/Page.md', contents: unrelatedNestedTableNote },
+    ],
+  }
+  const nestedTableSession = prepareFilmCsvImport(nestedTableSource)
+  const nestedTableConfiguration = initialFilmImportConfiguration(nestedTableSession)
+  if (!nestedTableConfiguration) throw new Error('Configuration de Table/Table.csv absente')
+  const nestedTablePreview = previewFilmCsvImport(
+    nestedTableSession,
+    nestedTableSource,
+    nestedTableConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(nestedTablePreview.document?.films[0].personalNote, 'Note depuis Table/Table.csv.', 'Le repli au parent est permis seulement lorsque son nom est celui de la table')
+  assert.doesNotMatch(nestedTablePreview.document?.films[0].personalNote ?? '', /autre table/u, 'Le repli Table/Table.csv ne doit jamais inclure une autre table homonyme')
+
+  const uniqueTechnicalFolderSource = {
+    ...tableAllSource,
+    csvCandidates: [csvCandidate(tableAllCsv, 'Export/Table 22222222222222222222222222222222_all.csv')],
+    markdownPages: [{ name: 'Export/Table 33333333333333333333333333333333/Page.md', contents: tableAllNote }],
+  }
+  const uniqueTechnicalFolderSession = prepareFilmCsvImport(uniqueTechnicalFolderSource)
+  const uniqueTechnicalFolderConfiguration = initialFilmImportConfiguration(uniqueTechnicalFolderSession)
+  if (!uniqueTechnicalFolderConfiguration) throw new Error('Configuration de la vue Notion avec UUID absente')
+  const uniqueTechnicalFolderPreview = previewFilmCsvImport(
+    uniqueTechnicalFolderSession,
+    uniqueTechnicalFolderSource,
+    uniqueTechnicalFolderConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(uniqueTechnicalFolderPreview.document?.films[0].personalNote, 'Note depuis Table_all.', 'Un unique dossier portant le nom humain de la table doit compléter la vue CSV même si son UUID diffère')
+
+  const ambiguousTechnicalFolderSource = {
+    ...uniqueTechnicalFolderSource,
+    markdownPages: [
+      { name: 'Export/Table 33333333333333333333333333333333/Page.md', contents: tableAllNote },
+      { name: 'Export/Table 44444444444444444444444444444444/Page.md', contents: unrelatedTableAllNote },
+    ],
+  }
+  const ambiguousTechnicalFolderSession = prepareFilmCsvImport(ambiguousTechnicalFolderSource)
+  const ambiguousTechnicalFolderPreview = previewFilmCsvImport(
+    ambiguousTechnicalFolderSession,
+    ambiguousTechnicalFolderSource,
+    initialFilmImportConfiguration(ambiguousTechnicalFolderSession),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(ambiguousTechnicalFolderPreview.document?.films[0].personalNote, null, 'Deux dossiers de base portant le même nom humain doivent rester ambigus et ne pas importer de note')
+
+  for (const viewSuffix of ['all', 'full']) {
+    const profileNameSource = {
+      name: `notion-${viewSuffix}.zip`,
+      kind: 'notion',
+      csvCandidates: [csvCandidate('Name,Status\nFilm synthétique,Watched\n', `Export/Movies_DB 0123456789abcdef0123456789abcdef_${viewSuffix}.csv`)],
+      markdownPages: [],
+    }
+    const profileNameSession = prepareFilmCsvImport(profileNameSource)
+    assert.equal(
+      initialFilmImportConfiguration(profileNameSession)?.profileName,
+      'Movies DB',
+      `Le suffixe _${viewSuffix} doit être retiré avant l’UUID du profil Notion`,
+    )
+  }
+}
+
+{
+  const fixtureDirectory = 'fixtures/import-films-csv-notion/multi-tables'
+  const filmsCsv = readFileSync(`${fixtureDirectory}/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521.csv`, 'utf8')
+  const filmsMarkdown = readFileSync(`${fixtureDirectory}/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521/Le Passage 11223344556677889900aabbccddeeff.md`, 'utf8')
+  const seriesCsv = readFileSync(`${fixtureDirectory}/Séries 6f5e4d3c-2b1a-4098-8877-665544332211/Séries 6f5e4d3c-2b1a-4098-8877-665544332211.csv`, 'utf8')
+  const seriesMarkdown = readFileSync(`${fixtureDirectory}/Séries 6f5e4d3c-2b1a-4098-8877-665544332211/Le Passage ffeeddccbbaa00998877665544332211.md`, 'utf8')
+  const filmsRoot = 'Export Notion/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521'
+  const seriesRoot = 'Export Notion/Séries 6f5e4d3c-2b1a-4098-8877-665544332211'
+  const source = {
+    name: 'notion-plusieurs-tables.zip',
+    kind: 'notion',
+    csvCandidates: [
+      csvCandidate(filmsCsv, `${filmsRoot}/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521.csv`, 'films'),
+      csvCandidate(seriesCsv, `${seriesRoot}/Séries 6f5e4d3c-2b1a-4098-8877-665544332211.csv`, 'series'),
+    ],
+    markdownPages: [
+      { name: `${filmsRoot}/Le Passage 11223344556677889900aabbccddeeff.md`, contents: filmsMarkdown },
+      { name: `${seriesRoot}/Le Passage ffeeddccbbaa00998877665544332211.md`, contents: seriesMarkdown },
+    ],
+  }
+  const filmsSession = prepareFilmCsvImport(source, 'films')
+  const filmsConfiguration = initialFilmImportConfiguration(filmsSession)
+  if (!filmsConfiguration) throw new Error('Configuration de la table Films multi-tables absente')
+  const filmsPreview = previewFilmCsvImport(
+    filmsSession,
+    source,
+    setFilmImportSourceDestination(filmsConfiguration, NOTION_MARKDOWN_NOTES_SOURCE, 'personalNote'),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(
+    filmsPreview.document?.films[0].personalNote,
+    'Note Markdown Films.',
+    'Une page Markdown du même dossier doit alimenter uniquement le CSV Films sélectionné',
+  )
+  assert.doesNotMatch(
+    filmsPreview.document?.films[0].personalNote ?? '',
+    /Séries/u,
+    'Une page de l’autre table portant le même titre ne doit jamais être importée dans Films',
+  )
+
+  const seriesSession = prepareFilmCsvImport(source, 'series')
+  const seriesConfiguration = initialFilmImportConfiguration(seriesSession)
+  if (!seriesConfiguration) throw new Error('Configuration de la table Séries multi-tables absente')
+  const seriesPreview = previewFilmCsvImport(
+    seriesSession,
+    source,
+    setFilmImportSourceDestination(seriesConfiguration, NOTION_MARKDOWN_NOTES_SOURCE, 'personalNote'),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(
+    seriesPreview.document?.films[0].personalNote,
+    'Note Markdown Séries.',
+    'Le changement de CSV sélectionné doit rattacher uniquement les pages de sa propre racine',
+  )
+
+  const nestedArchiveSource = {
+    ...source,
+    csvCandidates: [csvCandidate(filmsCsv, `Export Notion part 1.zip!/${filmsRoot}/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521.csv`, 'films')],
+    markdownPages: [{ name: `Export Notion part 1.zip!/${filmsRoot}/Le Passage 11223344556677889900aabbccddeeff.md`, contents: filmsMarkdown }],
+  }
+  const nestedArchiveSession = prepareFilmCsvImport(nestedArchiveSource)
+  const nestedArchiveConfiguration = initialFilmImportConfiguration(nestedArchiveSession)
+  if (!nestedArchiveConfiguration) throw new Error('Configuration de l’archive Notion imbriquée absente')
+  const nestedArchivePreview = previewFilmCsvImport(
+    nestedArchiveSession,
+    nestedArchiveSource,
+    setFilmImportSourceDestination(nestedArchiveConfiguration, NOTION_MARKDOWN_NOTES_SOURCE, 'personalNote'),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(
+    nestedArchivePreview.document?.films[0].personalNote,
+    'Note Markdown Films.',
+    'Une racine incluant archive.zip!/ doit associer les CSV et Markdown du même dossier imbriqué',
+  )
+
+  const indeterminateRootSource = {
+    ...source,
+    csvCandidates: [csvCandidate(filmsCsv, 'Films.csv', 'films')],
+    markdownPages: [{ name: 'Le Passage.md', contents: filmsMarkdown }],
+  }
+  const indeterminateRootSession = prepareFilmCsvImport(indeterminateRootSource)
+  const indeterminateRootConfiguration = initialFilmImportConfiguration(indeterminateRootSession)
+  if (!indeterminateRootConfiguration) throw new Error('Configuration de la racine Notion indéterminée absente')
+  const indeterminateRootPreview = previewFilmCsvImport(
+    indeterminateRootSession,
+    indeterminateRootSource,
+    setFilmImportSourceDestination(indeterminateRootConfiguration, NOTION_MARKDOWN_NOTES_SOURCE, 'personalNote'),
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(
+    indeterminateRootPreview.document?.films[0].personalNote,
+    null,
+    'Sans racine de base de données identifiable, aucune page Markdown ne doit être associée par hasard',
+  )
+}
+
+{
+  const pairedTablesSource = {
+    name: 'notion-deux-paires-de-vues.zip',
+    kind: 'notion',
+    csvCandidates: [
+      csvCandidate('Name,Status\nVue Films,Watched\n', 'Export Notion/Films/Films.csv', 'films'),
+      csvCandidate('Name,Status,Rating\nVue complète Films,Watched,8\n', 'Export Notion/Films/Films_all.csv', 'films-all'),
+      csvCandidate('Name,Status\nVue Séries,Watched\n', 'Export Notion/Séries/Séries.csv', 'series'),
+      csvCandidate('Name,Status,Rating\nVue complète Séries,Watched,9\n', 'Export Notion/Séries/Séries_all.csv', 'series-all'),
+    ],
+    markdownPages: [],
+  }
+  const pairedTablesSelection = inspectFilmCsvImportSource(pairedTablesSource)
+  assert.deepEqual(
+    pairedTablesSelection.candidates.map((candidate) => candidate.id),
+    ['films-all', 'series-all'],
+    'Deux tables Notion ayant chacune une paire standard/_all ne doivent proposer que leurs vues complètes',
+  )
+  assert.deepEqual(
+    pairedTablesSelection.candidates.map((candidate) => candidate.label),
+    ['Films', 'Séries'],
+    'Le sélecteur doit présenter des libellés courts et distincts pour les vues complètes restantes',
+  )
+  assert.equal(pairedTablesSelection.defaultCandidateId, null, 'Aucune vue incomplète ne peut être choisie par défaut lorsque plusieurs tables restent')
+  assert.equal(pairedTablesSelection.selectionRequired, true, 'Deux vues complètes de tables distinctes doivent demander un choix visible')
+  assert.throws(
+    () => prepareFilmCsvImport(pairedTablesSource, 'films'),
+    /Choisissez une table CSV Notion/i,
+    'Une vue standard écartée du sélecteur ne doit plus pouvoir préparer un aperçu',
+  )
+
+  const multiTableSource = {
+    name: 'notion-plusieurs-tables.zip',
+    kind: 'notion',
+    csvCandidates: [
+      csvCandidate('Name,Status\nVue d’ensemble,Watched\n', 'Export Notion/Films/Films.csv', 'films-overview'),
+      csvCandidate('Name,Status,Rating,Vu le,Notes,Director\nLe Passage,Watched,8 (Excellent),18 juillet 2024,Note CSV,Maël Test\n', 'Export Notion/Films/Films_all.csv', 'films-all'),
+    ],
+    markdownPages: [],
+  }
+  const selection = inspectFilmCsvImportSource(multiTableSource)
+  assert.equal(selection.defaultCandidateId, 'films-all', 'La vue complète Notion doit être sélectionnée automatiquement')
+  assert.equal(selection.selectionRequired, false, 'Deux vues de la même table ne doivent pas afficher de choix')
+  assert.match(selection.automaticSelectionMessage ?? '', /Notion a exporté deux vues de Films/i, 'Le regroupement des vues Notion doit être expliqué clairement')
+  const session = prepareFilmCsvImport(multiTableSource)
+  const configuration = initialFilmImportConfiguration(session)
+  if (!configuration) throw new Error('Configuration de la meilleure table Notion absente')
+  const preview = previewFilmCsvImport(
+    session,
+    multiTableSource,
+    { ...configuration, ratingScale: 10 },
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.equal(preview.sourceLabel, 'Export Notion : Export Notion/Films/Films_all.csv', 'L’aperçu doit indiquer la table Notion sélectionnée')
+  assert.equal(preview.document?.films[0].rating, 4, 'La table _all.csv sélectionnée doit accepter sa note descriptive')
+  const reportSource = conciseFilmImportReportSource({
+    kind: 'notion',
+    csvCandidates: [csvCandidate('', 'Export Notion/Films/Films 93e75f21-8bf4-4ff4-a90c-0b8249f6a521.csv', 'films-all')],
+    markdownPages: [],
+  }, 'films-all')
+  assert.equal(reportSource, 'Notion · Films', 'Le rapport doit indiquer le format et la table Notion réellement importée')
+  assert.doesNotMatch(reportSource, /Export Notion|\.csv|93e75f21/u, 'Le rapport ne doit pas exposer de chemin ou d’identifiant technique')
+  assert.equal(
+    conciseFilmImportReportSource({
+      kind: 'notion',
+      csvCandidates: [csvCandidate('', '93e75f21-8bf4-4ff4-a90c-0b8249f6a521.csv', 'opaque-table')],
+      markdownPages: [],
+    }, 'opaque-table'),
+    'Notion · Table CSV',
+    'Une table dont le nom ne contient qu’un UUID ne doit pas exposer cet identifiant technique',
+  )
+
+  const tiedTableSource = {
+    ...multiTableSource,
+    csvCandidates: [
+      csvCandidate('Name,Status\nPremière,Watched\n', 'Export Notion/Base A.csv', 'base-a'),
+      csvCandidate('Title,State\nDeuxième,Viewed\n', 'Export Notion/Base B.csv', 'base-b'),
+    ],
+  }
+  const tiedSelection = inspectFilmCsvImportSource(tiedTableSource)
+  assert.equal(tiedSelection.defaultCandidateId, null, 'Des tables ex aequo ne doivent jamais être sélectionnées silencieusement')
+  assert.equal(tiedSelection.selectionRequired, true, 'Des tables ex aequo doivent demander un choix visible')
+  assert.throws(
+    () => prepareFilmCsvImport(tiedTableSource),
+    /Choisissez une table CSV Notion/i,
+    'Un aperçu ne doit pas deviner une table lorsque le mapping est ex aequo',
+  )
+
+  const insufficientTableSource = {
+    ...multiTableSource,
+    csvCandidates: [
+      csvCandidate('Name\nPremière\n', 'Export Notion/Notes.csv', 'notes'),
+      csvCandidate('Title\nDeuxième\n', 'Export Notion/Archives.csv', 'archives'),
+    ],
+  }
+  const insufficientSelection = inspectFilmCsvImportSource(insufficientTableSource)
+  assert.equal(insufficientSelection.defaultCandidateId, null, 'Un mapping Films insuffisant ne doit pas déclencher de choix implicite')
+  assert.equal(insufficientSelection.selectionRequired, true, 'Un mapping Films insuffisant doit demander un choix visible')
 }
 
 {
@@ -654,6 +1443,7 @@ const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', im
 const portabilitySource = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
 const transferSource = readFileSync(new URL('../src/domain/libraryTransfer.ts', import.meta.url), 'utf8')
 const csvTransferSource = readFileSync(new URL('../src/domain/csvFilmExport.ts', import.meta.url), 'utf8')
+const csvImportSource = readFileSync(new URL('../src/domain/filmCsvImport.ts', import.meta.url), 'utf8')
 const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePortability.ts', import.meta.url), 'utf8')
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
 const tauriLibrarySource = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
@@ -699,13 +1489,50 @@ assert.match(backupSnapshotsMigration, /PRIMARY KEY \(profile_id, file_name\)/, 
 assert.match(transferSource, /SYLLOGE_EXPORT_VERSION = 1/, 'Le format JSON doit avoir une version explicite')
 assert.match(csvTransferSource, /SYLLOGE_FILMS_CSV_VERSION = 1/, 'Le contrat CSV doit avoir une version explicite')
 assert.match(csvTransferSource, /sylloge-films-csv/, 'Le CSV doit annoncer son format stable')
+assert.match(csvImportSource, /ImportableFilmField/, 'Le mapping CSV doit rester limité aux champs Films V1 explicitement stockables')
+assert.match(csvImportSource, /L’échelle des notes est ambiguë/, 'Une note sans échelle doit être bloquée au lieu d’être supposée')
+assert.match(csvImportSource, /Markdown/, 'Les notes Notion doivent être associées de manière visible et déterministe')
 assert.match(portabilitySource, /Créer le nouveau profil et importer/, 'La confirmation d’import doit nommer explicitement la création du profil')
+assert.match(portabilitySource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
 assert.match(portabilitySource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
-assert.match(portabilitySource, /Exporter ce profil en CSV/, 'Les Paramètres doivent proposer un export CSV explicite')
+assert.match(portabilitySource, /Importer et exporter/, 'Les Paramètres doivent regrouper imports et exports dans un hub dédié')
+assert.match(portabilitySource, /transferDialog/, 'Le hub doit ouvrir son assistant dans un dialogue dédié')
+assert.match(portabilitySource, /role="dialog"/, 'Les assistants de portabilité doivent être des dialogues accessibles')
+assert.match(portabilitySource, /Détecté dans votre fichier/, 'Le mapping doit présenter les colonnes dans le sens source vers destination')
+assert.match(portabilitySource, /Importer dans Sylloge/, 'Le mapping doit nommer explicitement la destination Sylloge')
+assert.match(portabilitySource, /Seules vos données de suivi sont importées/, 'Le mapping doit expliquer le périmètre personnel de l’import')
+assert.match(portabilitySource, /Métadonnée récupérée plus tard, non importée/, 'Les sources metadata doivent être clairement exclues dans le mapping')
+assert.match(portabilitySource, /Fonctionnalité future, non importée/, 'Les sources de fonctionnalités futures doivent être clairement exclues dans le mapping')
+assert.doesNotMatch(portabilitySource, /champs Films reconnus/, 'Le sélecteur Notion ne doit jamais afficher un compteur de champs reconnus')
+assert.match(portabilitySource, /Pages Notion « Notes »/, 'Les pages Notes Notion doivent apparaître comme une source texte distincte')
+assert.match(portabilitySource, /Évaluation/, 'La destination numérique doit être distinguée de Note personnelle')
+assert.match(portabilitySource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
+assert.match(portabilitySource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
+assert.match(portabilitySource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
+assert.match(portabilitySource, /Sauvegarde Sylloge JSON/, 'L’export doit proposer une sauvegarde complète Sylloge')
+assert.match(portabilitySource, /Tableau Films CSV/, 'L’export doit proposer un tableau Films explicite pour tableur')
+assert.doesNotMatch(mainSource, /scrollIntoView\(\{ block: 'start' \}\)/, 'Les entrées de la sidebar Paramètres ne doivent plus faire défiler des ancres')
+assert.match(mainSource, /SETTINGS_NAVIGATION/, 'La sidebar doit disposer de sa navigation locale de réglages')
+assert.match(mainSource, /Importer et exporter/, 'La navigation locale doit inclure le hub Importer et exporter')
+assert.match(mainSource, /Retour à la bibliothèque/, 'Les Paramètres doivent toujours proposer un retour explicite à la bibliothèque')
+assert.match(mainSource, /section={settingsSection}/, 'La navigation interne doit afficher la rubrique demandée sans conserver les autres pages')
+assert.match(portabilitySource, /const \[activeImport, setActiveImport\] = useState<ActiveImport \| null>\(null\)/, 'Les confirmations JSON et CSV ou Notion doivent partager un état d’import actif')
+assert.match(portabilitySource, /if \(activeImportRef\.current !== null\) return false/, 'Un second clic de confirmation doit être refusé immédiatement pendant un import actif')
+assert.match(portabilitySource, /disabled=\{choosingImport \|\| disabled\}/, 'Le sélecteur JSON doit être désactivé pendant tout import actif')
+assert.match(portabilitySource, /disabled=\{choosingFilmsImport \|\| disabled\}/, 'Le sélecteur CSV ou Notion doit être désactivé pendant tout import actif')
+assert.match(portabilitySource, /disabled=\{disabled\}/, 'La confirmation JSON doit être désactivée pendant l’import opposé')
+assert.match(portabilitySource, /disabled=\{disabled \|\| !valid\}/, 'La confirmation CSV ou Notion doit être désactivée pendant l’import opposé')
 assert.match(nativePortabilityBridgeSource, /invoke\('save_export_csv'/, 'Le frontend doit appeler le pont Tauri CSV dédié')
+assert.match(nativePortabilityBridgeSource, /invoke\('pick_import_films_csv_or_notion'/, 'Le frontend doit appeler le pont Tauri CSV ou Notion dédié')
 assert.match(tauriLibrarySource, /portability::save_export_csv/, 'La commande Tauri CSV doit être enregistrée')
+assert.match(tauriLibrarySource, /portability::pick_import_films_csv_or_notion/, 'La commande Tauri d’import CSV ou Notion doit être enregistrée')
 assert.match(nativePortabilitySource, /pub async fn save_export_csv/, 'Le pont natif doit exposer une sauvegarde CSV')
 assert.match(nativePortabilitySource, /"Export CSV Sylloge"/, 'Le dialogue natif CSV doit filtrer explicitement le format CSV')
+assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_ENTRIES/, 'Le lecteur ZIP Notion doit limiter le nombre d’entrées')
+assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_PATH_DEPTH/, 'Le lecteur ZIP Notion doit limiter la profondeur des dossiers')
+assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_NESTING_DEPTH/, 'Le lecteur ZIP Notion doit limiter la profondeur des archives imbriquées')
+assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_UNCOMPRESSED_BYTES/, 'Le lecteur ZIP Notion doit limiter la taille décompressée')
+assert.match(nativePortabilitySource, /extract_notion_zip/, 'Le ZIP Notion doit être lu en mémoire sans extraction durable')
 assert.match(nativePortabilitySource, /\.begin\(\)/, 'L’import doit démarrer une transaction SQLite atomique côté Rust')
 assert.match(nativePortabilitySource, /\.commit\(\)/, 'L’import doit valider explicitement la transaction SQLite')
 assert.match(nativePortabilitySource, /write_snapshot_atomically/, 'Les snapshots doivent passer par une écriture atomique native')
@@ -716,4 +1543,4 @@ assert.match(capabilitySource, /sql:allow-load/, 'Tauri doit autoriser le charge
 assert.match(capabilitySource, /sql:allow-select/, 'Tauri doit autoriser les lectures SQLite')
 assert.match(capabilitySource, /sql:allow-execute/, 'Tauri doit autoriser les écritures SQLite')
 
-console.log('Vérification réussie : Films SQLite, JSON v1 strict et réimportable, CSV Films v1 UTF-8 échappé, pont natif CSV, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')
+console.log('Vérification réussie : Films SQLite, JSON v1 strict et réimportable, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')

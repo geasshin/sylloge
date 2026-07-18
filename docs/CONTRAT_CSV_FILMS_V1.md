@@ -1,6 +1,6 @@
 # Contrat CSV Films v1
 
-**Statut :** normatif pour l'export CSV du jalon interne `0.3.1`. Cet export est uniquement une représentation portable et lisible des données Films V1. Il ne constitue pas encore un format d'import accepté par Sylloge.
+**Statut :** normatif pour l’export CSV du jalon interne `0.3.1` et pour la réimportation contrôlée du CSV Sylloge Films v1 livrée au jalon `0.3.2`. Le format reste une représentation portable et lisible des données Films V1.
 
 ## Encodage et structure
 
@@ -18,11 +18,11 @@ format,version,exported_at,profile_id,profile_name,profile_created_at,profile_up
 
 Avant l'échappement CSV, toute valeur texte de profil ou de Film dont le premier caractère significatif après des espaces ou caractères de contrôle ASCII est `=`, `+`, `-`, `@` ou une apostrophe reçoit exactement une apostrophe ASCII (`'`) en tête. Cette apostrophe force une lecture textuelle dans Excel et LibreOffice, y compris lorsque la cellule doit aussi être citée pour une virgule, un guillemet ou un retour à la ligne. Les nombres, booléens, cellules vides et métadonnées de format ne sont pas modifiés.
 
-Cette convention v1 est réversible : une valeur source `=1+1` devient la cellule CSV `'=1+1`, tandis qu'une valeur source `'=1+1` devient `''=1+1`. Avec une tabulation source, `\t=1+1` devient `'<TAB>=1+1` : l'apostrophe est toujours ajoutée avant les caractères conservés. Si un import CSV contrôlé est ajouté, il devra, après lecture de l'échappement CSV, retirer exactement une seule apostrophe initiale de toute cellule texte qui en possède une. Ce retrait unique reconstitue exactement les valeurs source, y compris leurs espaces et caractères de contrôle initiaux. C'est une exigence de compatibilité pour tout futur import CSV ; cet export v1 n'implémente pas encore d'import CSV.
+Cette convention v1 est réversible : une valeur source `=1+1` devient la cellule CSV `'=1+1`, tandis qu'une valeur source `'=1+1` devient `''=1+1`. Avec une tabulation source, `\t=1+1` devient `'<TAB>=1+1` : l'apostrophe est toujours ajoutée avant les caractères conservés. Après lecture de l’échappement CSV, l’import contrôlé retire exactement une seule apostrophe initiale de toute cellule texte qui en possède une. Ce retrait unique reconstitue exactement les valeurs source, y compris leurs espaces et caractères de contrôle initiaux.
 
 ## Métadonnées d'export et profil
 
-Chaque ligne porte `format=sylloge-films-csv` et `version=1`. `exported_at` est l'horodatage UTC ISO 8601 de l'export. Les colonnes `profile_*` reprennent intégralement le profil source JSON v1, notamment `profile_name`, pour permettre la création explicitement nommée d'un nouveau profil dans un futur import contrôlé.
+Chaque ligne porte `format=sylloge-films-csv` et `version=1`. `exported_at` est l'horodatage UTC ISO 8601 de l'export. Les colonnes `profile_*` reprennent intégralement le profil source JSON v1, notamment `profile_name`, pour permettre la création explicitement nommée d'un nouveau profil lors de l’import contrôlé.
 
 Un export sans Film contient malgré tout l'en-tête puis une ligne avec ses métadonnées et ses champs `profile_*`. Ses colonnes `film_*` sont toutes vides. Cette ligne représente un profil vide, non un Film incomplet.
 
@@ -41,13 +41,14 @@ Les colonnes `film_*` reprennent les champs Films JSON v1 sans les renommer sém
 | `film_watched_at` | `AAAA-MM-JJ` ou vide | date calendrier ou `null` |
 | `film_created_at`, `film_updated_at` | UTC ISO 8601 | horodatages Films v1 |
 
-Une cellule vide pour un champ Film nullable représente `null`. L'interface actuelle normalise déjà les champs facultatifs vides vers `null`. Un JSON v1 historique qui contiendrait exceptionnellement une chaîne vide reste accepté par l'import JSON existant, mais son export CSV est volontairement normalisé vers une cellule vide et sera lu comme `null` par le futur import contrôlé. Les champs obligatoires vides ou les colonnes inconnues ne seront jamais rendus valides implicitement.
+Une cellule vide pour un champ Film nullable représente `null`. L'interface actuelle normalise déjà les champs facultatifs vides vers `null`. Un JSON v1 historique qui contiendrait exceptionnellement une chaîne vide reste accepté par l'import JSON existant, mais son export CSV est volontairement normalisé vers une cellule vide et est lu comme `null` par l’import CSV contrôlé. Les champs obligatoires vides ou les colonnes inconnues ne seront jamais rendus valides implicitement.
 
-`film_profile_id` est conservé pour refléter explicitement Films V1. Dans chaque ligne Film, il est égal à `profile_id`. Les identifiants source sont portables pour le contrôle, mais un futur import devra recréer les identifiants locaux comme l'import JSON v1 actuel.
+`film_profile_id` est conservé pour refléter explicitement Films V1. Dans chaque ligne Film, il est égal à `profile_id`. Les identifiants source sont portables pour le contrôle, mais l’import contrôlé recrée les identifiants locaux comme l'import JSON v1 actuel.
 
 ## Compatibilité et limites
 
 - JSON `sylloge-films` v1, ses snapshots et son import strict restent inchangés. Le CSV ne modifie ni SQLite ni les migrations.
 - Les lignes suivent l'ordre stable du profil courant fourni par le dépôt Films : titre SQLite `NOCASE`, puis date de création. Avec les mêmes données et le même horodatage, le CSV est déterministe.
 - Toutes les valeurs exportées proviennent du profil et des Films courants. Le fichier ne contient pas de secret, de donnée téléchargée, de fichier image ni de nouvelle métadonnée externe. `film_poster_url` peut être vide et, lorsqu'il est renseigné, reste seulement l'URL déjà enregistrée : aucune affiche n'est téléchargée.
-- L'import CSV, le mapping, Notion, les API et le réseau sont explicitement hors de ce contrat.
+- L’import contrôlé reconnaît seulement l’en-tête exact et ordonné de ce contrat. Il valide toutes les lignes avant écriture, reconstitue le document Films JSON v1, crée un nouveau profil avec de nouveaux identifiants locaux et n’écrase jamais le profil ouvert.
+- Le mapping CSV générique et l’archive ZIP Notion sont des parcours d’import séparés. Ils ne modifient pas cet en-tête, n’ajoutent aucun champ exporté, ne téléchargent aucune affiche et ne constituent pas une API ou une synchronisation.

@@ -19,7 +19,7 @@ Ce dossier contient les documents **versionnés avec le code** : ce sont les ré
 ## Version actuelle
 
 - **Dernière release publique : `0.3.0`**, macOS signée et publiée.
-- **Travail en cours :** jalon interne `0.3.1` du train qui prépare `0.4.0` ; il ne s’agit ni d’un tag ni d’une version installable.
-- **Portée actuelle :** Films, Tauri macOS, SQLite locale, création/édition/suppression, recherche/filtres, affiches distantes facultatives, profils locaux, import/export JSON, sauvegardes portables et export CSV Films v1.
+- **Dernier jalon interne livré :** `0.3.2` du train qui prépare `0.4.0` ; il ne s’agit ni d’un tag ni d’une version installable.
+- **Portée actuelle :** Films, Tauri macOS, SQLite locale, création/édition/suppression, recherche/filtres, affiches distantes facultatives, profils locaux, import/export JSON, sauvegardes portables, export CSV Films v1 et import contrôlé CSV ou ZIP Notion vers un nouveau profil.
 
 Le README principal décrit le lancement, les données et les limites d’usage ; `ROADMAP.md` décrit l’ordre des jalons à venir.

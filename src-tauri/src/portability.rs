@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Cursor, Read, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
@@ -14,6 +14,12 @@ use crate::database::DATABASE_URL;
 
 const SNAPSHOT_RETENTION_COUNT: usize = 30;
 const SNAPSHOT_PREFIX: &str = "sylloge-films-v1-";
+const MAX_FILMS_IMPORT_FILE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_NOTION_ZIP_ENTRIES: usize = 512;
+const MAX_NOTION_ZIP_PATH_DEPTH: usize = 8;
+const MAX_NOTION_ZIP_NESTING_DEPTH: usize = 4;
+const MAX_NOTION_ZIP_UNCOMPRESSED_BYTES: u128 = 32 * 1024 * 1024;
+const MAX_NOTION_ZIP_ENTRY_BYTES: u64 = 4 * 1024 * 1024;
 static SNAPSHOT_NONCE: AtomicU64 = AtomicU64::new(0);
 
 pub struct BackupSnapshotLock(Mutex<()>);
@@ -27,6 +33,30 @@ impl Default for BackupSnapshotLock {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PickedJsonFile {
+    name: String,
+    contents: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PickedFilmsImportFile {
+    name: String,
+    kind: &'static str,
+    csv_candidates: Vec<CsvImportCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvImportCandidate {
+    id: String,
+    name: String,
+    contents: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownPage {
     name: String,
     contents: String,
 }
@@ -126,6 +156,208 @@ pub async fn pick_import_json(app: AppHandle) -> Result<Option<PickedJsonFile>, 
         .to_string();
 
     Ok(Some(PickedJsonFile { name, contents }))
+}
+
+#[tauri::command]
+pub async fn pick_import_films_csv_or_notion(
+    app: AppHandle,
+) -> Result<Option<PickedFilmsImportFile>, String> {
+    let Some(file_path) = app
+        .dialog()
+        .file()
+        .add_filter("CSV ou export Notion", &["csv", "zip"])
+        .set_title("Choisir un CSV Films ou un export Notion")
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("import-films")
+        .to_string();
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match extension.as_str() {
+        "csv" => Ok(Some(PickedFilmsImportFile {
+            csv_candidates: vec![CsvImportCandidate {
+                id: "csv-0".to_string(),
+                name: name.clone(),
+                contents: read_utf8_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?,
+            }],
+            name,
+            kind: "csv",
+            markdown_pages: Vec::new(),
+        })),
+        "zip" => extract_notion_zip(
+            &name,
+            &read_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?,
+        )
+        .map(Some),
+        _ => Err("Choisissez un fichier CSV ou ZIP Notion.".to_string()),
+    }
+}
+
+fn read_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, String> {
+    let metadata = fs::metadata(path)
+        .map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))?;
+    if !metadata.is_file() {
+        return Err("Le chemin choisi n’est pas un fichier.".to_string());
+    }
+    if metadata.len() > maximum_bytes {
+        return Err(format!(
+            "Le fichier choisi dépasse la limite sûre de {} Mio.",
+            maximum_bytes / (1024 * 1024)
+        ));
+    }
+    fs::read(path).map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))
+}
+
+fn read_utf8_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<String, String> {
+    String::from_utf8(read_file_with_limit(path, maximum_bytes)?)
+        .map_err(|_| "Le CSV choisi doit être encodé en UTF-8.".to_string())
+}
+
+fn extract_notion_zip(name: &str, contents: &[u8]) -> Result<PickedFilmsImportFile, String> {
+    if contents.len() as u64 > MAX_FILMS_IMPORT_FILE_BYTES {
+        return Err("L’archive Notion dépasse la limite sûre de 16 Mio.".to_string());
+    }
+    let mut extraction = NotionZipExtraction::default();
+    extraction.read_archive(contents, 0, "")?;
+
+    if extraction.csv_files.is_empty() {
+        return Err("L’archive Notion ne contient aucun CSV de table Films.".to_string());
+    }
+    Ok(PickedFilmsImportFile {
+        name: name.to_string(),
+        kind: "notion",
+        csv_candidates: extraction.csv_files,
+        markdown_pages: extraction.markdown_pages,
+    })
+}
+
+#[derive(Default)]
+struct NotionZipExtraction {
+    entry_count: usize,
+    decompressed_bytes: u128,
+    next_csv_candidate_id: usize,
+    csv_files: Vec<CsvImportCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+}
+
+impl NotionZipExtraction {
+    fn read_archive(
+        &mut self,
+        contents: &[u8],
+        nesting_depth: usize,
+        entry_prefix: &str,
+    ) -> Result<(), String> {
+        let mut archive = zip::ZipArchive::new(Cursor::new(contents))
+            .map_err(|error| format!("L’archive Notion est invalide : {error}"))?;
+
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index).map_err(|error| {
+                format!("Une entrée de l’archive Notion est illisible : {error}")
+            })?;
+            let safe_path = file.enclosed_name().ok_or_else(|| {
+                "L’archive Notion contient un chemin de fichier non sûr.".to_string()
+            })?;
+            let depth = safe_path.components().count();
+            if depth > MAX_NOTION_ZIP_PATH_DEPTH {
+                return Err(format!(
+                    "L’archive Notion dépasse la profondeur maximale de {MAX_NOTION_ZIP_PATH_DEPTH} dossiers."
+                ));
+            }
+            self.count_entry()?;
+            if file.is_dir() {
+                continue;
+            }
+            if file.size() > MAX_NOTION_ZIP_ENTRY_BYTES {
+                return Err(
+                    "Une entrée de l’archive Notion dépasse la limite sûre de 4 Mio.".to_string(),
+                );
+            }
+
+            let entry_name = safe_path.to_string_lossy().into_owned();
+            let lower_name = entry_name.to_ascii_lowercase();
+            if lower_name.ends_with(".zip") && nesting_depth >= MAX_NOTION_ZIP_NESTING_DEPTH {
+                return Err(format!(
+                    "L’archive Notion dépasse la profondeur maximale de {MAX_NOTION_ZIP_NESTING_DEPTH} archives ZIP imbriquées."
+                ));
+            }
+
+            let entry_contents = read_zip_entry(&mut file)?;
+            self.count_decompressed_bytes(entry_contents.len())?;
+
+            if lower_name.ends_with(".zip") {
+                let nested_prefix = format!("{entry_prefix}{entry_name}!/");
+                self.read_archive(&entry_contents, nesting_depth + 1, &nested_prefix)?;
+                continue;
+            }
+            if !lower_name.ends_with(".csv") && !lower_name.ends_with(".md") {
+                continue;
+            }
+
+            let entry_contents = String::from_utf8(entry_contents)
+                .map_err(|_| format!("L’entrée « {entry_name} » doit être encodée en UTF-8."))?;
+            let display_name = format!("{entry_prefix}{entry_name}");
+            if lower_name.ends_with(".csv") {
+                self.csv_files.push(CsvImportCandidate {
+                    id: format!("csv-{}", self.next_csv_candidate_id),
+                    name: display_name,
+                    contents: entry_contents,
+                });
+                self.next_csv_candidate_id += 1;
+            } else {
+                self.markdown_pages.push(MarkdownPage {
+                    name: display_name,
+                    contents: entry_contents,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn count_entry(&mut self) -> Result<(), String> {
+        self.entry_count += 1;
+        if self.entry_count > MAX_NOTION_ZIP_ENTRIES {
+            return Err(format!(
+                "L’archive Notion contient plus de {MAX_NOTION_ZIP_ENTRIES} entrées."
+            ));
+        }
+        Ok(())
+    }
+
+    fn count_decompressed_bytes(&mut self, byte_count: usize) -> Result<(), String> {
+        self.decompressed_bytes += byte_count as u128;
+        if self.decompressed_bytes > MAX_NOTION_ZIP_UNCOMPRESSED_BYTES {
+            return Err(
+                "L’archive Notion dépasse la limite de contenu décompressé de 32 Mio.".to_string(),
+            );
+        }
+        Ok(())
+    }
+}
+
+fn read_zip_entry(file: &mut zip::read::ZipFile<'_>) -> Result<Vec<u8>, String> {
+    let mut contents = Vec::new();
+    let bytes_read = file
+        .take(MAX_NOTION_ZIP_ENTRY_BYTES + 1)
+        .read_to_end(&mut contents)
+        .map_err(|error| format!("Impossible de lire une entrée de l’archive Notion : {error}"))?;
+    if bytes_read as u64 > MAX_NOTION_ZIP_ENTRY_BYTES {
+        return Err("Une entrée de l’archive Notion dépasse la limite sûre de 4 Mio.".to_string());
+    }
+    Ok(contents)
 }
 
 #[tauri::command]
@@ -1021,6 +1253,207 @@ mod tests {
         );
 
         fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+    }
+
+    fn notion_zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            for (name, contents) in entries {
+                writer
+                    .start_file(name, zip::write::SimpleFileOptions::default())
+                    .expect("entrée ZIP de test");
+                writer.write_all(contents).expect("contenu ZIP de test");
+            }
+            writer.finish().expect("finalisation ZIP de test");
+        }
+        cursor.into_inner()
+    }
+
+    fn notion_zip(entries: &[(&str, &str)]) -> Vec<u8> {
+        let byte_entries = entries
+            .iter()
+            .map(|(name, contents)| (*name, contents.as_bytes()))
+            .collect::<Vec<_>>();
+        notion_zip_bytes(&byte_entries)
+    }
+
+    #[test]
+    fn notion_zip_reader_reads_nested_csv_and_markdown_in_memory() {
+        let archive = notion_zip(&[
+            (
+                "Export Notion/Films/Films.csv",
+                "Name,Rating\nLe Passage,4/5\n",
+            ),
+            (
+                "Export Notion/Films/Le Passage.md",
+                "# Le Passage\n\n### Notes :\n\nNote liée.\n",
+            ),
+        ]);
+
+        let picked = extract_notion_zip("export-notion.zip", &archive)
+            .expect("lecture ZIP Notion imbriquée");
+
+        assert_eq!(picked.name, "export-notion.zip");
+        assert_eq!(picked.kind, "notion");
+        assert_eq!(picked.csv_candidates.len(), 1);
+        assert_eq!(
+            picked.csv_candidates[0].name,
+            "Export Notion/Films/Films.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[0].contents,
+            "Name,Rating\nLe Passage,4/5\n"
+        );
+        assert_eq!(picked.markdown_pages.len(), 1);
+        assert_eq!(
+            picked.markdown_pages[0].name,
+            "Export Notion/Films/Le Passage.md"
+        );
+        assert_eq!(
+            picked.markdown_pages[0].contents,
+            "# Le Passage\n\n### Notes :\n\nNote liée.\n"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_reads_csv_and_markdown_from_a_nested_zip_part() {
+        let zip_part = notion_zip(&[
+            ("Films/Films.csv", "Name,Rating\nLe Passage,4/5\n"),
+            (
+                "Films/Le Passage.md",
+                "# Le Passage\n\n### Notes :\n\nNote liée.\n",
+            ),
+        ]);
+        let outer_archive = notion_zip_bytes(&[("Export Notion part 1.zip", zip_part.as_slice())]);
+
+        let picked = extract_notion_zip("export-notion.zip", &outer_archive)
+            .expect("lecture d’un ZIP Notion contenant une archive part");
+
+        assert_eq!(picked.csv_candidates.len(), 1);
+        assert_eq!(picked.csv_candidates[0].id, "csv-0");
+        assert_eq!(
+            picked.csv_candidates[0].name,
+            "Export Notion part 1.zip!/Films/Films.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[0].contents,
+            "Name,Rating\nLe Passage,4/5\n"
+        );
+        assert_eq!(picked.markdown_pages.len(), 1);
+        assert_eq!(
+            picked.markdown_pages[0].name,
+            "Export Notion part 1.zip!/Films/Le Passage.md"
+        );
+        assert_eq!(
+            picked.markdown_pages[0].contents,
+            "# Le Passage\n\n### Notes :\n\nNote liée.\n"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_counts_entries_across_nested_zip_parts() {
+        let entry_names = (0..MAX_NOTION_ZIP_ENTRIES / 2)
+            .map(|index| format!("pages/{index}.md"))
+            .collect::<Vec<_>>();
+        let zip_part_entries = entry_names
+            .iter()
+            .map(|name| (name.as_str(), b"".as_slice()))
+            .collect::<Vec<_>>();
+        let zip_part = notion_zip_bytes(&zip_part_entries);
+        let outer_archive = notion_zip_bytes(&[
+            ("Export Notion part 1.zip", zip_part.as_slice()),
+            ("Export Notion part 2.zip", zip_part.as_slice()),
+        ]);
+
+        let result = extract_notion_zip("trop-d-entrees.zip", &outer_archive);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("512 entrées")),
+            "le nombre d’entrées doit être limité sur l’ensemble des archives imbriquées"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_rejects_excessive_zip_nesting() {
+        let mut archive = notion_zip(&[("Films.csv", "Name\nLe Passage\n")]);
+        for _ in 0..=MAX_NOTION_ZIP_NESTING_DEPTH {
+            archive = notion_zip_bytes(&[("Export Notion part.zip", archive.as_slice())]);
+        }
+
+        let result = extract_notion_zip("trop-imbrique.zip", &archive);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("4 archives ZIP imbriquées")),
+            "la profondeur des archives ZIP imbriquées doit être explicitement limitée"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_keeps_multiple_csv_candidates() {
+        let archive = notion_zip(&[
+            (
+                "Export Notion/Films/Films.csv",
+                "Name,Status\nLe Passage,Watched\n",
+            ),
+            (
+                "Export Notion/Films/Films_all.csv",
+                "Name,Status,Rating,Vu le\nLe Passage,Watched,8 (Excellent),18 juillet 2024\n",
+            ),
+        ]);
+
+        let picked = extract_notion_zip("export-notion.zip", &archive)
+            .expect("lecture d’un ZIP Notion avec plusieurs tables CSV");
+
+        assert_eq!(picked.csv_candidates.len(), 2);
+        assert_eq!(
+            picked.csv_candidates[0].name,
+            "Export Notion/Films/Films.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[1].name,
+            "Export Notion/Films/Films_all.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[1].contents,
+            "Name,Status,Rating,Vu le\nLe Passage,Watched,8 (Excellent),18 juillet 2024\n"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_rejects_invalid_and_oversized_archives() {
+        let invalid = extract_notion_zip("invalide.zip", b"ce fichier n'est pas une archive ZIP");
+        assert!(
+            invalid.is_err(),
+            "une archive invalide doit produire une erreur récupérable"
+        );
+
+        let oversized = vec![0_u8; MAX_FILMS_IMPORT_FILE_BYTES as usize + 1];
+        let too_large = extract_notion_zip("trop-grand.zip", &oversized);
+        assert!(
+            too_large.is_err(),
+            "une archive hors limite doit être refusée avant analyse"
+        );
+
+        let without_csv = extract_notion_zip(
+            "sans-csv.zip",
+            &notion_zip(&[("Export Notion/Films/Une page.md", "# Une page\n")]),
+        );
+        assert!(
+            matches!(without_csv, Err(message) if message.contains("aucun CSV")),
+            "le refus d’une archive sans CSV doit expliquer la cause"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_rejects_excessive_path_depth() {
+        let archive = notion_zip(&[("a/b/c/d/e/f/g/h/i/Films.csv", "Name\nTrop profond\n")]);
+        let result = extract_notion_zip("profondeur.zip", &archive);
+
+        assert!(
+            result.is_err(),
+            "une archive avec trop de niveaux doit être refusée"
+        );
     }
 
     #[test]

@@ -191,6 +191,8 @@ Les cinq médiums sont un contrat produit, pas une option. Les décisions encore
 
 - Étendre aux Jeux et à l’Art les parcours communs validés : recherche, filtres, export, import, sauvegardes et fallbacks visuels.
 - Exercer les bibliothèques mixtes, les contenus incomplets et les migrations depuis une installation Films existante.
+- Réorganiser les réglages de données autour des médiums effectivement disponibles : chaque collection dispose de son import et de son export explicites, sans écran ou destination factice pour un médium absent. Les formats et mappings restent propres à leur type de bibliothèque ; aucun fichier mixte n’est imposé.
+- Décider et tester, après stabilisation du modèle multi-médiums, si une même session d’import peut préparer plusieurs collections d’un nouveau profil. Cette décision ne doit pas être anticipée par cinq colonnes figées dans les réglages Films-only.
 
 ### `0.5.0` — Release publique Extension culturelle
 

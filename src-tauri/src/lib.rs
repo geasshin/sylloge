@@ -16,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             portability::pick_import_json,
+            portability::pick_import_films_csv_or_notion,
             portability::save_export_json,
             portability::save_export_csv,
             portability::get_backup_settings,
