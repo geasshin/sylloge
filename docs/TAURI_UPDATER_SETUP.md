@@ -47,7 +47,7 @@ Dans Terminal macOS (zsh), exécutez ce bloc depuis le dossier du projet. Il tra
 )
 ```
 
-Ne copiez pas ce bloc dans une conversation ou un fichier qui ajouterait la passphrase à l’historique. La version distribuée doit correspondre aux manifestes de la release. Le build signé de la version `0.3.0` sera la première installation manuelle contenant l’updater.
+Ne copiez pas ce bloc dans une conversation ou un fichier qui ajouterait la passphrase à l’historique. La version distribuée doit correspondre aux manifestes de la release. La version `0.3.0` est la première installation manuelle publiée contenant l’updater ; la prochaine release publique signée devra servir à exercer une mise à jour réelle depuis elle.
 
 Sur macOS, les artefacts attendus sont :
 
@@ -67,9 +67,9 @@ Préparez un fichier de notes local, puis utilisez les chemins de votre artefact
 
 ```bash
 node scripts/create-tauri-latest-json.mjs \
-  --version 0.3.1 \
-  --notes-file /chemin/prive/notes-0.3.1.md \
-  --url https://github.com/geasshin/sylloge/releases/download/v0.3.1/Sylloge.app.tar.gz \
+  --version 0.4.0 \
+  --notes-file /chemin/prive/notes-0.4.0.md \
+  --url https://github.com/geasshin/sylloge/releases/download/v0.4.0/Sylloge.app.tar.gz \
   --signature-file /chemin/prive/Sylloge.app.tar.gz.sig \
   --target darwin-aarch64 \
   --output /chemin/prive/latest.json
@@ -81,12 +81,12 @@ Le fichier obtenu suit cette forme :
 
 ```json
 {
-  "version": "0.3.1",
+  "version": "0.4.0",
   "notes": "Notes de release",
   "platforms": {
     "darwin-aarch64": {
       "signature": "contenu exact de Sylloge.app.tar.gz.sig",
-      "url": "https://github.com/geasshin/sylloge/releases/download/v0.3.1/Sylloge.app.tar.gz"
+      "url": "https://github.com/geasshin/sylloge/releases/download/v0.4.0/Sylloge.app.tar.gz"
     }
   }
 }

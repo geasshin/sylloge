@@ -1,14 +1,14 @@
 # Sylloge — feuille de route vers la V1 publique
 
-> **Statut :** feuille de route active. Le jalon `0.2.0` est livré ; le code du jalon `0.3.0` est prêt pour sa validation native et sa première distribution signée de test.
+> **Statut :** feuille de route active. Les jalons `0.2.0` et `0.3.0` sont livrés. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le prochain train prépare la release publique `0.4.0`.
 >
-> Les versions sont des hypothèses de séquencement, pas des promesses de calendrier. Une version ne démarre qu’après la validation de la précédente et peut être découpée si l’audit technique montre qu’elle est trop large.
+> Les releases publiques sont des hypothèses de séquencement, pas des promesses de calendrier. Elles sont construites par plusieurs jalons d’intégration étroits, chacun validé et commité avant le suivant.
 
 ## 1. Promesse de la V1 publique
 
 La V1 doit être une application culturelle personnelle **téléchargeable sur macOS et Windows**, locale par défaut, durable et soignée. Elle doit permettre de constituer, retrouver, enrichir et sauvegarder sa bibliothèque sans compte obligatoire, publicité, recommandation algorithmique ni dépendance à un fournisseur externe.
 
-La V1 ne comprend pas la synchronisation gérée par Sylloge, le freemium, les comptes, la web app connectée ni les applications mobiles natives. Ces chantiers relèvent de la V2 ou de la V3.
+La V1 comprend obligatoirement les cinq médiums **Films, Séries, Livres, Jeux et Art**. Elle ne comprend pas la synchronisation gérée par Sylloge, le freemium, les comptes, la web app connectée ni les applications mobiles natives. Ces chantiers relèvent de la V2 ou de la V3.
 
 ### Invariants non négociables
 
@@ -36,31 +36,28 @@ Déjà présent :
 
 La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas encore la preuve d’usage, l’interopérabilité, la couverture multi-médiums ni la distribution Windows.
 
-## 3. Versions de consolidation proches
+## 3. Rythme de livraison
+
+Sylloge sépare volontairement le **jalon d’intégration** de la **release publique** : une release `X.Y.0` doit livrer un sujet complet et cohérent, plutôt qu’une seule fonctionnalité isolée.
+
+- Les jalons tels que `0.3.1`, `0.3.2` ou `0.3.5` sont des repères de travail de la branche qui prépare `0.4.0`. Ils ont un périmètre unique, leurs propres critères d’acceptation, tests, QA manuelle et commits.
+- Ils ne sont **ni** des tags, **ni** des versions de manifeste, **ni** des GitHub Releases. Sans cette règle, `0.3.1` serait une vraie patch release SemVer publique et brouillerait l’état réellement installable.
+- Seule la clôture du train met à jour les manifestes, est fusionnée dans `main`, reçoit un tag et devient une GitHub Release signée.
+- Le même mécanisme s’applique ensuite : les jalons `0.4.1…` préparent `0.5.0`, les `0.5.1…` préparent `0.6.0`, et ainsi de suite.
+
+## 4. Jalon historique et release actuelle
 
 ### `0.1.1` — Stabilisation native Films
 
-**But :** transformer la baseline technique en première version réellement utilisable au quotidien sur macOS.
+**Statut : objectif absorbé par les jalons livrés suivants.**
 
-- Exercer et documenter le parcours manuel complet : créer → fermer → relancer → modifier → rechercher/filtrer → tester une affiche absente/cassée → supprimer → exporter → refuser un JSON invalide → importer dans un nouveau profil → relancer.
-- Corriger uniquement les défauts bloquants révélés par ce parcours.
-- Renforcer les tests des règles métier et des opérations SQLite qui ont révélé un risque.
-- Vérifier l’accessibilité pratique : clavier, focus, messages d’erreur, libellés et contenus incomplets.
-- Mettre à jour le numéro de version, la documentation et le tag.
-
-**Exclusions :** aucune nouvelle source de données, aucun nouveau médium, aucun redesign global.
+Le parcours Films, les corrections de persistance et les contrôles d’accessibilité révélés par l’usage ont été traités au fil de `0.2.0` et `0.3.0`. Ce libellé est conservé pour l’historique et ne désigne plus un futur lot.
 
 ### `0.1.2` — Finition de l’expérience quotidienne
 
-**But :** rendre Films agréable à consulter et à alimenter longtemps, sans changer sa promesse.
+**Statut : objectif absorbé par les jalons livrés suivants.**
 
-- Stabilisation visuelle de l’application native à des tailles de fenêtre réalistes, sans préjuger du front-end définitif prévu avant la V1.
-- Corrections ciblées de hiérarchie, densité, formulaires, fiches, états vides et retours de navigation.
-- Mouvement discret seulement là où il clarifie une transition ; pas d’animation décorative.
-- Stabilisation des comportements de fenêtre, de la sidebar et des longs titres / notes / accents.
-- Contrôle de la lisibilité de l’icône, de l’identité Archive calme et des fallbacks de visuels.
-
-**Exclusions :** refonte complète du front-end, thème sombre, nouvelles collections ou métriques d’activité.
+Les améliorations nécessaires à l’usage quotidien ont été intégrées avant les releases `0.2.0` et `0.3.0`. Le front-end définitif reste un chantier distinct, préparé plus loin dans cette feuille de route.
 
 ### `0.2.0` — Sauvegardes portables dans un dossier choisi
 
@@ -74,7 +71,7 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 **But :** rendre les réglages locaux compréhensibles et préparer un vrai cycle de mise à jour, sans confondre une branche Git avec une application distribuée.
 
-**État :** code, migrations, chaîne de signature Tauri, manifestes et guide de release prêts ; reste la preuve native à deux versions réellement signées et publiées. La première installation demeure manuelle et la distribution macOS reste sans Developer ID.
+**État : livré.** La première release macOS signée est publiée sur GitHub avec son DMG, son archive d’updater, sa signature et son manifeste. L’installation manuelle est validée. La première preuve complète de mise à jour reste à exercer lors de la prochaine release publique signée ; la distribution macOS reste sans Developer ID.
 
 - Ajouter une page Accueil calme, distincte de la grille Films et non conçue comme un dashboard : composition éditoriale pleine page fondée exclusivement sur les Films locaux réels, avec Vus récemment, Favoris, Films vus et un module contextuel. Les actions d’ajout et de parcours restent dans Films.
 - Remplacer l’entrée « Profils et JSON » de la navigation par une icône Paramètres claire et accessible ; y organiser des sections sobres : **Profils**, **Données et sauvegardes**, **Application** et **À propos**.
@@ -87,80 +84,163 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 - Valider les migrations et l’ouverture d’une bibliothèque existante après installation d’un nouveau bundle ; une mise à jour ne doit jamais effacer, déplacer ni synchroniser la SQLite vivante.
 - Définir une publication de jalon : version cohérente dans les manifestes, artefact macOS, signature de l’updater, tag Git et release GitHub. La source de mise à jour est cette release, non le dépôt de travail.
 
-**Gates avant implémentation :** politiques produit validées : un autre profil doit être ouvert avant toute suppression du profil courant ; le premier lancement demande un nom et le choix entre bibliothèque vide ou import. Restent à choisir le mode de signature de l’updater, à vérifier l’accès des installations au canal de releases GitHub et à définir une politique de conservation/rotation des clés. Aucun faux bouton « Mettre à jour » ne doit être affiché avant l’existence d’un artefact réellement installable.
+## 5. Train `0.4.0` — Import, export et métadonnées Films
 
-### `0.4.0` — Interopérabilité CSV
+**But de la release :** rendre la bibliothèque Films interopérable et plus rapide à enrichir, sans sacrifier la maîtrise locale, les imports contrôlés ou la saisie manuelle.
 
-**But :** permettre une migration raisonnable depuis des tableaux personnels sans transformer l’import en boîte noire.
+### `0.3.1` — Contrat d’export CSV et inventaire des données
 
-- Export CSV documenté des champs Films stables.
-- Import CSV UTF-8 avec aperçu, mapping de colonnes, validation des valeurs et rapport d’erreurs.
-- Création d’un nouveau profil pour l’import, jamais fusion implicite.
-- Jeux de fichiers réels anonymisés pour tester accents, notes, dates et colonnes absentes.
+- Définir les champs Films stables, leurs types, formats, valeurs vides et règles de compatibilité JSON v1 / CSV.
+- Produire un export CSV UTF-8 lisible et documenté depuis une bibliothèque réelle.
+- Créer les fixtures anonymisées nécessaires : accents, notes longues, dates, valeurs manquantes et affiches absentes.
 
-**Exclusions :** automatisation opaque des correspondances, import de plateformes sans export réel.
+### `0.3.2` — Imports CSV et Notion contrôlés
 
-### `0.5.0` — Import Notion Markdown + CSV
+- Importer un CSV avec aperçu, mapping explicite, validation des valeurs et rapport d’erreurs avant écriture.
+- Lire un export Notion réel : CSV pour les propriétés et Markdown pour les sous-pages / notes longues.
+- Convertir visiblement les notations `/10` vers `/5`, traiter les colonnes absentes et créer toujours un nouveau profil, sans fusion implicite.
+- Ne jamais conserver une URL Notion temporaire comme affiche permanente.
 
-**But :** récupérer proprement les collections existantes d’Aurélien et préparer un import réutilisable par d’autres personnes.
+### `0.3.3` — Parcours de métadonnées assistées sans dépendance imposée
 
-- Lecture d’un export Notion réel : CSV pour les propriétés, Markdown pour les sous-pages et notes longues.
-- Aperçu de correspondance, conversion visible des notes `/10` vers `/5`, rapport détaillé avant écriture.
-- Gestion explicite des fichiers incomplets, doublons et liens d’images temporaires.
-- Documentation de l’export Notion attendu et tests sur des fixtures contrôlées.
+- Définir le parcours de recherche, sélection humaine et préremplissage éditable d’une fiche Film.
+- Préparer les champs de provenance et d’identifiant fournisseur uniquement s’ils sont justifiés par le contrat de données ; l’ajout manuel reste toujours intégralement possible hors ligne.
+- Tester les états réseau indisponible, résultat incomplet et abandon sans écriture accidentelle.
 
-**Exclusions :** traitement d’URLs Notion temporaires comme affiches permanentes.
+### `0.3.4` — Normalisation et preuve de compatibilité des données
 
-### `0.6.0` — Métadonnées Films assistées
+- Comparer le modèle Films courant aux données réellement récupérées depuis JSON, CSV et Notion Markdown + CSV.
+- Décider, documenter et tester ce qui est conservé, ajouté, transformé ou explicitement non importé ; aucune donnée ne doit être inventée pour combler une absence.
+- Écrire les migrations et tests de réimport nécessaires avant de figer le contrat de `0.4.0`.
 
-**But :** accélérer l’ajout de films sans abandonner le contrôle éditorial local.
+### `0.3.5` — Intégration TMDB et configuration de la clé
 
-- Étude puis intégration d’un fournisseur adapté, probablement TMDB, après vérification actuelle de ses conditions, attribution, langue et limites.
-- Recherche à partir d’un titre, liste de résultats, sélection humaine et préremplissage éditable.
-- Conservation de la provenance et de l’identifiant fournisseur lorsque utilisés.
-- Fonctionnement manuel intégral en cas d’absence de réseau ou de refus du fournisseur.
+- Vérifier avant tout code les conditions actuelles de TMDB, l’attribution, la langue, les limites et les obligations de distribution publique.
+- Ajouter une configuration locale explicite de la clé API, sans secret dans le dépôt, les exports, les snapshots ni les logs.
+- Connecter la recherche et le préremplissage à TMDB seulement après cette gate ; conserver provenance, identifiant fournisseur et modification humaine des données reçues.
 
-**Gate d’escalade :** aucune API n’est intégrée tant que ses conditions et obligations de distribution publique ne sont pas validées.
+**Gate d’escalade :** si les conditions de TMDB, la confidentialité de la clé ou l’attribution ne sont pas satisfaisantes, `0.3.5` s’arrête et `0.4.0` est redéfini sans intégration réseau plutôt que de contourner la contrainte.
 
-## 4. Extension culturelle — décision de périmètre indispensable
+### `0.4.0` — Release publique Import, export et métadonnées Films
 
-La promesse générale de Sylloge est multi-médiums : Films, Séries, Livres, Jeux et Art. La baseline ne couvre aujourd’hui que Films.
+- Revoir l’ensemble des commits `0.3.1…0.3.5`, les fusionner uniquement après validation humaine de chaque parcours et mettre à jour manifestes, documentation et notes de release.
+- Exercer les parcours complets export CSV, import CSV, import Notion, import JSON, restauration, enrichissement assisté et ajout manuel hors ligne.
+- Publier une release signée après feu vert explicite. Elle sert aussi de seconde version réelle pour éprouver l’updater depuis une installation `0.3.0`, sans modifier ou déplacer la SQLite vivante.
 
-Avant de programmer les versions suivantes, Aurélien doit trancher l’un des deux contrats publics :
+**Exclusions :** import opaque de plateformes sans export réel, fusion implicite, synchronisation cloud, compte, remplacement de la saisie manuelle ou récupération d’images depuis des URLs temporaires.
 
-- **Option A — V1 Films assumée :** la V1 publique reste une excellente bibliothèque de Films ; les autres médiums arrivent en `1.x`.
-- **Option B — V1 culturelle complète :** la V1 publique doit inclure les cinq médiums. C’est plus fidèle au nom et à la vision, mais repousse considérablement la date de sortie car chaque médium demande un modèle et des flux propres.
+## 6. Extension culturelle — périmètre V1 obligatoire
 
-La feuille de route ci-dessous suppose par défaut l’**option B**, parce que le produit est présenté comme une bibliothèque culturelle globale. Elle sera ajustée après décision.
+La V1 de Sylloge est une bibliothèque multi-médiums : **Films, Séries, Livres, Jeux et Art**. La baseline et la release `0.3.0` ne couvrent aujourd’hui que Films ; le train `0.5.0` doit donc livrer les quatre verticales restantes sans compromettre les données Films existantes.
 
-### `0.7.0` — Socle multi-médiums
+Les cinq médiums sont un contrat produit, pas une option. Les décisions encore nécessaires concernent uniquement le niveau de détail utile à chaque verticale :
 
-- Faire évoluer les fondations de données sans casser les exports Films existants.
-- Définir les champs communs et les champs strictement spécifiques ; aucune abstraction générique qui gommerait les différences réelles.
-- Étendre recherche, filtres, collections, profils, exports et sauvegardes aux nouveaux types.
-- Écrire des migrations et tests de compatibilité avec les bibliothèques `0.1.x–0.5.x`.
+- Séries : le suivi par saison / épisode est-il requis dès la V1 ?
+- Livres : pagination, édition, traduction et relecture sont-elles utiles au premier parcours ?
+- Jeux : plateforme, temps de jeu ou sessions apportent-ils une valeur réelle sans transformer Sylloge en tracker ?
+- Art : artiste, exposition et lieu servent-ils effectivement la recherche et la mémoire personnelle ?
 
-### Lot interne du jalon `0.7.0` — Séries
+## 7. Train `0.5.0` — Extension culturelle
 
-- Statuts, fiche, création manuelle et données propres aux séries.
-- Décider explicitement si le suivi par saison/épisode est une fonction de V1 ou une amélioration ultérieure ; ne pas le faire à moitié.
+**But de la release :** étendre Sylloge à ses médiums explicitement retenus, chacun avec une verticale utile, sans les réduire artificiellement au modèle Films.
 
-### Lot interne du jalon `0.7.0` — Livres
+### `0.4.1` — Contrat public et inventaire des modèles
 
-- Fiche Livre, création manuelle, statut, notes personnelles, recherche, import/export et enrichissement ultérieur.
-- Décider avant implémentation si pagination, édition, traduction et relecture sont nécessaires au premier parcours.
+- Confirmer les cinq médiums de V1 et trancher les décisions de granularité propres à chacun avant toute migration.
+- Écrire les critères d’acceptation de chaque verticale : saisie manuelle, fiche, recherche, statut, import/export, affiches et fallbacks.
+- Distinguer les champs réellement communs des champs spécifiques ; refuser une abstraction générique qui gomme les différences de pratique.
+- Arrêter explicitement les sujets qui ne sont pas de V1, notamment le suivi détaillé d’épisodes, les sessions de jeu ou la granularité d’un catalogue d’exposition.
 
-### Lot interne du jalon `0.7.0` — Jeux et Art
+### `0.4.2` — Socle de données et compatibilité Films
 
-- Deux verticales séparées, avec modèles adaptés plutôt qu’une copie de Films.
-- Jeux : plateforme, temps ou sessions seulement si leur utilité est validée.
-- Art : œuvre, artiste, exposition / lieu seulement si ces distinctions servent réellement la mémoire personnelle.
+- Faire évoluer les fondations SQLite, les types, la recherche, les profils, exports et sauvegardes sans casser les données Films ni les formats déjà publiés.
+- Écrire les migrations et tests de compatibilité avec les bibliothèques `0.1.x–0.4.x` avant de créer une nouvelle verticale.
+- Définir les erreurs d’import, de migration et de contenu incomplet qui doivent rester récupérables et explicites.
 
-## 5. Préparation de la V1 publique
+### `0.4.3` — Séries : données et saisie manuelle
 
-### `0.8.0` — Front-end définitif et langage visuel de V1
+- Créer le modèle Série, sa migration, ses statuts, son formulaire et sa fiche minimale.
+- Décider explicitement si le suivi par saison/épisode est nécessaire à la V1 ; ne pas le livrer à moitié.
 
-**But :** faire de Sylloge une application desktop visuellement cohérente, agréable et pleinement maîtrisée avant la V1, sans ajouter de capacité produit.
+### `0.4.4` — Séries : bibliothèque et portabilité
+
+- Étendre recherche, filtres, bibliothèque, export, import, sauvegardes et fallback d’affiche aux Séries.
+- Tester la conservation d’une série lors d’un changement de profil, d’un export/import et d’une restauration.
+
+### `0.4.5` — Livres : données et saisie manuelle
+
+- Créer le modèle Livre, sa migration, ses statuts, son formulaire, sa fiche et ses notes personnelles.
+- Décider avant le code si pagination, édition, traduction et relecture sont nécessaires au premier parcours.
+
+### `0.4.6` — Livres : bibliothèque et portabilité
+
+- Étendre recherche, filtres, bibliothèque, export, import, sauvegardes et fallback de couverture aux Livres.
+- Vérifier la préservation des caractères, notes longues et données éditoriales dans les formats locaux.
+
+### `0.4.7` — Jeux : verticale bornée
+
+- Créer un modèle, une saisie manuelle, une fiche et les statuts réellement utiles pour les Jeux.
+- N’ajouter plateforme, temps de jeu ou sessions qu’après décision documentée ; aucune mécanique de tracker ne doit apparaître par défaut.
+
+### `0.4.8` — Art : verticale bornée
+
+- Créer un modèle, une saisie manuelle et une fiche adaptés aux œuvres d’Art.
+- Ajouter artiste, exposition et lieu seulement lorsque ces relations servent une recherche ou une mémoire personnelle concrète.
+
+### `0.4.9` — Cohérence multi-médiums
+
+- Étendre aux Jeux et à l’Art les parcours communs validés : recherche, filtres, export, import, sauvegardes et fallbacks visuels.
+- Exercer les bibliothèques mixtes, les contenus incomplets et les migrations depuis une installation Films existante.
+
+### `0.5.0` — Release publique Extension culturelle
+
+- Revoir, intégrer et valider les cinq verticales du contrat V1 ; ne publier que des médiums complets, documentés et migrables.
+- Vérifier que recherche, filtres, profils, exports, imports, sauvegardes et fallbacks visuels se comportent pour Films, Séries, Livres, Jeux et Art.
+
+## 8. Train `0.6.0` — Front-end définitif et langage visuel de V1
+
+**But de la release :** faire de Sylloge une application desktop visuellement cohérente, agréable et pleinement maîtrisée, sans ajouter de capacité produit.
+
+### `0.5.1` — Inventaire des surfaces et direction visuelle
+
+- Inventorier les surfaces réellement présentes après `0.4.0` / `0.5.0`, choisir une direction unique et compléter le contrat visuel dans `DESIGN.md`.
+- Produire des écrans de référence natifs pour la bibliothèque, la fiche, le formulaire, les Paramètres, l’onboarding et les états vides / erreur.
+
+### `0.5.2` — Tokens, typographie et iconographie
+
+- Finaliser palette par rôles, hiérarchie typographique, échelles d’espacement, rayons, bordures et règles d’icônes.
+- Vérifier les contrastes, le focus clavier et les états interactifs avant de modifier les écrans entiers.
+
+### `0.5.3` — Fenêtre native et compositions desktop
+
+- Fixer les tailles minimale, de référence et maximale après essai natif ; définir sidebar, bibliothèque, recherche, fiches, formulaires, Paramètres et dialogues dans cette plage.
+- Documenter le comportement en plein écran et les limites explicites du responsive desktop, sans dériver vers une interface mobile improvisée.
+
+### `0.5.4` — Navigation, recherche et collections
+
+- Revoir la sidebar, la navigation entre médias, la recherche et les filtres afin que les collections restent orientées œuvres plutôt que dashboard.
+- Définir les états vides, résultats nuls, chargement local et erreurs de façon sobre et accessible.
+
+### `0.5.5` — Cartes, affiches et bibliothèques
+
+- Unifier les cartes, grilles et listes de tous les médias, sans recadrage destructeur ni faux visuels.
+- Vérifier les titres longs, les métadonnées incomplètes, les posters / couvertures absents et les bibliothèques denses.
+
+### `0.5.6` — Fiches, formulaires et dialogues
+
+- Recomposer les fiches immersives, formulaires, confirmations et retours d’action autour des données réellement disponibles.
+- Valider les libellés, l’ordre de tabulation, les erreurs de formulaire et les actions destructrices.
+
+### `0.5.7` — Système de composants et états accessibles
+
+- Unifier boutons, champs, sélecteurs, filtres, navigation, cartes, panneaux, alertes et confirmations, y compris focus, erreur et état désactivé.
+
+### `0.5.8` — Mouvement utile et QA visuelle
+
+- Appliquer un mouvement sobre compatible `prefers-reduced-motion` et valider au clavier les contenus courts, longs, incomplets et les affiches absentes ou cassées.
+- Capturer les régressions visuelles des écrans de référence avant la clôture du train.
+
+### `0.6.0` — Release publique Design desktop de V1
 
 - Établir le contrat visuel définitif dans `DESIGN.md` : palette par rôles, hiérarchie typographique, échelles d’espacement, rayons, bordures, icônes, états et règles de composition. La direction « Archive calme » reste le socle ; il ne s’agit ni d’un look SaaS ni d’un dashboard.
 - Définir puis implémenter les tailles **minimale**, de référence et **maximale** de la fenêtre native, avec un comportement explicite en plein écran. L’application ne doit plus pouvoir être réduite à une largeur ou hauteur qui rend ses flux inutilisables.
@@ -174,7 +254,40 @@ La feuille de route ci-dessous suppose par défaut l’**option B**, parce que l
 
 **Exclusions :** thème sombre, données de démonstration inventées, nouveau médium, API, cloud, compte, synchronisation, modification du modèle de données ou des formats d’import/export.
 
-### `0.9.0` — Fiabilité, qualité et confidentialité
+## 9. Train `0.7.0` — Fiabilité, qualité et confidentialité
+
+### `0.6.1` — Migrations, imports et restaurations
+
+- Étendre les tests de migrations, import/export, compatibilité de formats et scénarios de restauration avec des données réelles anonymisées.
+
+### `0.6.2` — Validation, transactions et erreurs récupérables
+
+- Vérifier les contraintes métier à toutes les frontières : formulaire, commandes Tauri, SQLite, import et restauration.
+- Tester l’atomicité des opérations et la qualité des messages d’erreur lorsque l’action est refusée avant écriture.
+
+### `0.6.3` — Régression d’interface et accessibilité
+
+- Mettre en place les scénarios de régression visuelle et clavier sur les parcours principaux de tous les médiums retenus.
+
+### `0.6.4` — Robustesse des sauvegardes et récupération
+
+- Exercer les snapshots portables, l’export, l’import dans un nouveau profil et la récupération après un fichier invalide ou incomplet.
+- Confirmer qu’aucun chemin ne copie ni ne synchronise la SQLite vivante, son WAL ou son SHM.
+
+### `0.6.5` — Performance et bibliothèques réalistes
+
+- Mesurer les parcours de consultation, recherche et import avec des bibliothèques de taille réaliste ; optimiser seulement un goulot réellement observé.
+- Conserver une interface fluide sans introduire de cache, backend ou mécanisme de synchronisation prématuré.
+
+### `0.6.6` — Confidentialité, licences et dépendances
+
+- Auditer journalisation locale, dépendances, permissions Tauri et licences des contenus / fournisseurs externes ; documenter les limites d’usage et de récupération.
+
+### `0.6.7` — Documentation de récupération et support local
+
+- Rédiger et tester les procédures d’usage, de sauvegarde, de restauration, de récupération et de diagnostic sans collecte de données personnelles.
+
+### `0.7.0` — Release publique Fiabilité, qualité et confidentialité
 
 - Tests de migration, import/export, compatibilité de formats et scénarios de restauration.
 - Régression visuelle et d’accessibilité sur les flux principaux.
@@ -182,7 +295,30 @@ La feuille de route ci-dessous suppose par défaut l’**option B**, parce que l
 - Documentation d’usage, sauvegarde, récupération, limites et politique de confidentialité locale.
 - Audit des dépendances, permissions Tauri et licences des contenus / fournisseurs externes.
 
-### `0.10.0` — Distribution macOS et Windows
+## 10. Train `0.8.0` — Distribution macOS et Windows
+
+### `0.7.1` — Builds reproductibles et installation macOS
+
+- Rejouer un build reproductible, l’installation manuelle et la mise à jour sur macOS depuis une version antérieure signée.
+
+### `0.7.2` — Signature macOS et stratégie de confiance
+
+- Évaluer coût, bénéfice et faisabilité d’un Developer ID et de la notarisation ; ne promettre une installation sans alerte qu’après preuve réelle.
+- Documenter l’expérience d’installation réellement disponible tant qu’aucun certificat n’est retenu.
+
+### `0.7.3` — Build et installateur Windows
+
+- Produire et tester les installateurs Windows sur une machine réelle ; chiffrer la stratégie de signature avant engagement.
+
+### `0.7.4` — Mise à jour et migration Windows
+
+- Vérifier le mécanisme de mise à jour, les migrations et la conservation des données locales sur Windows ; ne pas déduire ce comportement de la seule QA macOS.
+
+### `0.7.5` — Support de publication
+
+- Préparer notes de version, documentation d’installation, captures, landing page légère et procédure de support réaliste pour une bêta publique.
+
+### `0.8.0` — Release publique Distribution macOS et Windows
 
 - Build reproductible et test réel sur macOS et Windows.
 - Installateurs appropriés, icônes, nom, version, documentation d’installation et mécanisme de mise à jour à décider.
@@ -190,19 +326,44 @@ La feuille de route ci-dessous suppose par défaut l’**option B**, parce que l
 - Éviter de promettre une installation « sans alerte » sans certificats et validation sur les deux OS.
 - Préparer le dépôt, les notes de version, les captures et une landing page légère.
 
+## 11. Train `0.9.0` — Bêta publique contrôlée
+
+**But de la release :** confronter une application déjà distribuable à des usages réels sans élargir son contrat produit au fil des retours.
+
+### `0.8.1` — Protocole de bêta et parcours de remontée
+
+- Définir les profils de test, les parcours à exercer, les informations à demander et un canal de retour sans tracking intégré à l’application.
+- Préparer des données de test et une procédure de sauvegarde / récupération avant toute installation de bêta.
+
+### `0.8.2` — Triage des retours et reproduction
+
+- Classer chaque retour entre défaut bloquant, régression, amélioration cohérente, demande hors périmètre et besoin de documentation.
+- Ne retenir pour le train que les problèmes reproductibles ou explicitement arbitrés ; le backlog n’est pas une liste de promesses.
+
+### `0.8.3` — Corrections de stabilisation
+
+- Corriger en priorité les pertes de données potentielles, les défauts d’installation / mise à jour, les blocages d’accessibilité et les régressions de parcours principal.
+- Rejouer les scénarios de la bêta après chaque correction sans profiter du train pour ajouter une capacité produit.
+
+### `0.9.0` — Release publique Bêta consolidée
+
+- Publier seulement après fermeture ou documentation explicite des défauts connus, avec notes de version, limites, procédure de sauvegarde et support réaliste.
+- Utiliser cette release comme dernière gate avant `1.0.0`, non comme prétexte à lancer V2 ou mobile.
+
 ### `1.0.0` — Première V1 publique
 
 **Conditions de sortie :**
 
-- périmètre multi-médiums ou Films-only explicitement assumé ;
+- les cinq médiums Films, Séries, Livres, Jeux et Art sont complets, explicitement assumés et vérifiés ;
 - parcours principaux vérifiés sur macOS et Windows ;
 - migration, export, import et restauration testés avec des données réelles ;
 - esthétique et accessibilité validées sur les surfaces clés ;
 - documentation claire, aucune fausse promesse de synchronisation ;
-- distribution et support réalistes pour une bêta publique ;
+- bêta publique contrôlée menée, défauts connus fermés ou explicitement documentés ;
+- distribution et support réalistes sur macOS et Windows ;
 - version taguée, notes de version publiées et landing page cohérente.
 
-## 6. Après la V1 — à ne pas anticiper prématurément
+## 12. Après la V1 — à ne pas anticiper prématurément
 
 ### V2 — synchronisation et modèle économique optionnel
 
@@ -220,7 +381,7 @@ Le local-first, l’export et les fonctions personnelles essentielles ne doivent
 - travail de synchronisation, navigation mobile, stockage local, offline et distribution stores ;
 - ne pas présenter une version mobile comme une simple adaptation de la fenêtre desktop.
 
-## 7. Backlog non priorisé
+## 13. Backlog non priorisé
 
 Les éléments suivants peuvent être utiles, mais n’entrent dans une version que lorsqu’un besoin concret les justifie :
 

@@ -46,4 +46,4 @@ cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy -
 
 ## Périmètre actuel
 
-Films uniquement : saisie manuelle, recherche, filtres, favoris, notes, profils locaux, import/export JSON, sauvegardes portables, Accueil éditorial et Paramètres. La chaîne d’updater Tauri est configurée pour des GitHub Releases signées ; sa première preuve de distribution nécessite encore deux versions réellement signées. Les Séries, Livres, Jeux, Art et la synchronisation restent des évolutions futures.
+Films uniquement : saisie manuelle, recherche, filtres, favoris, notes, profils locaux, import/export JSON, sauvegardes portables, Accueil éditorial et Paramètres. La release macOS `0.3.0` est publiée et signée ; la première preuve complète de mise à jour nécessitera encore l’installation de la prochaine release signée depuis une installation `0.3.0`. Les Séries, Livres, Jeux, Art et la synchronisation restent des évolutions futures.
