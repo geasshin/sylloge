@@ -1,0 +1,49 @@
+{
+  "exportedAt": "2026-07-18T09:30:00.000Z",
+  "profile": {
+    "id": "profil-lys",
+    "name": "=Carnet, \"été\"",
+    "createdAt": "2026-07-01T08:00:00.000Z",
+    "updatedAt": "2026-07-18T08:45:00.000Z"
+  },
+  "films": [
+    {
+      "id": "film-cafe",
+      "profileId": "profil-lys",
+      "title": "+Café, \"matin\"",
+      "originalTitle": "'Café du matin",
+      "year": 2024,
+      "status": "terminé",
+      "isFavorite": true,
+      "rating": 4.5,
+      "watchedAt": "2026-07-17",
+      "personalNote": "-Première note.\nDeuxième ligne, avec \"guillemets\".",
+      "director": "Anaïs Vert",
+      "summary": "\t@Résumé, déjà lu.",
+      "providerName": "Catalogue local",
+      "providerId": "source-ete-42",
+      "posterUrl": null,
+      "createdAt": "2026-07-17T10:00:00.000Z",
+      "updatedAt": "2026-07-18T08:45:00.000Z"
+    },
+    {
+      "id": "film-sans-affiche",
+      "profileId": "profil-lys",
+      "title": "Sans affiche",
+      "originalTitle": null,
+      "year": null,
+      "status": "à découvrir",
+      "isFavorite": false,
+      "rating": null,
+      "watchedAt": null,
+      "personalNote": null,
+      "director": null,
+      "summary": null,
+      "providerName": null,
+      "providerId": null,
+      "posterUrl": null,
+      "createdAt": "2026-07-18T08:45:00.000Z",
+      "updatedAt": "2026-07-18T08:45:00.000Z"
+    }
+  ]
+}

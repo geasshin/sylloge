@@ -51,6 +51,10 @@ export function saveExportJson(suggestedName: string, contents: string): Promise
   return invoke('save_export_json', { suggestedName, contents })
 }
 
+export function saveExportCsv(suggestedName: string, contents: string): Promise<string | null> {
+  return invoke('save_export_csv', { suggestedName, contents })
+}
+
 export function getBackupSettings(profileId: string): Promise<BackupSettings | null> {
   return invoke('get_backup_settings', { profileId })
 }

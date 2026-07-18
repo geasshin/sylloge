@@ -33,7 +33,7 @@ Pour un bundle signé distribuable et la publication GitHub, suivre `docs/TAURI_
 
 Les données macOS sont dans ~/Library/Application Support/com.aurelientrouble.sylloge/. La base est sylloge.db, accompagnée si nécessaire de sylloge.db-wal et sylloge.db-shm. Ne pas les copier pendant que l’application est ouverte.
 
-Dans Paramètres, l’export `sylloge-films` v1 reste lisible et ne contient ni secret ni image. Un import est d’abord validé, puis crée toujours un nouveau profil : le profil existant n’est jamais écrasé. Un dossier de sauvegarde explicite peut aussi créer des snapshots JSON atomiques après le premier changement du jour par profil ou à la demande ; seuls les 30 snapshots enregistrés par Sylloge les plus récents sont conservés. Ne jamais copier la SQLite active, son WAL ou son SHM pendant que l’application est ouverte.
+Dans Paramètres, l’export JSON `sylloge-films` v1 reste lisible et ne contient ni secret ni image. Un export CSV Films v1 UTF-8 est aussi disponible pour le profil courant ; son contrat, ses champs et ses règles de compatibilité sont dans [docs/CONTRAT_CSV_FILMS_V1.md](docs/CONTRAT_CSV_FILMS_V1.md). Le CSV est uniquement un export à ce stade. Un import JSON est d’abord validé, puis crée toujours un nouveau profil : le profil existant n’est jamais écrasé. Un dossier de sauvegarde explicite peut aussi créer des snapshots JSON atomiques après le premier changement du jour par profil ou à la demande ; seuls les 30 snapshots enregistrés par Sylloge les plus récents sont conservés. Ne jamais copier la SQLite active, son WAL ou son SHM pendant que l’application est ouverte.
 
 ## Vérifier
 

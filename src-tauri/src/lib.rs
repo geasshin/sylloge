@@ -17,6 +17,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             portability::pick_import_json,
             portability::save_export_json,
+            portability::save_export_csv,
             portability::get_backup_settings,
             portability::pick_backup_directory,
             portability::save_manual_backup_snapshot,

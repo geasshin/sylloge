@@ -8,10 +8,16 @@ import {
   validateLibraryImport,
   type ImportPreview,
 } from '../domain/libraryTransfer.ts'
+import { filmsCsvExportFileName, serializeFilmsCsvExport } from '../domain/csvFilmExport.ts'
 import type { FilmLibrary, ProfileSummary } from '../data/filmsRepository.ts'
 import { filmsRepository } from '../data/filmsRepository.ts'
 import { confirmValidatedImport } from '../data/libraryTransferService.ts'
-import { pickImportJson, saveExportJson, type BackupSettings } from '../data/nativePortability.ts'
+import {
+  pickImportJson,
+  saveExportCsv,
+  saveExportJson,
+  type BackupSettings,
+} from '../data/nativePortability.ts'
 import { UpdaterSettings } from './UpdaterSettings.tsx'
 import type { AvailableUpdate } from '../data/updaterService.ts'
 
@@ -51,6 +57,8 @@ export function Portability({
 }: PortabilityProps) {
   const [exportState, setExportState] = useState<'idle' | 'saving'>('idle')
   const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [csvExportState, setCsvExportState] = useState<'idle' | 'saving'>('idle')
+  const [csvExportMessage, setCsvExportMessage] = useState<string | null>(null)
   const [choosingImport, setChoosingImport] = useState(false)
   const [selectedImport, setSelectedImport] = useState<SelectedImport | null>(null)
   const [importing, setImporting] = useState(false)
@@ -128,6 +136,27 @@ export function Portability({
       setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
     } finally {
       setExportState('idle')
+    }
+  }
+
+  const exportProfileCsv = async () => {
+    setCsvExportState('saving')
+    setCsvExportMessage(null)
+    const document = createLibraryExport(library)
+
+    try {
+      const savedName = await saveExportCsv(
+        filmsCsvExportFileName(document.exportedAt),
+        serializeFilmsCsvExport(document),
+      )
+      setCsvExportMessage(savedName
+        ? `Export CSV enregistré dans « ${savedName} » avec ${document.films.length} ${document.films.length === 1 ? 'film' : 'films'}.`
+        : 'Export CSV annulé. Aucun fichier n’a été écrit.')
+    } catch (error) {
+      console.error('Impossible d’exporter le profil en CSV.', error)
+      setCsvExportMessage('L’export CSV a échoué. La bibliothèque locale n’a pas été modifiée.')
+    } finally {
+      setCsvExportState('idle')
     }
   }
 
@@ -307,6 +336,25 @@ export function Portability({
                 {exportState === 'saving' ? 'Choix du fichier…' : 'Exporter en JSON'}
               </button>
               {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
+            </section>
+
+            <section className="portability-card" aria-labelledby="csv-export-title">
+              <div className="portability-card-heading">
+                <div>
+                  <p className="card-kicker">CSV version 1</p>
+                  <h3 id="csv-export-title">Exporter ce profil en CSV</h3>
+                </div>
+              </div>
+              <p>Le CSV UTF-8 reprend les champs Films V1, sans télécharger d’affiche ni ajouter de donnée.</p>
+              <dl className="transfer-summary">
+                <div><dt>Profil</dt><dd>{library.profile.name}</dd></div>
+                <div><dt>Films</dt><dd>{library.films.length}</dd></div>
+                <div><dt>Format</dt><dd>sylloge-films-csv · v1</dd></div>
+              </dl>
+              <button className="primary-button" type="button" onClick={exportProfileCsv} disabled={csvExportState === 'saving'}>
+                {csvExportState === 'saving' ? 'Choix du fichier…' : 'Exporter en CSV'}
+              </button>
+              {csvExportMessage && <p className="inline-report" role="status">{csvExportMessage}</p>}
             </section>
 
             <section className="portability-card backup-card" aria-labelledby="backup-title">

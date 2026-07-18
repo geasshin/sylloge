@@ -6,7 +6,8 @@ Ce dossier contient les documents **versionnés avec le code** : ce sont les ré
 
 1. [Feuille de route vers la V1 publique](ROADMAP.md) — périmètre, versions, décisions encore ouvertes.
 2. [Mode de travail](WORKFLOW.md) — responsabilités Hermes / Codex / Git et critères de passage.
-3. [`../README.md`](../README.md) — lancement, données locales, sauvegarde JSON et limites actuelles.
+3. [Contrat CSV Films v1](CONTRAT_CSV_FILMS_V1.md) — format, compatibilité et limites de l’export CSV.
+4. [`../README.md`](../README.md) — lancement, données locales, exports et limites actuelles.
 
 ## Source de vérité et archives
 
@@ -17,8 +18,8 @@ Ce dossier contient les documents **versionnés avec le code** : ce sont les ré
 
 ## Version actuelle
 
-- **Version : `0.1.0`**
-- **Statut :** première baseline fonctionnelle privée, à valider manuellement avant de poursuivre.
-- **Portée :** Films, Tauri macOS, SQLite locale, création/édition/suppression, recherche/filtres, affiches distantes facultatives, profils locaux minimaux et import/export JSON.
+- **Dernière release publique : `0.3.0`**, macOS signée et publiée.
+- **Travail en cours :** jalon interne `0.3.1` du train qui prépare `0.4.0` ; il ne s’agit ni d’un tag ni d’une version installable.
+- **Portée actuelle :** Films, Tauri macOS, SQLite locale, création/édition/suppression, recherche/filtres, affiches distantes facultatives, profils locaux, import/export JSON, sauvegardes portables et export CSV Films v1.
 
-Les détails de la baseline sont dans le README principal et le code ; `ROADMAP.md` décrit ce qui reste à construire.
+Le README principal décrit le lancement, les données et les limites d’usage ; `ROADMAP.md` décrit l’ordre des jalons à venir.

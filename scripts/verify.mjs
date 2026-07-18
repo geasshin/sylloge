@@ -15,6 +15,11 @@ import {
   serializeLibraryExport,
   validateLibraryImport,
 } from '../src/domain/libraryTransfer.ts'
+import {
+  filmsCsvExportFileName,
+  serializeFilmsCsvExport,
+  SYLLOGE_FILMS_CSV_HEADER,
+} from '../src/domain/csvFilmExport.ts'
 
 const profileRow = {
   id: 'default',
@@ -327,6 +332,65 @@ const completeExport = createLibraryExport({
 }
 
 {
+  const fixture = JSON.parse(readFileSync('fixtures/csv-films-v1/anonymized-library.json', 'utf8'))
+  const expectedCsv = readFileSync('fixtures/csv-films-v1/expected-export.csv', 'utf8')
+  const document = createLibraryExport(fixture, fixture.exportedAt)
+  const csv = serializeFilmsCsvExport(document)
+
+  const jsonPreview = validateLibraryImport(serializeLibraryExport(document))
+  assert.deepEqual(
+    jsonPreview.document,
+    document,
+    'La fixture CSV doit aussi rester strictement compatible avec le JSON v1 existant',
+  )
+  assert.equal(
+    jsonPreview.document?.films[0]?.originalTitle,
+    "'Café du matin",
+    'Le JSON v1 doit conserver inchangée une valeur source qui commence déjà par une apostrophe',
+  )
+  assert.equal(
+    csv.replace(/\r\n/g, '\n'),
+    expectedCsv,
+    'Le CSV doit suivre la fixture anonymisée avec un échappement stable des virgules, guillemets, retours à la ligne et préfixes de formule neutralisés de manière réversible',
+  )
+  assert.deepEqual(
+    csv.split('\r\n')[0].split(','),
+    [...SYLLOGE_FILMS_CSV_HEADER],
+    'L’en-tête CSV doit être stable et complet',
+  )
+  assert.match(csv, /"'=Carnet, ""été"""/, 'Un texte de profil commençant par = doit être neutralisé dans une cellule CSV citée')
+  assert.match(csv, /"'\+Café, ""matin"""/, 'Un titre commençant par + doit être neutralisé dans une cellule CSV citée')
+  assert.match(csv, /,''Café du matin,2024,/, 'Une source commençant déjà par une apostrophe doit recevoir exactement une seconde apostrophe pour permettre un retrait unique au futur import')
+  assert.match(csv, /"'-Première note\.\nDeuxième ligne, avec ""guillemets""\."/, 'Une note commençant par - doit être neutralisée dans une cellule CSV citée et multiligne')
+  assert.match(csv, /"'\t@Résumé, déjà lu\."/, 'Un résumé commençant par une tabulation puis @ doit être neutralisé sans perdre la tabulation dans une cellule CSV citée')
+  assert.match(csv, /Café/, 'Les caractères accentués doivent rester lisibles dans le CSV')
+  assert.doesNotMatch(csv, /secret|api[_-]?key|data:image|imageData/i, 'Le CSV ne doit contenir ni secret ni image téléchargée')
+  const csvBytes = new TextEncoder().encode(csv)
+  assert.equal(csvBytes[0], 'f'.charCodeAt(0), 'Le CSV UTF-8 ne doit pas commencer par un BOM')
+  assert.equal(
+    new TextDecoder('utf-8', { fatal: true }).decode(csvBytes),
+    csv,
+    'Le CSV doit être encodable et décodable en UTF-8 sans altération',
+  )
+  assert.equal(filmsCsvExportFileName(document.exportedAt), 'sylloge-films-2026-07-18.csv', 'Le nom CSV doit être déterministe')
+
+  const emptyDocument = createLibraryExport({
+    profile: {
+      id: 'profil-vide',
+      name: 'Profil vide',
+      createdAt: '2026-07-18T10:00:00.000Z',
+      updatedAt: '2026-07-18T10:00:00.000Z',
+    },
+    films: [],
+  }, '2026-07-18T10:05:00.000Z')
+  const emptyRows = serializeFilmsCsvExport(emptyDocument).split('\r\n')
+  const emptyFilmCells = emptyRows[1].split(',').slice(7)
+  assert.equal(emptyRows.length, 3, 'Un profil vide doit avoir un en-tête, une ligne de profil et une fin de fichier')
+  assert.equal(emptyRows[1].split(',').length, SYLLOGE_FILMS_CSV_HEADER.length, 'La ligne d’un profil vide doit conserver toutes les colonnes')
+  assert.ok(emptyFilmCells.every((cell) => cell === ''), 'Un profil vide ne doit inventer aucun Film')
+}
+
+{
   let writeCount = 0
   const invalidPreview = validateLibraryImport('{"format":"sylloge-films",')
   await assert.rejects(
@@ -589,7 +653,10 @@ const formSource = readFileSync(new URL('../src/components/FilmForm.tsx', import
 const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', import.meta.url), 'utf8')
 const portabilitySource = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
 const transferSource = readFileSync(new URL('../src/domain/libraryTransfer.ts', import.meta.url), 'utf8')
+const csvTransferSource = readFileSync(new URL('../src/domain/csvFilmExport.ts', import.meta.url), 'utf8')
+const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePortability.ts', import.meta.url), 'utf8')
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
+const tauriLibrarySource = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 const repositorySource = readFileSync(new URL('../src/data/filmsRepository.ts', import.meta.url), 'utf8')
 const migrationSource = readFileSync(new URL('../src-tauri/migrations/0001_create_profiles_and_films.sql', import.meta.url), 'utf8')
 const defaultProfileMigration = readFileSync(new URL('../src-tauri/migrations/0002_create_default_profile.sql', import.meta.url), 'utf8')
@@ -630,8 +697,15 @@ assert.match(backupSettingsMigration, /last_automatic_snapshot_day TEXT/, 'Le de
 assert.match(backupSnapshotsMigration, /CREATE TABLE IF NOT EXISTS backup_snapshots/, 'Le registre d’appartenance des snapshots doit être persisté localement')
 assert.match(backupSnapshotsMigration, /PRIMARY KEY \(profile_id, file_name\)/, 'Le registre doit lier chaque snapshot à son profil et son nom de fichier')
 assert.match(transferSource, /SYLLOGE_EXPORT_VERSION = 1/, 'Le format JSON doit avoir une version explicite')
+assert.match(csvTransferSource, /SYLLOGE_FILMS_CSV_VERSION = 1/, 'Le contrat CSV doit avoir une version explicite')
+assert.match(csvTransferSource, /sylloge-films-csv/, 'Le CSV doit annoncer son format stable')
 assert.match(portabilitySource, /Créer le nouveau profil et importer/, 'La confirmation d’import doit nommer explicitement la création du profil')
 assert.match(portabilitySource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
+assert.match(portabilitySource, /Exporter ce profil en CSV/, 'Les Paramètres doivent proposer un export CSV explicite')
+assert.match(nativePortabilityBridgeSource, /invoke\('save_export_csv'/, 'Le frontend doit appeler le pont Tauri CSV dédié')
+assert.match(tauriLibrarySource, /portability::save_export_csv/, 'La commande Tauri CSV doit être enregistrée')
+assert.match(nativePortabilitySource, /pub async fn save_export_csv/, 'Le pont natif doit exposer une sauvegarde CSV')
+assert.match(nativePortabilitySource, /"Export CSV Sylloge"/, 'Le dialogue natif CSV doit filtrer explicitement le format CSV')
 assert.match(nativePortabilitySource, /\.begin\(\)/, 'L’import doit démarrer une transaction SQLite atomique côté Rust')
 assert.match(nativePortabilitySource, /\.commit\(\)/, 'L’import doit valider explicitement la transaction SQLite')
 assert.match(nativePortabilitySource, /write_snapshot_atomically/, 'Les snapshots doivent passer par une écriture atomique native')
@@ -642,4 +716,4 @@ assert.match(capabilitySource, /sql:allow-load/, 'Tauri doit autoriser le charge
 assert.match(capabilitySource, /sql:allow-select/, 'Tauri doit autoriser les lectures SQLite')
 assert.match(capabilitySource, /sql:allow-execute/, 'Tauri doit autoriser les écritures SQLite')
 
-console.log('Vérification réussie : Films SQLite, JSON v1 strict et réimportable pour les snapshots, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')
+console.log('Vérification réussie : Films SQLite, JSON v1 strict et réimportable, CSV Films v1 UTF-8 échappé, pont natif CSV, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')

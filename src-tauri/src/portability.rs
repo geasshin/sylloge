@@ -134,16 +134,46 @@ pub async fn save_export_json(
     suggested_name: String,
     contents: String,
 ) -> Result<Option<String>, String> {
-    let safe_name = Path::new(&suggested_name)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or("sylloge-films.json");
+    save_export_file(
+        &app,
+        &suggested_name,
+        &contents,
+        "Export JSON Sylloge",
+        &["json"],
+        "sylloge-films.json",
+    )
+}
+
+#[tauri::command]
+pub async fn save_export_csv(
+    app: AppHandle,
+    suggested_name: String,
+    contents: String,
+) -> Result<Option<String>, String> {
+    save_export_file(
+        &app,
+        &suggested_name,
+        &contents,
+        "Export CSV Sylloge",
+        &["csv"],
+        "sylloge-films.csv",
+    )
+}
+
+fn save_export_file(
+    app: &AppHandle,
+    suggested_name: &str,
+    contents: &str,
+    filter_name: &str,
+    extensions: &[&str],
+    fallback_name: &str,
+) -> Result<Option<String>, String> {
+    let safe_name = safe_export_file_name(suggested_name, fallback_name);
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter("Export JSON Sylloge", &["json"])
-        .set_file_name(safe_name)
+        .add_filter(filter_name, extensions)
+        .set_file_name(&safe_name)
         .set_title("Exporter le profil Sylloge")
         .blocking_save_file()
     else {
@@ -153,15 +183,26 @@ pub async fn save_export_json(
     let path = file_path
         .into_path()
         .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
-    fs::write(&path, contents)
-        .map_err(|error| format!("Impossible d’écrire l’export choisi : {error}"))?;
-    let name = path
+    write_export_file(&path, contents, fallback_name).map(Some)
+}
+
+fn safe_export_file_name(suggested_name: &str, fallback_name: &str) -> String {
+    Path::new(suggested_name)
         .file_name()
         .and_then(|value| value.to_str())
-        .unwrap_or("sylloge-films.json")
-        .to_string();
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(fallback_name)
+        .to_string()
+}
 
-    Ok(Some(name))
+fn write_export_file(path: &Path, contents: &str, fallback_name: &str) -> Result<String, String> {
+    fs::write(path, contents)
+        .map_err(|error| format!("Impossible d’écrire l’export choisi : {error}"))?;
+    Ok(path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(fallback_name)
+        .to_string())
 }
 
 #[tauri::command]
@@ -958,6 +999,25 @@ mod tests {
         assert!(
             temporary_files.is_empty(),
             "un snapshot final ne doit laisser aucun fichier temporaire visible"
+        );
+
+        fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+    }
+
+    #[test]
+    fn csv_export_writer_preserves_utf8_contents() {
+        let directory = temporary_directory("csv-export");
+        let path = directory.join("sylloge-films-2026-07-18.csv");
+        let contents = "format,film_title\r\nsylloge-films-csv,Café\r\n";
+
+        let saved_name = write_export_file(&path, contents, "sylloge-films.csv")
+            .expect("écriture de l’export CSV");
+
+        assert_eq!(saved_name, "sylloge-films-2026-07-18.csv");
+        assert_eq!(
+            fs::read_to_string(&path).expect("lecture de l’export CSV"),
+            contents,
+            "le pont natif doit écrire les octets UTF-8 fournis sans les transformer"
         );
 
         fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
