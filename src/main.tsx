@@ -171,6 +171,67 @@ function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
   )
 }
 
+type FilmCreationChoiceProps = {
+  onManual: () => void
+  onAssisted: () => void
+  onCancel: () => void
+}
+
+function FilmCreationChoice({ onManual, onAssisted, onCancel }: FilmCreationChoiceProps) {
+  return (
+    <main className="main editor-main" aria-label="Ajouter un film">
+      <header className="page-action-bar">
+        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+      </header>
+
+      <div className="editor-heading creation-heading">
+        <p className="eyebrow">Film</p>
+        <h1 className="display-title">Ajouter un film</h1>
+        <p>Choisissez un parcours. Aucune fiche n’est créée avant la validation finale du formulaire.</p>
+      </div>
+
+      <div className="film-creation-choices" role="group" aria-label="Choisir un parcours de création">
+        <button className="film-creation-choice" type="button" onClick={onManual}>
+          <span className="card-kicker">Hors ligne</span>
+          <b>Saisie manuelle</b>
+          <span>Renseignez librement les informations du film, même sans aucune source externe.</span>
+        </button>
+        <button className="film-creation-choice" type="button" onClick={onAssisted}>
+          <span className="card-kicker">Métadonnées</span>
+          <b>Enrichissement assisté</b>
+          <span>Prépare une future recherche et un préremplissage, toujours modifiables avant l’enregistrement.</span>
+        </button>
+      </div>
+    </main>
+  )
+}
+
+function FilmMetadataSourceUnavailable({ onManual, onCancel }: { onManual: () => void; onCancel: () => void }) {
+  return (
+    <main className="main editor-main" aria-label="Enrichissement assisté">
+      <header className="page-action-bar">
+        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+      </header>
+
+      <div className="editor-heading">
+        <p className="eyebrow">Film</p>
+        <h1 className="display-title">Enrichissement assisté</h1>
+        <p>Le formulaire restera toujours éditable avant tout enregistrement.</p>
+      </div>
+
+      <section className="metadata-source-unavailable" aria-labelledby="metadata-source-unavailable-title">
+        <p className="card-kicker">Source indisponible</p>
+        <h2 id="metadata-source-unavailable-title">Aucune source de métadonnées n’est configurée.</h2>
+        <p>Aucune recherche ni connexion réseau n’est lancée dans cette version. Vous pouvez continuer avec la saisie manuelle.</p>
+        <div className="metadata-source-actions">
+          <button className="primary-button" type="button" onClick={onManual}>Passer à la saisie manuelle</button>
+          <button className="secondary-button" type="button" onClick={onCancel}>Retour à la bibliothèque</button>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 function compareTitles(first: Film, second: Film): number {
   return first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }) || first.id.localeCompare(second.id)
 }
@@ -495,7 +556,9 @@ type View =
   | { name: 'home' }
   | { name: 'library' }
   | { name: 'settings' }
+  | { name: 'create-choice' }
   | { name: 'create' }
+  | { name: 'metadata-source-unavailable' }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
 
@@ -720,13 +783,28 @@ function App() {
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'home' })}
       />
     )
+  } else if (view.name === 'create-choice') {
+    content = (
+      <FilmCreationChoice
+        onManual={() => setView({ name: 'create' })}
+        onAssisted={() => setView({ name: 'metadata-source-unavailable' })}
+        onCancel={returnToLibrary}
+      />
+    )
+  } else if (view.name === 'metadata-source-unavailable') {
+    content = (
+      <FilmMetadataSourceUnavailable
+        onManual={() => setView({ name: 'create' })}
+        onCancel={returnToLibrary}
+      />
+    )
   } else if (view.name === 'create') {
     const { library } = libraryState
     content = (
       <FilmForm
         onCancel={returnToLibrary}
-        onSave={async (input) => {
-          const film = await filmsRepository.createFilm(library.profile.id, input)
+        onSave={async (input, provenance) => {
+          const film = await filmsRepository.createFilm(library.profile.id, input, provenance)
           const updatedLibrary: FilmLibrary = { ...library, films: sortFilms([...library.films, film]) }
           setLibraryState({
             status: 'ready',
@@ -838,7 +916,7 @@ function App() {
         searchState={searchState}
         onContextChange={setLibraryContext}
         onRetrySearch={() => setSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'create' })}
+        onCreate={() => leaveLibrary({ name: 'create-choice' })}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })}
       />
     )

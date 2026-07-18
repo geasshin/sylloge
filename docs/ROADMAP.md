@@ -103,6 +103,8 @@ Les améliorations nécessaires à l’usage quotidien ont été intégrées ava
 
 ### `0.3.3` — Parcours de métadonnées assistées sans dépendance imposée
 
+**État : livré.** Le parcours de création sépare la saisie manuelle et l’enrichissement assisté. En l’absence de fournisseur configuré, il n’invente ni résultat ni connexion réseau et renvoie explicitement vers la saisie manuelle. Le contrat local prépare la recherche, la sélection humaine, le préremplissage modifiable et la provenance atomique `providerName` / `providerId`, sans migration ni changement des formats JSON / CSV v1.
+
 - Définir le parcours de recherche, sélection humaine et préremplissage éditable d’une fiche Film.
 - Préparer les champs de provenance et d’identifiant fournisseur uniquement s’ils sont justifiés par le contrat de données ; l’ajout manuel reste toujours intégralement possible hors ligne.
 - Tester les états réseau indisponible, résultat incomplet et abandon sans écriture accidentelle.

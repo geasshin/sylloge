@@ -9,6 +9,7 @@ import {
   type FilmFormValues,
   type FilmWriteInput,
 } from '../domain/filmForm.ts'
+import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import { Poster } from './Poster.tsx'
 
 const RATINGS = Array.from({ length: 10 }, (_, index) => (index + 1) / 2)
@@ -24,17 +25,23 @@ function previewablePosterUrl(value: string): string | null {
 
 type FilmFormProps = {
   film?: Film
+  initialValues?: FilmFormValues
+  provenance?: FilmMetadataProvenance | null
   onCancel: () => void
-  onSave: (input: FilmWriteInput) => Promise<void>
+  onSave: (input: FilmWriteInput, provenance: FilmMetadataProvenance | null) => Promise<void>
 }
 
-export function FilmForm({ film, onCancel, onSave }: FilmFormProps) {
-  const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...EMPTY_FILM_FORM })
+export function FilmForm({ film, initialValues, provenance = null, onCancel, onSave }: FilmFormProps) {
+  const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  const hasSecondaryDetails = Boolean(film && (film.originalTitle || film.director || film.year || film.summary))
+  const hasSecondaryDetails = Boolean(
+    film
+      ? film.originalTitle || film.director || film.year || film.summary
+      : initialValues?.originalTitle || initialValues?.director || initialValues?.year || initialValues?.summary,
+  )
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewablePosterUrl(values.posterUrl)
 
@@ -56,7 +63,7 @@ export function FilmForm({ film, onCancel, onSave }: FilmFormProps) {
     setSaving(true)
     setSaveError(null)
     try {
-      await onSave(result.data)
+      await onSave(result.data, provenance)
     } catch (error) {
       console.error('Impossible d’enregistrer le film.', error)
       setSaveError('L’enregistrement a échoué. Vos changements restent dans le formulaire.')

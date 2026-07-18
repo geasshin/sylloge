@@ -11,6 +11,11 @@ import { UpdaterPreferencesService } from '../src/data/updaterPreferences.ts'
 import { TauriUpdaterService, isMissingReleaseManifestError } from '../src/data/updaterService.ts'
 import { EMPTY_FILM_FORM, localToday, validateFilmForm } from '../src/domain/filmForm.ts'
 import {
+  filmMetadataResultToFormInitialValues,
+  searchFilmMetadata,
+  unconfiguredFilmMetadataSource,
+} from '../src/domain/filmMetadataAssistance.ts'
+import {
   createLibraryExport,
   serializeLibraryExport,
   validateLibraryImport,
@@ -1377,6 +1382,88 @@ assert.throws(
 }
 
 {
+  const unavailable = await searchFilmMetadata(unconfiguredFilmMetadataSource, { text: 'Recherche sans source' })
+  assert.deepEqual(
+    unavailable,
+    { kind: 'unavailable', reason: 'not-configured' },
+    'La source par défaut doit annoncer explicitement son absence de configuration',
+  )
+
+  const inaccessible = await searchFilmMetadata(
+    {
+      async search() {
+        throw new Error('Réseau inaccessible')
+      },
+    },
+    { text: 'Recherche interrompue' },
+  )
+  assert.deepEqual(
+    inaccessible,
+    { kind: 'unavailable', reason: 'network-unavailable' },
+    'Une source qui ne peut pas être jointe doit rester un état récupérable',
+  )
+
+  const incompleteResult = {
+    title: 'Résultat incomplet de test',
+    originalTitle: null,
+    year: null,
+    director: null,
+    summary: null,
+    posterUrl: null,
+    providerName: 'Source de test',
+    providerId: null,
+  }
+  const response = await searchFilmMetadata(
+    {
+      async search() {
+        return { kind: 'results', results: [incompleteResult] }
+      },
+    },
+    { text: 'Résultat incomplet de test' },
+  )
+  assert.equal(response.kind, 'results', 'Le contrat doit pouvoir représenter une liste de résultats pour une sélection humaine')
+  if (response.kind !== 'results') throw new Error('La liste de résultats de test est absente.')
+
+  const selected = filmMetadataResultToFormInitialValues(response.results[0])
+  assert.deepEqual(
+    selected.values,
+    {
+      ...EMPTY_FILM_FORM,
+      title: 'Résultat incomplet de test',
+    },
+    'Un résultat incomplet doit préremplir seulement les métadonnées disponibles sans inventer de valeur',
+  )
+  assert.equal(selected.provenance, null, 'Une provenance partielle ne doit pas être conservée')
+  assert.equal(selected.values.status, EMPTY_FILM_FORM.status, 'Le statut doit garder la valeur de création manuelle')
+  assert.equal(selected.values.isFavorite, EMPTY_FILM_FORM.isFavorite, 'Le favori doit rester sous contrôle de la personne')
+  assert.equal(selected.values.rating, EMPTY_FILM_FORM.rating, 'La note doit garder la valeur de création manuelle')
+  assert.equal(selected.values.watchedAt, EMPTY_FILM_FORM.watchedAt, 'La date de visionnage doit garder la valeur de création manuelle')
+  assert.equal(selected.values.personalNote, EMPTY_FILM_FORM.personalNote, 'Le texte personnel doit garder la valeur de création manuelle')
+
+  const selectedWithProvenance = filmMetadataResultToFormInitialValues({
+    ...incompleteResult,
+    providerId: 'test-provider-id',
+  })
+  assert.deepEqual(
+    selectedWithProvenance.provenance,
+    { providerName: 'Source de test', providerId: 'test-provider-id' },
+    'Une provenance complète doit rester une paire atomique',
+  )
+  assert.equal(
+    filmMetadataResultToFormInitialValues({
+      ...incompleteResult,
+      providerName: null,
+      providerId: 'test-provider-id',
+    }).provenance,
+    null,
+    'Un identifiant fournisseur seul ne doit pas devenir une provenance partielle',
+  )
+
+  const abandonedSelection = filmMetadataResultToFormInitialValues(response.results[0])
+  assert.equal(abandonedSelection.values.title, 'Résultat incomplet de test', 'Une sélection abandonnée doit seulement préparer le formulaire')
+}
+
+{
   const calls = []
   const database = {
     async select() { return [] },
@@ -1409,18 +1496,37 @@ assert.throws(
   assert.equal(created.profileId, 'default', 'La création doit rester dans le profil courant')
   assert.equal(created.createdAt, '2026-07-17T12:34:56.000Z', 'La création doit stocker un horodatage UTC')
   assert.equal(created.providerName, null, 'La création manuelle ne doit inventer aucun fournisseur')
+  assert.equal(created.providerId, null, 'La création manuelle ne doit inventer aucun identifiant fournisseur')
   assert.match(calls[0].query, /^INSERT INTO films/m, 'La création doit passer par le dépôt SQLite')
   assert.deepEqual(calls[0].bindValues.slice(0, 3), ['film-uuid', 'default', input.title], 'L’INSERT doit paramétrer identifiant, profil et titre')
   assert.equal(calls[0].bindValues[6], 1, 'Le favori doit être encodé explicitement pour SQLite')
+  assert.deepEqual(calls[0].bindValues.slice(12, 14), [null, null], 'La création manuelle doit écrire les deux champs de provenance à null')
+
+  const assistedCreated = await repository.createFilm(
+    'default',
+    { ...input, title: 'Film assisté de test' },
+    { providerName: 'Source de test', providerId: 'test-provider-id' },
+  )
+  assert.deepEqual(
+    [assistedCreated.providerName, assistedCreated.providerId],
+    ['Source de test', 'test-provider-id'],
+    'La création issue d’une sélection future doit conserver la paire de provenance',
+  )
+  assert.deepEqual(
+    calls[1].bindValues.slice(12, 14),
+    ['Source de test', 'test-provider-id'],
+    'L’INSERT SQLite doit écrire les deux valeurs de provenance ensemble',
+  )
 
   const updatedAt = await repository.updateFilm('default', 'film-uuid', { ...input, title: 'Titre modifié' })
   assert.equal(updatedAt, '2026-07-17T12:34:56.000Z', 'La modification doit produire un horodatage UTC')
-  assert.match(calls[1].query, /^UPDATE films/m, 'La modification doit passer par le dépôt SQLite')
-  assert.deepEqual(calls[1].bindValues.slice(-2), ['film-uuid', 'default'], 'La modification doit cibler le film et le profil courant')
+  assert.match(calls[2].query, /^UPDATE films/m, 'La modification doit passer par le dépôt SQLite')
+  assert.doesNotMatch(calls[2].query, /provider_name|provider_id/, 'La modification manuelle ne doit pas effacer la provenance existante')
+  assert.deepEqual(calls[2].bindValues.slice(-2), ['film-uuid', 'default'], 'La modification doit cibler le film et le profil courant')
 
   await repository.deleteFilm('default', 'film-uuid')
-  assert.match(calls[2].query, /^DELETE FROM films/m, 'La suppression doit être définitive dans SQLite')
-  assert.deepEqual(calls[2].bindValues, ['film-uuid', 'default'], 'La suppression doit cibler le film et le profil courant')
+  assert.match(calls[3].query, /^DELETE FROM films/m, 'La suppression doit être définitive dans SQLite')
+  assert.deepEqual(calls[3].bindValues, ['film-uuid', 'default'], 'La suppression doit cibler le film et le profil courant')
 }
 
 {
@@ -1448,6 +1554,7 @@ const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePo
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
 const tauriLibrarySource = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 const repositorySource = readFileSync(new URL('../src/data/filmsRepository.ts', import.meta.url), 'utf8')
+const metadataAssistanceSource = readFileSync(new URL('../src/domain/filmMetadataAssistance.ts', import.meta.url), 'utf8')
 const migrationSource = readFileSync(new URL('../src-tauri/migrations/0001_create_profiles_and_films.sql', import.meta.url), 'utf8')
 const defaultProfileMigration = readFileSync(new URL('../src-tauri/migrations/0002_create_default_profile.sql', import.meta.url), 'utf8')
 const currentProfileMigration = readFileSync(new URL('../src-tauri/migrations/0003_track_current_profile.sql', import.meta.url), 'utf8')
@@ -1473,6 +1580,14 @@ assert.match(formSource, /Aperçu de l’affiche/, 'Le formulaire doit afficher 
 assert.match(formSource, /<Poster title={previewTitle} src={previewUrl}/, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
 assert.match(formSource, /Utiliser aujourd’hui/, 'Le statut terminé doit proposer la date du jour sans la saisir automatiquement')
 assert.match(formSource, /onCancel/, 'Le formulaire doit permettre une annulation avant toute écriture')
+assert.match(formSource, /initialValues/, 'Le formulaire doit accepter des valeurs initiales éditables')
+assert.match(formSource, /onSave\(result\.data, provenance\)/, 'Le formulaire doit transmettre la provenance interne seulement à la validation finale')
+assert.match(mainSource, /Saisie manuelle/, 'L’ajout de Film doit proposer la saisie manuelle')
+assert.match(mainSource, /Enrichissement assisté/, 'L’ajout de Film doit proposer l’enrichissement assisté')
+assert.match(mainSource, /Aucune source de métadonnées n’est configurée/, 'Le parcours assisté doit annoncer honnêtement l’absence de source')
+assert.doesNotMatch(metadataAssistanceSource, /\bfetch\s*\(/, 'Le contrat de métadonnées ne doit lancer aucune requête réseau')
+assert.doesNotMatch(metadataAssistanceSource, /filmsRepository|createFilm|INSERT INTO films/, 'Une sélection ou un abandon ne doit écrire aucune donnée SQLite')
+assert.doesNotMatch(metadataAssistanceSource, /providerName: 'Source de test'/, 'Les doubles de test ne doivent pas devenir du contenu de production')
 assert.match(detailSource, /Supprimer définitivement/, 'La suppression doit demander une confirmation explicite')
 assert.match(repositorySource, /WHERE profile_id = \$1/, 'La lecture Films doit être paramétrée par profil')
 assert.match(repositorySource, /WHERE id = \$13 AND profile_id = \$14/, 'La modification doit être limitée au film du profil courant')
@@ -1543,4 +1658,4 @@ assert.match(capabilitySource, /sql:allow-load/, 'Tauri doit autoriser le charge
 assert.match(capabilitySource, /sql:allow-select/, 'Tauri doit autoriser les lectures SQLite')
 assert.match(capabilitySource, /sql:allow-execute/, 'Tauri doit autoriser les écritures SQLite')
 
-console.log('Vérification réussie : Films SQLite, JSON v1 strict et réimportable, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')
+console.log('Vérification réussie : Films SQLite, métadonnées assistées sans source ni réseau, JSON v1 strict et réimportable, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')

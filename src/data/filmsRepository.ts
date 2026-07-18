@@ -1,6 +1,7 @@
 import type { Film, FilmFilter, FilmStatus } from '../domain/film.ts'
 import { FILM_STATUSES } from '../domain/film.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
+import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
 import type { Profile } from '../domain/profile.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
@@ -345,7 +346,11 @@ export class SqliteFilmsRepository {
     return rows[0] ? toFilm(rows[0]) : null
   }
 
-  async createFilm(profileId: string, input: FilmWriteInput): Promise<Film> {
+  async createFilm(
+    profileId: string,
+    input: FilmWriteInput,
+    provenance: FilmMetadataProvenance | null = null,
+  ): Promise<Film> {
     const database = await this.loadDatabase()
     const id = this.createId()
     const now = this.now()
@@ -363,10 +368,12 @@ export class SqliteFilmsRepository {
          personal_note,
          director,
          summary,
+         provider_name,
+         provider_id,
          poster_url,
          created_at,
          updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         id,
         profileId,
@@ -380,6 +387,8 @@ export class SqliteFilmsRepository {
         input.personalNote,
         input.director,
         input.summary,
+        provenance?.providerName ?? null,
+        provenance?.providerId ?? null,
         input.posterUrl,
         now,
         now,
@@ -394,8 +403,8 @@ export class SqliteFilmsRepository {
       id,
       profileId,
       ...input,
-      providerName: null,
-      providerId: null,
+      providerName: provenance?.providerName ?? null,
+      providerId: provenance?.providerId ?? null,
       createdAt: now,
       updatedAt: now,
     }
