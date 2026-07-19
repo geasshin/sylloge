@@ -28,11 +28,12 @@ pub fn run() {
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,
-            tmdb::get_tmdb_key_status,
-            tmdb::configure_tmdb_key,
-            tmdb::delete_tmdb_key,
             tmdb::get_film_tmdb_cache,
             tmdb::purge_expired_tmdb_cache,
+            tmdb::search_tmdb_films,
+            tmdb::associate_film_with_tmdb,
+            tmdb::refresh_film_tmdb_cache,
+            tmdb::remove_tmdb_association,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

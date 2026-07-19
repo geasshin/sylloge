@@ -573,6 +573,7 @@ export function Portability({
               <div><dt>Application</dt><dd>Sylloge</dd></div>
               <div><dt>Version installée</dt><dd>{installedVersion ?? 'Indisponible'}</dd></div>
               <div><dt>Collection disponible</dt><dd>Films</dd></div>
+              <div><dt>Métadonnées Films</dt><dd>Ce produit utilise l’API TMDB sans être approuvé ni certifié par TMDB. <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">themoviedb.org</a></dd></div>
             </dl>
           </section>
         )}

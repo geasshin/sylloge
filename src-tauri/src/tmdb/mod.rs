@@ -1,10 +1,12 @@
 mod cache;
 mod client;
+mod embedded_key;
 mod secrets;
 
 use std::fmt;
 
 use cache::{CacheService, Clock, SqliteFilmTmdbCacheRepository, SystemClock};
+use client::{ReqwestTmdbClient, TmdbClient};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_sql::{DbInstances, DbPool};
@@ -12,34 +14,38 @@ use tauri_plugin_sql::{DbInstances, DbPool};
 use crate::database::DATABASE_URL;
 
 pub use cache::CachedFilmTmdbPresentationDto;
-use secrets::{platform_secret_store, SecretService, SecretValue, TmdbKeyStatus};
+pub use client::TmdbSearchCandidateDto;
+use secrets::SecretValue;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TmdbError {
-    InvalidKey,
-    #[cfg(not(target_os = "macos"))]
-    SecureStorageUnsupported,
-    SecureStorageUnavailable,
     ClockUnavailable,
     Database(String),
     InvalidCache(&'static str),
+    NetworkUnavailable,
+    ProviderError(u16),
+    InvalidProviderResponse,
 }
 
 impl fmt::Display for TmdbError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidKey => formatter.write_str("La clé TMDB est invalide."),
-            #[cfg(not(target_os = "macos"))]
-            Self::SecureStorageUnsupported => formatter.write_str(
-                "Le stockage sécurisé TMDB n’est pas pris en charge sur cette plateforme.",
-            ),
-            Self::SecureStorageUnavailable => {
-                formatter.write_str("Le stockage sécurisé TMDB est temporairement indisponible.")
-            }
-            Self::ClockUnavailable => formatter.write_str("L’horloge système est indisponible."),
+            Self::ClockUnavailable => formatter.write_str("L'horloge système est indisponible."),
             Self::Database(message) => formatter.write_str(message),
             Self::InvalidCache(reason) => {
                 write!(formatter, "Le cache TMDB est invalide : {reason}.")
+            }
+            Self::NetworkUnavailable => {
+                formatter.write_str("La connexion au service de métadonnées a échoué.")
+            }
+            Self::ProviderError(status) => {
+                write!(
+                    formatter,
+                    "Le service de métadonnées a renvoyé une erreur ({status})."
+                )
+            }
+            Self::InvalidProviderResponse => {
+                formatter.write_str("La réponse du service de métadonnées est invalide.")
             }
         }
     }
@@ -49,24 +55,6 @@ impl fmt::Display for TmdbError {
 #[serde(rename_all = "camelCase")]
 pub struct PurgeTmdbCacheResult {
     purged_count: u64,
-}
-
-#[tauri::command]
-pub async fn get_tmdb_key_status() -> Result<TmdbKeyStatus, String> {
-    run_secret_operation(|| SecretService::new(platform_secret_store()).status()).await
-}
-
-#[tauri::command]
-pub async fn configure_tmdb_key(key: String) -> Result<TmdbKeyStatus, String> {
-    run_secret_operation(move || {
-        SecretService::new(platform_secret_store()).configure(SecretValue::new(key))
-    })
-    .await
-}
-
-#[tauri::command]
-pub async fn delete_tmdb_key() -> Result<TmdbKeyStatus, String> {
-    run_secret_operation(|| SecretService::new(platform_secret_store()).delete()).await
 }
 
 #[tauri::command]
@@ -90,6 +78,110 @@ pub async fn purge_expired_tmdb_cache(
         .map_err(error_message)?;
 
     Ok(PurgeTmdbCacheResult { purged_count })
+}
+
+#[tauri::command]
+pub async fn search_tmdb_films(
+    query: String,
+    language: Option<String>,
+) -> Result<Vec<TmdbSearchCandidateDto>, String> {
+    let secret = get_secret().await?;
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    let language = language.unwrap_or_else(|| "fr-FR".to_string());
+
+    client
+        .search_films(&secret, &query, &language)
+        .await
+        .map_err(error_message)
+}
+
+#[tauri::command]
+pub async fn associate_film_with_tmdb(
+    db_instances: State<'_, DbInstances>,
+    film_id: String,
+    tmdb_id: i64,
+    language: Option<String>,
+) -> Result<CachedFilmTmdbPresentationDto, String> {
+    let secret = get_secret().await?;
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    let language = language.unwrap_or_else(|| "fr-FR".to_string());
+
+    let presentation = client
+        .fetch_film_presentation(&secret, tmdb_id, &language)
+        .await
+        .map_err(error_message)?;
+
+    let pool = sqlite_pool(&db_instances).await.map_err(error_message)?;
+    let service = CacheService::new(SqliteFilmTmdbCacheRepository::new(pool), SystemClock);
+    service
+        .replace(&film_id, &language, presentation)
+        .await
+        .map_err(error_message)?;
+
+    service
+        .read(&film_id)
+        .await
+        .map_err(error_message)?
+        .ok_or_else(|| "Le cache TMDB n'a pas pu être relu après écriture.".to_string())
+}
+
+#[tauri::command]
+pub async fn refresh_film_tmdb_cache(
+    db_instances: State<'_, DbInstances>,
+    film_id: String,
+    language: Option<String>,
+) -> Result<CachedFilmTmdbPresentationDto, String> {
+    let secret = get_secret().await?;
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    let language = language.unwrap_or_else(|| "fr-FR".to_string());
+
+    let pool = sqlite_pool(&db_instances).await.map_err(error_message)?;
+    let service = CacheService::new(SqliteFilmTmdbCacheRepository::new(pool), SystemClock);
+
+    // Lire le cache actuel pour récupérer le tmdb_id
+    let current = service
+        .read(&film_id)
+        .await
+        .map_err(error_message)?
+        .ok_or_else(|| "Aucun cache TMDB à rafraîchir pour ce film.".to_string())?;
+
+    let presentation = client
+        .fetch_film_presentation(&secret, current.presentation.tmdb_id, &language)
+        .await
+        .map_err(error_message)?;
+
+    service
+        .replace(&film_id, &language, presentation)
+        .await
+        .map_err(error_message)?;
+
+    service
+        .read(&film_id)
+        .await
+        .map_err(error_message)?
+        .ok_or_else(|| "Le cache TMDB n'a pas pu être relu après rafraîchissement.".to_string())
+}
+
+#[tauri::command]
+pub async fn remove_tmdb_association(
+    db_instances: State<'_, DbInstances>,
+    film_id: String,
+) -> Result<(), String> {
+    let pool = sqlite_pool(&db_instances).await.map_err(error_message)?;
+    let service = CacheService::new(SqliteFilmTmdbCacheRepository::new(pool), SystemClock);
+    service
+        .delete_for_film(&film_id)
+        .await
+        .map_err(error_message)?;
+    Ok(())
+}
+
+async fn get_secret() -> Result<SecretValue, String> {
+    let key = embedded_key::embedded_api_key();
+    if key == "PLACEHOLDER" {
+        return Err("La clé TMDB n'est pas configurée. Contactez le développeur.".to_string());
+    }
+    Ok(SecretValue::new(key))
 }
 
 pub fn schedule_expired_cache_purge<R: Runtime>(app_handle: AppHandle<R>) {
@@ -118,21 +210,6 @@ where
         .await
 }
 
-async fn run_secret_operation<T, Operation>(operation: Operation) -> Result<T, String>
-where
-    T: Send + 'static,
-    Operation: FnOnce() -> Result<T, TmdbError> + Send + 'static,
-{
-    tauri::async_runtime::spawn_blocking(operation)
-        .await
-        .map_err(|_| "Impossible d’accéder au stockage sécurisé TMDB.".to_string())?
-        .map_err(error_message)
-}
-
-fn error_message(error: TmdbError) -> String {
-    error.to_string()
-}
-
 async fn sqlite_pool(db_instances: &DbInstances) -> Result<sqlx::SqlitePool, TmdbError> {
     let instances = db_instances.0.read().await;
     let database = instances.get(DATABASE_URL).ok_or_else(|| {
@@ -146,6 +223,10 @@ async fn sqlite_pool(db_instances: &DbInstances) -> Result<sqlx::SqlitePool, Tmd
             "La base Sylloge chargée n’est pas SQLite.".to_string(),
         )),
     }
+}
+
+fn error_message(error: TmdbError) -> String {
+    error.to_string()
 }
 
 #[cfg(test)]

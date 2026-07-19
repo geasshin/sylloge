@@ -4,10 +4,14 @@ import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
+import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
+import { TmdbAssociationConfirm } from './components/TmdbAssociationConfirm.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
+import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
+import { getFilmTmdbCache } from './data/tmdbService.ts'
 import {
   FILM_FILTER_LABELS,
   FILM_FILTERS,
@@ -120,11 +124,22 @@ function Sidebar({
 }
 
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
+  const [tmdbCache, setTmdbCache] = useState<CachedFilmTmdbPresentation | null>(null)
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
+  const displayPosterUrl = tmdbCache?.presentation.posterUrl ?? film.posterUrl
+
+  useEffect(() => {
+    let cancelled = false
+    getFilmTmdbCache(film.id).then(
+      (cache) => { if (!cancelled) setTmdbCache(cache) },
+      () => { if (!cancelled) setTmdbCache(null) },
+    )
+    return () => { cancelled = true }
+  }, [film.id])
 
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
-      <Poster title={film.title} src={film.posterUrl} />
+      <Poster title={film.title} src={displayPosterUrl} />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{film.title}</b>
@@ -202,32 +217,6 @@ function FilmCreationChoice({ onManual, onAssisted, onCancel }: FilmCreationChoi
           <span>Prépare une future recherche et un préremplissage, toujours modifiables avant l’enregistrement.</span>
         </button>
       </div>
-    </main>
-  )
-}
-
-function FilmMetadataSourceUnavailable({ onManual, onCancel }: { onManual: () => void; onCancel: () => void }) {
-  return (
-    <main className="main editor-main" aria-label="Enrichissement assisté">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
-
-      <div className="editor-heading">
-        <p className="eyebrow">Film</p>
-        <h1 className="display-title">Enrichissement assisté</h1>
-        <p>Le formulaire restera toujours éditable avant tout enregistrement.</p>
-      </div>
-
-      <section className="metadata-source-unavailable" aria-labelledby="metadata-source-unavailable-title">
-        <p className="card-kicker">Source indisponible</p>
-        <h2 id="metadata-source-unavailable-title">Aucune source de métadonnées n’est configurée.</h2>
-        <p>Aucune recherche ni connexion réseau n’est lancée dans cette version. Vous pouvez continuer avec la saisie manuelle.</p>
-        <div className="metadata-source-actions">
-          <button className="primary-button" type="button" onClick={onManual}>Passer à la saisie manuelle</button>
-          <button className="secondary-button" type="button" onClick={onCancel}>Retour à la bibliothèque</button>
-        </div>
-      </section>
     </main>
   )
 }
@@ -558,7 +547,9 @@ type View =
   | { name: 'settings' }
   | { name: 'create-choice' }
   | { name: 'create' }
-  | { name: 'metadata-source-unavailable' }
+  | { name: 'tmdb-search' }
+  | { name: 'tmdb-confirm'; candidate: TmdbSearchCandidate }
+  | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
 
@@ -573,9 +564,10 @@ type SqliteFilmDetailProps = {
   backLabel: string
   onEdit: () => void
   onDelete: () => Promise<void>
+  onAssociateTmdb: () => void
 }
 
-function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete, onAssociateTmdb }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -601,7 +593,7 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
   }, [attempt, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} />
   }
 
   return (
@@ -638,6 +630,7 @@ function App() {
   const [searchAttempt, setSearchAttempt] = useState(0)
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
+  const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
 
@@ -787,17 +780,64 @@ function App() {
     content = (
       <FilmCreationChoice
         onManual={() => setView({ name: 'create' })}
-        onAssisted={() => setView({ name: 'metadata-source-unavailable' })}
+        onAssisted={() => setView({ name: 'tmdb-search' })}
         onCancel={returnToLibrary}
       />
     )
-  } else if (view.name === 'metadata-source-unavailable') {
+  } else if (view.name === 'tmdb-search') {
     content = (
-      <FilmMetadataSourceUnavailable
+      <TmdbSearchFlow
+        onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
         onManual={() => setView({ name: 'create' })}
         onCancel={returnToLibrary}
       />
     )
+  } else if (view.name === 'tmdb-confirm') {
+    content = (
+      <TmdbAssociationConfirm
+        film={associatingFilm}
+        candidate={view.candidate}
+        onConfirm={() => {
+          setAssociatingFilm(null)
+          if (associatingFilm) {
+            setView({ name: 'detail', filmId: associatingFilm.id, returnTo: 'library' })
+          } else {
+            setView({ name: 'create' })
+          }
+        }}
+        onBack={() => setView({ name: 'tmdb-search' })}
+        onCancel={() => {
+          setAssociatingFilm(null)
+          returnToLibrary()
+        }}
+      />
+    )
+  } else if (view.name === 'tmdb-associate') {
+    const { library } = libraryState
+    const film = library.films.find((entry) => entry.id === view.filmId)
+    if (!film) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={returnToLibrary}>
+              ← Retour aux films
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce film ne peut pas être associé.</h2>
+            <p>La fiche n'est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <TmdbSearchFlow
+          onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
+          onManual={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+          onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+        />
+      )
+    }
   } else if (view.name === 'create') {
     const { library } = libraryState
     content = (
@@ -851,6 +891,13 @@ function App() {
         onBack={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}
         backLabel={view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
         onEdit={() => setView({ name: 'edit', filmId: view.filmId, returnTo: view.returnTo })}
+        onAssociateTmdb={() => {
+          const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
+          if (film) {
+            setAssociatingFilm(film)
+            setView({ name: 'tmdb-associate', filmId: view.filmId })
+          }
+        }}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
           const updatedLibrary: FilmLibrary = {

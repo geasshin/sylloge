@@ -6,8 +6,12 @@ use super::TmdbError;
 pub const MAX_ALTERNATIVE_POSTERS: usize = 4;
 pub const MAX_CAST_MEMBERS: usize = 20;
 pub const MAX_DIRECTORS: usize = 5;
-#[allow(dead_code)]
 pub const MAX_SEARCH_RESULTS: usize = 20;
+
+const TMDB_API_BASE: &str = "https://api.themoviedb.org/3";
+const TMDB_IMAGE_BASE: &str = "https://image.tmdb.org/t/p";
+const DEFAULT_LANGUAGE: &str = "fr-FR";
+const REQUEST_TIMEOUT_SECONDS: u64 = 10;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -34,7 +38,6 @@ pub struct TmdbFilmPresentationDto {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-#[allow(dead_code)]
 pub struct TmdbSearchCandidateDto {
     pub tmdb_id: i64,
     pub title: String,
@@ -45,7 +48,6 @@ pub struct TmdbSearchCandidateDto {
 }
 
 #[allow(async_fn_in_trait)]
-#[allow(dead_code)]
 pub trait TmdbClient: Send + Sync {
     async fn search_films(
         &self,
@@ -61,6 +63,272 @@ pub trait TmdbClient: Send + Sync {
         language: &str,
     ) -> Result<TmdbFilmPresentationDto, TmdbError>;
 }
+
+// --- Réponses API TMDB (désérialisation interne) ---
+
+#[derive(Debug, Deserialize)]
+struct TmdbSearchResponse {
+    results: Vec<TmdbSearchResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbSearchResult {
+    id: i64,
+    title: Option<String>,
+    original_title: Option<String>,
+    release_date: Option<String>,
+    overview: Option<String>,
+    poster_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbMovieDetailsResponse {
+    id: i64,
+    title: Option<String>,
+    original_title: Option<String>,
+    release_date: Option<String>,
+    runtime: Option<u16>,
+    overview: Option<String>,
+    poster_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbCreditsResponse {
+    cast: Vec<TmdbCastEntry>,
+    crew: Vec<TmdbCrewEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbCastEntry {
+    name: Option<String>,
+    character: Option<String>,
+    profile_path: Option<String>,
+    order: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbCrewEntry {
+    name: Option<String>,
+    job: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbImagesResponse {
+    posters: Vec<TmdbImageEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbImageEntry {
+    file_path: Option<String>,
+}
+
+// --- Client HTTP réel ---
+
+pub struct ReqwestTmdbClient {
+    client: reqwest::Client,
+}
+
+impl ReqwestTmdbClient {
+    pub fn new() -> Result<Self, TmdbError> {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(REQUEST_TIMEOUT_SECONDS))
+            .build()
+            .map_err(|_| TmdbError::NetworkUnavailable)?;
+        Ok(Self { client })
+    }
+
+    fn build_url(&self, path: &str) -> String {
+        format!("{TMDB_API_BASE}{path}")
+    }
+
+    fn image_url(path: &str, size: &str) -> String {
+        format!("{TMDB_IMAGE_BASE}/{size}{path}")
+    }
+
+    async fn get<T: for<'de> Deserialize<'de>>(
+        &self,
+        secret: &SecretValue,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<T, TmdbError> {
+        let url = self.build_url(path);
+        let response = self
+            .client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", secret.expose()))
+            .header("Accept", "application/json")
+            .query(query)
+            .send()
+            .await
+            .map_err(|_| TmdbError::NetworkUnavailable)?;
+
+        if !response.status().is_success() {
+            return Err(TmdbError::ProviderError(response.status().as_u16()));
+        }
+
+        response
+            .json::<T>()
+            .await
+            .map_err(|_| TmdbError::InvalidProviderResponse)
+    }
+}
+
+impl TmdbClient for ReqwestTmdbClient {
+    async fn search_films(
+        &self,
+        secret: &SecretValue,
+        query: &str,
+        language: &str,
+    ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError> {
+        let language = if language.is_empty() {
+            DEFAULT_LANGUAGE
+        } else {
+            language
+        };
+
+        let response: TmdbSearchResponse = self
+            .get(
+                secret,
+                "/search/movie",
+                &[
+                    ("query", query),
+                    ("language", language),
+                    ("include_adult", "false"),
+                ],
+            )
+            .await?;
+
+        let candidates = response
+            .results
+            .into_iter()
+            .take(MAX_SEARCH_RESULTS)
+            .map(|result| {
+                let release_year = result
+                    .release_date
+                    .as_deref()
+                    .and_then(|date| date.split('-').next())
+                    .and_then(|year| year.parse().ok());
+
+                TmdbSearchCandidateDto {
+                    tmdb_id: result.id,
+                    title: result.title.unwrap_or_default(),
+                    original_title: result.original_title,
+                    release_year,
+                    synopsis: result.overview,
+                    poster_url: result
+                        .poster_path
+                        .as_deref()
+                        .map(|path| Self::image_url(path, "w500")),
+                }
+            })
+            .collect();
+
+        Ok(candidates)
+    }
+
+    async fn fetch_film_presentation(
+        &self,
+        secret: &SecretValue,
+        tmdb_id: i64,
+        language: &str,
+    ) -> Result<TmdbFilmPresentationDto, TmdbError> {
+        let language = if language.is_empty() {
+            DEFAULT_LANGUAGE
+        } else {
+            language
+        };
+
+        // Détails du film
+        let details: TmdbMovieDetailsResponse = self
+            .get(
+                secret,
+                &format!("/movie/{tmdb_id}"),
+                &[("language", language)],
+            )
+            .await?;
+
+        // Crédits (cast + crew)
+        let credits: TmdbCreditsResponse = self
+            .get(
+                secret,
+                &format!("/movie/{tmdb_id}/credits"),
+                &[("language", language)],
+            )
+            .await?;
+
+        // Images (affiches alternatives)
+        let images: TmdbImagesResponse = self
+            .get(secret, &format!("/movie/{tmdb_id}/images"), &[])
+            .await?;
+
+        // Construction du DTO
+        let directors: Vec<String> = credits
+            .crew
+            .iter()
+            .filter(|member| member.job.as_deref() == Some("Director"))
+            .filter_map(|member| member.name.clone())
+            .take(MAX_DIRECTORS)
+            .collect();
+
+        let mut cast: Vec<TmdbCastMemberDto> = credits
+            .cast
+            .iter()
+            .filter(|member| member.name.is_some())
+            .take(MAX_CAST_MEMBERS)
+            .map(|member| TmdbCastMemberDto {
+                name: member.name.clone().unwrap_or_default(),
+                character: member.character.clone(),
+                portrait_url: member
+                    .profile_path
+                    .as_deref()
+                    .map(|path| Self::image_url(path, "w185")),
+            })
+            .collect();
+
+        // Tri déterministe par ordre de billing si disponible
+        cast.sort_by_key(|member| {
+            credits
+                .cast
+                .iter()
+                .find(|m| m.name.as_deref() == Some(&member.name))
+                .and_then(|m| m.order)
+                .unwrap_or(u32::MAX)
+        });
+
+        let mut alternative_poster_urls: Vec<String> = images
+            .posters
+            .iter()
+            .filter_map(|image| image.file_path.as_deref())
+            .take(MAX_ALTERNATIVE_POSTERS + 1) // +1 car on va filtrer l'affiche principale
+            .map(|path| Self::image_url(path, "w500"))
+            .collect();
+
+        // Exclure l'affiche principale des alternatives
+        if let Some(ref main_poster) = details.poster_path {
+            let main_url = Self::image_url(main_poster, "w500");
+            alternative_poster_urls.retain(|url| url != &main_url);
+        }
+        alternative_poster_urls.truncate(MAX_ALTERNATIVE_POSTERS);
+
+        Ok(TmdbFilmPresentationDto {
+            tmdb_id: details.id,
+            title: details.title.unwrap_or_default(),
+            original_title: details.original_title,
+            release_date: details.release_date,
+            runtime_minutes: details.runtime,
+            synopsis: details.overview,
+            directors,
+            poster_url: details
+                .poster_path
+                .as_deref()
+                .map(|path| Self::image_url(path, "w500")),
+            alternative_poster_urls,
+            cast,
+        })
+    }
+}
+
+// --- Validation ---
 
 pub fn validate_presentation(presentation: &TmdbFilmPresentationDto) -> Result<(), TmdbError> {
     if presentation.tmdb_id <= 0 {
@@ -163,6 +431,8 @@ fn validate_https_url(value: &str) -> Result<(), TmdbError> {
     Ok(())
 }
 
+// --- Tests ---
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,5 +496,34 @@ mod tests {
                 .expect("présentation factice");
             validate_presentation(&presentation).expect("DTO factice borné");
         });
+    }
+
+    #[test]
+    fn image_url_constructs_valid_https_url() {
+        let url = ReqwestTmdbClient::image_url("/abc123.jpg", "w500");
+        assert!(url.starts_with("https://"));
+        assert!(url.contains("image.tmdb.org"));
+        assert!(url.contains("w500"));
+        assert!(url.ends_with(".jpg"));
+    }
+
+    #[test]
+    fn search_result_maps_to_candidate() {
+        let result = TmdbSearchResult {
+            id: 123,
+            title: Some("Le Film".to_string()),
+            original_title: Some("The Movie".to_string()),
+            release_date: Some("2024-05-15".to_string()),
+            overview: Some("Un synopsis.".to_string()),
+            poster_path: Some("/poster.jpg".to_string()),
+        };
+
+        let release_year = result
+            .release_date
+            .as_deref()
+            .and_then(|date| date.split('-').next())
+            .and_then(|year| year.parse().ok());
+
+        assert_eq!(release_year, Some(2024));
     }
 }

@@ -1,5 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FILM_STATUS_LABELS, type Film } from '../domain/film.ts'
+import {
+  getFilmTmdbCache,
+  removeTmdbAssociation,
+  type CachedFilmTmdbPresentation,
+} from '../data/tmdbService.ts'
 import { Poster } from './Poster.tsx'
 
 function formatWatchedDate(value: string): string {
@@ -13,13 +18,69 @@ type FilmDetailProps = {
   backLabel: string
   onEdit: () => void
   onDelete: () => Promise<void>
+  onAssociateTmdb: () => void
 }
 
-export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete }: FilmDetailProps) {
+export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb }: FilmDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [tmdbCache, setTmdbCache] = useState<CachedFilmTmdbPresentation | null>(null)
+  const [tmdbLoading, setTmdbLoading] = useState(true)
+  const [removingAssociation, setRemovingAssociation] = useState(false)
+  const [selectedPosterUrl, setSelectedPosterUrl] = useState<string | null>(null)
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
+  const displayPosterUrl = selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
+  const displayTitle = tmdbCache?.presentation.title ?? film.title
+  const displayOriginalTitle = tmdbCache?.presentation.originalTitle ?? film.originalTitle
+  const displayDirector = tmdbCache?.presentation.directors.join(', ') || film.director
+  const displayYear = tmdbCache?.presentation.releaseDate?.split('-')[0] ?? film.year
+  const displayRuntime = tmdbCache?.presentation.runtimeMinutes
+    ? `${Math.floor(tmdbCache.presentation.runtimeMinutes / 60)}h ${String(tmdbCache.presentation.runtimeMinutes % 60).padStart(2, '0')}min`
+    : null
+
+  const displayAttribution = [displayDirector, displayYear].filter((value) => value !== null).join(' · ')
+  const allPosters = tmdbCache
+    ? [tmdbCache.presentation.posterUrl, ...tmdbCache.presentation.alternativePosterUrls].filter(Boolean) as string[]
+    : []
+
+  useEffect(() => {
+    let cancelled = false
+    setTmdbLoading(true)
+
+    getFilmTmdbCache(film.id).then(
+      (cache) => {
+        if (!cancelled) setTmdbCache(cache)
+      },
+      (error: unknown) => {
+        console.error('Impossible de lire le cache TMDB.', error)
+        if (!cancelled) setTmdbCache(null)
+      },
+    ).finally(() => {
+      if (!cancelled) setTmdbLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [film.id])
+
+  useEffect(() => {
+    // Réinitialiser la sélection d'affiche quand le cache change
+    setSelectedPosterUrl(null)
+  }, [tmdbCache?.presentation.tmdbId])
+
+  const handleRemoveAssociation = async () => {
+    setRemovingAssociation(true)
+    try {
+      await removeTmdbAssociation(film.id)
+      setTmdbCache(null)
+    } catch (error) {
+      console.error('Impossible de supprimer l\'association TMDB.', error)
+    } finally {
+      setRemovingAssociation(false)
+    }
+  }
 
   const deleteFilm = async () => {
     setDeleting(true)
@@ -42,14 +103,126 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete }: FilmDe
 
       <article className="film-detail">
         <div className="film-detail-visual">
-          <Poster title={film.title} src={film.posterUrl} className="detail-poster" />
+          <div className="poster-container">
+            <Poster title={displayTitle} src={displayPosterUrl} className="detail-poster" />
+            {allPosters.length > 1 && (
+              <>
+                <button
+                  className="poster-edit-button"
+                  type="button"
+                  onClick={() => setShowPosterGallery(true)}
+                  aria-label="Choisir une autre affiche"
+                >
+                  ✎
+                </button>
+                {showPosterGallery && (
+                  <div className="poster-gallery-overlay" onClick={() => setShowPosterGallery(false)}>
+                    <div className="poster-gallery-popover" onClick={(e) => e.stopPropagation()}>
+                      <div className="poster-gallery-header">
+                        <p>Choisir une affiche</p>
+                        <button type="button" onClick={() => setShowPosterGallery(false)}>×</button>
+                      </div>
+                      <div className="poster-gallery-grid">
+                        {allPosters.map((url, index) => (
+                          <button
+                            key={index}
+                            className={`poster-gallery-item ${displayPosterUrl === url ? 'active' : ''}`}
+                            type="button"
+                            onClick={() => handleSelectPoster(url)}
+                          >
+                            <img src={url} alt="" loading="lazy" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="film-detail-content">
           <p className="eyebrow">Film</p>
-          <h1 className="display-title">{film.title}</h1>
-          {film.originalTitle && <p className="original-title">{film.originalTitle}</p>}
-          {attribution && <p className="detail-attribution">{attribution}</p>}
+          <h1 className="display-title">{displayTitle}</h1>
+          {displayOriginalTitle && displayOriginalTitle !== displayTitle && (
+            <p className="original-title">{displayOriginalTitle}</p>
+          )}
+          {displayAttribution && <p className="detail-attribution">{displayAttribution}</p>}
+          {displayRuntime && <p className="detail-runtime">{displayRuntime}</p>}
+
+          {/* Section TMDB */}
+          <section className="tmdb-section" aria-labelledby="tmdb-section-title">
+            <div className="tmdb-section-heading">
+              <h2 id="tmdb-section-title">Métadonnées TMDB</h2>
+              {tmdbCache && (
+                <span className="tmdb-badge">Associé</span>
+              )}
+            </div>
+            {tmdbLoading ? (
+              <p role="status">Lecture de l'association…</p>
+            ) : tmdbCache ? (
+              <div className="tmdb-associated">
+                {tmdbCache.presentation.synopsis && (
+                  <div className="tmdb-synopsis">
+                    <h3>Synopsis</h3>
+                    <p>{tmdbCache.presentation.synopsis}</p>
+                  </div>
+                )}
+                {tmdbCache.presentation.cast.length > 0 && (
+                  <div className="tmdb-cast">
+                    <h3>Casting principal</h3>
+                    <ul>
+                      {tmdbCache.presentation.cast.slice(0, 6).map((member, index) => (
+                        <li key={index}>
+                          {member.portraitUrl && (
+                            <img
+                              className="cast-portrait"
+                              src={member.portraitUrl}
+                              alt=""
+                              loading="lazy"
+                            />
+                          )}
+                          <span className="cast-info">
+                            <b>{member.name}</b>
+                            {member.character && <small>{member.character}</small>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                <div className="tmdb-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={onAssociateTmdb}
+                  >
+                    Modifier l'association
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={handleRemoveAssociation}
+                    disabled={removingAssociation}
+                  >
+                    {removingAssociation ? 'Suppression…' : 'Retirer l\'association'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="tmdb-not-associated">
+                <p>Aucune métadonnée TMDB associée.</p>
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={onAssociateTmdb}
+                >
+                  Associer à TMDB
+                </button>
+              </div>
+            )}
+          </section>
 
           <dl className="film-facts">
             <div>
