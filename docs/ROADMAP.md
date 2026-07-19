@@ -115,13 +115,13 @@ Les améliorations nécessaires à l’usage quotidien ont été intégrées ava
 - Décider, documenter et tester ce qui est conservé, ajouté, transformé ou explicitement non importé ; aucune donnée ne doit être inventée pour combler une absence.
 - Écrire les migrations et tests de réimport nécessaires avant de figer le contrat de `0.4.0`.
 
-### `0.3.5` — Intégration TMDB et configuration de la clé
+### `0.3.5` — Intégration TMDB avec clé embarquée
 
 - Vérifier avant tout code les conditions actuelles de TMDB, l’attribution, la langue, les limites et les obligations de distribution publique.
-- Ajouter une configuration locale explicite de la clé API, sans secret dans le dépôt, les exports, les snapshots ni les logs.
-- Connecter la recherche et le préremplissage à TMDB seulement après cette gate ; conserver provenance, identifiant fournisseur et modification humaine des données reçues.
+- Clé API **embarquée par le développeur** dans le binaire (`embedded_key.rs`, ignorée par Git), sans secret dans le dépôt, les exports, les snapshots ni les logs. Modèle réservé à un usage gratuit et non commercial, diffusé à des personnes de confiance.
+- Connecter la recherche et le préremplissage à TMDB ; conserver provenance, identifiant fournisseur et modification humaine des données reçues. Cache renouvelable J+80/J+180, purge et renouvellement automatique au démarrage.
 
-**Gate d’escalade :** si les conditions de TMDB, la confidentialité de la clé ou l’attribution ne sont pas satisfaisantes, `0.3.5` s’arrête et `0.4.0` est redéfini sans intégration réseau plutôt que de contourner la contrainte.
+**Gate d’escalade :** si les conditions de TMDB, la confidentialité de la clé ou l’attribution ne sont pas satisfaisantes, `0.3.5` s’arrête et `0.4.0` est redéfini sans intégration réseau plutôt que de contourner la contrainte. Toute distribution publique ou commerciale impose de revoir le modèle de clé et la licence TMDB.
 
 ### `0.4.0` — Release publique Import, export et métadonnées Films
 

@@ -126,7 +126,7 @@ function Sidebar({
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
   const [tmdbCache, setTmdbCache] = useState<CachedFilmTmdbPresentation | null>(null)
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
-  const displayPosterUrl = tmdbCache?.presentation.posterUrl ?? film.posterUrl
+  const displayPosterUrl = tmdbCache?.selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
 
   useEffect(() => {
     let cancelled = false

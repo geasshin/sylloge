@@ -562,7 +562,10 @@ export function Portability({
           <section className="settings-page settings-information" aria-labelledby="application-title">
             <div className="settings-section-heading"><p className="card-kicker">Fonctionnement local</p><h2 id="application-title">Application</h2></div>
             <UpdaterSettings availableUpdate={availableUpdate} onUpdateAvailable={onUpdateAvailable} onUpdateHandled={onUpdateHandled} />
-            <dl className="settings-facts"><div><dt>Données</dt><dd>La bibliothèque reste enregistrée localement dans SQLite.</dd></div></dl>
+            <dl className="settings-facts">
+              <div><dt>Données</dt><dd>La bibliothèque reste enregistrée localement dans SQLite.</dd></div>
+              <div><dt>Métadonnées Films</dt><dd>Enrichissement TMDB intégré et activé, sans clé à configurer. Les présentations sont mises en cache localement et renouvelées automatiquement ; elles ne sont jamais exportées avec vos données personnelles.</dd></div>
+            </dl>
           </section>
         )}
 

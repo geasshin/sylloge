@@ -23,6 +23,7 @@ pub struct CachedFilmTmdbPresentationDto {
     pub refresh_after: String,
     pub expires_at: String,
     pub refresh_due: bool,
+    pub selected_poster_url: Option<String>,
     pub presentation: TmdbFilmPresentationDto,
 }
 
@@ -64,6 +65,15 @@ pub trait FilmTmdbCacheRepository: Send + Sync {
         now_epoch_seconds: i64,
     ) -> Result<Option<CachedFilmTmdbPresentationDto>, TmdbError>;
     async fn purge_expired(&self, now_epoch_seconds: i64) -> Result<u64, TmdbError>;
+    /// Liste les film_id dont le cache est dû pour un rafraîchissement
+    /// (refresh_after dépassé) mais pas encore expiré.
+    async fn list_due_for_refresh(&self, now_epoch_seconds: i64) -> Result<Vec<String>, TmdbError>;
+    /// Enregistre l'affiche choisie par l'utilisateur (None = affiche principale).
+    async fn set_selected_poster(
+        &self,
+        film_id: &str,
+        poster_url: Option<&str>,
+    ) -> Result<(), TmdbError>;
     #[allow(dead_code)]
     async fn delete_for_film(&self, film_id: &str) -> Result<u64, TmdbError>;
 }
@@ -123,6 +133,23 @@ where
     pub async fn purge_expired(&self) -> Result<u64, TmdbError> {
         self.repository
             .purge_expired(self.clock.now_epoch_seconds()?)
+            .await
+    }
+
+    pub async fn list_due_for_refresh(&self) -> Result<Vec<String>, TmdbError> {
+        self.repository
+            .list_due_for_refresh(self.clock.now_epoch_seconds()?)
+            .await
+    }
+
+    pub async fn set_selected_poster(
+        &self,
+        film_id: &str,
+        poster_url: Option<&str>,
+    ) -> Result<(), TmdbError> {
+        validate_film_id(film_id)?;
+        self.repository
+            .set_selected_poster(film_id, poster_url)
             .await
     }
 
@@ -311,7 +338,15 @@ impl FilmTmdbCacheRepository for SqliteFilmTmdbCacheRepository {
                 payload_json = excluded.payload_json,
                 fetched_at = excluded.fetched_at,
                 refresh_after = excluded.refresh_after,
-                expires_at = excluded.expires_at",
+                expires_at = excluded.expires_at,
+                -- Préserver l'affiche choisie lors d'un simple rafraîchissement
+                -- (même tmdb_id), mais la réinitialiser quand l'association
+                -- pointe vers une autre œuvre TMDB.
+                selected_poster_url = CASE
+                    WHEN film_tmdb_cache.tmdb_id = excluded.tmdb_id
+                    THEN film_tmdb_cache.selected_poster_url
+                    ELSE NULL
+                END",
         )
         .bind(&write.film_id)
         .bind(write.presentation.tmdb_id)
@@ -334,17 +369,26 @@ impl FilmTmdbCacheRepository for SqliteFilmTmdbCacheRepository {
     ) -> Result<Option<CachedFilmTmdbPresentationDto>, TmdbError> {
         let mut transaction = self.pool.begin().await.map_err(database_error)?;
 
-        let row: Option<(i64, String, String, String, String, String)> = sqlx::query_as(
-            "SELECT tmdb_id, language, payload_json, fetched_at, refresh_after, expires_at
+        type CacheRow = (i64, String, String, String, String, String, Option<String>);
+        let row: Option<CacheRow> = sqlx::query_as(
+            "SELECT tmdb_id, language, payload_json, fetched_at, refresh_after, expires_at, selected_poster_url
              FROM film_tmdb_cache
              WHERE film_id = $1",
         )
         .bind(film_id)
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(database_error)?;
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(database_error)?;
 
-        let Some((tmdb_id, language, payload_json, fetched_at, refresh_after, expires_at)) = row
+        let Some((
+            tmdb_id,
+            language,
+            payload_json,
+            fetched_at,
+            refresh_after,
+            expires_at,
+            selected_poster_url,
+        )) = row
         else {
             transaction.commit().await.map_err(database_error)?;
             return Ok(None);
@@ -391,6 +435,7 @@ impl FilmTmdbCacheRepository for SqliteFilmTmdbCacheRepository {
             refresh_after,
             expires_at,
             refresh_due: timestamps.refresh_after_epoch_seconds <= now_epoch_seconds,
+            selected_poster_url,
             presentation,
         }))
     }
@@ -435,6 +480,55 @@ impl FilmTmdbCacheRepository for SqliteFilmTmdbCacheRepository {
             .await
             .map_err(database_error)?;
         Ok(result.rows_affected())
+    }
+
+    async fn set_selected_poster(
+        &self,
+        film_id: &str,
+        poster_url: Option<&str>,
+    ) -> Result<(), TmdbError> {
+        let result =
+            sqlx::query("UPDATE film_tmdb_cache SET selected_poster_url = $2 WHERE film_id = $1")
+                .bind(film_id)
+                .bind(poster_url)
+                .execute(&self.pool)
+                .await
+                .map_err(database_error)?;
+
+        if result.rows_affected() == 0 {
+            return Err(TmdbError::InvalidCache(
+                "aucune association TMDB à mettre à jour pour ce film",
+            ));
+        }
+        Ok(())
+    }
+
+    async fn list_due_for_refresh(&self, now_epoch_seconds: i64) -> Result<Vec<String>, TmdbError> {
+        // Un cache est "dû" quand refresh_after est dépassé mais expires_at ne l'est pas :
+        // la purge au démarrage supprime déjà les expirés. On ne retient que les lignes
+        // dont les métadonnées stockées restent cohérentes.
+        let rows: Vec<(String, String, String, String, String)> = sqlx::query_as(
+            "SELECT film_id, language, fetched_at, refresh_after, expires_at
+             FROM film_tmdb_cache",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(database_error)?;
+
+        let mut due = Vec::new();
+        for (film_id, language, fetched_at, refresh_after, expires_at) in rows {
+            let Ok(timestamps) =
+                validate_stored_cache_metadata(&language, &fetched_at, &refresh_after, &expires_at)
+            else {
+                continue;
+            };
+            let refresh_due = timestamps.refresh_after_epoch_seconds <= now_epoch_seconds;
+            let not_expired = timestamps.expires_at_epoch_seconds > now_epoch_seconds;
+            if refresh_due && not_expired {
+                due.push(film_id);
+            }
+        }
+        Ok(due)
     }
 }
 
@@ -496,6 +590,7 @@ mod tests {
             include_str!("../../migrations/0006_create_updater_preferences.sql"),
             include_str!("../../migrations/0007_normalize_film_optional_data.sql"),
             include_str!("../../migrations/0008_create_film_tmdb_cache.sql"),
+            include_str!("../../migrations/0009_add_selected_poster_url.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -915,6 +1010,50 @@ mod tests {
     }
 
     #[test]
+    fn list_due_for_refresh_returns_only_due_and_unexpired_caches() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            for film_id in ["film-due", "film-fresh"] {
+                insert_film(&pool, film_id, "Titre personnel").await;
+            }
+
+            // Deux caches écrits à BASE_TIME : refresh dû à J+80, expiration à J+180.
+            for (film_id, tmdb_id) in [("film-due", 201_i64), ("film-fresh", 202_i64)] {
+                service(&pool, BASE_TIME)
+                    .replace(film_id, "fr-FR", sample_presentation(tmdb_id, "Cache"))
+                    .await
+                    .expect("cache de test écrit");
+            }
+
+            // À J+79 : aucun cache n'est dû.
+            let due_at_seventy_nine = service(&pool, BASE_TIME + 79 * SECONDS_PER_DAY)
+                .list_due_for_refresh()
+                .await
+                .expect("liste à 79 jours");
+            assert!(due_at_seventy_nine.is_empty());
+
+            // À J+80 : les deux caches sont dus et non expirés.
+            let mut due_at_eighty = service(&pool, BASE_TIME + 80 * SECONDS_PER_DAY)
+                .list_due_for_refresh()
+                .await
+                .expect("liste à 80 jours");
+            due_at_eighty.sort();
+            assert_eq!(
+                due_at_eighty,
+                vec!["film-due".to_string(), "film-fresh".to_string()]
+            );
+
+            // À J+180 : les caches sont expirés, donc plus "dûs" (la purge s'en charge).
+            let due_at_expiration =
+                service(&pool, BASE_TIME + EXPIRES_AFTER_DAYS * SECONDS_PER_DAY)
+                    .list_due_for_refresh()
+                    .await
+                    .expect("liste à 180 jours");
+            assert!(due_at_expiration.is_empty());
+        });
+    }
+
+    #[test]
     fn read_purges_cache_at_exactly_one_hundred_eighty_days() {
         tauri::async_runtime::block_on(async {
             let pool = test_pool().await;
@@ -1175,6 +1314,70 @@ mod tests {
 
             assert_eq!(deleted, 1);
             assert_eq!(remaining, "film-linked");
+        });
+    }
+
+    #[test]
+    fn selected_poster_is_preserved_on_refresh_and_reset_on_reassociation() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            insert_film(&pool, "film-poster", "Choix d'affiche").await;
+            service(&pool, BASE_TIME)
+                .replace(
+                    "film-poster",
+                    "fr-FR",
+                    sample_presentation(300, "Cache initial"),
+                )
+                .await
+                .expect("cache initial");
+
+            // L'utilisateur choisit une affiche alternative.
+            service(&pool, BASE_TIME)
+                .set_selected_poster(
+                    "film-poster",
+                    Some("https://image.tmdb.org/t/p/w500/alternative.jpg"),
+                )
+                .await
+                .expect("choix d'affiche enregistré");
+
+            // Un refresh avec le même tmdb_id préserve le choix.
+            service(&pool, BASE_TIME + SECONDS_PER_DAY)
+                .replace(
+                    "film-poster",
+                    "fr-FR",
+                    sample_presentation(300, "Cache rafraîchi"),
+                )
+                .await
+                .expect("rafraîchissement");
+            let after_refresh = service(&pool, BASE_TIME + SECONDS_PER_DAY)
+                .read("film-poster")
+                .await
+                .expect("lecture après refresh")
+                .expect("cache présent après refresh");
+            assert_eq!(
+                after_refresh.selected_poster_url.as_deref(),
+                Some("https://image.tmdb.org/t/p/w500/alternative.jpg"),
+                "le choix d'affiche doit survivre au rafraîchissement"
+            );
+
+            // Une réassociation vers une autre œuvre TMDB réinitialise le choix.
+            service(&pool, BASE_TIME + 2 * SECONDS_PER_DAY)
+                .replace(
+                    "film-poster",
+                    "fr-FR",
+                    sample_presentation(301, "Autre œuvre"),
+                )
+                .await
+                .expect("réassociation");
+            let after_reassociation = service(&pool, BASE_TIME + 2 * SECONDS_PER_DAY)
+                .read("film-poster")
+                .await
+                .expect("lecture après réassociation")
+                .expect("cache présent après réassociation");
+            assert_eq!(
+                after_reassociation.selected_poster_url, None,
+                "le choix d'affiche doit être réinitialisé à la réassociation"
+            );
         });
     }
 }

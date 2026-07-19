@@ -176,10 +176,58 @@ pub async fn remove_tmdb_association(
     Ok(())
 }
 
+/// Enregistre l'affiche choisie par l'utilisateur parmi les affiches TMDB du cache.
+/// `poster_url: None` réinitialise le choix (retour à l'affiche principale).
+#[tauri::command]
+pub async fn set_film_tmdb_poster(
+    db_instances: State<'_, DbInstances>,
+    film_id: String,
+    poster_url: Option<String>,
+) -> Result<CachedFilmTmdbPresentationDto, String> {
+    let pool = sqlite_pool(&db_instances).await.map_err(error_message)?;
+    let service = CacheService::new(SqliteFilmTmdbCacheRepository::new(pool), SystemClock);
+
+    // Valider que l'affiche choisie fait bien partie des affiches connues du cache.
+    let current = service
+        .read(&film_id)
+        .await
+        .map_err(error_message)?
+        .ok_or_else(|| "Aucune association TMDB pour ce film.".to_string())?;
+
+    if let Some(ref url) = poster_url {
+        let known = std::iter::once(current.presentation.poster_url.as_deref())
+            .chain(
+                current
+                    .presentation
+                    .alternative_poster_urls
+                    .iter()
+                    .map(|u| Some(u.as_str())),
+            )
+            .flatten()
+            .any(|known_url| known_url == url);
+        if !known {
+            return Err(
+                "L'affiche choisie ne fait pas partie des affiches TMDB du cache.".to_string(),
+            );
+        }
+    }
+
+    service
+        .set_selected_poster(&film_id, poster_url.as_deref())
+        .await
+        .map_err(error_message)?;
+
+    service
+        .read(&film_id)
+        .await
+        .map_err(error_message)?
+        .ok_or_else(|| "Le cache TMDB n'a pas pu être relu après le choix d'affiche.".to_string())
+}
+
 async fn get_secret() -> Result<SecretValue, String> {
     let key = embedded_key::embedded_api_key();
-    if key == "PLACEHOLDER" {
-        return Err("La clé TMDB n'est pas configurée. Contactez le développeur.".to_string());
+    if key.is_empty() {
+        return Err("La clé TMDB embarquée est absente du build.".to_string());
     }
     Ok(SecretValue::new(key))
 }
@@ -193,6 +241,62 @@ pub fn schedule_expired_cache_purge<R: Runtime>(app_handle: AppHandle<R>) {
 
         if let Err(error) = result {
             log::warn!("La purge du cache TMDB au démarrage a échoué : {error}");
+        }
+    });
+}
+
+/// Rafraîchit en arrière-plan tous les caches TMDB dus (refresh_after dépassé),
+/// tant que Sylloge est ouverte. File bornée et séquentielle : aucune requête
+/// massive simultanée, et la fermeture de l'application arrête le traitement.
+pub fn schedule_due_cache_refresh<R: Runtime>(app_handle: AppHandle<R>) {
+    tauri::async_runtime::spawn(async move {
+        let db_instances = app_handle.state::<DbInstances>();
+        let Ok(pool) = sqlite_pool(&db_instances).await else {
+            return;
+        };
+        let service = CacheService::new(SqliteFilmTmdbCacheRepository::new(pool), SystemClock);
+
+        let Ok(due_film_ids) = service.list_due_for_refresh().await else {
+            return;
+        };
+        if due_film_ids.is_empty() {
+            return;
+        }
+
+        let Ok(secret) = get_secret().await else {
+            return;
+        };
+        let Ok(client) = ReqwestTmdbClient::new() else {
+            return;
+        };
+
+        let mut refreshed = 0_u32;
+        for film_id in due_film_ids {
+            // Lire le cache courant pour retrouver l'identifiant TMDB et la langue.
+            let Ok(Some(current)) = service.read(&film_id).await else {
+                continue;
+            };
+            let language = current.language.clone();
+            let tmdb_id = current.presentation.tmdb_id;
+
+            let Ok(presentation) = client
+                .fetch_film_presentation(&secret, tmdb_id, &language)
+                .await
+            else {
+                continue;
+            };
+
+            if service
+                .replace(&film_id, &language, presentation)
+                .await
+                .is_ok()
+            {
+                refreshed += 1;
+            }
+        }
+
+        if refreshed > 0 {
+            log::info!("Cache TMDB : {refreshed} présentation(s) rafraîchie(s) en arrière-plan.");
         }
     });
 }

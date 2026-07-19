@@ -52,5 +52,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "add_selected_poster_url",
+            sql: include_str!("../migrations/0009_add_selected_poster_url.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

@@ -35,6 +35,7 @@ export type CachedFilmTmdbPresentation = {
   refreshAfter: string
   expiresAt: string
   refreshDue: boolean
+  selectedPosterUrl: string | null
   presentation: TmdbFilmPresentation
 }
 
@@ -63,4 +64,11 @@ export function removeTmdbAssociation(filmId: string): Promise<void> {
 
 export function getFilmTmdbCache(filmId: string): Promise<CachedFilmTmdbPresentation | null> {
   return invoke('get_film_tmdb_cache', { filmId })
+}
+
+export function setFilmTmdbPoster(
+  filmId: string,
+  posterUrl: string | null,
+): Promise<CachedFilmTmdbPresentation> {
+  return invoke('set_film_tmdb_poster', { filmId, posterUrl })
 }

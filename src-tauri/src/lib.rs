@@ -34,6 +34,7 @@ pub fn run() {
             tmdb::associate_film_with_tmdb,
             tmdb::refresh_film_tmdb_cache,
             tmdb::remove_tmdb_association,
+            tmdb::set_film_tmdb_poster,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -44,6 +45,7 @@ pub fn run() {
                 )?;
             }
             tmdb::schedule_expired_cache_purge(app.handle().clone());
+            tmdb::schedule_due_cache_refresh(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

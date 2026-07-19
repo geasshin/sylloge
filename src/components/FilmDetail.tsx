@@ -3,9 +3,11 @@ import { FILM_STATUS_LABELS, type Film } from '../domain/film.ts'
 import {
   getFilmTmdbCache,
   removeTmdbAssociation,
+  setFilmTmdbPoster,
   type CachedFilmTmdbPresentation,
 } from '../data/tmdbService.ts'
 import { Poster } from './Poster.tsx'
+import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
 
 function formatWatchedDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -28,9 +30,10 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
   const [tmdbCache, setTmdbCache] = useState<CachedFilmTmdbPresentation | null>(null)
   const [tmdbLoading, setTmdbLoading] = useState(true)
   const [removingAssociation, setRemovingAssociation] = useState(false)
-  const [selectedPosterUrl, setSelectedPosterUrl] = useState<string | null>(null)
+  const [showPosterGallery, setShowPosterGallery] = useState(false)
+  const [savingPoster, setSavingPoster] = useState(false)
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
-  const displayPosterUrl = selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
+  const displayPosterUrl = tmdbCache?.selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
   const displayTitle = tmdbCache?.presentation.title ?? film.title
   const displayOriginalTitle = tmdbCache?.presentation.originalTitle ?? film.originalTitle
   const displayDirector = tmdbCache?.presentation.directors.join(', ') || film.director
@@ -65,10 +68,17 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
     }
   }, [film.id])
 
-  useEffect(() => {
-    // Réinitialiser la sélection d'affiche quand le cache change
-    setSelectedPosterUrl(null)
-  }, [tmdbCache?.presentation.tmdbId])
+  const handleSelectPoster = async (url: string | null) => {
+    setSavingPoster(true)
+    try {
+      const updated = await setFilmTmdbPoster(film.id, url)
+      setTmdbCache(updated)
+    } catch (error) {
+      console.error('Impossible d\'enregistrer le choix d\'affiche.', error)
+    } finally {
+      setSavingPoster(false)
+    }
+  }
 
   const handleRemoveAssociation = async () => {
     setRemovingAssociation(true)
@@ -106,41 +116,27 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
           <div className="poster-container">
             <Poster title={displayTitle} src={displayPosterUrl} className="detail-poster" />
             {allPosters.length > 1 && (
-              <>
-                <button
-                  className="poster-edit-button"
-                  type="button"
-                  onClick={() => setShowPosterGallery(true)}
-                  aria-label="Choisir une autre affiche"
-                >
-                  ✎
-                </button>
-                {showPosterGallery && (
-                  <div className="poster-gallery-overlay" onClick={() => setShowPosterGallery(false)}>
-                    <div className="poster-gallery-popover" onClick={(e) => e.stopPropagation()}>
-                      <div className="poster-gallery-header">
-                        <p>Choisir une affiche</p>
-                        <button type="button" onClick={() => setShowPosterGallery(false)}>×</button>
-                      </div>
-                      <div className="poster-gallery-grid">
-                        {allPosters.map((url, index) => (
-                          <button
-                            key={index}
-                            className={`poster-gallery-item ${displayPosterUrl === url ? 'active' : ''}`}
-                            type="button"
-                            onClick={() => handleSelectPoster(url)}
-                          >
-                            <img src={url} alt="" loading="lazy" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
+              <button
+                className="poster-edit-button"
+                type="button"
+                onClick={() => setShowPosterGallery(true)}
+                aria-label="Choisir une autre affiche"
+              >
+                ✎
+              </button>
             )}
           </div>
         </div>
+        {showPosterGallery && (
+          <TmdbPosterDialog
+            title={displayTitle}
+            posters={allPosters}
+            selectedUrl={tmdbCache?.selectedPosterUrl ?? null}
+            saving={savingPoster}
+            onSelect={handleSelectPoster}
+            onClose={() => setShowPosterGallery(false)}
+          />
+        )}
 
         <div className="film-detail-content">
           <p className="eyebrow">Film</p>
@@ -209,6 +205,13 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
                     {removingAssociation ? 'Suppression…' : 'Retirer l\'association'}
                   </button>
                 </div>
+                <p className="tmdb-attribution">
+                  Métadonnées et images fournies par{' '}
+                  <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">
+                    TMDB
+                  </a>
+                  . Ce produit utilise l’API TMDB sans être approuvé ni certifié par TMDB.
+                </p>
               </div>
             ) : (
               <div className="tmdb-not-associated">
