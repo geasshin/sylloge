@@ -6,6 +6,20 @@ export type PickedJsonFile = {
   contents: string
 }
 
+export type PickedFilmsImportFile = {
+  name: string
+  kind: 'csv' | 'notion'
+  csvCandidates: Array<{
+    id: string
+    name: string
+    contents: string
+  }>
+  markdownPages: Array<{
+    name: string
+    contents: string
+  }>
+}
+
 export type ImportLibraryResult = {
   profileId: string
   filmCount: number
@@ -47,8 +61,16 @@ export function pickImportJson(): Promise<PickedJsonFile | null> {
   return invoke('pick_import_json')
 }
 
+export function pickImportFilmsCsvOrNotion(): Promise<PickedFilmsImportFile | null> {
+  return invoke('pick_import_films_csv_or_notion')
+}
+
 export function saveExportJson(suggestedName: string, contents: string): Promise<string | null> {
   return invoke('save_export_json', { suggestedName, contents })
+}
+
+export function saveExportCsv(suggestedName: string, contents: string): Promise<string | null> {
+  return invoke('save_export_csv', { suggestedName, contents })
 }
 
 export function getBackupSettings(profileId: string): Promise<BackupSettings | null> {

@@ -1,5 +1,4 @@
-import type { Film } from './film.ts'
-import { FILM_STATUSES } from './film.ts'
+import { FILM_STATUSES, normalizeFilm, type Film } from './film.ts'
 import type { Profile } from './profile.ts'
 
 export const SYLLOGE_EXPORT_FORMAT = 'sylloge-films' as const
@@ -62,12 +61,16 @@ export function createLibraryExport(library: ExportableLibrary, exportedAt = new
     version: SYLLOGE_EXPORT_VERSION,
     exportedAt,
     profile: { ...library.profile },
-    films: library.films.map((film) => ({ ...film })),
+    films: library.films.map(normalizeFilm),
   }
 }
 
 export function serializeLibraryExport(document: SyllogeExportDocument): string {
-  return `${JSON.stringify(document, null, 2)}\n`
+  return `${JSON.stringify({
+    ...document,
+    profile: { ...document.profile },
+    films: document.films.map(normalizeFilm),
+  }, null, 2)}\n`
 }
 
 export function exportFileName(exportedAt: string): string {
@@ -205,15 +208,18 @@ function validateFilm(
   )) {
     addError(errors, `${path}.rating`, 'La note doit être nulle ou aller de 0,5 à 5 par demi-points.')
   }
-  if (value.watchedAt !== null && (typeof value.watchedAt !== 'string' || !isCalendarDate(value.watchedAt))) {
-    addError(errors, `${path}.watchedAt`, 'La date de visionnage doit être nulle ou au format AAAA-MM-JJ.')
-  }
   validateOptionalString(value.personalNote, `${path}.personalNote`, errors)
   validateOptionalString(value.director, `${path}.director`, errors)
   validateOptionalString(value.summary, `${path}.summary`, errors)
   validateOptionalString(value.providerName, `${path}.providerName`, errors)
   validateOptionalString(value.providerId, `${path}.providerId`, errors)
-  if (value.posterUrl !== null && (typeof value.posterUrl !== 'string' || !isHttpUrl(value.posterUrl))) {
+  validateOptionalString(value.posterUrl, `${path}.posterUrl`, errors)
+
+  const film = normalizeFilm(value as Film)
+  if (film.watchedAt !== null && !isCalendarDate(film.watchedAt)) {
+    addError(errors, `${path}.watchedAt`, 'La date de visionnage doit être nulle ou au format AAAA-MM-JJ.')
+  }
+  if (film.posterUrl !== null && !isHttpUrl(film.posterUrl)) {
     addError(errors, `${path}.posterUrl`, 'L’URL d’affiche doit être nulle ou commencer par http:// ou https://.')
   }
   validateIsoDate(value.createdAt, `${path}.createdAt`, errors)
@@ -221,7 +227,7 @@ function validateFilm(
 
   if (errors.length !== errorCount) return null
 
-  return value as Film
+  return film
 }
 
 function validateExactKeys(

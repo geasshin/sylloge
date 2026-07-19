@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Cursor, Read, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
@@ -14,6 +14,12 @@ use crate::database::DATABASE_URL;
 
 const SNAPSHOT_RETENTION_COUNT: usize = 30;
 const SNAPSHOT_PREFIX: &str = "sylloge-films-v1-";
+const MAX_FILMS_IMPORT_FILE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_NOTION_ZIP_ENTRIES: usize = 512;
+const MAX_NOTION_ZIP_PATH_DEPTH: usize = 8;
+const MAX_NOTION_ZIP_NESTING_DEPTH: usize = 4;
+const MAX_NOTION_ZIP_UNCOMPRESSED_BYTES: u128 = 32 * 1024 * 1024;
+const MAX_NOTION_ZIP_ENTRY_BYTES: u64 = 4 * 1024 * 1024;
 static SNAPSHOT_NONCE: AtomicU64 = AtomicU64::new(0);
 
 pub struct BackupSnapshotLock(Mutex<()>);
@@ -27,6 +33,30 @@ impl Default for BackupSnapshotLock {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PickedJsonFile {
+    name: String,
+    contents: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PickedFilmsImportFile {
+    name: String,
+    kind: &'static str,
+    csv_candidates: Vec<CsvImportCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CsvImportCandidate {
+    id: String,
+    name: String,
+    contents: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownPage {
     name: String,
     contents: String,
 }
@@ -129,21 +159,253 @@ pub async fn pick_import_json(app: AppHandle) -> Result<Option<PickedJsonFile>, 
 }
 
 #[tauri::command]
+pub async fn pick_import_films_csv_or_notion(
+    app: AppHandle,
+) -> Result<Option<PickedFilmsImportFile>, String> {
+    let Some(file_path) = app
+        .dialog()
+        .file()
+        .add_filter("CSV ou export Notion", &["csv", "zip"])
+        .set_title("Choisir un CSV Films ou un export Notion")
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("import-films")
+        .to_string();
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match extension.as_str() {
+        "csv" => Ok(Some(PickedFilmsImportFile {
+            csv_candidates: vec![CsvImportCandidate {
+                id: "csv-0".to_string(),
+                name: name.clone(),
+                contents: read_utf8_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?,
+            }],
+            name,
+            kind: "csv",
+            markdown_pages: Vec::new(),
+        })),
+        "zip" => extract_notion_zip(
+            &name,
+            &read_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?,
+        )
+        .map(Some),
+        _ => Err("Choisissez un fichier CSV ou ZIP Notion.".to_string()),
+    }
+}
+
+fn read_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, String> {
+    let metadata = fs::metadata(path)
+        .map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))?;
+    if !metadata.is_file() {
+        return Err("Le chemin choisi n’est pas un fichier.".to_string());
+    }
+    if metadata.len() > maximum_bytes {
+        return Err(format!(
+            "Le fichier choisi dépasse la limite sûre de {} Mio.",
+            maximum_bytes / (1024 * 1024)
+        ));
+    }
+    fs::read(path).map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))
+}
+
+fn read_utf8_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<String, String> {
+    String::from_utf8(read_file_with_limit(path, maximum_bytes)?)
+        .map_err(|_| "Le CSV choisi doit être encodé en UTF-8.".to_string())
+}
+
+fn extract_notion_zip(name: &str, contents: &[u8]) -> Result<PickedFilmsImportFile, String> {
+    if contents.len() as u64 > MAX_FILMS_IMPORT_FILE_BYTES {
+        return Err("L’archive Notion dépasse la limite sûre de 16 Mio.".to_string());
+    }
+    let mut extraction = NotionZipExtraction::default();
+    extraction.read_archive(contents, 0, "")?;
+
+    if extraction.csv_files.is_empty() {
+        return Err("L’archive Notion ne contient aucun CSV de table Films.".to_string());
+    }
+    Ok(PickedFilmsImportFile {
+        name: name.to_string(),
+        kind: "notion",
+        csv_candidates: extraction.csv_files,
+        markdown_pages: extraction.markdown_pages,
+    })
+}
+
+#[derive(Default)]
+struct NotionZipExtraction {
+    entry_count: usize,
+    decompressed_bytes: u128,
+    next_csv_candidate_id: usize,
+    csv_files: Vec<CsvImportCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+}
+
+impl NotionZipExtraction {
+    fn read_archive(
+        &mut self,
+        contents: &[u8],
+        nesting_depth: usize,
+        entry_prefix: &str,
+    ) -> Result<(), String> {
+        let mut archive = zip::ZipArchive::new(Cursor::new(contents))
+            .map_err(|error| format!("L’archive Notion est invalide : {error}"))?;
+
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index).map_err(|error| {
+                format!("Une entrée de l’archive Notion est illisible : {error}")
+            })?;
+            let safe_path = file.enclosed_name().ok_or_else(|| {
+                "L’archive Notion contient un chemin de fichier non sûr.".to_string()
+            })?;
+            let depth = safe_path.components().count();
+            if depth > MAX_NOTION_ZIP_PATH_DEPTH {
+                return Err(format!(
+                    "L’archive Notion dépasse la profondeur maximale de {MAX_NOTION_ZIP_PATH_DEPTH} dossiers."
+                ));
+            }
+            self.count_entry()?;
+            if file.is_dir() {
+                continue;
+            }
+            if file.size() > MAX_NOTION_ZIP_ENTRY_BYTES {
+                return Err(
+                    "Une entrée de l’archive Notion dépasse la limite sûre de 4 Mio.".to_string(),
+                );
+            }
+
+            let entry_name = safe_path.to_string_lossy().into_owned();
+            let lower_name = entry_name.to_ascii_lowercase();
+            if lower_name.ends_with(".zip") && nesting_depth >= MAX_NOTION_ZIP_NESTING_DEPTH {
+                return Err(format!(
+                    "L’archive Notion dépasse la profondeur maximale de {MAX_NOTION_ZIP_NESTING_DEPTH} archives ZIP imbriquées."
+                ));
+            }
+
+            let entry_contents = read_zip_entry(&mut file)?;
+            self.count_decompressed_bytes(entry_contents.len())?;
+
+            if lower_name.ends_with(".zip") {
+                let nested_prefix = format!("{entry_prefix}{entry_name}!/");
+                self.read_archive(&entry_contents, nesting_depth + 1, &nested_prefix)?;
+                continue;
+            }
+            if !lower_name.ends_with(".csv") && !lower_name.ends_with(".md") {
+                continue;
+            }
+
+            let entry_contents = String::from_utf8(entry_contents)
+                .map_err(|_| format!("L’entrée « {entry_name} » doit être encodée en UTF-8."))?;
+            let display_name = format!("{entry_prefix}{entry_name}");
+            if lower_name.ends_with(".csv") {
+                self.csv_files.push(CsvImportCandidate {
+                    id: format!("csv-{}", self.next_csv_candidate_id),
+                    name: display_name,
+                    contents: entry_contents,
+                });
+                self.next_csv_candidate_id += 1;
+            } else {
+                self.markdown_pages.push(MarkdownPage {
+                    name: display_name,
+                    contents: entry_contents,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn count_entry(&mut self) -> Result<(), String> {
+        self.entry_count += 1;
+        if self.entry_count > MAX_NOTION_ZIP_ENTRIES {
+            return Err(format!(
+                "L’archive Notion contient plus de {MAX_NOTION_ZIP_ENTRIES} entrées."
+            ));
+        }
+        Ok(())
+    }
+
+    fn count_decompressed_bytes(&mut self, byte_count: usize) -> Result<(), String> {
+        self.decompressed_bytes += byte_count as u128;
+        if self.decompressed_bytes > MAX_NOTION_ZIP_UNCOMPRESSED_BYTES {
+            return Err(
+                "L’archive Notion dépasse la limite de contenu décompressé de 32 Mio.".to_string(),
+            );
+        }
+        Ok(())
+    }
+}
+
+fn read_zip_entry(file: &mut zip::read::ZipFile<'_>) -> Result<Vec<u8>, String> {
+    let mut contents = Vec::new();
+    let bytes_read = file
+        .take(MAX_NOTION_ZIP_ENTRY_BYTES + 1)
+        .read_to_end(&mut contents)
+        .map_err(|error| format!("Impossible de lire une entrée de l’archive Notion : {error}"))?;
+    if bytes_read as u64 > MAX_NOTION_ZIP_ENTRY_BYTES {
+        return Err("Une entrée de l’archive Notion dépasse la limite sûre de 4 Mio.".to_string());
+    }
+    Ok(contents)
+}
+
+#[tauri::command]
 pub async fn save_export_json(
     app: AppHandle,
     suggested_name: String,
     contents: String,
 ) -> Result<Option<String>, String> {
-    let safe_name = Path::new(&suggested_name)
-        .file_name()
-        .and_then(|value| value.to_str())
-        .filter(|value| !value.trim().is_empty())
-        .unwrap_or("sylloge-films.json");
+    save_export_file(
+        &app,
+        &suggested_name,
+        &contents,
+        "Export JSON Sylloge",
+        &["json"],
+        "sylloge-films.json",
+    )
+}
+
+#[tauri::command]
+pub async fn save_export_csv(
+    app: AppHandle,
+    suggested_name: String,
+    contents: String,
+) -> Result<Option<String>, String> {
+    save_export_file(
+        &app,
+        &suggested_name,
+        &contents,
+        "Export CSV Sylloge",
+        &["csv"],
+        "sylloge-films.csv",
+    )
+}
+
+fn save_export_file(
+    app: &AppHandle,
+    suggested_name: &str,
+    contents: &str,
+    filter_name: &str,
+    extensions: &[&str],
+    fallback_name: &str,
+) -> Result<Option<String>, String> {
+    let safe_name = safe_export_file_name(suggested_name, fallback_name);
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter("Export JSON Sylloge", &["json"])
-        .set_file_name(safe_name)
+        .add_filter(filter_name, extensions)
+        .set_file_name(&safe_name)
         .set_title("Exporter le profil Sylloge")
         .blocking_save_file()
     else {
@@ -153,15 +415,26 @@ pub async fn save_export_json(
     let path = file_path
         .into_path()
         .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
-    fs::write(&path, contents)
-        .map_err(|error| format!("Impossible d’écrire l’export choisi : {error}"))?;
-    let name = path
+    write_export_file(&path, contents, fallback_name).map(Some)
+}
+
+fn safe_export_file_name(suggested_name: &str, fallback_name: &str) -> String {
+    Path::new(suggested_name)
         .file_name()
         .and_then(|value| value.to_str())
-        .unwrap_or("sylloge-films.json")
-        .to_string();
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(fallback_name)
+        .to_string()
+}
 
-    Ok(Some(name))
+fn write_export_file(path: &Path, contents: &str, fallback_name: &str) -> Result<String, String> {
+    fs::write(path, contents)
+        .map_err(|error| format!("Impossible d’écrire l’export choisi : {error}"))?;
+    Ok(path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or(fallback_name)
+        .to_string())
 }
 
 #[tauri::command]
@@ -728,6 +1001,15 @@ async fn write_import(
         .map_err(|error| format!("Impossible de créer le nouveau profil : {error}"))?;
 
     for film in &payload.films {
+        let original_title = canonical_optional_text(&film.original_title);
+        let watched_at = canonical_optional_text(&film.watched_at);
+        let personal_note = canonical_optional_text(&film.personal_note);
+        let director = canonical_optional_text(&film.director);
+        let summary = canonical_optional_text(&film.summary);
+        let poster_url = canonical_optional_text(&film.poster_url);
+        let (provider_name, provider_id) =
+            canonical_provenance(&film.provider_name, &film.provider_id);
+
         sqlx::query(
             "INSERT INTO films (
                 id, profile_id, title, original_title, year, status, is_favorite, rating,
@@ -740,18 +1022,18 @@ async fn write_import(
         .bind(&film.id)
         .bind(&film.profile_id)
         .bind(&film.title)
-        .bind(&film.original_title)
+        .bind(original_title)
         .bind(film.year)
         .bind(&film.status)
         .bind(if film.is_favorite { 1 } else { 0 })
         .bind(film.rating)
-        .bind(&film.watched_at)
-        .bind(&film.personal_note)
-        .bind(&film.director)
-        .bind(&film.summary)
-        .bind(&film.provider_name)
-        .bind(&film.provider_id)
-        .bind(&film.poster_url)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
         .bind(&film.created_at)
         .bind(&film.updated_at)
         .execute(&mut *transaction)
@@ -778,12 +1060,54 @@ async fn write_import(
     Ok(())
 }
 
+fn canonical_optional_text(value: &Option<String>) -> Option<&str> {
+    value.as_deref().filter(|value| !value.is_empty())
+}
+
+fn canonical_provenance<'a>(
+    provider_name: &'a Option<String>,
+    provider_id: &'a Option<String>,
+) -> (Option<&'a str>, Option<&'a str>) {
+    let provider_name = canonical_optional_text(provider_name);
+    let provider_id = canonical_optional_text(provider_id);
+
+    if provider_name.is_some() && provider_id.is_some() {
+        (provider_name, provider_id)
+    } else {
+        (None, None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
 
+    type CanonicalFilmRow = (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+        f64,
+    );
+
     async fn test_pool() -> sqlx::SqlitePool {
+        let pool = legacy_test_pool().await;
+        sqlx::raw_sql(include_str!(
+            "../migrations/0007_normalize_film_optional_data.sql"
+        ))
+        .execute(&pool)
+        .await
+        .expect("migration de normalisation de test");
+        pool
+    }
+
+    async fn legacy_test_pool() -> sqlx::SqlitePool {
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")
@@ -855,6 +1179,175 @@ mod tests {
             assert_eq!(settings.last_automatic_snapshot_day, None);
 
             fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+        });
+    }
+
+    #[test]
+    fn normalization_migration_canonicalizes_historical_films_only() {
+        tauri::async_runtime::block_on(async {
+            let pool = legacy_test_pool().await;
+            insert_profile(&pool, "legacy-profile").await;
+            sqlx::query(
+                "INSERT INTO backup_settings (profile_id, backup_directory)
+                 VALUES ('legacy-profile', '/tmp/legacy-backup')",
+            )
+            .execute(&pool)
+            .await
+            .expect("réglage hors Films de test");
+            sqlx::query(
+                "INSERT INTO films (
+                    id, profile_id, title, original_title, year, status, is_favorite, rating,
+                    watched_at, personal_note, director, summary, provider_name, provider_id,
+                    poster_url, created_at, updated_at
+                 ) VALUES (
+                    'legacy-partial', 'legacy-profile', 'Film historique', '', 1999, 'terminé', 0, 0.5,
+                    '', 'Texte  historique  préservé.', '', '', 'Source partielle', '', '',
+                    '2026-07-17T10:00:00.000Z', '2026-07-17T10:00:00.000Z'
+                 )",
+            )
+            .execute(&pool)
+            .await
+            .expect("film historique partiel");
+            sqlx::query(
+                "INSERT INTO films (
+                    id, profile_id, title, status, is_favorite, provider_name, provider_id, created_at, updated_at
+                 ) VALUES (
+                    'legacy-complete', 'legacy-profile', 'Film complet', 'à découvrir', 1,
+                    'Source complète', 'id-complet', '2026-07-17T10:00:00.000Z', '2026-07-17T10:00:00.000Z'
+                 )",
+            )
+            .execute(&pool)
+            .await
+            .expect("film historique complet");
+
+            sqlx::raw_sql(include_str!(
+                "../migrations/0007_normalize_film_optional_data.sql"
+            ))
+            .execute(&pool)
+            .await
+            .expect("exécution de la migration historique");
+
+            let normalized: CanonicalFilmRow = sqlx::query_as(
+                "SELECT original_title, watched_at, personal_note, director, summary, poster_url,
+                        provider_name, provider_id, is_favorite, rating
+                 FROM films WHERE id = 'legacy-partial'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture du Film historique normalisé");
+            assert_eq!(
+                normalized,
+                (
+                    None,
+                    None,
+                    Some("Texte  historique  préservé.".to_string()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0,
+                    0.5,
+                ),
+                "la migration doit vider seulement les chaînes facultatives vides et une provenance partielle"
+            );
+
+            let complete_provenance: (Option<String>, Option<String>) = sqlx::query_as(
+                "SELECT provider_name, provider_id FROM films WHERE id = 'legacy-complete'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la provenance complète");
+            assert_eq!(
+                complete_provenance,
+                (
+                    Some("Source complète".to_string()),
+                    Some("id-complet".to_string())
+                ),
+                "une provenance complète doit rester intacte"
+            );
+
+            let profile_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM profiles")
+                .fetch_one(&pool)
+                .await
+                .expect("compte profils après migration");
+            let backup_directory: (String,) = sqlx::query_as(
+                "SELECT backup_directory FROM backup_settings WHERE profile_id = 'legacy-profile'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture du réglage hors Films");
+            assert_eq!(
+                profile_count.0, 2,
+                "la migration ne doit ni créer ni modifier de profil"
+            );
+            assert_eq!(
+                backup_directory.0, "/tmp/legacy-backup",
+                "la migration ne doit toucher aucune donnée hors Films"
+            );
+        });
+    }
+
+    #[test]
+    fn write_import_canonicalizes_optional_values_before_sqlite_write() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            let timestamp = "2026-07-17T13:00:00.000Z".to_string();
+            let payload = ImportLibraryPayload {
+                profile: ImportProfile {
+                    id: "normalized-import".to_string(),
+                    name: "Import normalisé".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "normalized-film".to_string(),
+                    profile_id: "normalized-import".to_string(),
+                    title: "Film importé".to_string(),
+                    original_title: Some(String::new()),
+                    year: Some(2001),
+                    status: "terminé".to_string(),
+                    is_favorite: false,
+                    rating: Some(0.5),
+                    watched_at: Some(String::new()),
+                    personal_note: Some("Texte  importé  préservé.".to_string()),
+                    director: Some(String::new()),
+                    summary: Some(String::new()),
+                    provider_name: Some("Source incomplète".to_string()),
+                    provider_id: Some(String::new()),
+                    poster_url: Some(String::new()),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp,
+                }],
+            };
+
+            write_import(&pool, &payload)
+                .await
+                .expect("import canonique");
+            let stored: CanonicalFilmRow = sqlx::query_as(
+                "SELECT original_title, watched_at, personal_note, director, summary, poster_url,
+                        provider_name, provider_id, is_favorite, rating
+                 FROM films WHERE id = 'normalized-film'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de l’import canonique");
+            assert_eq!(
+                stored,
+                (
+                    None,
+                    None,
+                    Some("Texte  importé  préservé.".to_string()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    0,
+                    0.5,
+                ),
+                "le pont atomique doit écrire la forme canonique sans modifier false, 0.5 ou les espaces internes"
+            );
         });
     }
 
@@ -961,6 +1454,226 @@ mod tests {
         );
 
         fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+    }
+
+    #[test]
+    fn csv_export_writer_preserves_utf8_contents() {
+        let directory = temporary_directory("csv-export");
+        let path = directory.join("sylloge-films-2026-07-18.csv");
+        let contents = "format,film_title\r\nsylloge-films-csv,Café\r\n";
+
+        let saved_name = write_export_file(&path, contents, "sylloge-films.csv")
+            .expect("écriture de l’export CSV");
+
+        assert_eq!(saved_name, "sylloge-films-2026-07-18.csv");
+        assert_eq!(
+            fs::read_to_string(&path).expect("lecture de l’export CSV"),
+            contents,
+            "le pont natif doit écrire les octets UTF-8 fournis sans les transformer"
+        );
+
+        fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+    }
+
+    fn notion_zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            for (name, contents) in entries {
+                writer
+                    .start_file(name, zip::write::SimpleFileOptions::default())
+                    .expect("entrée ZIP de test");
+                writer.write_all(contents).expect("contenu ZIP de test");
+            }
+            writer.finish().expect("finalisation ZIP de test");
+        }
+        cursor.into_inner()
+    }
+
+    fn notion_zip(entries: &[(&str, &str)]) -> Vec<u8> {
+        let byte_entries = entries
+            .iter()
+            .map(|(name, contents)| (*name, contents.as_bytes()))
+            .collect::<Vec<_>>();
+        notion_zip_bytes(&byte_entries)
+    }
+
+    #[test]
+    fn notion_zip_reader_reads_nested_csv_and_markdown_in_memory() {
+        let archive = notion_zip(&[
+            (
+                "Export Notion/Films/Films.csv",
+                "Name,Rating\nLe Passage,4/5\n",
+            ),
+            (
+                "Export Notion/Films/Le Passage.md",
+                "# Le Passage\n\n### Notes :\n\nNote liée.\n",
+            ),
+        ]);
+
+        let picked = extract_notion_zip("export-notion.zip", &archive)
+            .expect("lecture ZIP Notion imbriquée");
+
+        assert_eq!(picked.name, "export-notion.zip");
+        assert_eq!(picked.kind, "notion");
+        assert_eq!(picked.csv_candidates.len(), 1);
+        assert_eq!(
+            picked.csv_candidates[0].name,
+            "Export Notion/Films/Films.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[0].contents,
+            "Name,Rating\nLe Passage,4/5\n"
+        );
+        assert_eq!(picked.markdown_pages.len(), 1);
+        assert_eq!(
+            picked.markdown_pages[0].name,
+            "Export Notion/Films/Le Passage.md"
+        );
+        assert_eq!(
+            picked.markdown_pages[0].contents,
+            "# Le Passage\n\n### Notes :\n\nNote liée.\n"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_reads_csv_and_markdown_from_a_nested_zip_part() {
+        let zip_part = notion_zip(&[
+            ("Films/Films.csv", "Name,Rating\nLe Passage,4/5\n"),
+            (
+                "Films/Le Passage.md",
+                "# Le Passage\n\n### Notes :\n\nNote liée.\n",
+            ),
+        ]);
+        let outer_archive = notion_zip_bytes(&[("Export Notion part 1.zip", zip_part.as_slice())]);
+
+        let picked = extract_notion_zip("export-notion.zip", &outer_archive)
+            .expect("lecture d’un ZIP Notion contenant une archive part");
+
+        assert_eq!(picked.csv_candidates.len(), 1);
+        assert_eq!(picked.csv_candidates[0].id, "csv-0");
+        assert_eq!(
+            picked.csv_candidates[0].name,
+            "Export Notion part 1.zip!/Films/Films.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[0].contents,
+            "Name,Rating\nLe Passage,4/5\n"
+        );
+        assert_eq!(picked.markdown_pages.len(), 1);
+        assert_eq!(
+            picked.markdown_pages[0].name,
+            "Export Notion part 1.zip!/Films/Le Passage.md"
+        );
+        assert_eq!(
+            picked.markdown_pages[0].contents,
+            "# Le Passage\n\n### Notes :\n\nNote liée.\n"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_counts_entries_across_nested_zip_parts() {
+        let entry_names = (0..MAX_NOTION_ZIP_ENTRIES / 2)
+            .map(|index| format!("pages/{index}.md"))
+            .collect::<Vec<_>>();
+        let zip_part_entries = entry_names
+            .iter()
+            .map(|name| (name.as_str(), b"".as_slice()))
+            .collect::<Vec<_>>();
+        let zip_part = notion_zip_bytes(&zip_part_entries);
+        let outer_archive = notion_zip_bytes(&[
+            ("Export Notion part 1.zip", zip_part.as_slice()),
+            ("Export Notion part 2.zip", zip_part.as_slice()),
+        ]);
+
+        let result = extract_notion_zip("trop-d-entrees.zip", &outer_archive);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("512 entrées")),
+            "le nombre d’entrées doit être limité sur l’ensemble des archives imbriquées"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_rejects_excessive_zip_nesting() {
+        let mut archive = notion_zip(&[("Films.csv", "Name\nLe Passage\n")]);
+        for _ in 0..=MAX_NOTION_ZIP_NESTING_DEPTH {
+            archive = notion_zip_bytes(&[("Export Notion part.zip", archive.as_slice())]);
+        }
+
+        let result = extract_notion_zip("trop-imbrique.zip", &archive);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("4 archives ZIP imbriquées")),
+            "la profondeur des archives ZIP imbriquées doit être explicitement limitée"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_keeps_multiple_csv_candidates() {
+        let archive = notion_zip(&[
+            (
+                "Export Notion/Films/Films.csv",
+                "Name,Status\nLe Passage,Watched\n",
+            ),
+            (
+                "Export Notion/Films/Films_all.csv",
+                "Name,Status,Rating,Vu le\nLe Passage,Watched,8 (Excellent),18 juillet 2024\n",
+            ),
+        ]);
+
+        let picked = extract_notion_zip("export-notion.zip", &archive)
+            .expect("lecture d’un ZIP Notion avec plusieurs tables CSV");
+
+        assert_eq!(picked.csv_candidates.len(), 2);
+        assert_eq!(
+            picked.csv_candidates[0].name,
+            "Export Notion/Films/Films.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[1].name,
+            "Export Notion/Films/Films_all.csv"
+        );
+        assert_eq!(
+            picked.csv_candidates[1].contents,
+            "Name,Status,Rating,Vu le\nLe Passage,Watched,8 (Excellent),18 juillet 2024\n"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_rejects_invalid_and_oversized_archives() {
+        let invalid = extract_notion_zip("invalide.zip", b"ce fichier n'est pas une archive ZIP");
+        assert!(
+            invalid.is_err(),
+            "une archive invalide doit produire une erreur récupérable"
+        );
+
+        let oversized = vec![0_u8; MAX_FILMS_IMPORT_FILE_BYTES as usize + 1];
+        let too_large = extract_notion_zip("trop-grand.zip", &oversized);
+        assert!(
+            too_large.is_err(),
+            "une archive hors limite doit être refusée avant analyse"
+        );
+
+        let without_csv = extract_notion_zip(
+            "sans-csv.zip",
+            &notion_zip(&[("Export Notion/Films/Une page.md", "# Une page\n")]),
+        );
+        assert!(
+            matches!(without_csv, Err(message) if message.contains("aucun CSV")),
+            "le refus d’une archive sans CSV doit expliquer la cause"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_rejects_excessive_path_depth() {
+        let archive = notion_zip(&[("a/b/c/d/e/f/g/h/i/Films.csv", "Name\nTrop profond\n")]);
+        let result = extract_notion_zip("profondeur.zip", &archive);
+
+        assert!(
+            result.is_err(),
+            "une archive avec trop de niveaux doit être refusée"
+        );
     }
 
     #[test]
@@ -1263,6 +1976,177 @@ mod tests {
                     .expect("second configuré")
                     .backup_directory,
                 "/tmp/second"
+            );
+        });
+    }
+
+    async fn test_pool_with_tmdb_migrations() -> sqlx::SqlitePool {
+        let pool = test_pool().await;
+        for migration in [
+            include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
+            include_str!("../migrations/0009_add_selected_poster_url.sql"),
+        ] {
+            sqlx::raw_sql(migration)
+                .execute(&pool)
+                .await
+                .expect("migration TMDB de test");
+        }
+        pool
+    }
+
+    #[test]
+    fn export_query_never_surfaces_tmdb_cache_data() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-19T10:00:00.000Z".to_string();
+            let payload = ImportLibraryPayload {
+                profile: ImportProfile {
+                    id: "export-profile".to_string(),
+                    name: "Profil export".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "export-film".to_string(),
+                    profile_id: "export-profile".to_string(),
+                    title: "Film associé TMDB".to_string(),
+                    original_title: None,
+                    year: Some(2024),
+                    status: "terminé".to_string(),
+                    is_favorite: false,
+                    rating: Some(4.0),
+                    watched_at: Some("2026-07-18".to_string()),
+                    personal_note: Some("Note personnelle.".to_string()),
+                    director: Some("Réalisatrice".to_string()),
+                    summary: None,
+                    provider_name: None,
+                    provider_id: None,
+                    poster_url: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+            };
+            write_import(&pool, &payload).await.expect("import du film");
+
+            // Une ligne de cache TMDB existe pour ce film, avec une affiche choisie.
+            sqlx::query(
+                "INSERT INTO film_tmdb_cache
+                 (film_id, tmdb_id, language, payload_json, fetched_at, refresh_after, expires_at, selected_poster_url)
+                 VALUES ($1, 550, 'fr-FR', $2, '2026-07-19T10:00:00Z', '2026-10-07T10:00:00Z', '2027-01-15T10:00:00Z', 'https://image.tmdb.org/t/p/w500/choisie.jpg')",
+            )
+            .bind("export-film")
+            .bind("{\"title\":\"Fight Club\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/principale.jpg\"}")
+            .execute(&pool)
+            .await
+            .expect("insertion du cache TMDB");
+
+            // La requête d'export relit exclusivement les colonnes de la table films.
+            #[derive(sqlx::FromRow)]
+            struct ExportedFilmRow {
+                id: String,
+                original_title: Option<String>,
+                provider_name: Option<String>,
+                provider_id: Option<String>,
+                poster_url: Option<String>,
+            }
+            let exported: Vec<ExportedFilmRow> = sqlx::query_as(
+                "SELECT id, original_title, provider_name, provider_id, poster_url
+                     FROM films WHERE profile_id = $1",
+            )
+            .bind("export-profile")
+            .fetch_all(&pool)
+            .await
+            .expect("relecture export");
+
+            assert_eq!(exported.len(), 1);
+            let exported = &exported[0];
+            assert_eq!(exported.id, "export-film");
+            assert_eq!(exported.original_title, None);
+            assert_eq!(exported.provider_name, None);
+            assert_eq!(exported.provider_id, None);
+            assert_eq!(
+                exported.poster_url, None,
+                "l'affiche choisie dans le cache TMDB ne doit jamais fuiter dans l'export"
+            );
+
+            // Aucun champ issu du cache n'existe dans le modèle exporté.
+            let column_names: Vec<(String,)> =
+                sqlx::query_as("SELECT name FROM pragma_table_info('films')")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("colonnes films");
+            for (name,) in column_names {
+                assert!(
+                    !name.contains("tmdb"),
+                    "la table films ne doit contenir aucune colonne TMDB : {name}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn historical_v1_export_reimports_on_migrated_database() {
+        tauri::async_runtime::block_on(async {
+            // Base complète, y compris les migrations TMDB 8 et 9.
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-01T08:00:00.000Z".to_string();
+            // Export v1 historique : provenance partielle (provider_id seul),
+            // chaînes facultatives vides — la canonisation non destructive doit s'appliquer.
+            let payload = ImportLibraryPayload {
+                profile: ImportProfile {
+                    id: "profil-lys".to_string(),
+                    name: "=Carnet, \"été\"".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "film-cafe".to_string(),
+                    profile_id: "profil-lys".to_string(),
+                    title: "+Café, \"matin\"".to_string(),
+                    original_title: Some(String::new()),
+                    year: Some(2024),
+                    status: "terminé".to_string(),
+                    is_favorite: true,
+                    rating: Some(4.5),
+                    watched_at: Some("2026-07-17".to_string()),
+                    personal_note: Some(
+                        "-Première note.\nDeuxième ligne, avec \"guillemets\".".to_string(),
+                    ),
+                    director: Some("Anaïs Vert".to_string()),
+                    summary: Some(String::new()),
+                    provider_name: Some(String::new()),
+                    provider_id: Some("source-ete-42".to_string()),
+                    poster_url: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp,
+                }],
+            };
+
+            write_import(&pool, &payload)
+                .await
+                .expect("réimport de l'export v1 historique");
+
+            let stored: (Option<String>, Option<String>, Option<String>, i64, f64) =
+                sqlx::query_as(
+                    "SELECT original_title, provider_name, provider_id, is_favorite, rating
+                     FROM films WHERE id = 'film-cafe'",
+                )
+                .fetch_one(&pool)
+                .await
+                .expect("relecture du film réimporté");
+            assert_eq!(
+                stored,
+                (None, None, None, 1, 4.5),
+                "la canonisation v1 doit vider les chaînes vides et la provenance partielle, sans toucher aux autres valeurs"
+            );
+
+            let cache_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM film_tmdb_cache")
+                .fetch_one(&pool)
+                .await
+                .expect("compte du cache TMDB");
+            assert_eq!(
+                cache_count.0, 0,
+                "l'import d'un export v1 ne doit créer aucune ligne de cache TMDB"
             );
         });
     }

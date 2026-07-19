@@ -3,11 +3,15 @@ import { createRoot } from 'react-dom/client'
 import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { Poster } from './components/Poster.tsx'
-import { Portability } from './components/Portability.tsx'
+import { Portability, type PortabilitySection } from './components/Portability.tsx'
+import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
+import { TmdbAssociationConfirm } from './components/TmdbAssociationConfirm.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
+import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
+import { getFilmTmdbCache } from './data/tmdbService.ts'
 import {
   FILM_FILTER_LABELS,
   FILM_FILTERS,
@@ -19,8 +23,17 @@ import type { FilmWriteInput } from './domain/filmForm.ts'
 import './styles.css'
 
 type IconName = 'film' | 'home' | 'search' | 'settings'
+type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
+
+const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
+  { id: 'profiles', label: 'Profils' },
+  { id: 'transfer', label: 'Importer et exporter' },
+  { id: 'backups', label: 'Sauvegardes' },
+  { id: 'application', label: 'Application' },
+  { id: 'about', label: 'À propos' },
+]
 
 type SidebarProps = {
   count: number | null
@@ -29,56 +42,104 @@ type SidebarProps = {
   onHome: () => void
   onLibrary: () => void
   onSettings: () => void
+  settingsSection: SettingsSection
+  onSettingsSection: (section: SettingsSection) => void
+  onReturnToLibrary: () => void
 }
 
-function Sidebar({ count, currentProfileName, activeItem, onHome, onLibrary, onSettings }: SidebarProps) {
+function Sidebar({
+  count,
+  currentProfileName,
+  activeItem,
+  onHome,
+  onLibrary,
+  onSettings,
+  settingsSection,
+  onSettingsSection,
+  onReturnToLibrary,
+}: SidebarProps) {
+  const settingsOpen = activeItem === 'settings'
+
   return (
     <aside className="sidebar">
       <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
         <span className="wordmark-mark">S</span>
         <span>Sylloge</span>
       </button>
-      <nav aria-label="Navigation principale">
-        <p className="nav-label">Bibliothèque</p>
-        <button
-          className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
-          type="button"
-          onClick={onHome}
-          aria-current={activeItem === 'home' ? 'page' : undefined}
-        >
-          {icon('home')} Accueil
-        </button>
-        <button
-          className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
-          type="button"
-          onClick={onLibrary}
-          aria-current={activeItem === 'library' ? 'page' : undefined}
-        >
-          {icon('film')} Films
-          {count !== null && <span className="nav-count">{count}</span>}
-        </button>
-      </nav>
+      {settingsOpen ? (
+        <nav aria-label="Navigation des paramètres">
+          <p className="nav-label">Paramètres</p>
+          {SETTINGS_NAVIGATION.map((item) => (
+            <button
+              className={`nav-item ${settingsSection === item.id ? 'active' : ''}`}
+              type="button"
+              key={item.id}
+              onClick={() => onSettingsSection(item.id)}
+              aria-current={settingsSection === item.id ? 'location' : undefined}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      ) : (
+        <nav aria-label="Navigation principale">
+          <p className="nav-label">Bibliothèque</p>
+          <button
+            className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
+            type="button"
+            onClick={onHome}
+            aria-current={activeItem === 'home' ? 'page' : undefined}
+          >
+            {icon('home')} Accueil
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
+            type="button"
+            onClick={onLibrary}
+            aria-current={activeItem === 'library' ? 'page' : undefined}
+          >
+            {icon('film')} Films
+            {count !== null && <span className="nav-count">{count}</span>}
+          </button>
+        </nav>
+      )}
       <div className="sidebar-bottom">
         {currentProfileName && <p className="sidebar-profile" title={currentProfileName}>{currentProfileName}</p>}
-        <button
-          className={`nav-item ${activeItem === 'settings' ? 'active' : ''}`}
-          type="button"
-          onClick={onSettings}
-          aria-current={activeItem === 'settings' ? 'page' : undefined}
-        >
-          {icon('settings')} Paramètres
-        </button>
+        {settingsOpen ? (
+          <button className="nav-item muted" type="button" onClick={onReturnToLibrary}>
+            {icon('film')} Retour à la bibliothèque
+          </button>
+        ) : (
+          <button
+            className="nav-item"
+            type="button"
+            onClick={onSettings}
+          >
+            {icon('settings')} Paramètres
+          </button>
+        )}
       </div>
     </aside>
   )
 }
 
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
+  const [tmdbCache, setTmdbCache] = useState<CachedFilmTmdbPresentation | null>(null)
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
+  const displayPosterUrl = tmdbCache?.selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
+
+  useEffect(() => {
+    let cancelled = false
+    getFilmTmdbCache(film.id).then(
+      (cache) => { if (!cancelled) setTmdbCache(cache) },
+      () => { if (!cancelled) setTmdbCache(null) },
+    )
+    return () => { cancelled = true }
+  }, [film.id])
 
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
-      <Poster title={film.title} src={film.posterUrl} />
+      <Poster title={film.title} src={displayPosterUrl} />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{film.title}</b>
@@ -122,6 +183,41 @@ function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
       <p>Ajoutez un premier film, avec un titre seulement si vous le souhaitez.</p>
       <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un film</button>
     </div>
+  )
+}
+
+type FilmCreationChoiceProps = {
+  onManual: () => void
+  onAssisted: () => void
+  onCancel: () => void
+}
+
+function FilmCreationChoice({ onManual, onAssisted, onCancel }: FilmCreationChoiceProps) {
+  return (
+    <main className="main editor-main" aria-label="Ajouter un film">
+      <header className="page-action-bar">
+        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+      </header>
+
+      <div className="editor-heading creation-heading">
+        <p className="eyebrow">Film</p>
+        <h1 className="display-title">Ajouter un film</h1>
+        <p>Choisissez un parcours. Aucune fiche n’est créée avant la validation finale du formulaire.</p>
+      </div>
+
+      <div className="film-creation-choices" role="group" aria-label="Choisir un parcours de création">
+        <button className="film-creation-choice" type="button" onClick={onManual}>
+          <span className="card-kicker">Hors ligne</span>
+          <b>Saisie manuelle</b>
+          <span>Renseignez librement les informations du film, même sans aucune source externe.</span>
+        </button>
+        <button className="film-creation-choice" type="button" onClick={onAssisted}>
+          <span className="card-kicker">Métadonnées</span>
+          <b>Enrichissement assisté</b>
+          <span>Prépare une future recherche et un préremplissage, toujours modifiables avant l’enregistrement.</span>
+        </button>
+      </div>
+    </main>
   )
 }
 
@@ -449,7 +545,11 @@ type View =
   | { name: 'home' }
   | { name: 'library' }
   | { name: 'settings' }
+  | { name: 'create-choice' }
   | { name: 'create' }
+  | { name: 'tmdb-search' }
+  | { name: 'tmdb-confirm'; candidate: TmdbSearchCandidate }
+  | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
 
@@ -464,9 +564,10 @@ type SqliteFilmDetailProps = {
   backLabel: string
   onEdit: () => void
   onDelete: () => Promise<void>
+  onAssociateTmdb: () => void
 }
 
-function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete, onAssociateTmdb }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -492,7 +593,7 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
   }, [attempt, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} />
   }
 
   return (
@@ -524,10 +625,12 @@ function App() {
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
   const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', filter: 'all' })
   const [view, setView] = useState<View>({ name: 'home' })
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [searchAttempt, setSearchAttempt] = useState(0)
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
+  const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
 
@@ -630,6 +733,15 @@ function App() {
     setView({ name: 'library' })
   }
 
+  const showSettingsSection = (section: SettingsSection) => {
+    setSettingsSection(section)
+    if (view.name === 'settings') {
+      window.scrollTo({ top: 0 })
+      return
+    }
+    leaveLibrary({ name: 'settings' })
+  }
+
   const requestAutomaticBackup = (library: FilmLibrary) => {
     void backupService.tryAutomaticSnapshot(library).then((notice) => {
       if (notice) setBackupNotice(notice)
@@ -664,13 +776,75 @@ function App() {
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'home' })}
       />
     )
+  } else if (view.name === 'create-choice') {
+    content = (
+      <FilmCreationChoice
+        onManual={() => setView({ name: 'create' })}
+        onAssisted={() => setView({ name: 'tmdb-search' })}
+        onCancel={returnToLibrary}
+      />
+    )
+  } else if (view.name === 'tmdb-search') {
+    content = (
+      <TmdbSearchFlow
+        onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
+        onManual={() => setView({ name: 'create' })}
+        onCancel={returnToLibrary}
+      />
+    )
+  } else if (view.name === 'tmdb-confirm') {
+    content = (
+      <TmdbAssociationConfirm
+        film={associatingFilm}
+        candidate={view.candidate}
+        onConfirm={() => {
+          setAssociatingFilm(null)
+          if (associatingFilm) {
+            setView({ name: 'detail', filmId: associatingFilm.id, returnTo: 'library' })
+          } else {
+            setView({ name: 'create' })
+          }
+        }}
+        onBack={() => setView({ name: 'tmdb-search' })}
+        onCancel={() => {
+          setAssociatingFilm(null)
+          returnToLibrary()
+        }}
+      />
+    )
+  } else if (view.name === 'tmdb-associate') {
+    const { library } = libraryState
+    const film = library.films.find((entry) => entry.id === view.filmId)
+    if (!film) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={returnToLibrary}>
+              ← Retour aux films
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce film ne peut pas être associé.</h2>
+            <p>La fiche n'est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <TmdbSearchFlow
+          onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
+          onManual={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+          onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+        />
+      )
+    }
   } else if (view.name === 'create') {
     const { library } = libraryState
     content = (
       <FilmForm
         onCancel={returnToLibrary}
-        onSave={async (input) => {
-          const film = await filmsRepository.createFilm(library.profile.id, input)
+        onSave={async (input, provenance) => {
+          const film = await filmsRepository.createFilm(library.profile.id, input, provenance)
           const updatedLibrary: FilmLibrary = { ...library, films: sortFilms([...library.films, film]) }
           setLibraryState({
             status: 'ready',
@@ -686,9 +860,9 @@ function App() {
     const { library } = libraryState
     content = (
       <Portability
+        section={settingsSection}
         library={library}
         profiles={profiles}
-        onBack={() => leaveLibrary({ name: 'home' })}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
           setLibraryContext({ query: '', filter: 'all' })
@@ -717,6 +891,13 @@ function App() {
         onBack={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}
         backLabel={view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
         onEdit={() => setView({ name: 'edit', filmId: view.filmId, returnTo: view.returnTo })}
+        onAssociateTmdb={() => {
+          const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
+          if (film) {
+            setAssociatingFilm(film)
+            setView({ name: 'tmdb-associate', filmId: view.filmId })
+          }
+        }}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
           const updatedLibrary: FilmLibrary = {
@@ -782,7 +963,7 @@ function App() {
         searchState={searchState}
         onContextChange={setLibraryContext}
         onRetrySearch={() => setSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'create' })}
+        onCreate={() => leaveLibrary({ name: 'create-choice' })}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })}
       />
     )
@@ -796,7 +977,10 @@ function App() {
         activeItem={libraryState.status !== 'ready' || view.name === 'home' ? 'home' : view.name === 'settings' ? 'settings' : 'library'}
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
-        onSettings={() => leaveLibrary({ name: 'settings' })}
+        onSettings={() => showSettingsSection('profiles')}
+        settingsSection={settingsSection}
+        onSettingsSection={showSettingsSection}
+        onReturnToLibrary={returnToLibrary}
       />
       {content}
       {backupNotice && (

@@ -103,6 +103,8 @@ Les améliorations nécessaires à l’usage quotidien ont été intégrées ava
 
 ### `0.3.3` — Parcours de métadonnées assistées sans dépendance imposée
 
+**État : livré.** Le parcours de création sépare la saisie manuelle et l’enrichissement assisté. En l’absence de fournisseur configuré, il n’invente ni résultat ni connexion réseau et renvoie explicitement vers la saisie manuelle. Le contrat local prépare la recherche, la sélection humaine, le préremplissage modifiable et la provenance atomique `providerName` / `providerId`, sans migration ni changement des formats JSON / CSV v1.
+
 - Définir le parcours de recherche, sélection humaine et préremplissage éditable d’une fiche Film.
 - Préparer les champs de provenance et d’identifiant fournisseur uniquement s’ils sont justifiés par le contrat de données ; l’ajout manuel reste toujours intégralement possible hors ligne.
 - Tester les états réseau indisponible, résultat incomplet et abandon sans écriture accidentelle.
@@ -113,13 +115,15 @@ Les améliorations nécessaires à l’usage quotidien ont été intégrées ava
 - Décider, documenter et tester ce qui est conservé, ajouté, transformé ou explicitement non importé ; aucune donnée ne doit être inventée pour combler une absence.
 - Écrire les migrations et tests de réimport nécessaires avant de figer le contrat de `0.4.0`.
 
-### `0.3.5` — Intégration TMDB et configuration de la clé
+### `0.3.5` — Intégration TMDB avec clé embarquée
+
+**État : livré côté code et preuves automatisées ; reste la QA native macOS avec la vraie clé avant clôture du train.** La recherche, l'association explicite, la présentation enrichie, le choix d'affiche persisté et le renouvellement automatique sont implémentés. Les tests d'intégration prouvent que le cache TMDB ne fuite ni dans les exports JSON/CSV ni dans les snapshots, et qu'un export v1 historique se réimporte sur une base migrée.
 
 - Vérifier avant tout code les conditions actuelles de TMDB, l’attribution, la langue, les limites et les obligations de distribution publique.
-- Ajouter une configuration locale explicite de la clé API, sans secret dans le dépôt, les exports, les snapshots ni les logs.
-- Connecter la recherche et le préremplissage à TMDB seulement après cette gate ; conserver provenance, identifiant fournisseur et modification humaine des données reçues.
+- Clé API **embarquée par le développeur** dans le binaire (`embedded_key.rs`, ignorée par Git), sans secret dans le dépôt, les exports, les snapshots ni les logs. Modèle réservé à un usage gratuit et non commercial, diffusé à des personnes de confiance.
+- Connecter la recherche et le préremplissage à TMDB ; conserver provenance, identifiant fournisseur et modification humaine des données reçues. Cache renouvelable J+80/J+180, purge et renouvellement automatique au démarrage.
 
-**Gate d’escalade :** si les conditions de TMDB, la confidentialité de la clé ou l’attribution ne sont pas satisfaisantes, `0.3.5` s’arrête et `0.4.0` est redéfini sans intégration réseau plutôt que de contourner la contrainte.
+**Gate d’escalade :** si les conditions de TMDB, la confidentialité de la clé ou l’attribution ne sont pas satisfaisantes, `0.3.5` s’arrête et `0.4.0` est redéfini sans intégration réseau plutôt que de contourner la contrainte. Toute distribution publique ou commerciale impose de revoir le modèle de clé et la licence TMDB.
 
 ### `0.4.0` — Release publique Import, export et métadonnées Films
 
@@ -191,6 +195,8 @@ Les cinq médiums sont un contrat produit, pas une option. Les décisions encore
 
 - Étendre aux Jeux et à l’Art les parcours communs validés : recherche, filtres, export, import, sauvegardes et fallbacks visuels.
 - Exercer les bibliothèques mixtes, les contenus incomplets et les migrations depuis une installation Films existante.
+- Réorganiser les réglages de données autour des médiums effectivement disponibles : chaque collection dispose de son import et de son export explicites, sans écran ou destination factice pour un médium absent. Les formats et mappings restent propres à leur type de bibliothèque ; aucun fichier mixte n’est imposé.
+- Décider et tester, après stabilisation du modèle multi-médiums, si une même session d’import peut préparer plusieurs collections d’un nouveau profil. Cette décision ne doit pas être anticipée par cinq colonnes figées dans les réglages Films-only.
 
 ### `0.5.0` — Release publique Extension culturelle
 

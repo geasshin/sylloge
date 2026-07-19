@@ -1,0 +1,4 @@
+format,version,exported_at,profile_id,profile_name,profile_created_at,profile_updated_at,film_id,film_profile_id,film_title,film_original_title,film_year,film_status,film_is_favorite,film_rating,film_watched_at,film_personal_note,film_director,film_summary,film_provider_name,film_provider_id,film_poster_url,film_created_at,film_updated_at
+sylloge-films-csv,1,2026-07-18T09:30:00.000Z,profil-lys,"'=Carnet, ""été""",2026-07-01T08:00:00.000Z,2026-07-18T08:45:00.000Z,film-cafe,profil-lys,"'+Café, ""matin""",''Café du matin,2024,terminé,true,4.5,2026-07-17,"'-Première note.
+Deuxième ligne, avec ""guillemets"".",Anaïs Vert,"'	@Résumé, déjà lu.",Catalogue local,source-ete-42,,2026-07-17T10:00:00.000Z,2026-07-18T08:45:00.000Z
+sylloge-films-csv,1,2026-07-18T09:30:00.000Z,profil-lys,"'=Carnet, ""été""",2026-07-01T08:00:00.000Z,2026-07-18T08:45:00.000Z,film-sans-affiche,profil-lys,Sans affiche,,,à découvrir,false,,,,,,,,,2026-07-18T08:45:00.000Z,2026-07-18T08:45:00.000Z
