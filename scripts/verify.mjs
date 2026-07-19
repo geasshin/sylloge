@@ -1880,4 +1880,373 @@ assert.match(capabilitySource, /sql:allow-load/, 'Tauri doit autoriser le charge
 assert.match(capabilitySource, /sql:allow-select/, 'Tauri doit autoriser les lectures SQLite')
 assert.match(capabilitySource, /sql:allow-execute/, 'Tauri doit autoriser les écritures SQLite')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')
+// Jalon 0.4.2 — socle multi-médiums : migration, document v2, repository et import atomique.
+const mediaMigration10 = readFileSync(new URL('../src-tauri/migrations/0010_create_cultural_media.sql', import.meta.url), 'utf8')
+const libraryDocumentSource = readFileSync(new URL('../src/domain/libraryDocument.ts', import.meta.url), 'utf8')
+const mediaRepositorySource = readFileSync(new URL('../src/data/mediaRepository.ts', import.meta.url), 'utf8')
+const libraryRepositorySource = readFileSync(new URL('../src/data/libraryRepository.ts', import.meta.url), 'utf8')
+
+assert.match(databaseMigrationSource, /0010_create_cultural_media\.sql/, 'La migration 10 doit être enregistrée dans database.rs')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS series/, 'La migration 10 doit créer la table series')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS books/, 'La migration 10 doit créer la table books')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS book_quotes/, 'La migration 10 doit créer la table book_quotes')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS games/, 'La migration 10 doit créer la table games')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS artworks/, 'La migration 10 doit créer la table artworks')
+assert.match(mediaMigration10, /'série télé', 'animation'/, 'La catégorie Série doit distinguer série télé et animation')
+assert.match(mediaMigration10, /'livre', 'manga', 'comics'/, 'La catégorie Livre doit distinguer livre, manga et comics')
+assert.match(mediaMigration10, /'à jouer', 'en cours', 'joué', 'abandonné', 'regardé'/, 'Les statuts Jeu doivent inclure regardé (let’s play)')
+assert.doesNotMatch(mediaMigration10.match(/CREATE TABLE IF NOT EXISTS artworks \(([\s\S]*?)\n\);/)?.[1] ?? '', /rating/, 'La table artworks ne doit pas porter de note')
+assert.match(mediaMigration10, /progress_updated_at/, 'Séries et Livres doivent porter l’horodatage interne de progression')
+assert.match(mediaMigration10, /ON DELETE CASCADE/, 'Les citations doivent suivre la suppression de leur livre')
+assert.match(nativePortabilitySource, /import_library_document_atomically/, 'Le pont natif doit exposer l’import atomique du document v2')
+assert.match(nativePortabilitySource, /INSERT INTO series/, 'L’import v2 doit écrire les séries')
+assert.match(nativePortabilitySource, /INSERT INTO book_quotes/, 'L’import v2 doit écrire les citations')
+assert.match(nativePortabilitySource, /INSERT INTO games/, 'L’import v2 doit écrire les jeux')
+assert.match(nativePortabilitySource, /INSERT INTO artworks/, 'L’import v2 doit écrire les œuvres')
+assert.match(tauriLibrarySource, /portability::import_library_document_atomically/, 'La commande Tauri d’import v2 doit être enregistrée')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_library_document_atomically'/, 'Le frontend doit appeler le pont Tauri d’import v2')
+assert.match(libraryDocumentSource, /'sylloge-library'/, 'Le format v2 doit être explicitement nommé sylloge-library')
+assert.match(mediaRepositorySource, /resolveProgressTimestamp/, 'Le repository doit gérer l’horodatage interne de progression')
+assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le document v2 ne doit jamais exposer le cache TMDB')
+
+{
+  const {
+    createLibraryDocument,
+    serializeLibraryDocument,
+    validateLibraryDocument,
+  } = await import('../src/domain/libraryDocument.ts')
+
+  const library = {
+    profile: {
+      id: 'profile-v2',
+      name: 'Bibliothèque complète',
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    },
+    films: [{
+      id: 'film-v2',
+      profileId: 'profile-v2',
+      title: 'Film v2',
+      originalTitle: null,
+      year: 2024,
+      status: 'terminé',
+      isFavorite: true,
+      rating: 4.5,
+      watchedAt: '2026-07-01',
+      personalNote: null,
+      director: 'Réalisatrice',
+      summary: null,
+      providerName: null,
+      providerId: null,
+      posterUrl: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+    series: [{
+      id: 'series-v2',
+      profileId: 'profile-v2',
+      title: 'Série v2',
+      showrunner: 'Showrunner',
+      casting: 'Casting',
+      summary: null,
+      category: 'animation',
+      status: 'en cours',
+      rating: 4,
+      isFavorite: false,
+      seasonsSeen: 3,
+      seasonsTotal: 8,
+      progressUpdatedAt: '2026-07-19T09:00:00.000Z',
+      startedAt: '2024-05-01',
+      posterUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+    books: [{
+      id: 'book-v2',
+      profileId: 'profile-v2',
+      title: 'Manga v2',
+      author: 'Mangaka',
+      year: 2020,
+      summary: null,
+      category: 'manga',
+      status: 'en cours',
+      rating: null,
+      isFavorite: true,
+      volumesRead: 10,
+      volumesTotal: 30,
+      progressUpdatedAt: '2026-07-19T09:00:00.000Z',
+      startedAt: '2023-01-01',
+      coverUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+      quotes: [{
+        id: 'quote-v2',
+        bookId: 'book-v2',
+        body: 'Citation mémorable',
+        position: 0,
+        createdAt: '2026-07-19T10:00:00.000Z',
+      }],
+    }],
+    games: [{
+      id: 'game-v2',
+      profileId: 'profile-v2',
+      title: 'Jeu v2',
+      developer: 'Studio',
+      platform: 'Dreamcast',
+      year: 2001,
+      status: 'regardé',
+      rating: 3.5,
+      isFavorite: false,
+      playedAt: '2026-02-01',
+      coverUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+    artworks: [{
+      id: 'artwork-v2',
+      profileId: 'profile-v2',
+      title: 'Œuvre v2',
+      artist: 'Artiste',
+      year: 1889,
+      form: 'peinture',
+      location: 'Musée d’Orsay',
+      exhibition: null,
+      status: 'découverte',
+      isFavorite: true,
+      discoveredAt: '2026-06-15',
+      imageUrl: null,
+      personalNote: 'Vu en famille',
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+  }
+
+  const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
+  assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format v2')
+  assert.equal(document.version, 2, 'Le document doit porter la version 2')
+
+  const serialized = serializeLibraryDocument(document)
+  const preview = validateLibraryDocument(serialized)
+  assert.equal(preview.errors.length, 0, `Un aller-retour v2 doit être valide : ${JSON.stringify(preview.errors)}`)
+  assert.deepEqual(preview.counts, { films: 1, series: 1, books: 1, games: 1, artworks: 1 }, 'Les compteurs doivent refléter chaque collection')
+  assert.equal(preview.document?.series[0]?.category, 'animation', 'La catégorie Série doit survivre à l’aller-retour')
+  assert.equal(preview.document?.books[0]?.quotes[0]?.body, 'Citation mémorable', 'Les citations doivent survivre à l’aller-retour')
+  assert.equal(preview.document?.games[0]?.platform, 'Dreamcast', 'La plateforme libre doit survivre à l’aller-retour')
+
+  const v1Document = JSON.stringify({
+    format: 'sylloge-films',
+    version: 1,
+    exportedAt: '2026-07-19T12:00:00.000Z',
+    profile: library.profile,
+    films: [],
+  })
+  const v1Preview = validateLibraryDocument(v1Document)
+  assert.equal(v1Preview.document, null, 'Un document v1 doit être refusé par le validateur v2')
+
+  const invalidSeries = JSON.parse(serialized)
+  invalidSeries.series[0].seasonsSeen = 12
+  const invalidPreview = validateLibraryDocument(JSON.stringify(invalidSeries))
+  assert.equal(invalidPreview.document, null, 'Une progression incohérente doit bloquer le document')
+  assert.ok(invalidPreview.errors.some((error) => error.path.includes('seasonsSeen')), 'L’erreur doit cibler la progression invalide')
+
+  const duplicateId = JSON.parse(serialized)
+  duplicateId.games[0].id = duplicateId.films[0].id
+  const duplicatePreview = validateLibraryDocument(JSON.stringify(duplicateId))
+  assert.equal(duplicatePreview.document, null, 'Un identifiant partagé entre médiums doit bloquer le document')
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+
+  const seriesRow = {
+    id: 'series-1',
+    profile_id: 'default',
+    title: 'Série stockée',
+    showrunner: null,
+    casting: null,
+    summary: null,
+    category: 'série télé',
+    status: 'en cours',
+    rating: null,
+    is_favorite: 0,
+    seasons_seen: 2,
+    seasons_total: 5,
+    progress_updated_at: '2026-07-18T10:00:00.000Z',
+    started_at: '2024-01-01',
+    poster_url: null,
+    personal_note: null,
+    created_at: '2026-07-18T10:00:00.000Z',
+    updated_at: '2026-07-18T10:00:00.000Z',
+  }
+
+  const database = {
+    series: [seriesRow],
+    books: [],
+    quotes: [],
+    async select(query, bindValues) {
+      if (query.includes('FROM series')) {
+        if (query.includes('WHERE id = $1')) return this.series.filter((row) => row.id === bindValues[0])
+        return [...this.series]
+      }
+      if (query.includes('FROM book_quotes')) return [...this.quotes]
+      if (query.includes('FROM books')) return [...this.books]
+      throw new Error(`Requête inattendue dans la vérification : ${query}`)
+    },
+    async execute(query, bindValues) {
+      if (query.includes('UPDATE series')) {
+        const updatedAt = bindValues[14]
+        const progressUpdatedAt = bindValues[10]
+        const row = this.series.find((value) => value.id === bindValues[15])
+        if (!row) return { rowsAffected: 0 }
+        row.seasons_seen = bindValues[8]
+        row.progress_updated_at = progressUpdatedAt
+        row.updated_at = updatedAt
+        return { rowsAffected: 1 }
+      }
+      throw new Error(`Écriture inattendue dans la vérification : ${query}`)
+    },
+  }
+
+  let clock = 0
+  const repository = new SqliteMediaRepository(
+    async () => database,
+    () => `generated-${clock}`,
+    () => `2026-07-19T12:00:0${clock}.000Z`,
+  )
+
+  const loaded = await repository.getSeries('default', 'series-1')
+  assert.equal(loaded?.category, 'série télé', 'Le repository doit mapper la catégorie Série')
+  assert.equal(loaded?.progressUpdatedAt, '2026-07-18T10:00:00.000Z', 'L’horodatage de progression doit être lu')
+
+  clock = 1
+  await repository.updateSeries('default', 'series-1', {
+    title: loaded.title,
+    showrunner: loaded.showrunner,
+    casting: loaded.casting,
+    summary: loaded.summary,
+    category: loaded.category,
+    status: loaded.status,
+    rating: loaded.rating,
+    isFavorite: loaded.isFavorite,
+    seasonsSeen: 2,
+    seasonsTotal: loaded.seasonsTotal,
+    startedAt: loaded.startedAt,
+    posterUrl: loaded.posterUrl,
+    personalNote: loaded.personalNote,
+  })
+  assert.equal(database.series[0].progress_updated_at, '2026-07-18T10:00:00.000Z', 'Une modification sans progression ne doit pas rafraîchir l’horodatage interne')
+
+  clock = 2
+  await repository.updateSeries('default', 'series-1', {
+    title: loaded.title,
+    showrunner: loaded.showrunner,
+    casting: loaded.casting,
+    summary: loaded.summary,
+    category: loaded.category,
+    status: loaded.status,
+    rating: loaded.rating,
+    isFavorite: loaded.isFavorite,
+    seasonsSeen: 3,
+    seasonsTotal: loaded.seasonsTotal,
+    startedAt: loaded.startedAt,
+    posterUrl: loaded.posterUrl,
+    personalNote: loaded.personalNote,
+  })
+  assert.equal(database.series[0].progress_updated_at, '2026-07-19T12:00:02.000Z', 'Une saison supplémentaire doit rafraîchir l’horodatage interne de progression')
+}
+
+{
+  const { SqliteLibraryRepository } = await import('../src/data/libraryRepository.ts')
+
+  const document = {
+    format: 'sylloge-library',
+    version: 2,
+    exportedAt: '2026-07-19T12:00:00.000Z',
+    profile: {
+      id: 'legacy-profile',
+      name: 'Import complet',
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    },
+    films: [],
+    series: [],
+    books: [{
+      id: 'legacy-book',
+      profileId: 'legacy-profile',
+      title: 'Livre importé',
+      author: null,
+      year: null,
+      summary: null,
+      category: 'livre',
+      status: 'lu',
+      rating: 5,
+      isFavorite: true,
+      volumesRead: null,
+      volumesTotal: null,
+      progressUpdatedAt: null,
+      startedAt: '2025-03-01',
+      coverUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+      quotes: [
+        { id: 'legacy-quote-1', bookId: 'legacy-book', body: 'Première citation', position: 0, createdAt: '2026-07-19T10:00:00.000Z' },
+        { id: 'legacy-quote-2', bookId: 'legacy-book', body: 'Seconde citation', position: 1, createdAt: '2026-07-19T10:00:00.000Z' },
+      ],
+    }],
+    games: [],
+    artworks: [],
+  }
+
+  let capturedPayload = null
+  let idSequence = 0
+  const repository = new SqliteLibraryRepository(
+    async () => {
+      throw new Error('Aucune lecture attendue avant le rechargement final')
+    },
+    () => `fresh-${idSequence++}`,
+    () => '2026-07-19T12:30:00.000Z',
+    async (payload) => {
+      capturedPayload = payload
+      return {
+        profileId: payload.profile.id,
+        filmCount: payload.films.length,
+        seriesCount: payload.series.length,
+        bookCount: payload.books.length,
+        gameCount: payload.games.length,
+        artworkCount: payload.artworks.length,
+      }
+    },
+  )
+
+  repository.loadLibrary = async (profileId) => {
+    assert.equal(profileId, capturedPayload.profile.id, 'Le rechargement doit cibler le nouveau profil')
+    return {
+      profile: capturedPayload.profile,
+      films: capturedPayload.films,
+      series: capturedPayload.series,
+      books: capturedPayload.books,
+      games: capturedPayload.games,
+      artworks: capturedPayload.artworks,
+    }
+  }
+
+  const imported = await repository.importLibraryDocument(document)
+  assert.notEqual(capturedPayload.profile.id, 'legacy-profile', 'L’import doit créer un profil neuf')
+  assert.equal(capturedPayload.books[0].profileId, capturedPayload.profile.id, 'Chaque élément doit cibler le nouveau profil')
+  assert.notEqual(capturedPayload.books[0].id, 'legacy-book', 'Les identifiants doivent être régénérés')
+  assert.equal(capturedPayload.books[0].quotes.length, 2, 'Les citations doivent être importées avec leur livre')
+  for (const quote of capturedPayload.books[0].quotes) {
+    assert.equal(quote.bookId, capturedPayload.books[0].id, 'Chaque citation doit être rattachée au livre régénéré')
+    assert.notEqual(quote.id.startsWith('legacy-'), true, 'Les identifiants de citation doivent être régénérés')
+  }
+  assert.equal(imported.books[0].title, 'Livre importé', 'L’import doit recharger la bibliothèque créée')
+}
+
+assert.match(libraryRepositorySource, /importLibraryDocumentAtomically/, 'Le repository de bibliothèque doit passer par l’import atomique natif')
+assert.match(libraryRepositorySource, /createId\(\)/, 'L’import v2 doit régénérer les identifiants dans le nouveau profil')
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants.')

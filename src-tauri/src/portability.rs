@@ -96,6 +96,17 @@ pub struct ImportLibraryPayload {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportLibraryDocumentPayload {
+    profile: ImportProfile,
+    films: Vec<ImportFilm>,
+    series: Vec<ImportSeries>,
+    books: Vec<ImportBook>,
+    games: Vec<ImportGame>,
+    artworks: Vec<ImportArtwork>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ImportProfile {
     id: String,
     name: String,
@@ -125,11 +136,118 @@ struct ImportFilm {
     updated_at: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportSeries {
+    id: String,
+    profile_id: String,
+    title: String,
+    showrunner: Option<String>,
+    casting: Option<String>,
+    summary: Option<String>,
+    category: String,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    seasons_seen: Option<i64>,
+    seasons_total: Option<i64>,
+    progress_updated_at: Option<String>,
+    started_at: Option<String>,
+    poster_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportBook {
+    id: String,
+    profile_id: String,
+    title: String,
+    author: Option<String>,
+    year: Option<i64>,
+    summary: Option<String>,
+    category: String,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    volumes_read: Option<i64>,
+    volumes_total: Option<i64>,
+    progress_updated_at: Option<String>,
+    started_at: Option<String>,
+    cover_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+    quotes: Vec<ImportBookQuote>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportBookQuote {
+    id: String,
+    book_id: String,
+    body: String,
+    position: i64,
+    created_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportGame {
+    id: String,
+    profile_id: String,
+    title: String,
+    developer: Option<String>,
+    platform: Option<String>,
+    year: Option<i64>,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    played_at: Option<String>,
+    cover_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportArtwork {
+    id: String,
+    profile_id: String,
+    title: String,
+    artist: Option<String>,
+    year: Option<i64>,
+    form: String,
+    location: Option<String>,
+    exhibition: Option<String>,
+    status: String,
+    is_favorite: bool,
+    discovered_at: Option<String>,
+    image_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportLibraryResult {
     profile_id: String,
     film_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportLibraryDocumentResult {
+    profile_id: String,
+    film_count: usize,
+    series_count: usize,
+    book_count: usize,
+    game_count: usize,
+    artwork_count: usize,
 }
 
 #[tauri::command]
@@ -529,6 +647,24 @@ pub async fn import_library_atomically(
     Ok(ImportLibraryResult {
         profile_id: payload.profile.id,
         film_count: payload.films.len(),
+    })
+}
+
+#[tauri::command]
+pub async fn import_library_document_atomically(
+    db_instances: State<'_, DbInstances>,
+    payload: ImportLibraryDocumentPayload,
+) -> Result<ImportLibraryDocumentResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_library_document_import(&pool, &payload).await?;
+
+    Ok(ImportLibraryDocumentResult {
+        profile_id: payload.profile.id.clone(),
+        film_count: payload.films.len(),
+        series_count: payload.series.len(),
+        book_count: payload.books.len(),
+        game_count: payload.games.len(),
+        artwork_count: payload.artworks.len(),
     })
 }
 
@@ -1039,6 +1175,283 @@ async fn write_import(
         .execute(&mut *transaction)
         .await
         .map_err(|error| format!("Impossible d’importer le film « {} » : {error}", film.title))?;
+    }
+
+    sqlx::query(
+        "UPDATE current_profile
+         SET profile_id = $1, updated_at = $2
+         WHERE singleton = 1",
+    )
+    .bind(&payload.profile.id)
+    .bind(&payload.profile.updated_at)
+    .execute(&mut *transaction)
+    .await
+    .map_err(|error| format!("Impossible d’activer le nouveau profil : {error}"))?;
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import SQLite : {error}"))?;
+
+    Ok(())
+}
+
+async fn write_library_document_import(
+    pool: &sqlx::SqlitePool,
+    payload: &ImportLibraryDocumentPayload,
+) -> Result<(), String> {
+    let targets_import_profile = |profile_id: &str| profile_id == payload.profile.id;
+
+    if payload
+        .films
+        .iter()
+        .any(|film| !targets_import_profile(&film.profile_id))
+        || payload
+            .series
+            .iter()
+            .any(|series| !targets_import_profile(&series.profile_id))
+        || payload
+            .books
+            .iter()
+            .any(|book| !targets_import_profile(&book.profile_id))
+        || payload
+            .games
+            .iter()
+            .any(|game| !targets_import_profile(&game.profile_id))
+        || payload
+            .artworks
+            .iter()
+            .any(|artwork| !targets_import_profile(&artwork.profile_id))
+    {
+        return Err("Un élément ne cible pas le nouveau profil d’import.".to_string());
+    }
+
+    let book_ids: std::collections::HashSet<&str> =
+        payload.books.iter().map(|book| book.id.as_str()).collect();
+    for book in &payload.books {
+        if book
+            .quotes
+            .iter()
+            .any(|quote| quote.book_id != book.id || !book_ids.contains(quote.book_id.as_str()))
+        {
+            return Err(format!(
+                "Une citation ne correspond pas au livre « {} ».",
+                book.title
+            ));
+        }
+    }
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import SQLite : {error}"))?;
+
+    sqlx::query("INSERT INTO profiles (id, name, created_at, updated_at) VALUES ($1, $2, $3, $4)")
+        .bind(&payload.profile.id)
+        .bind(&payload.profile.name)
+        .bind(&payload.profile.created_at)
+        .bind(&payload.profile.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible de créer le nouveau profil : {error}"))?;
+
+    for film in &payload.films {
+        let original_title = canonical_optional_text(&film.original_title);
+        let watched_at = canonical_optional_text(&film.watched_at);
+        let personal_note = canonical_optional_text(&film.personal_note);
+        let director = canonical_optional_text(&film.director);
+        let summary = canonical_optional_text(&film.summary);
+        let poster_url = canonical_optional_text(&film.poster_url);
+        let (provider_name, provider_id) =
+            canonical_provenance(&film.provider_name, &film.provider_id);
+
+        sqlx::query(
+            "INSERT INTO films (
+                id, profile_id, title, original_title, year, status, is_favorite, rating,
+                watched_at, personal_note, director, summary, provider_name, provider_id,
+                poster_url, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+             )",
+        )
+        .bind(&film.id)
+        .bind(&film.profile_id)
+        .bind(&film.title)
+        .bind(original_title)
+        .bind(film.year)
+        .bind(&film.status)
+        .bind(if film.is_favorite { 1 } else { 0 })
+        .bind(film.rating)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
+        .bind(&film.created_at)
+        .bind(&film.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le film « {} » : {error}", film.title))?;
+    }
+
+    for series in &payload.series {
+        sqlx::query(
+            "INSERT INTO series (
+                id, profile_id, title, showrunner, casting, summary, category, status, rating,
+                is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
+                poster_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&series.id)
+        .bind(&series.profile_id)
+        .bind(&series.title)
+        .bind(canonical_optional_text(&series.showrunner))
+        .bind(canonical_optional_text(&series.casting))
+        .bind(canonical_optional_text(&series.summary))
+        .bind(&series.category)
+        .bind(&series.status)
+        .bind(series.rating)
+        .bind(if series.is_favorite { 1 } else { 0 })
+        .bind(series.seasons_seen)
+        .bind(series.seasons_total)
+        .bind(canonical_optional_text(&series.progress_updated_at))
+        .bind(canonical_optional_text(&series.started_at))
+        .bind(canonical_optional_text(&series.poster_url))
+        .bind(canonical_optional_text(&series.personal_note))
+        .bind(&series.created_at)
+        .bind(&series.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer la série « {} » : {error}",
+                series.title
+            )
+        })?;
+    }
+
+    for book in &payload.books {
+        sqlx::query(
+            "INSERT INTO books (
+                id, profile_id, title, author, year, summary, category, status, rating,
+                is_favorite, volumes_read, volumes_total, progress_updated_at, started_at,
+                cover_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&book.id)
+        .bind(&book.profile_id)
+        .bind(&book.title)
+        .bind(canonical_optional_text(&book.author))
+        .bind(book.year)
+        .bind(canonical_optional_text(&book.summary))
+        .bind(&book.category)
+        .bind(&book.status)
+        .bind(book.rating)
+        .bind(if book.is_favorite { 1 } else { 0 })
+        .bind(book.volumes_read)
+        .bind(book.volumes_total)
+        .bind(canonical_optional_text(&book.progress_updated_at))
+        .bind(canonical_optional_text(&book.started_at))
+        .bind(canonical_optional_text(&book.cover_url))
+        .bind(canonical_optional_text(&book.personal_note))
+        .bind(&book.created_at)
+        .bind(&book.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer le livre « {} » : {error}",
+                book.title
+            )
+        })?;
+
+        for quote in &book.quotes {
+            sqlx::query(
+                "INSERT INTO book_quotes (id, book_id, body, position, created_at)
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(&quote.id)
+            .bind(&quote.book_id)
+            .bind(&quote.body)
+            .bind(quote.position)
+            .bind(&quote.created_at)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Impossible d’importer une citation du livre « {} » : {error}",
+                    book.title
+                )
+            })?;
+        }
+    }
+
+    for game in &payload.games {
+        sqlx::query(
+            "INSERT INTO games (
+                id, profile_id, title, developer, platform, year, status, rating, is_favorite,
+                played_at, cover_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+             )",
+        )
+        .bind(&game.id)
+        .bind(&game.profile_id)
+        .bind(&game.title)
+        .bind(canonical_optional_text(&game.developer))
+        .bind(canonical_optional_text(&game.platform))
+        .bind(game.year)
+        .bind(&game.status)
+        .bind(game.rating)
+        .bind(if game.is_favorite { 1 } else { 0 })
+        .bind(canonical_optional_text(&game.played_at))
+        .bind(canonical_optional_text(&game.cover_url))
+        .bind(canonical_optional_text(&game.personal_note))
+        .bind(&game.created_at)
+        .bind(&game.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le jeu « {} » : {error}", game.title))?;
+    }
+
+    for artwork in &payload.artworks {
+        sqlx::query(
+            "INSERT INTO artworks (
+                id, profile_id, title, artist, year, form, location, exhibition, status,
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+             )",
+        )
+        .bind(&artwork.id)
+        .bind(&artwork.profile_id)
+        .bind(&artwork.title)
+        .bind(canonical_optional_text(&artwork.artist))
+        .bind(artwork.year)
+        .bind(&artwork.form)
+        .bind(canonical_optional_text(&artwork.location))
+        .bind(canonical_optional_text(&artwork.exhibition))
+        .bind(&artwork.status)
+        .bind(if artwork.is_favorite { 1 } else { 0 })
+        .bind(canonical_optional_text(&artwork.discovered_at))
+        .bind(canonical_optional_text(&artwork.image_url))
+        .bind(canonical_optional_text(&artwork.personal_note))
+        .bind(&artwork.created_at)
+        .bind(&artwork.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer l’œuvre « {} » : {error}",
+                artwork.title
+            )
+        })?;
     }
 
     sqlx::query(
@@ -1985,6 +2398,7 @@ mod tests {
         for migration in [
             include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
             include_str!("../migrations/0009_add_selected_poster_url.sql"),
+            include_str!("../migrations/0010_create_cultural_media.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -2147,6 +2561,254 @@ mod tests {
             assert_eq!(
                 cache_count.0, 0,
                 "l'import d'un export v1 ne doit créer aucune ligne de cache TMDB"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v2_import_writes_all_media_atomically() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-19T10:00:00.000Z".to_string();
+            let payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "profil-complet".to_string(),
+                    name: "Bibliothèque complète".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "film-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Film v2".to_string(),
+                    original_title: None,
+                    year: Some(2024),
+                    status: "terminé".to_string(),
+                    is_favorite: false,
+                    rating: Some(4.0),
+                    watched_at: Some("2026-07-01".to_string()),
+                    personal_note: None,
+                    director: None,
+                    summary: None,
+                    provider_name: None,
+                    provider_id: None,
+                    poster_url: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+                series: vec![ImportSeries {
+                    id: "series-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Série v2".to_string(),
+                    showrunner: Some("Showrunner".to_string()),
+                    casting: Some(String::new()),
+                    summary: None,
+                    category: "animation".to_string(),
+                    status: "en cours".to_string(),
+                    rating: Some(4.5),
+                    is_favorite: true,
+                    seasons_seen: Some(3),
+                    seasons_total: Some(8),
+                    progress_updated_at: Some(timestamp.clone()),
+                    started_at: Some("2024-05-01".to_string()),
+                    poster_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+                books: vec![ImportBook {
+                    id: "book-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Manga v2".to_string(),
+                    author: Some("Mangaka".to_string()),
+                    year: Some(2020),
+                    summary: None,
+                    category: "manga".to_string(),
+                    status: "en cours".to_string(),
+                    rating: None,
+                    is_favorite: true,
+                    volumes_read: Some(10),
+                    volumes_total: Some(30),
+                    progress_updated_at: Some(timestamp.clone()),
+                    started_at: Some("2023-01-01".to_string()),
+                    cover_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                    quotes: vec![ImportBookQuote {
+                        id: "quote-v2".to_string(),
+                        book_id: "book-v2".to_string(),
+                        body: "Citation mémorable".to_string(),
+                        position: 0,
+                        created_at: timestamp.clone(),
+                    }],
+                }],
+                games: vec![ImportGame {
+                    id: "game-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Jeu v2".to_string(),
+                    developer: Some("Studio".to_string()),
+                    platform: Some("Dreamcast".to_string()),
+                    year: Some(2001),
+                    status: "regardé".to_string(),
+                    rating: Some(3.5),
+                    is_favorite: false,
+                    played_at: Some("2026-02-01".to_string()),
+                    cover_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+                artworks: vec![ImportArtwork {
+                    id: "artwork-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Œuvre v2".to_string(),
+                    artist: Some("Artiste".to_string()),
+                    year: Some(1889),
+                    form: "peinture".to_string(),
+                    location: Some("Musée d’Orsay".to_string()),
+                    exhibition: None,
+                    status: "découverte".to_string(),
+                    is_favorite: true,
+                    discovered_at: Some("2026-06-15".to_string()),
+                    image_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+            };
+
+            write_library_document_import(&pool, &payload)
+                .await
+                .expect("import du document v2 complet");
+
+            let counts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT
+                   (SELECT COUNT(*) FROM films WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM series WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM books WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM book_quotes),
+                   (SELECT COUNT(*) FROM games WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM artworks WHERE profile_id = 'profil-complet')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("comptes des collections importées");
+            assert_eq!(
+                counts,
+                (1, 1, 1, 1, 1, 1),
+                "l'import v2 doit écrire chaque collection et ses citations"
+            );
+
+            let series_row: (String, String, i64, i64, Option<String>) = sqlx::query_as(
+                "SELECT category, status, seasons_seen, seasons_total, progress_updated_at
+                 FROM series WHERE id = 'series-v2'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la série importée");
+            assert_eq!(
+                series_row.0, "animation",
+                "la catégorie Série doit être conservée"
+            );
+            assert_eq!(series_row.1, "en cours");
+            assert_eq!(series_row.2, 3);
+            assert_eq!(series_row.3, 8);
+            assert_eq!(
+                series_row.4.as_deref(),
+                Some("2026-07-19T10:00:00.000Z"),
+                "l'horodatage interne de progression doit être conservé"
+            );
+
+            let quote_row: (String, i64) =
+                sqlx::query_as("SELECT body, position FROM book_quotes WHERE book_id = 'book-v2'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture de la citation importée");
+            assert_eq!(quote_row, ("Citation mémorable".to_string(), 0));
+
+            let game_row: (String, String) =
+                sqlx::query_as("SELECT platform, status FROM games WHERE id = 'game-v2'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture du jeu importé");
+            assert_eq!(
+                game_row,
+                ("Dreamcast".to_string(), "regardé".to_string()),
+                "la plateforme libre et le statut regardé doivent être conservés"
+            );
+
+            let active_profile: (String,) =
+                sqlx::query_as("SELECT profile_id FROM current_profile WHERE singleton = 1")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("profil actif après import");
+            assert_eq!(
+                active_profile.0, "profil-complet",
+                "l'import v2 doit activer le nouveau profil"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v2_import_rejects_quote_from_another_book() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-19T10:00:00.000Z".to_string();
+            let payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "profil-invalide".to_string(),
+                    name: "Invalide".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: Vec::new(),
+                series: Vec::new(),
+                books: vec![ImportBook {
+                    id: "book-a".to_string(),
+                    profile_id: "profil-invalide".to_string(),
+                    title: "Livre A".to_string(),
+                    author: None,
+                    year: None,
+                    summary: None,
+                    category: "livre".to_string(),
+                    status: "lu".to_string(),
+                    rating: None,
+                    is_favorite: false,
+                    volumes_read: None,
+                    volumes_total: None,
+                    progress_updated_at: None,
+                    started_at: None,
+                    cover_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                    quotes: vec![ImportBookQuote {
+                        id: "quote-orpheline".to_string(),
+                        book_id: "book-b".to_string(),
+                        body: "Citation rattachée à un autre livre".to_string(),
+                        position: 0,
+                        created_at: timestamp.clone(),
+                    }],
+                }],
+                games: Vec::new(),
+                artworks: Vec::new(),
+            };
+
+            let result = write_library_document_import(&pool, &payload).await;
+            assert!(
+                result.is_err(),
+                "une citation rattachée à un autre livre doit bloquer l'import"
+            );
+
+            let profile_count: (i64,) =
+                sqlx::query_as("SELECT COUNT(*) FROM profiles WHERE id = 'profil-invalide'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte du profil refusé");
+            assert_eq!(
+                profile_count.0, 0,
+                "un import refusé avant écriture ne doit créer aucun profil"
             );
         });
     }

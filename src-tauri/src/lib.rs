@@ -25,6 +25,7 @@ pub fn run() {
             portability::save_manual_backup_snapshot,
             portability::save_automatic_backup_snapshot,
             portability::import_library_atomically,
+            portability::import_library_document_atomically,
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,

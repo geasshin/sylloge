@@ -58,5 +58,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0009_add_selected_poster_url.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "create_cultural_media",
+            sql: include_str!("../migrations/0010_create_cultural_media.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

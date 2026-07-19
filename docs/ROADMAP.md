@@ -150,12 +150,67 @@ Les cinq médiums sont un contrat produit, pas une option. Les décisions encore
 
 ### `0.4.1` — Contrat public et inventaire des modèles
 
+**État : décisions produit actées avec Aurélien le 19 juillet 2026. Ce contrat est la référence des jalons `0.4.2` à `0.4.9`.**
+
+Objectifs initiaux du jalon :
+
 - Confirmer les cinq médiums de V1 et trancher les décisions de granularité propres à chacun avant toute migration.
 - Écrire les critères d’acceptation de chaque verticale : saisie manuelle, fiche, recherche, statut, import/export, affiches et fallbacks.
 - Distinguer les champs réellement communs des champs spécifiques ; refuser une abstraction générique qui gomme les différences de pratique.
 - Arrêter explicitement les sujets qui ne sont pas de V1, notamment le suivi détaillé d’épisodes, les sessions de jeu ou la granularité d’un catalogue d’exposition.
 
+#### Principes transversaux actés
+
+- Une œuvre = une entrée ; une seule note /5 et un seul avis par œuvre, quelle que soit sa longueur (saisons, tomes). Si la qualité d'une œuvre longue se dégrade, c'est l'utilisateur qui ajuste sa note globale.
+- Coup de cœur sur les cinq médiums ; note /5 sur Films, Séries, Livres et Jeux — **pas de note pour l'Art**.
+- Le statut **Abandonné** est ajouté à tous les médiums, Films compris (migration prévue au jalon `0.4.2`).
+- Le tri « récent » s'appuie sur un horodatage interne de dernière progression (saison ou tome ajouté, avancement modifié), distinct des dates saisies par l'utilisateur ; une saison ou un tome supplémentaire fait remonter l'œuvre dans la vue récente.
+- Les libellés de statut sont adaptés à chaque médium ; aucun libellé unique n'est imposé.
+- L'affiche reste facultative partout, avec le fallback neutre existant.
+
+#### Séries
+
+- Granularité : la série entière, jamais l'épisode ni le détail saison par saison.
+- Statuts : **À voir, En cours, Abandonnée, Vue**. « En cours » couvre le visionnage actif, l'attente d'une nouvelle saison et la mise de côté temporaire ; il n'y a pas de statut « en pause » distinct.
+- Compteur de **saisons vues**, visible dès que la série est commencée (En cours, Abandonnée).
+- Passer à « Vue » renseigne le compteur au total de saisons connu ; si le total augmente ensuite, la série repasse en « En cours ». Saisons vues et total sont saisis manuellement via un compteur dédié (boutons +/−, interaction fluide, pas de champ numérique brut) ; aucune mise à jour automatique par fournisseur n'est prévue dans ce train.
+- Champs : affiche, titre, showrunner, casting, résumé, catégorie (**Série télé / Animation**), note, avis, coup de cœur, date de début de visionnage (début de la saison 1).
+- Vues : globale, Séries télé, Animation ; chacune triable par récent, note et favoris. La présentation exacte relève du train `0.6.0`.
+
+#### Livres
+
+- Catégories : **Livre, Manga, Comics**, avec vues dédiées.
+- Statuts : **À lire, En cours, Abandonné, Lu**.
+- Compteur de **tomes** pour Manga et Comics, même mécanique que les saisons des Séries.
+- Champs : couverture, titre, auteur, année de parution, résumé, note, avis, coup de cœur, date de début de lecture (premier tome ou début de l'ouvrage).
+- **Citations** : liste de citations personnelles par fiche, affichées une par une dans un espace escamotable ; ni tableur ni base imbriquée.
+- Exclus : pagination, édition, traduction, relecture.
+
+#### Jeux
+
+- Statuts : **À jouer, En cours, Joué, Abandonné, Regardé** (let's play, YouTube/Twitch).
+- Champs : cover, titre, développeur, plateforme, année de sortie, note, avis, coup de cœur, date de jeu.
+- **Plateforme** : suggestions initiales sobres (PC et principales consoles récentes ou anciennes) complétées par saisie libre ; toute valeur saisie devient une suggestion pour les fiches suivantes et reste filtrable.
+- Exclus : temps de jeu, sessions, toute mécanique de tracker.
+
+#### Art
+
+- **Pas de note** ; coup de cœur et avis uniquement.
+- Statuts : **À découvrir, Découverte**.
+- Formes : **Peinture, Sculpture, Photographie, Dessin, Poésie, Gravure, Performance, Art conceptuel, Autre**.
+- Champs : visuel facultatif, titre, artiste, année, forme, **lieu** et **exposition** (texte libre facultatif, sans relation modélisée), date de découverte, avis.
+
+#### Exclusions arrêtées pour la V1
+
+- Suivi par épisode, détail saison par saison, pagination et avancement de lecture chiffré.
+- Sessions et temps de jeu, mécaniques de tracker.
+- Catalogue d'expositions ou relations modélisées lieu / exposition.
+- Intégration de fournisseurs de métadonnées pour les nouveaux médiums dans ce train (TMDB reste propre aux Films ; toute extension sera arbitrée séparément).
+- Codes couleur par catégorie et composition précise des vues filtrantes : intentions notées, tranchées au train `0.6.0`.
+
 ### `0.4.2` — Socle de données et compatibilité Films
+
+**État : livré côté code et preuves automatisées, en attente de validation d'Aurélien.** La migration 10 crée les tables `series`, `books`, `book_quotes`, `games` et `artworks` conformément au contrat `0.4.1`. Le format JSON v2 `sylloge-library` étend le v1 de façon additive ; l'import v1 historique reste réimportable sur base migrée à 10 migrations (test d'intégration étendu). L'import v2 est atomique, crée un nouveau profil et régénère tous les identifiants. Aucune interface utilisateur dans ce jalon : les formulaires et vues arrivent avec chaque verticale `0.4.3+`.
 
 - Faire évoluer les fondations SQLite, les types, la recherche, les profils, exports et sauvegardes sans casser les données Films ni les formats déjà publiés.
 - Écrire les migrations et tests de compatibilité avec les bibliothèques `0.1.x–0.4.x` avant de créer une nouvelle verticale.

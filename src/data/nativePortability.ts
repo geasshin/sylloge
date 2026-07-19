@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { SyllogeLibraryDocument } from '../domain/libraryDocument.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
 
 export type PickedJsonFile = {
@@ -57,6 +58,24 @@ export type NativeImportPayload = {
   films: NativeImportFilm[]
 }
 
+export type NativeImportLibraryDocumentPayload = {
+  profile: NativeImportProfile
+  films: SyllogeLibraryDocument['films']
+  series: SyllogeLibraryDocument['series']
+  books: SyllogeLibraryDocument['books']
+  games: SyllogeLibraryDocument['games']
+  artworks: SyllogeLibraryDocument['artworks']
+}
+
+export type ImportLibraryDocumentResult = {
+  profileId: string
+  filmCount: number
+  seriesCount: number
+  bookCount: number
+  gameCount: number
+  artworkCount: number
+}
+
 export function pickImportJson(): Promise<PickedJsonFile | null> {
   return invoke('pick_import_json')
 }
@@ -95,4 +114,10 @@ export function saveAutomaticBackupSnapshot(
 
 export function importLibraryAtomically(payload: NativeImportPayload): Promise<ImportLibraryResult> {
   return invoke('import_library_atomically', { payload })
+}
+
+export function importLibraryDocumentAtomically(
+  payload: NativeImportLibraryDocumentPayload,
+): Promise<ImportLibraryDocumentResult> {
+  return invoke('import_library_document_atomically', { payload })
 }

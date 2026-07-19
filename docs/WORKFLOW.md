@@ -8,14 +8,11 @@ Sylloge est développé par incréments vérifiables : une version contient un l
 
 | Rôle | Responsabilité |
 |---|---|
-| Aurélien | Décide la vision, les arbitrages de périmètre, le feu vert d’implémentation et la validation d’usage. |
-| Hermes | Mémoire de l’orchestration : maintient les documents actifs, découpe les versions, prépare les briefs Codex, contrôle les diffs, vérifie les tests et explique les décisions. |
-| Codex | Exécute un lot de code borné dans le dépôt, avec critères d’acceptation et rapport exact. Il ne décide pas seul du produit ni de l’architecture future. |
+| Aurélien | Décide la vision, les arbitrages de périmètre, le feu vert d'implémentation et la validation d'usage. |
+| Hermes | Orchestre **et** code : maintient les documents actifs, découpe les versions, implémente les lots dans le dépôt, vérifie les tests et explique les décisions. |
 | Git | Historique fiable : une baseline, des commits lisibles et des tags de version. |
 
-Pour Sylloge, chaque fonctionnalité ou correctif produit passe par un run Codex borné. Hermes n’écrit pas le code de ces lots : il transforme l’idée en brief précis, supervise l’exécution, contrôle le diff et les preuves, puis revient vers Aurélien avant le lot suivant. Hermes peut modifier les documents d’orchestration et de vérification ; Codex reste le lane d’implémentation de code.
-
-Les runs Codex demandent explicitement **GPT-5.6 Terra avec effort very high**. Si cette combinaison est indisponible ou refusée, Hermes s’arrête et le signale au lieu de substituer silencieusement un modèle. Une nouvelle idée est triée avant tout prompt : elle rejoint le lot courant seulement si elle est nécessaire sans en modifier le contrat ; sinon elle est distribuée dans la prochaine version cohérente ou le backlog. Une direction ambiguë, coûteuse ou structurante exige un arbitrage d’Aurélien avant implémentation.
+Depuis juillet 2026, Hermes code directement chaque lot dans Hermes Agent (modèle Kimi K3) : plus de délégation à un agent externe (Codex, Kimi CLI ou autre). Hermes conserve la même discipline qu'auparavant : brief borné avant chaque lot, contrôle du diff et des preuves après, rapport factuel à Aurélien avant le lot suivant. Une nouvelle idée est triée avant tout travail : elle rejoint le lot courant seulement si elle est nécessaire sans en modifier le contrat ; sinon elle est distribuée dans la prochaine version cohérente ou le backlog. Une direction ambiguë, coûteuse ou structurante exige un arbitrage d'Aurélien avant implémentation.
 
 ## Versionnement
 
@@ -52,7 +49,7 @@ Pour les correctifs minuscules, une branche reste recommandée mais peut être �
 
 Avant de coder : lire `ROADMAP.md`, vérifier la branche, `git status`, le dernier tag, les documents concernés et les prérequis techniques. Un arbre inattendu, un test rouge ou une décision produit ambiguë bloque le départ.
 
-Chaque lot de code est suivi d’un retour factuel à Aurélien — comportement livré, preuves automatisées et comportementales, limites — avant qu’un nouveau brief Codex soit lancé.
+Chaque lot de code est suivi d’un retour factuel à Aurélien — comportement livré, preuves automatisées et comportementales, limites — avant qu’un nouveau lot soit lancé.
 
 ### 2. Brief borné
 
@@ -69,7 +66,7 @@ Un lot doit être cohérent sans viser « toute l’application » : typiquement
 
 ### 3. Implémentation
 
-Codex écrit le code dans la branche prévue. Hermes ne considère jamais son compte rendu comme une preuve suffisante.
+Hermes écrit le code dans la branche prévue. Le compte rendu d'implémentation n'est jamais considéré comme une preuve suffisante : seuls le diff relu et les contrôles exécutés font foi.
 
 ### 4. Revue — gate de révision
 
