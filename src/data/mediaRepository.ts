@@ -295,6 +295,11 @@ export function toArtwork(row: ArtworkRow): Artwork {
   })
 }
 
+export type SeriesSearchCriteria = {
+  query: string
+  category: SeriesCategory | 'all'
+}
+
 export class SqliteMediaRepository {
   private readonly loadDatabase: DatabaseLoader
   private readonly createId: IdFactory
@@ -318,6 +323,40 @@ export class SqliteMediaRepository {
        WHERE profile_id = $1
        ORDER BY title COLLATE NOCASE ASC, created_at ASC`,
       [profileId],
+    )
+
+    return rows.map(toSeries)
+  }
+
+  async searchSeries(profileId: string, criteria: SeriesSearchCriteria): Promise<Series[]> {
+    const database = await this.loadDatabase()
+    const clauses = ['profile_id = $1']
+    const bindValues: unknown[] = [profileId]
+    const query = criteria.query.trim()
+
+    if (query) {
+      bindValues.push(`%${escapeLikePattern(query)}%`)
+      const searchParameter = `$${bindValues.length}`
+      clauses.push(`(
+        title COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR showrunner COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR casting COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+      )`)
+    }
+
+    if (criteria.category !== 'all') {
+      bindValues.push(criteria.category)
+      clauses.push(`category = $${bindValues.length}`)
+    }
+
+    const rows = await database.select<SeriesRow[]>(
+      `SELECT ${SERIES_COLUMNS}
+       FROM series
+       WHERE ${clauses.join('\n         AND ')}
+       ORDER BY
+         COALESCE(progress_updated_at, updated_at) DESC,
+         title COLLATE NOCASE ASC`,
+      bindValues,
     )
 
     return rows.map(toSeries)
@@ -1024,6 +1063,10 @@ export class SqliteMediaRepository {
 
 function resolveInitialProgress(progress: number | null, now: string): string | null {
   return progress !== null && progress > 0 ? now : null
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&')
 }
 
 function resolveProgressTimestamp(

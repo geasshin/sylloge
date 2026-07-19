@@ -2249,4 +2249,106 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
 assert.match(libraryRepositorySource, /importLibraryDocumentAtomically/, 'Le repository de bibliothèque doit passer par l’import atomique natif')
 assert.match(libraryRepositorySource, /createId\(\)/, 'L’import v2 doit régénérer les identifiants dans le nouveau profil')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants.')
+// Jalon 0.4.3 — Séries : saisie manuelle, compteur de saisons et bascule Vue ↔ En cours.
+const seriesFormDomainSource = readFileSync(new URL('../src/domain/seriesForm.ts', import.meta.url), 'utf8')
+const seriesFormSource = readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8')
+const seriesDetailSource = readFileSync(new URL('../src/components/SeriesDetail.tsx', import.meta.url), 'utf8')
+const stepperSource = readFileSync(new URL('../src/components/Stepper.tsx', import.meta.url), 'utf8')
+const mainSource043 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+assert.match(seriesFormDomainSource, /resolveSeriesStatusForTotalChange/, 'La bascule Vue → En cours à nouvelle saison doit vivre dans le domaine')
+assert.match(seriesFormDomainSource, /values\.status === 'vue' && seasonsTotal !== null/, 'Marquer « vue » doit aligner les saisons vues sur le total')
+assert.match(seriesFormSource, /resolveSeriesStatusForTotalChange/, 'Le formulaire doit appliquer la bascule à la modification du total')
+assert.match(seriesFormSource, /next\.seasonsSeen = current\.seasonsTotal/, 'Marquer « vue » doit préremplir les saisons vues')
+assert.match(seriesFormSource, /<Stepper/, 'Le compteur de saisons doit utiliser les boutons +/−, pas un champ numérique brut')
+assert.match(stepperSource, /aria-label=\{`Ajouter 1 à \$\{label\}`\}/, 'Le bouton + doit rester accessible')
+assert.match(stepperSource, /aria-label=\{`Retirer 1 à \$\{label\}`\}/, 'Le bouton − doit rester accessible')
+assert.match(seriesDetailSource, /saison/, 'La fiche doit afficher l’avancement en saisons')
+assert.match(mainSource043, /icon\('series'\)\} Séries/, 'La sidebar doit proposer l’entrée Séries')
+assert.match(mainSource043, /SERIES_CATEGORY_FILTERS/, 'La bibliothèque Séries doit offrir les vues globale, télé et animation')
+assert.match(mainSource043, /searchSeries/, 'La recherche Séries doit reposer sur le repository')
+assert.match(mediaRepositorySource, /searchSeries/, 'Le repository doit exposer la recherche Séries')
+assert.match(mediaRepositorySource, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue récente Séries doit reposer sur l’horodatage interne de progression')
+
+{
+  const {
+    EMPTY_SERIES_FORM,
+    resolveSeriesStatusForTotalChange,
+    validateSeriesForm,
+  } = await import('../src/domain/seriesForm.ts')
+
+  const base = { ...EMPTY_SERIES_FORM, title: 'Série de test' }
+
+  const minimal = validateSeriesForm(base)
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer une série')
+
+  const noTitle = validateSeriesForm({ ...base, title: '   ' })
+  assert.equal(noTitle.success, false, 'Le titre reste obligatoire')
+
+  const markedSeen = validateSeriesForm({ ...base, status: 'vue', seasonsTotal: '8' })
+  assert.equal(markedSeen.success, true)
+  assert.equal(markedSeen.data.seasonsSeen, 8, 'Marquer « vue » doit aligner les saisons vues sur le total')
+
+  const seenWithoutTotal = validateSeriesForm({ ...base, status: 'vue', seasonsSeen: '3' })
+  assert.equal(seenWithoutTotal.success, false, 'Marquer « vue » sans total connu doit être expliqué')
+
+  const overflow = validateSeriesForm({ ...base, status: 'en cours', seasonsSeen: '9', seasonsTotal: '8' })
+  assert.equal(overflow.success, false, 'Les saisons vues ne peuvent pas dépasser le total')
+  assert.ok(overflow.errors.seasonsSeen, 'L’erreur doit cibler les saisons vues')
+
+  assert.equal(
+    resolveSeriesStatusForTotalChange('vue', 8, 8),
+    'vue',
+    'Une série à jour reste vue',
+  )
+  assert.equal(
+    resolveSeriesStatusForTotalChange('vue', 8, 9),
+    'en cours',
+    'Une nouvelle saison fait repasser une série vue en cours',
+  )
+  assert.equal(
+    resolveSeriesStatusForTotalChange('en cours', 3, 9),
+    'en cours',
+    'Une série en cours ne change pas de statut à nouvelle saison',
+  )
+
+  const badRating = validateSeriesForm({ ...base, rating: '4.3' })
+  assert.equal(badRating.success, false, 'La note doit rester par demi-points')
+
+  const badPoster = validateSeriesForm({ ...base, posterUrl: 'ftp://affiche.jpg' })
+  assert.equal(badPoster.success, false, 'L’affiche doit rester une URL http(s)')
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      return []
+    },
+    async execute() {
+      throw new Error('Aucune écriture attendue pendant la recherche')
+    },
+  }
+  const repository = new SqliteMediaRepository(async () => database)
+
+  await repository.searchSeries('default', { query: '', category: 'all' })
+  const globalQuery = calls.at(-1).query
+  assert.ok(!globalQuery.includes('category = $'), 'La vue globale ne doit pas filtrer par catégorie')
+  assert.match(globalQuery, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue récente doit trier par progression interne')
+
+  await repository.searchSeries('default', { query: '', category: 'animation' })
+  const animationQuery = calls.at(-1)
+  assert.match(animationQuery.query, /category = \$\d+/, 'La vue animation doit filtrer la catégorie')
+  assert.deepEqual(animationQuery.bindValues, ['default', 'animation'], 'Le filtre animation doit lier la catégorie demandée')
+
+  await repository.searchSeries('default', { query: 'lupin', category: 'série télé' })
+  const searchCall = calls.at(-1)
+  assert.match(searchCall.query, /showrunner COLLATE NOCASE LIKE/, 'La recherche doit couvrir le showrunner')
+  assert.match(searchCall.query, /casting COLLATE NOCASE LIKE/, 'La recherche doit couvrir le casting')
+  assert.deepEqual(searchCall.bindValues, ['default', '%lupin%', 'série télé'], 'La recherche doit lier requête et catégorie')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne.')

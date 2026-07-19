@@ -4,12 +4,15 @@ import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
+import { SeriesDetail } from './components/SeriesDetail.tsx'
+import { SeriesForm } from './components/SeriesForm.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { TmdbAssociationConfirm } from './components/TmdbAssociationConfirm.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
+import { mediaRepository, type SeriesSearchCriteria } from './data/mediaRepository.ts'
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { getFilmTmdbCache } from './data/tmdbService.ts'
 import {
@@ -20,9 +23,16 @@ import {
   type FilmFilter,
 } from './domain/film.ts'
 import type { FilmWriteInput } from './domain/filmForm.ts'
+import {
+  SERIES_CATEGORY_LABELS,
+  SERIES_STATUS_LABELS,
+  type Series,
+  type SeriesCategory,
+} from './domain/series.ts'
+import type { SeriesWriteInput } from './domain/seriesForm.ts'
 import './styles.css'
 
-type IconName = 'film' | 'home' | 'search' | 'settings'
+type IconName = 'film' | 'home' | 'search' | 'series' | 'settings'
 type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
@@ -37,10 +47,12 @@ const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
 
 type SidebarProps = {
   count: number | null
+  seriesCount: number | null
   currentProfileName: string | null
-  activeItem: 'home' | 'library' | 'settings'
+  activeItem: 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
+  onSeries: () => void
   onSettings: () => void
   settingsSection: SettingsSection
   onSettingsSection: (section: SettingsSection) => void
@@ -49,10 +61,12 @@ type SidebarProps = {
 
 function Sidebar({
   count,
+  seriesCount,
   currentProfileName,
   activeItem,
   onHome,
   onLibrary,
+  onSeries,
   onSettings,
   settingsSection,
   onSettingsSection,
@@ -100,6 +114,15 @@ function Sidebar({
           >
             {icon('film')} Films
             {count !== null && <span className="nav-count">{count}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'series' ? 'active' : ''}`}
+            type="button"
+            onClick={onSeries}
+            aria-current={activeItem === 'series' ? 'page' : undefined}
+          >
+            {icon('series')} Séries
+            {seriesCount !== null && <span className="nav-count">{seriesCount}</span>}
           </button>
         </nav>
       )}
@@ -541,9 +564,154 @@ type LibraryState =
   | { status: 'ready'; library: FilmLibrary }
   | { status: 'error' }
 
+type SeriesCategoryFilter = SeriesCategory | 'all'
+
+const SERIES_CATEGORY_FILTERS: Array<{ id: SeriesCategoryFilter; label: string }> = [
+  { id: 'all', label: 'Toutes' },
+  { id: 'série télé', label: SERIES_CATEGORY_LABELS['série télé'] },
+  { id: 'animation', label: SERIES_CATEGORY_LABELS.animation },
+]
+
+function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) {
+  const progress = series.seasonsSeen !== null && series.seasonsTotal !== null
+    ? `${series.seasonsSeen} / ${series.seasonsTotal} saisons`
+    : null
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${series.title}`}>
+      <Poster title={series.title} src={series.posterUrl} />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{series.title}</b>
+          {series.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {series.showrunner && <small>{series.showrunner}</small>}
+        <span className={`status-line ${series.status === 'à voir' ? 'to-discover' : ''}`}>
+          {SERIES_STATUS_LABELS[series.status]}
+          {progress ? ` · ${progress}` : ''}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+type SeriesLibraryProps = {
+  profileName: string
+  collection: Series[]
+  context: SeriesSearchCriteria
+  searchState: SeriesSearchState
+  onContextChange: (context: SeriesSearchCriteria) => void
+  onRetrySearch: () => void
+  onCreate: () => void
+  onOpen: (series: Series) => void
+}
+
+type SeriesSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; series: Series[] }
+  | { status: 'error' }
+
+function SeriesLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+}: SeriesLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all'
+  const resultCount = searchState.status === 'ready' ? searchState.series.length : null
+
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Séries</h1>
+        </div>
+        <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
+      </header>
+
+      {collection.length === 0 && isUnfiltered ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Séries est vide.</h2>
+          <p>Ajoutez une première série, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une série</button>
+        </div>
+      ) : (
+        <>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, showrunner ou casting"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <div className="filters" role="group" aria-label="Filtrer les séries">
+              {SERIES_CATEGORY_FILTERS.map((filter) => (
+                <button
+                  className={`filter ${context.category === filter.id ? 'active' : ''}`}
+                  type="button"
+                  aria-pressed={context.category === filter.id}
+                  key={filter.id}
+                  onClick={() => onContextChange({ ...context, category: filter.id })}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="collection-meta" aria-live="polite">
+            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
+              <p>{resultCount} {resultCount === 1 ? 'série affichée' : 'séries affichées'}</p>
+            )}
+          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos séries restent enregistrées. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.series.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucune série ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à toutes les séries.</p>
+              <button
+                className="state-action"
+                type="button"
+                onClick={() => onContextChange({ query: '', category: 'all' })}
+              >
+                Afficher toutes les séries
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+              {searchState.series.map((series) => (
+                <SeriesCard series={series} key={series.id} onOpen={() => onOpen(series)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </main>
+  )
+}
+
 type View =
   | { name: 'home' }
   | { name: 'library' }
+  | { name: 'series' }
   | { name: 'settings' }
   | { name: 'create-choice' }
   | { name: 'create' }
@@ -552,6 +720,9 @@ type View =
   | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
+  | { name: 'series-create' }
+  | { name: 'series-detail'; seriesId: string }
+  | { name: 'series-edit'; seriesId: string }
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
@@ -624,6 +795,10 @@ function App() {
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
   const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', filter: 'all' })
+  const [seriesCollection, setSeriesCollection] = useState<Series[]>([])
+  const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
+  const [seriesContext, setSeriesContext] = useState<SeriesSearchCriteria>({ query: '', category: 'all' })
+  const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -655,6 +830,45 @@ function App() {
       cancelled = true
     }
   }, [loadAttempt])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listSeries(libraryState.library.profile.id).then(
+      (series) => { if (!cancelled) setSeriesCollection(series) },
+      (error: unknown) => {
+        console.error('Impossible de charger les séries depuis SQLite.', error)
+        if (!cancelled) setSeriesCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setSeriesSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      mediaRepository.searchSeries(libraryState.library.profile.id, seriesContext).then(
+        (series) => {
+          if (!cancelled) setSeriesSearchState({ status: 'ready', series })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les séries dans SQLite.', error)
+          if (!cancelled) setSeriesSearchState({ status: 'error' })
+        },
+      )
+    }, seriesContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [seriesContext, libraryState, seriesSearchAttempt])
 
   useEffect(() => {
     let cancelled = false
@@ -749,6 +963,7 @@ function App() {
   }
 
   const count = libraryState.status === 'ready' ? libraryState.library.films.length : null
+  const seriesCount = libraryState.status === 'ready' ? seriesCollection.length : null
   let content
 
   if (libraryState.status === 'loading') {
@@ -955,6 +1170,101 @@ function App() {
         />
       )
     }
+  } else if (view.name === 'series') {
+    content = (
+      <SeriesLibrary
+        profileName={libraryState.library.profile.name}
+        collection={seriesCollection}
+        context={seriesContext}
+        searchState={seriesSearchState}
+        onContextChange={setSeriesContext}
+        onRetrySearch={() => setSeriesSearchAttempt((attempt) => attempt + 1)}
+        onCreate={() => leaveLibrary({ name: 'series-create' })}
+        onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
+      />
+    )
+  } else if (view.name === 'series-create') {
+    const { library } = libraryState
+    content = (
+      <SeriesForm
+        onCancel={returnToLibrary}
+        onSave={async (input: SeriesWriteInput) => {
+          const series = await mediaRepository.createSeries(library.profile.id, input)
+          setSeriesCollection((current) => [...current, series])
+          requestAutomaticBackup(library)
+          setView({ name: 'series-detail', seriesId: series.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'series-detail') {
+    const { library } = libraryState
+    const series = seriesCollection.find((entry) => entry.id === view.seriesId)
+    if (!series) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'series' })}>
+              ← Retour aux séries
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette série ne peut pas être ouverte.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <SeriesDetail
+          series={series}
+          onBack={() => setView({ name: 'series' })}
+          backLabel="← Retour aux séries"
+          onEdit={() => setView({ name: 'series-edit', seriesId: view.seriesId })}
+          onDelete={async () => {
+            await mediaRepository.deleteSeries(library.profile.id, view.seriesId)
+            setSeriesCollection((current) => current.filter((entry) => entry.id !== view.seriesId))
+            requestAutomaticBackup(library)
+            setView({ name: 'series' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'series-edit') {
+    const { library } = libraryState
+    const series = seriesCollection.find((entry) => entry.id === view.seriesId)
+    if (!series) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'series' })}>
+              ← Retour aux séries
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette série ne peut pas être modifiée.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <SeriesForm
+          series={series}
+          onCancel={() => setView({ name: 'series-detail', seriesId: view.seriesId })}
+          onSave={async (input: SeriesWriteInput) => {
+            const updatedAt = await mediaRepository.updateSeries(library.profile.id, view.seriesId, input)
+            const refreshed = await mediaRepository.getSeries(library.profile.id, view.seriesId)
+            setSeriesCollection((current) => current.map((entry) => entry.id === view.seriesId
+              ? (refreshed ?? { ...entry, ...input, updatedAt })
+              : entry))
+            requestAutomaticBackup(library)
+            setView({ name: 'series-detail', seriesId: view.seriesId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
   } else {
     content = (
       <FilmsLibrary
@@ -973,10 +1283,20 @@ function App() {
     <div className="app">
       <Sidebar
         count={count}
+        seriesCount={seriesCount}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
-        activeItem={libraryState.status !== 'ready' || view.name === 'home' ? 'home' : view.name === 'settings' ? 'settings' : 'library'}
+        activeItem={
+          libraryState.status !== 'ready' || view.name === 'home'
+            ? 'home'
+            : view.name === 'settings'
+              ? 'settings'
+              : view.name === 'series' || view.name === 'series-create' || view.name === 'series-detail' || view.name === 'series-edit'
+                ? 'series'
+                : 'library'
+        }
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
+        onSeries={() => leaveLibrary({ name: 'series' })}
         onSettings={() => showSettingsSection('profiles')}
         settingsSection={settingsSection}
         onSettingsSection={showSettingsSection}

@@ -152,6 +152,9 @@ nav { display: flex; flex-direction: column; gap: 3px; }
 .icon-settings { border: 1.5px solid currentColor; border-radius: 50%; width: 15px; height: 15px; margin: 1px; }
 .icon-settings:before { content: ""; position: absolute; inset: 4px; border: 1.5px solid currentColor; border-radius: 50%; }
 .icon-settings:after { content: ""; position: absolute; inset: -3px; border-top: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; border-radius: 50%; transform: rotate(45deg); }
+.icon-series { border: 1.5px solid currentColor; border-radius: 2px; }
+.icon-series:before { content: ""; position: absolute; left: 2px; right: 2px; top: 3px; height: 4px; border: 1.5px solid currentColor; border-radius: 1px; }
+.icon-series:after { content: ""; position: absolute; left: 2px; right: 2px; bottom: 3px; height: 4px; border: 1.5px solid currentColor; border-radius: 1px; }
 
 .main { margin-left: 225px; width: calc(100% - 225px); min-height: 100vh; }
 
@@ -376,6 +379,25 @@ nav { display: flex; flex-direction: column; gap: 3px; }
 .secondary-fields { border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); padding: 16px 0; }
 .secondary-fields summary { width: fit-content; color: var(--color-accent); font-size: 13px; font-weight: 650; cursor: pointer; }
 .secondary-fields-content { display: grid; gap: 19px; padding-top: 21px; }
+
+.progress-fields { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 16px; margin: 0; }
+.progress-fields legend { padding: 0 8px; color: var(--color-text-muted); font-size: 12px; font-weight: 650; letter-spacing: 0.04em; }
+.stepper-field { gap: 8px; }
+.stepper { display: flex; align-items: stretch; gap: 8px; }
+.stepper-button {
+  width: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.stepper-button:hover:not(:disabled) { background: var(--color-accent-soft); border-color: var(--color-accent); }
+.stepper-button:disabled { opacity: 0.4; cursor: not-allowed; }
+.stepper-input { flex: 1; text-align: center; }
 .form-error { margin: 0; padding: 12px; border-radius: var(--radius-control); background: var(--color-danger-soft); color: var(--color-danger); font-size: 13px; line-height: 1.5; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 5px; }
 
