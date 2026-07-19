@@ -1979,4 +1979,175 @@ mod tests {
             );
         });
     }
+
+    async fn test_pool_with_tmdb_migrations() -> sqlx::SqlitePool {
+        let pool = test_pool().await;
+        for migration in [
+            include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
+            include_str!("../migrations/0009_add_selected_poster_url.sql"),
+        ] {
+            sqlx::raw_sql(migration)
+                .execute(&pool)
+                .await
+                .expect("migration TMDB de test");
+        }
+        pool
+    }
+
+    #[test]
+    fn export_query_never_surfaces_tmdb_cache_data() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-19T10:00:00.000Z".to_string();
+            let payload = ImportLibraryPayload {
+                profile: ImportProfile {
+                    id: "export-profile".to_string(),
+                    name: "Profil export".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "export-film".to_string(),
+                    profile_id: "export-profile".to_string(),
+                    title: "Film associé TMDB".to_string(),
+                    original_title: None,
+                    year: Some(2024),
+                    status: "terminé".to_string(),
+                    is_favorite: false,
+                    rating: Some(4.0),
+                    watched_at: Some("2026-07-18".to_string()),
+                    personal_note: Some("Note personnelle.".to_string()),
+                    director: Some("Réalisatrice".to_string()),
+                    summary: None,
+                    provider_name: None,
+                    provider_id: None,
+                    poster_url: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+            };
+            write_import(&pool, &payload).await.expect("import du film");
+
+            // Une ligne de cache TMDB existe pour ce film, avec une affiche choisie.
+            sqlx::query(
+                "INSERT INTO film_tmdb_cache
+                 (film_id, tmdb_id, language, payload_json, fetched_at, refresh_after, expires_at, selected_poster_url)
+                 VALUES ($1, 550, 'fr-FR', $2, '2026-07-19T10:00:00Z', '2026-10-07T10:00:00Z', '2027-01-15T10:00:00Z', 'https://image.tmdb.org/t/p/w500/choisie.jpg')",
+            )
+            .bind("export-film")
+            .bind("{\"title\":\"Fight Club\",\"posterUrl\":\"https://image.tmdb.org/t/p/w500/principale.jpg\"}")
+            .execute(&pool)
+            .await
+            .expect("insertion du cache TMDB");
+
+            // La requête d'export relit exclusivement les colonnes de la table films.
+            #[derive(sqlx::FromRow)]
+            struct ExportedFilmRow {
+                id: String,
+                original_title: Option<String>,
+                provider_name: Option<String>,
+                provider_id: Option<String>,
+                poster_url: Option<String>,
+            }
+            let exported: Vec<ExportedFilmRow> = sqlx::query_as(
+                "SELECT id, original_title, provider_name, provider_id, poster_url
+                     FROM films WHERE profile_id = $1",
+            )
+            .bind("export-profile")
+            .fetch_all(&pool)
+            .await
+            .expect("relecture export");
+
+            assert_eq!(exported.len(), 1);
+            let exported = &exported[0];
+            assert_eq!(exported.id, "export-film");
+            assert_eq!(exported.original_title, None);
+            assert_eq!(exported.provider_name, None);
+            assert_eq!(exported.provider_id, None);
+            assert_eq!(
+                exported.poster_url, None,
+                "l'affiche choisie dans le cache TMDB ne doit jamais fuiter dans l'export"
+            );
+
+            // Aucun champ issu du cache n'existe dans le modèle exporté.
+            let column_names: Vec<(String,)> =
+                sqlx::query_as("SELECT name FROM pragma_table_info('films')")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("colonnes films");
+            for (name,) in column_names {
+                assert!(
+                    !name.contains("tmdb"),
+                    "la table films ne doit contenir aucune colonne TMDB : {name}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn historical_v1_export_reimports_on_migrated_database() {
+        tauri::async_runtime::block_on(async {
+            // Base complète, y compris les migrations TMDB 8 et 9.
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-01T08:00:00.000Z".to_string();
+            // Export v1 historique : provenance partielle (provider_id seul),
+            // chaînes facultatives vides — la canonisation non destructive doit s'appliquer.
+            let payload = ImportLibraryPayload {
+                profile: ImportProfile {
+                    id: "profil-lys".to_string(),
+                    name: "=Carnet, \"été\"".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "film-cafe".to_string(),
+                    profile_id: "profil-lys".to_string(),
+                    title: "+Café, \"matin\"".to_string(),
+                    original_title: Some(String::new()),
+                    year: Some(2024),
+                    status: "terminé".to_string(),
+                    is_favorite: true,
+                    rating: Some(4.5),
+                    watched_at: Some("2026-07-17".to_string()),
+                    personal_note: Some(
+                        "-Première note.\nDeuxième ligne, avec \"guillemets\".".to_string(),
+                    ),
+                    director: Some("Anaïs Vert".to_string()),
+                    summary: Some(String::new()),
+                    provider_name: Some(String::new()),
+                    provider_id: Some("source-ete-42".to_string()),
+                    poster_url: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp,
+                }],
+            };
+
+            write_import(&pool, &payload)
+                .await
+                .expect("réimport de l'export v1 historique");
+
+            let stored: (Option<String>, Option<String>, Option<String>, i64, f64) =
+                sqlx::query_as(
+                    "SELECT original_title, provider_name, provider_id, is_favorite, rating
+                     FROM films WHERE id = 'film-cafe'",
+                )
+                .fetch_one(&pool)
+                .await
+                .expect("relecture du film réimporté");
+            assert_eq!(
+                stored,
+                (None, None, None, 1, 4.5),
+                "la canonisation v1 doit vider les chaînes vides et la provenance partielle, sans toucher aux autres valeurs"
+            );
+
+            let cache_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM film_tmdb_cache")
+                .fetch_one(&pool)
+                .await
+                .expect("compte du cache TMDB");
+            assert_eq!(
+                cache_count.0, 0,
+                "l'import d'un export v1 ne doit créer aucune ligne de cache TMDB"
+            );
+        });
+    }
 }

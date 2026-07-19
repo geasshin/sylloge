@@ -1698,6 +1698,10 @@ const csvImportSource = readFileSync(new URL('../src/domain/filmCsvImport.ts', i
 const backupServiceSource = readFileSync(new URL('../src/data/backupService.ts', import.meta.url), 'utf8')
 const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePortability.ts', import.meta.url), 'utf8')
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
+// Le code de production de portability.rs s'arrête avant `mod tests` : les tests
+// d'intégration manipulent volontairement le cache TMDB pour prouver son exclusion,
+// ils ne doivent donc pas être soumis à la garde d'exclusion des sources portables.
+const nativePortabilityProductionSource = nativePortabilitySource.split('\nmod tests {')[0]
 const tauriLibrarySource = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 const tmdbModuleSource = readFileSync(new URL('../src-tauri/src/tmdb/mod.rs', import.meta.url), 'utf8')
 const tmdbCacheSource = readFileSync(new URL('../src-tauri/src/tmdb/cache.rs', import.meta.url), 'utf8')
@@ -1819,9 +1823,11 @@ assert.match(nativePortabilitySource, /\.begin\(\)/, 'L’import doit démarrer 
 assert.match(nativePortabilitySource, /\.commit\(\)/, 'L’import doit valider explicitement la transaction SQLite')
 assert.match(nativePortabilitySource, /write_snapshot_atomically/, 'Les snapshots doivent passer par une écriture atomique native')
 assert.match(nativePortabilitySource, /SNAPSHOT_RETENTION_COUNT: usize = 30/, 'La rétention native doit être limitée à 30 snapshots')
-for (const portableSource of [transferSource, csvTransferSource, backupServiceSource, nativePortabilitySource]) {
-  assert.doesNotMatch(portableSource, /film_tmdb_cache|payload_json|refresh_after|expires_at|CachedFilmTmdbPresentationDto/, 'Le cache TMDB doit rester inaccessible aux exports et snapshots portables')
+for (const portableSource of [transferSource, csvTransferSource, backupServiceSource, nativePortabilityProductionSource]) {
+  assert.doesNotMatch(portableSource, /film_tmdb_cache|payload_json|refresh_after|expires_at|CachedFilmTmdbPresentationDto/, 'Le cache TMDB doit rester inaccessible aux exports et snapshots portables (code de production)')
 }
+assert.match(nativePortabilitySource, /export_query_never_surfaces_tmdb_cache_data/, 'Un test d’intégration doit prouver qu’un export ne remonte jamais le cache TMDB')
+assert.match(nativePortabilitySource, /historical_v1_export_reimports_on_migrated_database/, 'Un test d’intégration doit prouver le réimport d’un export v1 historique sur base migrée TMDB')
 assert.match(tmdbClientSource, /deny_unknown_fields/, 'Le payload de cache doit refuser les champs TMDB bruts supplémentaires')
 assert.match(tmdbCacheSource, /REFRESH_AFTER_DAYS: i64 = 80/, 'Le cache TMDB doit devenir renouvelable à 80 jours')
 assert.match(tmdbCacheSource, /EXPIRES_AFTER_DAYS: i64 = 180/, 'Le cache TMDB doit rester strictement expirant à 180 jours')
