@@ -1,5 +1,6 @@
 mod database;
 mod portability;
+mod profiles;
 mod tmdb;
 mod updater_preferences;
 
@@ -26,6 +27,13 @@ pub fn run() {
             portability::save_automatic_backup_snapshot,
             portability::import_library_atomically,
             portability::import_library_document_atomically,
+            portability::import_films_into_profile,
+            portability::import_series_into_profile,
+            profiles::list_profiles,
+            profiles::create_profile,
+            profiles::rename_profile,
+            profiles::delete_profile,
+            profiles::select_profile,
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,

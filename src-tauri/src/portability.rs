@@ -116,7 +116,7 @@ struct ImportProfile {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportFilm {
+pub struct ImportFilm {
     id: String,
     profile_id: String,
     title: String,
@@ -138,7 +138,7 @@ struct ImportFilm {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportSeries {
+pub struct ImportSeries {
     id: String,
     profile_id: String,
     title: String,
@@ -248,6 +248,86 @@ pub struct ImportLibraryDocumentResult {
     book_count: usize,
     game_count: usize,
     artwork_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PickedAnyImportFile {
+    name: String,
+    /// Type détecté côté natif : "json" | "csv" | "notion".
+    kind: String,
+    /// Contenu texte pour JSON/CSV ; None pour un ZIP Notion (binaire).
+    contents: Option<String>,
+    /// Pour un ZIP Notion : candidats CSV et pages Markdown extraits.
+    csv_candidates: Vec<CsvImportCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+}
+
+/// Sélecteur d'import unifié (jalon 0.4.4) : accepte JSON Sylloge, CSV et
+/// ZIP Notion, et détecte le type pour que l'interface lance le bon parcours.
+#[tauri::command]
+pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFile>, String> {
+    let Some(file_path) = app
+        .dialog()
+        .file()
+        .add_filter("Import Sylloge (JSON, CSV, Notion)", &["json", "csv", "zip"])
+        .set_title("Choisir un fichier à importer")
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("import")
+        .to_string();
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match extension.as_str() {
+        "json" => {
+            let contents = read_utf8_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?;
+            Ok(Some(PickedAnyImportFile {
+                name,
+                kind: "json".to_string(),
+                contents: Some(contents),
+                csv_candidates: Vec::new(),
+                markdown_pages: Vec::new(),
+            }))
+        }
+        "csv" => {
+            let contents = read_utf8_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?;
+            Ok(Some(PickedAnyImportFile {
+                csv_candidates: vec![CsvImportCandidate {
+                    id: "csv-0".to_string(),
+                    name: name.clone(),
+                    contents,
+                }],
+                name,
+                kind: "csv".to_string(),
+                contents: None,
+                markdown_pages: Vec::new(),
+            }))
+        }
+        "zip" => {
+            let extracted = extract_notion_zip(&name, &read_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?)?;
+            Ok(Some(PickedAnyImportFile {
+                name,
+                kind: "notion".to_string(),
+                contents: None,
+                csv_candidates: extracted.csv_candidates,
+                markdown_pages: extracted.markdown_pages,
+            }))
+        }
+        _ => Err("Choisissez un fichier JSON, CSV ou ZIP Notion.".to_string()),
+    }
 }
 
 #[tauri::command]
@@ -668,7 +748,7 @@ pub async fn import_library_document_atomically(
     })
 }
 
-async fn sqlite_pool(db_instances: &DbInstances) -> Result<sqlx::SqlitePool, String> {
+pub async fn sqlite_pool(db_instances: &DbInstances) -> Result<sqlx::SqlitePool, String> {
     let instances = db_instances.0.read().await;
     let database = instances
         .get(DATABASE_URL)
@@ -1489,6 +1569,336 @@ fn canonical_provenance<'a>(
     } else {
         (None, None)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Jalon 0.4.4 — imports unitaires dans le profil courant (remplacer/fusionner)
+// ---------------------------------------------------------------------------
+
+/// Plan d'écriture d'un import unitaire préparé côté interface : insertions,
+/// mises à jour (fusion ou remplacement d'un doublon) et — en mode
+/// « Remplacer » — vidage préalable de la collection du profil courant.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectionImportPlan<F> {
+    pub profile_id: String,
+    /// Vider la collection du profil avant d'écrire (mode « Remplacer »).
+    pub replace_existing: bool,
+    pub inserts: Vec<F>,
+    pub updates: Vec<F>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectionImportResult {
+    pub inserted: usize,
+    pub updated: usize,
+    pub removed: usize,
+}
+
+#[tauri::command]
+pub async fn import_films_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportFilm>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_films_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_series_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportSeries>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_series_import_plan(&pool, &plan).await
+}
+
+async fn write_films_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportFilm>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|f| f.profile_id.as_str())
+            .chain(plan.updates.iter().map(|f| f.profile_id.as_str())),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Films : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        let result = sqlx::query("DELETE FROM films WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Films : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for film in &plan.updates {
+        upsert_film(&mut transaction, film, true).await?;
+    }
+    for film in &plan.inserts {
+        upsert_film(&mut transaction, film, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Films : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+async fn write_series_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportSeries>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|s| s.profile_id.as_str())
+            .chain(plan.updates.iter().map(|s| s.profile_id.as_str())),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Séries : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        let result = sqlx::query("DELETE FROM series WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Séries : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for series in &plan.updates {
+        upsert_series(&mut transaction, series, true).await?;
+    }
+    for series in &plan.inserts {
+        upsert_series(&mut transaction, series, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Séries : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+fn validate_plan_profile<'a>(
+    profile_id: &str,
+    mut item_profiles: impl Iterator<Item = &'a str>,
+) -> Result<(), String> {
+    if profile_id.trim().is_empty() {
+        return Err("Le profil cible de l’import est invalide.".to_string());
+    }
+    if item_profiles.any(|id| id != profile_id) {
+        return Err("Un élément de l’import ne cible pas le profil courant.".to_string());
+    }
+    Ok(())
+}
+
+async fn upsert_film(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    film: &ImportFilm,
+    is_update: bool,
+) -> Result<(), String> {
+    let original_title = canonical_optional_text(&film.original_title);
+    let watched_at = canonical_optional_text(&film.watched_at);
+    let personal_note = canonical_optional_text(&film.personal_note);
+    let director = canonical_optional_text(&film.director);
+    let summary = canonical_optional_text(&film.summary);
+    let poster_url = canonical_optional_text(&film.poster_url);
+    let (provider_name, provider_id) = canonical_provenance(&film.provider_name, &film.provider_id);
+
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE films SET
+                title = $3, original_title = $4, year = $5, status = $6, is_favorite = $7,
+                rating = $8, watched_at = $9, personal_note = $10, director = $11, summary = $12,
+                provider_name = $13, provider_id = $14, poster_url = $15, updated_at = $16
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&film.id)
+        .bind(&film.profile_id)
+        .bind(&film.title)
+        .bind(original_title)
+        .bind(film.year)
+        .bind(&film.status)
+        .bind(if film.is_favorite { 1 } else { 0 })
+        .bind(film.rating)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
+        .bind(&film.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour le film « {} » : {error}",
+                film.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO films (
+                id, profile_id, title, original_title, year, status, is_favorite, rating,
+                watched_at, personal_note, director, summary, provider_name, provider_id,
+                poster_url, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+             )",
+        )
+        .bind(&film.id)
+        .bind(&film.profile_id)
+        .bind(&film.title)
+        .bind(original_title)
+        .bind(film.year)
+        .bind(&film.status)
+        .bind(if film.is_favorite { 1 } else { 0 })
+        .bind(film.rating)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
+        .bind(&film.created_at)
+        .bind(&film.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le film « {} » : {error}", film.title))?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture du film « {} » n’a modifié aucune ligne SQLite.",
+            film.title
+        ));
+    }
+
+    Ok(())
+}
+
+async fn upsert_series(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    series: &ImportSeries,
+    is_update: bool,
+) -> Result<(), String> {
+    let showrunner = canonical_optional_text(&series.showrunner);
+    let casting = canonical_optional_text(&series.casting);
+    let summary = canonical_optional_text(&series.summary);
+    let progress_updated_at = canonical_optional_text(&series.progress_updated_at);
+    let started_at = canonical_optional_text(&series.started_at);
+    let poster_url = canonical_optional_text(&series.poster_url);
+    let personal_note = canonical_optional_text(&series.personal_note);
+
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE series SET
+                title = $3, showrunner = $4, casting = $5, summary = $6, category = $7,
+                status = $8, rating = $9, is_favorite = $10, seasons_seen = $11,
+                seasons_total = $12, progress_updated_at = $13, started_at = $14,
+                poster_url = $15, personal_note = $16, updated_at = $17
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&series.id)
+        .bind(&series.profile_id)
+        .bind(&series.title)
+        .bind(showrunner)
+        .bind(casting)
+        .bind(summary)
+        .bind(&series.category)
+        .bind(&series.status)
+        .bind(series.rating)
+        .bind(if series.is_favorite { 1 } else { 0 })
+        .bind(series.seasons_seen)
+        .bind(series.seasons_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(poster_url)
+        .bind(personal_note)
+        .bind(&series.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour la série « {} » : {error}",
+                series.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO series (
+                id, profile_id, title, showrunner, casting, summary, category, status, rating,
+                is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
+                poster_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&series.id)
+        .bind(&series.profile_id)
+        .bind(&series.title)
+        .bind(showrunner)
+        .bind(casting)
+        .bind(summary)
+        .bind(&series.category)
+        .bind(&series.status)
+        .bind(series.rating)
+        .bind(if series.is_favorite { 1 } else { 0 })
+        .bind(series.seasons_seen)
+        .bind(series.seasons_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(poster_url)
+        .bind(personal_note)
+        .bind(&series.created_at)
+        .bind(&series.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer la série « {} » : {error}",
+                series.title
+            )
+        })?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture de la série « {} » n’a modifié aucune ligne SQLite.",
+            series.title
+        ));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

@@ -11,8 +11,22 @@ import { TmdbAssociationConfirm } from './components/TmdbAssociationConfirm.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
-import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
+import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
+import { profilesRepository, type ProfileSummary } from './data/profilesRepository.ts'
 import { mediaRepository, type SeriesSearchCriteria } from './data/mediaRepository.ts'
+import { LibraryImportButton } from './components/LibraryImportButton.tsx'
+import {
+  createLibraryExport,
+  exportFileName,
+  serializeLibraryExport,
+} from './domain/libraryTransfer.ts'
+import { saveExportJson } from './data/nativePortability.ts'
+import { libraryRepository } from './data/libraryRepository.ts'
+import {
+  createLibraryDocument,
+  libraryExportFileName,
+  serializeLibraryDocument,
+} from './domain/libraryDocument.ts'
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { getFilmTmdbCache } from './data/tmdbService.ts'
 import {
@@ -184,6 +198,67 @@ function LoadingState() {
       <h2>Chargement des films</h2>
       <p>Lecture de la collection enregistrée sur cet appareil.</p>
     </div>
+  )
+}
+
+type OnboardingProps = {
+  onProfileReady: () => void
+}
+
+/** Écran de premier lancement : créer un profil ou importer une bibliothèque. */
+function Onboarding({ onProfileReady }: OnboardingProps) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const createProfile = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await profilesRepository.create(trimmed)
+      onProfileReady()
+    } catch (cause) {
+      console.error('Impossible de créer le profil de premier lancement.', cause)
+      setError(cause instanceof Error ? cause.message : 'Le profil n’a pas pu être créé.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="main onboarding-main" aria-label="Premier lancement">
+      <div className="onboarding-content">
+        <p className="eyebrow">Bienvenue</p>
+        <h1 className="display-title">Sylloge</h1>
+        <p className="onboarding-intro">
+          Votre bibliothèque culturelle personnelle, locale et durable. Commencez par créer un profil :
+          il regroupera vos cinq collections (Films, Séries, Livres, Jeux et Art) sur cet appareil.
+        </p>
+        <form className="onboarding-form" onSubmit={createProfile}>
+          <label>
+            <span>Nom du profil</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Par exemple votre prénom"
+              maxLength={60}
+              autoFocus
+            />
+          </label>
+          <button className="primary-button" type="submit" disabled={busy || !name.trim()}>
+            {busy ? 'Création…' : 'Créer mon profil'}
+          </button>
+        </form>
+        {error && <p className="inline-report error" role="alert">{error}</p>}
+        <p className="onboarding-hint">
+          Vous pourrez ensuite importer une bibliothèque existante depuis les Paramètres, ou ajouter vos œuvres à la main.
+        </p>
+      </div>
+    </main>
   )
 }
 
@@ -466,6 +541,7 @@ type FilmsLibraryProps = {
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (film: Film) => void
+  onLibraryChanged: () => void
 }
 
 function FilmsLibrary({
@@ -476,9 +552,23 @@ function FilmsLibrary({
   onRetrySearch,
   onCreate,
   onOpen,
+  onLibraryChanged,
 }: FilmsLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.filter === 'all'
   const resultCount = searchState.status === 'ready' ? searchState.films.length : null
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+
+  const exportLibrary = async () => {
+    setExportMessage(null)
+    try {
+      const document = createLibraryExport({ profile: library.profile, films: library.films })
+      const savedName = await saveExportJson(exportFileName(document.exportedAt), serializeLibraryExport(document))
+      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
+    } catch (error) {
+      console.error('Impossible d’exporter les Films.', error)
+      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
+    }
+  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
@@ -487,8 +577,20 @@ function FilmsLibrary({
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Films</h1>
         </div>
-        <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
+        <div className="library-header-actions">
+          <LibraryImportButton
+            kind="films"
+            buttonLabel="Importer"
+            mediumLabel="film"
+            profileId={library.profile.id}
+            existing={library.films}
+            onDone={onLibraryChanged}
+          />
+          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
+        </div>
       </header>
+      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
 
       {library.films.length === 0 && isUnfiltered ? (
         <EmptyLibrary onCreate={onCreate} />
@@ -562,6 +664,7 @@ function FilmsLibrary({
 type LibraryState =
   | { status: 'loading' }
   | { status: 'ready'; library: FilmLibrary }
+  | { status: 'no-profile' }
   | { status: 'error' }
 
 type SeriesCategoryFilter = SeriesCategory | 'all'
@@ -604,6 +707,8 @@ type SeriesLibraryProps = {
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (series: Series) => void
+  profileId: string
+  onLibraryChanged: () => void
 }
 
 type SeriesSearchState =
@@ -620,9 +725,30 @@ function SeriesLibrary({
   onRetrySearch,
   onCreate,
   onOpen,
+  profileId,
+  onLibraryChanged,
 }: SeriesLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.category === 'all'
   const resultCount = searchState.status === 'ready' ? searchState.series.length : null
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+
+  const exportLibrary = async () => {
+    setExportMessage(null)
+    try {
+      const library = await libraryRepository.loadLibrary(profileId)
+      const document = createLibraryDocument(
+        { ...library, films: [], books: [], games: [], artworks: [] },
+      )
+      const savedName = await saveExportJson(
+        libraryExportFileName(document.exportedAt),
+        serializeLibraryDocument(document),
+      )
+      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
+    } catch (error) {
+      console.error('Impossible d’exporter les Séries.', error)
+      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
+    }
+  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
@@ -631,8 +757,20 @@ function SeriesLibrary({
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Séries</h1>
         </div>
-        <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
+        <div className="library-header-actions">
+          <LibraryImportButton
+            kind="series"
+            buttonLabel="Importer"
+            mediumLabel="série"
+            profileId={profileId}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
+        </div>
       </header>
+      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
 
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
@@ -813,15 +951,34 @@ function App() {
     let cancelled = false
     setLibraryState({ status: 'loading' })
 
-    Promise.all([filmsRepository.loadCurrentLibrary(), filmsRepository.listProfiles()]).then(
-      ([library, availableProfiles]) => {
-        if (!cancelled) {
-          setLibraryState({ status: 'ready', library })
-          setProfiles(availableProfiles)
+    profilesRepository.list().then(
+      async (availableProfiles) => {
+        if (cancelled) return
+        setProfiles(availableProfiles)
+
+        if (availableProfiles.length === 0) {
+          setLibraryState({ status: 'no-profile' })
+          return
+        }
+
+        try {
+          const library = await filmsRepository.loadCurrentLibrary()
+          if (!cancelled) setLibraryState({ status: 'ready', library })
+        } catch (error) {
+          // Aucun profil courant valide : ouvrir le premier profil disponible.
+          console.warn('Aucun profil courant valide, ouverture du premier profil.', error)
+          try {
+            await profilesRepository.open(availableProfiles[0].id)
+            const library = await filmsRepository.loadCurrentLibrary()
+            if (!cancelled) setLibraryState({ status: 'ready', library })
+          } catch (secondError) {
+            console.error('Impossible de charger la bibliothèque Films depuis SQLite.', secondError)
+            if (!cancelled) setLibraryState({ status: 'error' })
+          }
         }
       },
       (error: unknown) => {
-        console.error('Impossible de charger la bibliothèque Films depuis SQLite.', error)
+        console.error('Impossible de charger les profils depuis SQLite.', error)
         if (!cancelled) setLibraryState({ status: 'error' })
       },
     )
@@ -984,6 +1141,8 @@ function App() {
         <ErrorState onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
       </main>
     )
+  } else if (libraryState.status === 'no-profile') {
+    content = <Onboarding onProfileReady={() => setLoadAttempt((attempt) => attempt + 1)} />
   } else if (view.name === 'home') {
     content = (
       <Home
@@ -1087,7 +1246,7 @@ function App() {
           setLibraryContext({ query: '', filter: 'all' })
           setLibraryState({ status: 'ready', library: importedLibrary })
           requestAutomaticBackup(importedLibrary)
-          filmsRepository.listProfiles().then(setProfiles, (error: unknown) => {
+          profilesRepository.list().then(setProfiles, (error: unknown) => {
             console.error('Impossible de rafraîchir la liste des profils.', error)
           })
         }}
@@ -1095,6 +1254,16 @@ function App() {
         availableUpdate={availableUpdate}
         onUpdateAvailable={setAvailableUpdate}
         onUpdateHandled={() => setAvailableUpdate(null)}
+        onProfilesChanged={() => {
+          profilesRepository.list().then(setProfiles, (error: unknown) => {
+            console.error('Impossible de rafraîchir la liste des profils.', error)
+          })
+        }}
+        onProfileDeleted={(deletedProfileId) => {
+          if (deletedProfileId === libraryState.library.profile.id) {
+            setLoadAttempt((attempt) => attempt + 1)
+          }
+        }}
       />
     )
   } else if (view.name === 'detail') {
@@ -1181,6 +1350,8 @@ function App() {
         onRetrySearch={() => setSeriesSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => leaveLibrary({ name: 'series-create' })}
         onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   } else if (view.name === 'series-create') {
@@ -1275,6 +1446,7 @@ function App() {
         onRetrySearch={() => setSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => leaveLibrary({ name: 'create-choice' })}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   }

@@ -1,0 +1,174 @@
+import { useState, type ReactNode } from 'react'
+import type { Film } from '../domain/film.ts'
+import type { Series } from '../domain/series.ts'
+import type {
+  DuplicateResolution,
+  FilmDuplicate,
+  SeriesDuplicate,
+} from '../domain/importMerge.ts'
+
+/**
+ * Parcours d'import unitaire dans une bibliothèque (jalon 0.4.4) :
+ * choix du fichier (détection automatique), aperçu, choix Remplacer/Fusionner,
+ * résolution individuelle des doublons, puis confirmation.
+ */
+
+export type CollectionImportStep = 'pick' | 'mode' | 'duplicates' | 'confirm' | 'done'
+
+export type CollectionImportState<F, D> = {
+  step: CollectionImportStep
+  fileName: string | null
+  importedCount: number
+  duplicates: D[]
+  resolutions: Map<string, DuplicateResolution>
+  imported: F[]
+  error: string | null
+  report: string | null
+}
+
+type ModeChoiceProps = {
+  mediumLabel: string
+  importedCount: number
+  existingCount: number
+  onChoose: (mode: 'replace' | 'merge') => void
+  onCancel: () => void
+}
+
+export function ImportModeChoice({ mediumLabel, importedCount, existingCount, onChoose, onCancel }: ModeChoiceProps) {
+  return (
+    <div className="assistant-content">
+      <p className="assistant-introduction">
+        {importedCount} {mediumLabel}{importedCount > 1 ? 's' : ''} détecté{importedCount > 1 ? 's' : ''} dans le fichier.
+        Votre collection actuelle en contient {existingCount}. Choisissez comment les importer.
+      </p>
+      <div className="assistant-choice-grid">
+        <button className="transfer-choice" type="button" onClick={() => onChoose('replace')}>
+          <span className="card-kicker">Repartir de zéro</span>
+          <b>Remplacer</b>
+          <small>Vide votre collection actuelle de {mediumLabel}s et installe uniquement le fichier importé.</small>
+        </button>
+        <button className="transfer-choice" type="button" onClick={() => onChoose('merge')}>
+          <span className="card-kicker">Conserver l’existant</span>
+          <b>Fusionner</b>
+          <small>Garde vos {mediumLabel}s actuels, ajoute les nouveautés et préserve vos notes et favoris.</small>
+        </button>
+      </div>
+      <div className="assistant-actions">
+        <button className="secondary-button" type="button" onClick={onCancel}>Annuler</button>
+      </div>
+    </div>
+  )
+}
+
+type DuplicateItemProps<F> = {
+  title: string
+  existing: F
+  imported: F
+  resolution: DuplicateResolution
+  onResolve: (resolution: DuplicateResolution) => void
+  renderSummary: (item: F, origin: 'existing' | 'imported') => ReactNode
+}
+
+function DuplicateItem<F>({ title, existing, imported, resolution, onResolve, renderSummary }: DuplicateItemProps<F>) {
+  return (
+    <div className="duplicate-item">
+      <p className="duplicate-title"><b>{title}</b></p>
+      <div className="duplicate-choices" role="group" aria-label={`Choisir la fiche à conserver pour ${title}`}>
+        <button
+          className={`duplicate-choice ${resolution === 'keep-existing' ? 'selected' : ''}`}
+          type="button"
+          onClick={() => onResolve('keep-existing')}
+          aria-pressed={resolution === 'keep-existing'}
+        >
+          <span className="card-kicker">Fiche actuelle</span>
+          {renderSummary(existing, 'existing')}
+        </button>
+        <button
+          className={`duplicate-choice ${resolution === 'keep-imported' ? 'selected' : ''}`}
+          type="button"
+          onClick={() => onResolve('keep-imported')}
+          aria-pressed={resolution === 'keep-imported'}
+        >
+          <span className="card-kicker">Fiche importée</span>
+          {renderSummary(imported, 'imported')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+type DuplicatesResolverProps<F, D extends { normalizedTitle: string; existing: F; imported: F }> = {
+  duplicates: D[]
+  resolutions: Map<string, DuplicateResolution>
+  onResolve: (normalizedTitle: string, resolution: DuplicateResolution) => void
+  onConfirm: () => void
+  onBack: () => void
+  renderSummary: (item: F, origin: 'existing' | 'imported') => ReactNode
+}
+
+export function DuplicatesResolver<F, D extends { normalizedTitle: string; existing: F; imported: F }>({
+  duplicates,
+  resolutions,
+  onResolve,
+  onConfirm,
+  onBack,
+  renderSummary,
+}: DuplicatesResolverProps<F, D>) {
+  return (
+    <div className="assistant-content">
+      <p className="assistant-introduction">
+        {duplicates.length} {duplicates.length === 1 ? 'doublon détecté' : 'doublons détectés'} (même titre).
+        Pour chacun, choisissez la fiche à conserver.
+      </p>
+      <div className="duplicates-list">
+        {duplicates.map((duplicate) => (
+          <DuplicateItem
+            key={duplicate.normalizedTitle}
+            title={duplicate.normalizedTitle}
+            existing={duplicate.existing}
+            imported={duplicate.imported}
+            resolution={resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'}
+            onResolve={(resolution) => onResolve(duplicate.normalizedTitle, resolution)}
+            renderSummary={renderSummary}
+          />
+        ))}
+      </div>
+      <div className="assistant-actions">
+        <button className="secondary-button" type="button" onClick={onBack}>Retour</button>
+        <button className="primary-button" type="button" onClick={onConfirm}>Confirmer la fusion</button>
+      </div>
+    </div>
+  )
+}
+
+// Helpers de résumé pour les deux médiums livrés -----------------------------
+
+export function filmSummary(film: Film, origin: 'existing' | 'imported'): ReactNode {
+  void origin
+  const details = [film.director, film.year, film.status].filter((value) => value !== null && value !== '').join(' · ')
+  return (
+    <span className="duplicate-summary">
+      <b>{film.title}</b>
+      {details && <small>{details}</small>}
+      {film.rating !== null && <small>Note : {film.rating}/5{film.isFavorite ? ' · favori' : ''}</small>}
+    </span>
+  )
+}
+
+export function seriesSummary(series: Series, origin: 'existing' | 'imported'): ReactNode {
+  void origin
+  const details = [series.showrunner, series.status].filter((value) => value !== null && value !== '').join(' · ')
+  const seasons = series.seasonsSeen !== null && series.seasonsTotal !== null
+    ? `${series.seasonsSeen}/${series.seasonsTotal} saisons`
+    : null
+  return (
+    <span className="duplicate-summary">
+      <b>{series.title}</b>
+      {details && <small>{details}</small>}
+      {seasons && <small>{seasons}</small>}
+      {series.rating !== null && <small>Note : {series.rating}/5{series.isFavorite ? ' · favori' : ''}</small>}
+    </span>
+  )
+}
+
+export type { FilmDuplicate, SeriesDuplicate }

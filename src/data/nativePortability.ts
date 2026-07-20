@@ -121,3 +121,64 @@ export function importLibraryDocumentAtomically(
 ): Promise<ImportLibraryDocumentResult> {
   return invoke('import_library_document_atomically', { payload })
 }
+
+// ---------------------------------------------------------------------------
+// Jalon 0.4.4 — profils et imports unitaires dans le profil courant
+// ---------------------------------------------------------------------------
+
+export type ProfileSummary = {
+  id: string
+  name: string
+  createdAt: string
+  updatedAt: string
+  filmCount: number
+  seriesCount: number
+  bookCount: number
+  gameCount: number
+  artworkCount: number
+}
+
+export type CollectionImportPlan<F> = {
+  profileId: string
+  replaceExisting: boolean
+  inserts: F[]
+  updates: F[]
+}
+
+export type CollectionImportResult = {
+  inserted: number
+  updated: number
+  removed: number
+}
+
+export function listProfiles(): Promise<ProfileSummary[]> {
+  return invoke('list_profiles')
+}
+
+export function createProfile(input: { id: string; name: string }): Promise<void> {
+  return invoke('create_profile', { input })
+}
+
+export function renameProfile(input: { profileId: string; name: string }): Promise<void> {
+  return invoke('rename_profile', { input })
+}
+
+export function deleteProfile(profileId: string): Promise<void> {
+  return invoke('delete_profile', { profileId })
+}
+
+export function selectProfile(profileId: string): Promise<void> {
+  return invoke('select_profile', { profileId })
+}
+
+export function importFilmsIntoProfile(
+  plan: CollectionImportPlan<SyllogeLibraryDocument['films'][number]>,
+): Promise<CollectionImportResult> {
+  return invoke('import_films_into_profile', { plan })
+}
+
+export function importSeriesIntoProfile(
+  plan: CollectionImportPlan<SyllogeLibraryDocument['series'][number]>,
+): Promise<CollectionImportResult> {
+  return invoke('import_series_into_profile', { plan })
+}

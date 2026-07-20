@@ -64,5 +64,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0010_create_cultural_media.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "nullable_current_profile",
+            sql: include_str!("../migrations/0011_nullable_current_profile.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

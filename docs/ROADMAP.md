@@ -223,10 +223,21 @@ Objectifs initiaux du jalon :
 - Créer le modèle Série, sa migration, ses statuts, son formulaire et sa fiche minimale.
 - Décider explicitement si le suivi par saison/épisode est nécessaire à la V1 ; ne pas le livrer à moitié.
 
-### `0.4.4` — Séries : bibliothèque et portabilité
+### `0.4.4` — Profils et imports/exports par médium
 
-- Étendre recherche, filtres, bibliothèque, export, import, sauvegardes et fallback d’affiche aux Séries.
-- Tester la conservation d’une série lors d’un changement de profil, d’un export/import et d’une restauration.
+**Redéfinition actée avec Aurélien le 20 juillet 2026.** Le périmètre initial (« Séries : bibliothèque et portabilité ») est absorbé par ce jalon, qui corrige un défaut de conception du modèle « un import = un nouveau profil », inadapté au multi-médiums.
+
+**Abrogation :** l'invariant « un import crée toujours un nouveau profil » disparaît. Les imports écrivent désormais dans le **profil courant**, avec consentement explicite.
+
+- **Profils — couche identité pure.** Un profil = une personne = une base SQLite propre contenant ses cinq collections (Films, Séries, Livres, Jeux, Art). Création et suppression libres dans les Paramètres ; limite interne de cinq profils (non affichée, signalée seulement si atteinte). Tout profil peut être supprimé, y compris le dernier et le profil ouvert : l'application retombe alors sur l'onboarding de premier lancement. Aucun import ne crée de profil.
+- **Import unitaire par médium, depuis chaque bibliothèque.** Un seul bouton Importer dans Films, Séries, Livres, Jeux et Art ; l'application détecte elle-même le type de fichier (JSON Sylloge, CSV, export Notion Markdown + CSV). L'aperçu, le mapping explicite, la validation et le rapport d'erreurs avant écriture restent obligatoires.
+- **Au moment de valider, choix explicite :** **Remplacer** (vider la collection courante puis installer l'import) ou **Fusionner** (conserver l'existant et ajouter l'import).
+- **Fusion intelligente :** doublons détectés au **titre normalisé** (casse/accents/diacritiques insensibles). Récapitulatif des doublons détectés avant validation ; pour chaque doublon, l'utilisateur choisit individuellement la fiche à conserver (existante ou importée). Pour les fiches conservées des deux côtés et les nouvelles fiches, les données personnelles de l'existant (note, avis, coup de cœur, progression) sont préservées ; l'importé ne comble que les champs vides.
+- **Paramètres → Données et sauvegardes — niveau global.** Export global « format Sylloge » des cinq collections du profil courant, conçu pour une réinstallation complète et fidèle ; variantes d'export lisibles (JSON/CSV). Réglages généraux (dossier de snapshots, rétention). **Import global** réservé à un profil vide ; sur un profil non vide, l'application propose un parcours guidé (créer un profil vierge ou vider le courant), jamais de refus sec.
+- **Portabilité Séries :** export, import, sauvegardes et fallback d'affiche étendus aux Séries ; conservation d'une série au changement de profil, à l'export/import et à la restauration testée.
+- Rétrocompatibilité : un export JSON v1/v2 existant reste importable. Les anciens exports « nouveau profil » s'importent comme un import global sur profil vide.
+
+**Critères d'acceptation :** parcours complets exercés pour Films et Séries (import unitaire remplacer/fusionner, doublons, export unitaire, export/import global, snapshots, suppression de profil jusqu'à l'onboarding) ; tests d'intégration sur la fusion (préservation des données personnelles, champs vides comblés, choix par doublon respecté) et sur la limite de cinq profils.
 
 ### `0.4.5` — Livres : données et saisie manuelle
 

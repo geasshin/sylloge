@@ -20,6 +20,7 @@ import {
   serializeLibraryExport,
   validateLibraryImport,
 } from '../src/domain/libraryTransfer.ts'
+import { validateLibraryDocument } from '../src/domain/libraryDocument.ts'
 import {
   filmsCsvExportFileName,
   serializeFilmsCsvExport,
@@ -317,15 +318,22 @@ const completeExport = createLibraryExport({
         ? { outcome: 'saved', fileName: 'sylloge-films-v1-default-auto.json' }
         : { outcome: 'alreadySaved', fileName: null }
     },
-  }, () => new Date(2026, 6, 17, 12, 0, 0))
+  }, () => new Date(2026, 6, 17, 12, 0, 0), async () => ({
+    profile: completeExport.profile,
+    films: completeExport.films,
+    series: [],
+    books: [],
+    games: [],
+    artworks: [],
+  }))
   const library = { profile: completeExport.profile, films: completeExport.films }
 
   const automaticNotice = await service.tryAutomaticSnapshot(library)
   assert.equal(automaticNotice?.kind, 'success', 'Le premier snapshot automatique doit être annoncé après une mutation réussie')
   assert.equal(automaticSnapshots[0].automaticDay, '2026-07-17', 'Le service doit demander le jour local au moment du snapshot')
-  const automaticPreview = validateLibraryImport(automaticSnapshots[0].contents)
-  assert.equal(automaticPreview.document?.format, 'sylloge-films', 'Le snapshot automatique doit réutiliser le format JSON v1')
-  assert.equal(automaticPreview.validFilmCount, 1, 'Le snapshot automatique doit être réimportable par le validateur existant')
+  const automaticPreview = validateLibraryDocument(automaticSnapshots[0].contents)
+  assert.equal(automaticPreview.document?.format, 'sylloge-library', 'Le snapshot automatique doit utiliser le format JSON v2 (jalon 0.4.4)')
+  assert.equal(automaticPreview.counts.films, 1, 'Le snapshot automatique doit contenir le film du profil')
 
   const secondAutomaticNotice = await service.tryAutomaticSnapshot(library)
   assert.equal(secondAutomaticNotice, null, 'Un résultat natif déjà sauvegardé ne doit pas annoncer un second snapshot automatique')
@@ -333,9 +341,9 @@ const completeExport = createLibraryExport({
   assert.equal(manualNotice.kind, 'success', 'Le snapshot manuel doit rester disponible après le snapshot automatique')
   assert.equal(manualSnapshots.length, 1, 'La sauvegarde manuelle doit appeler sa commande native dédiée')
   assert.equal(
-    validateLibraryImport(manualSnapshots[0].contents).validFilmCount,
+    validateLibraryDocument(manualSnapshots[0].contents).counts.films,
     1,
-    'Le snapshot manuel doit rester compatible avec l’import JSON existant',
+    'Le snapshot manuel doit rester compatible avec l’import global v2',
   )
 }
 
