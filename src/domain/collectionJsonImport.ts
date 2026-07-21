@@ -1,0 +1,43 @@
+import type { Film } from './film.ts'
+import type { Series } from './series.ts'
+import { validateLibraryDocument } from './libraryDocument.ts'
+import { validateLibraryImport } from './libraryTransfer.ts'
+
+export type CollectionJsonImportResult<T> =
+  | { items: T[]; error: null }
+  | { items: null; error: string }
+
+export function parseFilmsCollectionJson(contents: string): CollectionJsonImportResult<Film> {
+  const libraryPreview = validateLibraryDocument(contents)
+  if (libraryPreview.document !== null) {
+    return libraryPreview.document.films.length > 0
+      ? { items: libraryPreview.document.films, error: null }
+      : { items: null, error: 'Ce fichier Sylloge ne contient aucun film à importer.' }
+  }
+
+  const historicalPreview = validateLibraryImport(contents)
+  if (historicalPreview.document !== null) {
+    return historicalPreview.document.films.length > 0
+      ? { items: historicalPreview.document.films, error: null }
+      : { items: null, error: 'Ce fichier Sylloge ne contient aucun film à importer.' }
+  }
+
+  return {
+    items: null,
+    error: 'Le fichier n’est pas un export Sylloge valide (JSON Films v1 ou bibliothèque v2). Aucune donnée n’a été écrite.',
+  }
+}
+
+export function parseSeriesCollectionJson(contents: string): CollectionJsonImportResult<Series> {
+  const preview = validateLibraryDocument(contents)
+  if (preview.document === null) {
+    return {
+      items: null,
+      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
+    }
+  }
+
+  return preview.document.series.length > 0
+    ? { items: preview.document.series, error: null }
+    : { items: null, error: 'Ce fichier Sylloge ne contient aucune série à importer.' }
+}

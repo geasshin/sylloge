@@ -21,6 +21,22 @@ export type PickedFilmsImportFile = {
   }>
 }
 
+export type PickedAnyImportFile =
+  | {
+      name: string
+      kind: 'json'
+      contents: string
+      csvCandidates: []
+      markdownPages: []
+    }
+  | {
+      name: string
+      kind: 'csv' | 'notion'
+      contents: null
+      csvCandidates: PickedFilmsImportFile['csvCandidates']
+      markdownPages: PickedFilmsImportFile['markdownPages']
+    }
+
 export type ImportLibraryResult = {
   profileId: string
   filmCount: number
@@ -80,6 +96,10 @@ export function pickImportJson(): Promise<PickedJsonFile | null> {
   return invoke('pick_import_json')
 }
 
+export function pickImportAny(): Promise<PickedAnyImportFile | null> {
+  return invoke('pick_import_any')
+}
+
 export function pickImportFilmsCsvOrNotion(): Promise<PickedFilmsImportFile | null> {
   return invoke('pick_import_films_csv_or_notion')
 }
@@ -120,6 +140,12 @@ export function importLibraryDocumentAtomically(
   payload: NativeImportLibraryDocumentPayload,
 ): Promise<ImportLibraryDocumentResult> {
   return invoke('import_library_document_atomically', { payload })
+}
+
+export function importLibraryDocumentIntoEmptyProfile(
+  payload: NativeImportLibraryDocumentPayload,
+): Promise<ImportLibraryDocumentResult> {
+  return invoke('import_library_document_into_empty_profile', { payload })
 }
 
 // ---------------------------------------------------------------------------

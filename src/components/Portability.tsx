@@ -1148,10 +1148,13 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
           setImportError('L’import global est réservé à un profil vide. Créez un nouveau profil (Paramètres → Profils) puis importez-y cette bibliothèque, ou videz le profil courant.')
           return
         }
-        const imported = await libraryRepository.importLibraryDocument(previewV2.document)
+        const imported = await libraryRepository.importLibraryDocumentIntoEmptyProfile(
+          library.profile,
+          previewV2.document,
+        )
         onProfilesChanged()
         onImported({ profile: imported.profile, films: imported.films })
-        setImportMessage(`Bibliothèque « ${imported.profile.name} » restaurée dans un nouveau profil : ${imported.films.length} films, ${imported.series.length} séries, ${imported.books.length} livres, ${imported.games.length} jeux, ${imported.artworks.length} œuvres.`)
+        setImportMessage(`Bibliothèque restaurée dans le profil courant « ${imported.profile.name} » : ${imported.films.length} films, ${imported.series.length} séries, ${imported.books.length} livres, ${imported.games.length} jeux, ${imported.artworks.length} œuvres.`)
         return
       }
 
@@ -1163,10 +1166,21 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
           setImportError('L’import global est réservé à un profil vide. Créez un nouveau profil (Paramètres → Profils) puis importez-y cette bibliothèque, ou videz le profil courant.')
           return
         }
-        const imported = await filmsRepository.importLibrary(previewV1.document)
+        const compatibleDocument = createLibraryDocument({
+          profile: library.profile,
+          films: previewV1.document.films,
+          series: [],
+          books: [],
+          games: [],
+          artworks: [],
+        })
+        const imported = await libraryRepository.importLibraryDocumentIntoEmptyProfile(
+          library.profile,
+          compatibleDocument,
+        )
         onProfilesChanged()
-        onImported(imported)
-        setImportMessage(`Bibliothèque « ${imported.profile.name} » restaurée dans un nouveau profil : ${imported.films.length} ${imported.films.length === 1 ? 'film' : 'films'}.`)
+        onImported({ profile: imported.profile, films: imported.films })
+        setImportMessage(`Bibliothèque restaurée dans le profil courant « ${imported.profile.name} » : ${imported.films.length} ${imported.films.length === 1 ? 'film' : 'films'}.`)
         return
       }
 

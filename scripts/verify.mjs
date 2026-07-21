@@ -21,6 +21,7 @@ import {
   validateLibraryImport,
 } from '../src/domain/libraryTransfer.ts'
 import { validateLibraryDocument } from '../src/domain/libraryDocument.ts'
+import { parseFilmsCollectionJson, parseSeriesCollectionJson } from '../src/domain/collectionJsonImport.ts'
 import {
   filmsCsvExportFileName,
   serializeFilmsCsvExport,
@@ -1706,6 +1707,8 @@ const csvImportSource = readFileSync(new URL('../src/domain/filmCsvImport.ts', i
 const backupServiceSource = readFileSync(new URL('../src/data/backupService.ts', import.meta.url), 'utf8')
 const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePortability.ts', import.meta.url), 'utf8')
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
+const libraryImportButtonSource = readFileSync(new URL('../src/components/LibraryImportButton.tsx', import.meta.url), 'utf8')
+const filmCsvImportFlowSource = readFileSync(new URL('../src/components/FilmCsvImportFlow.tsx', import.meta.url), 'utf8')
 // Le code de production de portability.rs s'arrête avant `mod tests` : les tests
 // d'intégration manipulent volontairement le cache TMDB pour prouver son exclusion,
 // ils ne doivent donc pas être soumis à la garde d'exclusion des sources portables.
@@ -1786,40 +1789,39 @@ assert.match(csvTransferSource, /sylloge-films-csv/, 'Le CSV doit annoncer son f
 assert.match(csvImportSource, /ImportableFilmField/, 'Le mapping CSV doit rester limité aux champs Films V1 explicitement stockables')
 assert.match(csvImportSource, /L’échelle des notes est ambiguë/, 'Une note sans échelle doit être bloquée au lieu d’être supposée')
 assert.match(csvImportSource, /Markdown/, 'Les notes Notion doivent être associées de manière visible et déterministe')
-assert.match(portabilitySource, /Créer le nouveau profil et importer/, 'La confirmation d’import doit nommer explicitement la création du profil')
-assert.match(portabilitySource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
-assert.match(portabilitySource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
+assert.match(libraryImportButtonSource, /Formats acceptés/, 'Le bouton Importer doit ouvrir une explication avant le sélecteur natif')
+assert.match(libraryImportButtonSource, /JSON[\s\S]*CSV[\s\S]*ZIP Notion/, 'L’assistant Films doit annoncer les trois formats réellement acceptés')
+assert.match(libraryImportButtonSource, /setOpen\(true\)/, 'Le premier clic doit ouvrir le dialogue d’import')
+assert.doesNotMatch(libraryImportButtonSource, /setOpen\(true\)[^}]*pickAndPrepare/s, 'Le premier clic ne doit pas ouvrir immédiatement le sélecteur de fichiers')
+assert.match(libraryImportButtonSource, /writingRef\.current/, 'Un double déclenchement ne doit jamais lancer deux écritures concurrentes')
+assert.match(filmCsvImportFlowSource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
+assert.match(filmCsvImportFlowSource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
+assert.doesNotMatch(filmCsvImportFlowSource, /Nouveau profil|Créer le nouveau profil/, 'L’import CSV ou Notion ne doit plus créer de profil')
 assert.match(portabilitySource, /Importer et exporter/, 'Les Paramètres doivent regrouper imports et exports dans un hub dédié')
-assert.match(portabilitySource, /transferDialog/, 'Le hub doit ouvrir son assistant dans un dialogue dédié')
 assert.match(portabilitySource, /role="dialog"/, 'Les assistants de portabilité doivent être des dialogues accessibles')
-assert.match(portabilitySource, /Détecté dans votre fichier/, 'Le mapping doit présenter les colonnes dans le sens source vers destination')
-assert.match(portabilitySource, /Importer dans Sylloge/, 'Le mapping doit nommer explicitement la destination Sylloge')
-assert.match(portabilitySource, /Seules vos données de suivi sont importées/, 'Le mapping doit expliquer le périmètre personnel de l’import')
-assert.match(portabilitySource, /Métadonnée récupérée plus tard, non importée/, 'Les sources metadata doivent être clairement exclues dans le mapping')
-assert.match(portabilitySource, /Fonctionnalité future, non importée/, 'Les sources de fonctionnalités futures doivent être clairement exclues dans le mapping')
-assert.doesNotMatch(portabilitySource, /champs Films reconnus/, 'Le sélecteur Notion ne doit jamais afficher un compteur de champs reconnus')
-assert.match(portabilitySource, /Pages Notion « Notes »/, 'Les pages Notes Notion doivent apparaître comme une source texte distincte')
-assert.match(portabilitySource, /Évaluation/, 'La destination numérique doit être distinguée de Note personnelle')
+assert.match(filmCsvImportFlowSource, /Détecté dans votre fichier/, 'Le mapping doit présenter les colonnes dans le sens source vers destination')
+assert.match(filmCsvImportFlowSource, /Importer dans Sylloge/, 'Le mapping doit nommer explicitement la destination Sylloge')
+assert.match(filmCsvImportFlowSource, /Seules vos données de suivi sont importées/, 'Le mapping doit expliquer le périmètre personnel de l’import')
+assert.match(filmCsvImportFlowSource, /Métadonnée récupérée plus tard, non importée/, 'Les sources metadata doivent être clairement exclues dans le mapping')
+assert.match(filmCsvImportFlowSource, /Fonctionnalité future, non importée/, 'Les sources de fonctionnalités futures doivent être clairement exclues dans le mapping')
+assert.doesNotMatch(filmCsvImportFlowSource, /champs Films reconnus/, 'Le sélecteur Notion ne doit jamais afficher un compteur de champs reconnus')
+assert.match(filmCsvImportFlowSource, /Pages Notion « Notes »/, 'Les pages Notes Notion doivent apparaître comme une source texte distincte')
+assert.match(filmCsvImportFlowSource, /Évaluation/, 'La destination numérique doit être distinguée de Note personnelle')
 assert.match(portabilitySource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
 assert.match(portabilitySource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
 assert.match(portabilitySource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
-assert.match(portabilitySource, /Sauvegarde Sylloge JSON/, 'L’export doit proposer une sauvegarde complète Sylloge')
-assert.match(portabilitySource, /Tableau Films CSV/, 'L’export doit proposer un tableau Films explicite pour tableur')
+assert.match(portabilitySource, /Exporter la bibliothèque complète/, 'L’export doit proposer une sauvegarde complète Sylloge')
+assert.match(portabilitySource, /Exporter les Films en CSV/, 'L’export doit proposer un tableau Films explicite pour tableur')
 assert.doesNotMatch(mainSource, /scrollIntoView\(\{ block: 'start' \}\)/, 'Les entrées de la sidebar Paramètres ne doivent plus faire défiler des ancres')
 assert.match(mainSource, /SETTINGS_NAVIGATION/, 'La sidebar doit disposer de sa navigation locale de réglages')
 assert.match(mainSource, /Importer et exporter/, 'La navigation locale doit inclure le hub Importer et exporter')
 assert.match(mainSource, /Retour à la bibliothèque/, 'Les Paramètres doivent toujours proposer un retour explicite à la bibliothèque')
 assert.match(mainSource, /section={settingsSection}/, 'La navigation interne doit afficher la rubrique demandée sans conserver les autres pages')
-assert.match(portabilitySource, /const \[activeImport, setActiveImport\] = useState<ActiveImport \| null>\(null\)/, 'Les confirmations JSON et CSV ou Notion doivent partager un état d’import actif')
-assert.match(portabilitySource, /if \(activeImportRef\.current !== null\) return false/, 'Un second clic de confirmation doit être refusé immédiatement pendant un import actif')
-assert.match(portabilitySource, /disabled=\{choosingImport \|\| disabled\}/, 'Le sélecteur JSON doit être désactivé pendant tout import actif')
-assert.match(portabilitySource, /disabled=\{choosingFilmsImport \|\| disabled\}/, 'Le sélecteur CSV ou Notion doit être désactivé pendant tout import actif')
-assert.match(portabilitySource, /disabled=\{disabled\}/, 'La confirmation JSON doit être désactivée pendant l’import opposé')
-assert.match(portabilitySource, /disabled=\{disabled \|\| !valid\}/, 'La confirmation CSV ou Notion doit être désactivée pendant l’import opposé')
 assert.match(nativePortabilityBridgeSource, /invoke\('save_export_csv'/, 'Le frontend doit appeler le pont Tauri CSV dédié')
-assert.match(nativePortabilityBridgeSource, /invoke\('pick_import_films_csv_or_notion'/, 'Le frontend doit appeler le pont Tauri CSV ou Notion dédié')
+assert.match(nativePortabilityBridgeSource, /invoke\('pick_import_any'/, 'Le frontend doit appeler le sélecteur unifié JSON, CSV ou Notion')
 assert.match(tauriLibrarySource, /portability::save_export_csv/, 'La commande Tauri CSV doit être enregistrée')
-assert.match(tauriLibrarySource, /portability::pick_import_films_csv_or_notion/, 'La commande Tauri d’import CSV ou Notion doit être enregistrée')
+assert.match(tauriLibrarySource, /portability::pick_import_any/, 'La commande Tauri d’import unifié doit être enregistrée')
+assert.match(nativePortabilitySource, /\["json", "csv", "zip"\]/, 'Le sélecteur unifié doit accepter JSON, CSV et ZIP Notion')
 assert.match(nativePortabilitySource, /pub async fn save_export_csv/, 'Le pont natif doit exposer une sauvegarde CSV')
 assert.match(nativePortabilitySource, /"Export CSV Sylloge"/, 'Le dialogue natif CSV doit filtrer explicitement le format CSV')
 assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_ENTRIES/, 'Le lecteur ZIP Notion doit limiter le nombre d’entrées')
@@ -1907,12 +1909,16 @@ assert.doesNotMatch(mediaMigration10.match(/CREATE TABLE IF NOT EXISTS artworks 
 assert.match(mediaMigration10, /progress_updated_at/, 'Séries et Livres doivent porter l’horodatage interne de progression')
 assert.match(mediaMigration10, /ON DELETE CASCADE/, 'Les citations doivent suivre la suppression de leur livre')
 assert.match(nativePortabilitySource, /import_library_document_atomically/, 'Le pont natif doit exposer l’import atomique du document v2')
+assert.match(nativePortabilitySource, /import_library_document_into_empty_profile/, 'Le pont natif doit exposer la restauration globale dans le profil courant vide')
+assert.match(nativePortabilitySource, /L’import global est réservé à un profil vide/, 'Le backend doit revérifier atomiquement que le profil courant est vide')
 assert.match(nativePortabilitySource, /INSERT INTO series/, 'L’import v2 doit écrire les séries')
 assert.match(nativePortabilitySource, /INSERT INTO book_quotes/, 'L’import v2 doit écrire les citations')
 assert.match(nativePortabilitySource, /INSERT INTO games/, 'L’import v2 doit écrire les jeux')
 assert.match(nativePortabilitySource, /INSERT INTO artworks/, 'L’import v2 doit écrire les œuvres')
 assert.match(tauriLibrarySource, /portability::import_library_document_atomically/, 'La commande Tauri d’import v2 doit être enregistrée')
+assert.match(tauriLibrarySource, /portability::import_library_document_into_empty_profile/, 'La commande Tauri de restauration dans le profil courant doit être enregistrée')
 assert.match(nativePortabilityBridgeSource, /invoke\('import_library_document_atomically'/, 'Le frontend doit appeler le pont Tauri d’import v2')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_library_document_into_empty_profile'/, 'Le frontend doit appeler le pont d’import global dans le profil courant vide')
 assert.match(libraryDocumentSource, /'sylloge-library'/, 'Le format v2 doit être explicitement nommé sylloge-library')
 assert.match(mediaRepositorySource, /resolveProgressTimestamp/, 'Le repository doit gérer l’horodatage interne de progression')
 assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le document v2 ne doit jamais exposer le cache TMDB')
@@ -2043,16 +2049,20 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.equal(preview.document?.series[0]?.category, 'animation', 'La catégorie Série doit survivre à l’aller-retour')
   assert.equal(preview.document?.books[0]?.quotes[0]?.body, 'Citation mémorable', 'Les citations doivent survivre à l’aller-retour')
   assert.equal(preview.document?.games[0]?.platform, 'Dreamcast', 'La plateforme libre doit survivre à l’aller-retour')
+  assert.equal(parseFilmsCollectionJson(serialized).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit accepter un document v2')
+  assert.equal(parseSeriesCollectionJson(serialized).items?.[0]?.title, 'Série v2', 'L’import unitaire Séries doit accepter un document v2')
 
   const v1Document = JSON.stringify({
     format: 'sylloge-films',
     version: 1,
     exportedAt: '2026-07-19T12:00:00.000Z',
     profile: library.profile,
-    films: [],
+    films: library.films,
   })
   const v1Preview = validateLibraryDocument(v1Document)
   assert.equal(v1Preview.document, null, 'Un document v1 doit être refusé par le validateur v2')
+  assert.equal(parseFilmsCollectionJson(v1Document).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit rester compatible avec un JSON Films v1')
+  assert.equal(parseSeriesCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Séries')
 
   const invalidSeries = JSON.parse(serialized)
   invalidSeries.series[0].seasonsSeen = 12
@@ -2359,4 +2369,4 @@ assert.match(mediaRepositorySource, /COALESCE\(progress_updated_at, updated_at\)
   assert.deepEqual(searchCall.bindValues, ['default', '%lupin%', 'série télé'], 'La recherche doit lier requête et catégorie')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne.')
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide.')

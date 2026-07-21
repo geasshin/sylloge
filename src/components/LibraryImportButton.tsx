@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Film } from '../domain/film.ts'
 import type { Series } from '../domain/series.ts'
-import { validateLibraryDocument } from '../domain/libraryDocument.ts'
+import { parseFilmsCollectionJson, parseSeriesCollectionJson } from '../domain/collectionJsonImport.ts'
+import type { PickedFilmsImportFile } from '../domain/filmCsvImport.ts'
 import {
   planFilmMerge,
   planSeriesMerge,
@@ -16,15 +17,17 @@ import {
   writeSeriesImport,
   type ImportMode,
 } from '../data/libraryTransferService.ts'
-import { pickImportJson } from '../data/nativePortability.ts'
+import { pickImportAny, pickImportJson } from '../data/nativePortability.ts'
 import { AccessibleDialog } from './Portability.tsx'
 import { DuplicatesResolver, ImportModeChoice, filmSummary, seriesSummary } from './CollectionImportFlow.tsx'
+import { FilmCsvImportFlow } from './FilmCsvImportFlow.tsx'
 
-type ImportStep = 'idle' | 'mode' | 'duplicates' | 'working' | 'done'
+type ImportStep = 'choose-file' | 'external-preview' | 'mode' | 'duplicates' | 'working' | 'done'
 
 type BaseProps = {
   buttonLabel: string
   mediumLabel: string
+  profileName: string
   onDone: () => void
 }
 
@@ -42,11 +45,14 @@ type SeriesImportProps = BaseProps & {
 
 export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps) {
   const [open, setOpen] = useState(false)
-  const [step, setStep] = useState<ImportStep>('idle')
+  const [step, setStep] = useState<ImportStep>('choose-file')
+  const [choosingFile, setChoosingFile] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [importedCount, setImportedCount] = useState(0)
   const [report, setReport] = useState<string | null>(null)
+  const [externalFilmSource, setExternalFilmSource] = useState<PickedFilmsImportFile | null>(null)
+  const writingRef = useRef(false)
 
   // Films state
   const [filmsImported, setFilmsImported] = useState<Film[]>([])
@@ -61,11 +67,13 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps)
   const [seriesMode, setSeriesMode] = useState<ImportMode>('merge')
 
   const reset = () => {
-    setStep('idle')
+    setStep('choose-file')
+    setChoosingFile(false)
     setError(null)
     setFileName(null)
     setImportedCount(0)
     setReport(null)
+    setExternalFilmSource(null)
     setFilmsImported([])
     setFilmDuplicates([])
     setFilmResolutions(new Map())
@@ -81,43 +89,62 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps)
   }
 
   const pickAndPrepare = async () => {
+    if (choosingFile) return
+    setChoosingFile(true)
     setError(null)
     try {
-      const picked = await pickImportJson()
-      if (!picked) {
-        setError('Sélection annulée. Aucune donnée n’a été écrite.')
-        return
-      }
-      setFileName(picked.name)
-
-      const preview = validateLibraryDocument(picked.contents)
-      if (preview.document === null || preview.errors.length > 0) {
-        setError(`Le fichier n’est pas un export Sylloge valide (${preview.errors.length} erreur${preview.errors.length > 1 ? 's' : ''}). Aucune donnée n’a été écrite.`)
-        return
-      }
-
       if (props.kind === 'films') {
-        const imported = preview.document.films
-        if (imported.length === 0) {
-          setError('Ce fichier ne contient aucun film à importer.')
+        const picked = await pickImportAny()
+        if (!picked) {
+          setError('Sélection annulée. Aucune donnée n’a été écrite.')
           return
         }
-        setFilmsImported(imported)
-        setImportedCount(imported.length)
+        setFileName(picked.name)
+        if (picked.kind !== 'json') {
+          setExternalFilmSource({
+            name: picked.name,
+            kind: picked.kind,
+            csvCandidates: picked.csvCandidates,
+            markdownPages: picked.markdownPages,
+          })
+          setStep('external-preview')
+          return
+        }
+        const parsed = parseFilmsCollectionJson(picked.contents)
+        if (parsed.items === null) {
+          setError(parsed.error)
+          return
+        }
+        setFilmsImported(parsed.items)
+        setImportedCount(parsed.items.length)
       } else {
-        const imported = preview.document.series
-        if (imported.length === 0) {
-          setError('Ce fichier ne contient aucune série à importer.')
+        const picked = await pickImportJson()
+        if (!picked) {
+          setError('Sélection annulée. Aucune donnée n’a été écrite.')
           return
         }
-        setSeriesImported(imported)
-        setImportedCount(imported.length)
+        setFileName(picked.name)
+        const parsed = parseSeriesCollectionJson(picked.contents)
+        if (parsed.items === null) {
+          setError(parsed.error)
+          return
+        }
+        setSeriesImported(parsed.items)
+        setImportedCount(parsed.items.length)
       }
       setStep('mode')
     } catch (cause) {
       console.error('Impossible de lire le fichier d’import.', cause)
       setError('Le fichier choisi n’a pas pu être lu. Aucune donnée n’a été écrite.')
+    } finally {
+      setChoosingFile(false)
     }
+  }
+
+  const acceptExternalFilms = (films: Film[]) => {
+    setFilmsImported(films)
+    setImportedCount(films.length)
+    setStep('mode')
   }
 
   const chooseMode = (mode: ImportMode) => {
@@ -151,6 +178,8 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps)
     resolutions: Map<string, DuplicateResolution>,
     imported: Film[] | Series[],
   ) => {
+    if (writingRef.current) return
+    writingRef.current = true
     setStep('working')
     setError(null)
     try {
@@ -169,25 +198,62 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps)
       console.error('L’import dans le profil courant a échoué.', cause)
       setError('L’import a échoué. La transaction a été annulée et votre collection n’a pas été modifiée.')
       setStep('mode')
+    } finally {
+      writingRef.current = false
     }
   }
 
   return (
     <>
-      <button className="secondary-button" type="button" onClick={() => { setOpen(true); reset(); void pickAndPrepare() }}>
+      <button className="secondary-button" type="button" onClick={() => { reset(); setOpen(true) }}>
         {props.buttonLabel}
       </button>
       {open && (
         <AccessibleDialog
           title={`Importer des ${props.mediumLabel}s`}
-          description="Le fichier est analysé avant toute écriture."
+          description="Choisissez d’abord le format. Le fichier sera ensuite analysé avant toute écriture."
           onClose={close}
-          closeDisabled={step === 'working'}
+          closeDisabled={step === 'working' || choosingFile}
         >
-          {step === 'idle' && (
+          {step === 'choose-file' && (
             <div className="assistant-content">
-              <p className="assistant-introduction">Lecture du fichier…</p>
+              <section className="assistant-stage">
+                <p className="card-kicker">Formats acceptés</p>
+                <h3>Choisir un fichier à analyser</h3>
+                {props.kind === 'films' ? (
+                  <>
+                    <p>Tu peux importer un export Sylloge JSON, un tableau CSV UTF-8 ou un export Notion ZIP contenant sa table CSV et ses pages Markdown.</p>
+                    <ul className="import-format-list">
+                      <li><b>JSON</b> — export Films historique ou bibliothèque Sylloge complète</li>
+                      <li><b>CSV</b> — export Sylloge ou tableau avec mapping explicite</li>
+                      <li><b>ZIP Notion</b> — archive exportée par Notion, sans décompression manuelle</li>
+                    </ul>
+                  </>
+                ) : (
+                  <p>Les Séries utilisent actuellement le format Sylloge JSON v2. Les imports CSV et Notion restent propres aux Films tant qu’aucun contrat Série n’est défini.</p>
+                )}
+                <p>Aucune donnée ne sera écrite avant l’aperçu puis ton choix Remplacer ou Fusionner.</p>
+                <div className="assistant-actions">
+                  <button className="secondary-button" type="button" onClick={close}>Annuler</button>
+                  <button className="primary-button" type="button" disabled={choosingFile} onClick={() => void pickAndPrepare()}>
+                    {choosingFile ? 'Choix du fichier…' : 'Choisir un fichier'}
+                  </button>
+                </div>
+              </section>
             </div>
+          )}
+          {step === 'external-preview' && props.kind === 'films' && externalFilmSource !== null && (
+            <FilmCsvImportFlow
+              source={externalFilmSource}
+              currentProfileName={props.profileName}
+              onReady={acceptExternalFilms}
+              onChooseAnother={() => {
+                setExternalFilmSource(null)
+                setFileName(null)
+                setStep('choose-file')
+                setError(null)
+              }}
+            />
           )}
           {step === 'mode' && (
             <ImportModeChoice

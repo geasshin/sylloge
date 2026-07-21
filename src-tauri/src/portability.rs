@@ -270,7 +270,10 @@ pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFil
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter("Import Sylloge (JSON, CSV, Notion)", &["json", "csv", "zip"])
+        .add_filter(
+            "Import Sylloge (JSON, CSV, Notion)",
+            &["json", "csv", "zip"],
+        )
         .set_title("Choisir un fichier à importer")
         .blocking_pick_file()
     else {
@@ -317,7 +320,10 @@ pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFil
             }))
         }
         "zip" => {
-            let extracted = extract_notion_zip(&name, &read_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?)?;
+            let extracted = extract_notion_zip(
+                &name,
+                &read_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?,
+            )?;
             Ok(Some(PickedAnyImportFile {
                 name,
                 kind: "notion".to_string(),
@@ -736,7 +742,25 @@ pub async fn import_library_document_atomically(
     payload: ImportLibraryDocumentPayload,
 ) -> Result<ImportLibraryDocumentResult, String> {
     let pool = sqlite_pool(&db_instances).await?;
-    write_library_document_import(&pool, &payload).await?;
+    write_library_document_import(&pool, &payload, true).await?;
+
+    Ok(ImportLibraryDocumentResult {
+        profile_id: payload.profile.id.clone(),
+        film_count: payload.films.len(),
+        series_count: payload.series.len(),
+        book_count: payload.books.len(),
+        game_count: payload.games.len(),
+        artwork_count: payload.artworks.len(),
+    })
+}
+
+#[tauri::command]
+pub async fn import_library_document_into_empty_profile(
+    db_instances: State<'_, DbInstances>,
+    payload: ImportLibraryDocumentPayload,
+) -> Result<ImportLibraryDocumentResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_library_document_import(&pool, &payload, false).await?;
 
     Ok(ImportLibraryDocumentResult {
         profile_id: payload.profile.id.clone(),
@@ -1279,6 +1303,7 @@ async fn write_import(
 async fn write_library_document_import(
     pool: &sqlx::SqlitePool,
     payload: &ImportLibraryDocumentPayload,
+    create_profile: bool,
 ) -> Result<(), String> {
     let targets_import_profile = |profile_id: &str| profile_id == payload.profile.id;
 
@@ -1303,7 +1328,7 @@ async fn write_library_document_import(
             .iter()
             .any(|artwork| !targets_import_profile(&artwork.profile_id))
     {
-        return Err("Un élément ne cible pas le nouveau profil d’import.".to_string());
+        return Err("Un élément ne cible pas le profil d’import.".to_string());
     }
 
     let book_ids: std::collections::HashSet<&str> =
@@ -1326,7 +1351,10 @@ async fn write_library_document_import(
         .await
         .map_err(|error| format!("Impossible de démarrer l’import SQLite : {error}"))?;
 
-    sqlx::query("INSERT INTO profiles (id, name, created_at, updated_at) VALUES ($1, $2, $3, $4)")
+    if create_profile {
+        sqlx::query(
+            "INSERT INTO profiles (id, name, created_at, updated_at) VALUES ($1, $2, $3, $4)",
+        )
         .bind(&payload.profile.id)
         .bind(&payload.profile.name)
         .bind(&payload.profile.created_at)
@@ -1334,6 +1362,35 @@ async fn write_library_document_import(
         .execute(&mut *transaction)
         .await
         .map_err(|error| format!("Impossible de créer le nouveau profil : {error}"))?;
+    } else {
+        let profile_exists: i64 =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM profiles WHERE id = $1)")
+                .bind(&payload.profile.id)
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(|error| format!("Impossible de vérifier le profil courant : {error}"))?;
+        if profile_exists != 1 {
+            return Err("Le profil courant est introuvable.".to_string());
+        }
+
+        let existing_works: i64 = sqlx::query_scalar(
+            "SELECT
+                (SELECT COUNT(*) FROM films WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM series WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM books WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM games WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM artworks WHERE profile_id = $1)",
+        )
+        .bind(&payload.profile.id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!("Impossible de vérifier que le profil courant est vide : {error}")
+        })?;
+        if existing_works != 0 {
+            return Err("L’import global est réservé à un profil vide.".to_string());
+        }
+    }
 
     for film in &payload.films {
         let original_title = canonical_optional_text(&film.original_title);
@@ -1534,16 +1591,18 @@ async fn write_library_document_import(
         })?;
     }
 
-    sqlx::query(
-        "UPDATE current_profile
-         SET profile_id = $1, updated_at = $2
-         WHERE singleton = 1",
-    )
-    .bind(&payload.profile.id)
-    .bind(&payload.profile.updated_at)
-    .execute(&mut *transaction)
-    .await
-    .map_err(|error| format!("Impossible d’activer le nouveau profil : {error}"))?;
+    if create_profile {
+        sqlx::query(
+            "UPDATE current_profile
+             SET profile_id = $1, updated_at = $2
+             WHERE singleton = 1",
+        )
+        .bind(&payload.profile.id)
+        .bind(&payload.profile.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’activer le nouveau profil : {error}"))?;
+    }
 
     transaction
         .commit()
@@ -3088,7 +3147,7 @@ mod tests {
                 }],
             };
 
-            write_library_document_import(&pool, &payload)
+            write_library_document_import(&pool, &payload, true)
                 .await
                 .expect("import du document v2 complet");
 
@@ -3161,6 +3220,94 @@ mod tests {
     }
 
     #[test]
+    fn library_document_v2_import_targets_only_an_existing_empty_profile() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-20T10:00:00.000Z".to_string();
+            let film = |id: &str, title: &str| ImportFilm {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                original_title: None,
+                year: None,
+                status: "à découvrir".to_string(),
+                is_favorite: false,
+                rating: None,
+                watched_at: None,
+                personal_note: None,
+                director: None,
+                summary: None,
+                provider_name: None,
+                provider_id: None,
+                poster_url: None,
+                created_at: timestamp.clone(),
+                updated_at: timestamp.clone(),
+            };
+            let payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "default".to_string(),
+                    name: "Profil courant".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![film("film-empty-profile", "Premier import")],
+                series: Vec::new(),
+                books: Vec::new(),
+                games: Vec::new(),
+                artworks: Vec::new(),
+            };
+
+            write_library_document_import(&pool, &payload, false)
+                .await
+                .expect("import global dans le profil courant vide");
+
+            let profile_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM profiles")
+                .fetch_one(&pool)
+                .await
+                .expect("compte des profils");
+            let film_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM films WHERE profile_id = 'default'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte des films importés");
+            assert_eq!(profile_count, 1, "l’import ne doit créer aucun profil");
+            assert_eq!(
+                film_count, 1,
+                "le document doit remplir le profil courant vide"
+            );
+
+            let second_payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "default".to_string(),
+                    name: "Profil courant".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![film("film-refused", "Import refusé")],
+                series: Vec::new(),
+                books: Vec::new(),
+                games: Vec::new(),
+                artworks: Vec::new(),
+            };
+            let result = write_library_document_import(&pool, &second_payload, false).await;
+            assert!(
+                result.is_err(),
+                "un profil non vide doit bloquer l’import global"
+            );
+
+            let final_film_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM films WHERE profile_id = 'default'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte final des films");
+            assert_eq!(
+                final_film_count, 1,
+                "un import global refusé ne doit écrire aucune fiche supplémentaire"
+            );
+        });
+    }
+
+    #[test]
     fn library_document_v2_import_rejects_quote_from_another_book() {
         tauri::async_runtime::block_on(async {
             let pool = test_pool_with_tmdb_migrations().await;
@@ -3205,7 +3352,7 @@ mod tests {
                 artworks: Vec::new(),
             };
 
-            let result = write_library_document_import(&pool, &payload).await;
+            let result = write_library_document_import(&pool, &payload, true).await;
             assert!(
                 result.is_err(),
                 "une citation rattachée à un autre livre doit bloquer l'import"

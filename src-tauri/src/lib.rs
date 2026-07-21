@@ -17,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
+            portability::pick_import_any,
             portability::pick_import_json,
             portability::pick_import_films_csv_or_notion,
             portability::save_export_json,
@@ -27,6 +28,7 @@ pub fn run() {
             portability::save_automatic_backup_snapshot,
             portability::import_library_atomically,
             portability::import_library_document_atomically,
+            portability::import_library_document_into_empty_profile,
             portability::import_films_into_profile,
             portability::import_series_into_profile,
             profiles::list_profiles,

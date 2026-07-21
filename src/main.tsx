@@ -583,6 +583,7 @@ function FilmsLibrary({
             buttonLabel="Importer"
             mediumLabel="film"
             profileId={library.profile.id}
+            profileName={library.profile.name}
             existing={library.films}
             onDone={onLibraryChanged}
           />
@@ -763,6 +764,7 @@ function SeriesLibrary({
             buttonLabel="Importer"
             mediumLabel="série"
             profileId={profileId}
+            profileName={profileName}
             existing={collection}
             onDone={onLibraryChanged}
           />

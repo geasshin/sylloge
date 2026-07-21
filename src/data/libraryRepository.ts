@@ -25,6 +25,7 @@ import {
 import { mediaRepository, SqliteMediaRepository } from './mediaRepository.ts'
 import {
   importLibraryDocumentAtomically,
+  importLibraryDocumentIntoEmptyProfile,
   type ImportLibraryDocumentResult,
   type NativeImportLibraryDocumentPayload,
 } from './nativePortability.ts'
@@ -58,17 +59,74 @@ function toProfile(row: ProfileRow): Profile {
   }
 }
 
+function prepareNativeLibraryImport(
+  document: SyllogeLibraryDocument,
+  profile: Profile,
+  createId: IdFactory,
+): NativeImportLibraryDocumentPayload {
+  const books = document.books.map((book) => {
+    const id = createId()
+    return normalizeBook({
+      ...book,
+      id,
+      profileId: profile.id,
+      quotes: [],
+    })
+  })
+
+  const payload: NativeImportLibraryDocumentPayload = {
+    profile,
+    films: document.films.map((film) => ({
+      ...normalizeFilm(film),
+      id: createId(),
+      profileId: profile.id,
+    })),
+    series: document.series.map((series) => ({
+      ...normalizeSeries(series),
+      id: createId(),
+      profileId: profile.id,
+    })),
+    books: books.map((book, index) => ({
+      ...book,
+      quotes: document.books[index].quotes.map((quote) => ({
+        ...quote,
+        id: createId(),
+        bookId: book.id,
+      })),
+    })),
+    games: document.games.map((game) => ({
+      ...normalizeGame(game),
+      id: createId(),
+      profileId: profile.id,
+    })),
+    artworks: document.artworks.map((artwork) => ({
+      ...normalizeArtwork(artwork),
+      id: createId(),
+      profileId: profile.id,
+    })),
+  }
+
+  for (const book of payload.books) {
+    for (const quote of book.quotes) {
+      if (quote.bookId !== book.id) {
+        throw new Error('Le remapping des citations du livre est incohérent.')
+      }
+    }
+  }
+
+  return payload
+}
+
 /**
- * Agrège les cinq collections d'un profil et orchestre l'import atomique d'un
- * document sylloge-library v2 dans un nouveau profil. L'import crée toujours
- * un profil neuf avec des identifiants régénérés : il n'écrase ni ne fusionne
- * jamais une bibliothèque existante.
+ * Agrège les cinq collections d'un profil et orchestre les imports atomiques
+ * d'un document sylloge-library v2, avec régénération des identifiants locaux.
  */
 export class SqliteLibraryRepository {
   private readonly loadDatabase: DatabaseLoader
   private readonly createId: IdFactory
   private readonly now: NowFactory
   private readonly importNative: NativeLibraryDocumentImporter
+  private readonly importIntoEmptyNative: NativeLibraryDocumentImporter
   private readonly media: SqliteMediaRepository
 
   constructor(
@@ -77,11 +135,13 @@ export class SqliteLibraryRepository {
     now: NowFactory = () => new Date().toISOString(),
     importNative: NativeLibraryDocumentImporter = importLibraryDocumentAtomically,
     media: SqliteMediaRepository = mediaRepository,
+    importIntoEmptyNative: NativeLibraryDocumentImporter = importLibraryDocumentIntoEmptyProfile,
   ) {
     this.loadDatabase = loadDatabase
     this.createId = createId
     this.now = now
     this.importNative = importNative
+    this.importIntoEmptyNative = importIntoEmptyNative
     this.media = media
   }
 
@@ -142,61 +202,12 @@ export class SqliteLibraryRepository {
   async importLibraryDocument(document: SyllogeLibraryDocument): Promise<CulturalLibrary> {
     const importedAt = this.now()
     const profileId = this.createId()
-
-    const books = document.books.map((book) => {
-      const id = this.createId()
-      return normalizeBook({
-        ...book,
-        id,
-        profileId,
-        quotes: [],
-      })
-    })
-
-    const payload: NativeImportLibraryDocumentPayload = {
-      profile: {
-        id: profileId,
-        name: document.profile.name,
-        createdAt: importedAt,
-        updatedAt: importedAt,
-      },
-      films: document.films.map((film) => ({
-        ...normalizeFilm(film),
-        id: this.createId(),
-        profileId,
-      })),
-      series: document.series.map((series) => ({
-        ...normalizeSeries(series),
-        id: this.createId(),
-        profileId,
-      })),
-      books: books.map((book, index) => ({
-        ...book,
-        quotes: document.books[index].quotes.map((quote) => ({
-          ...quote,
-          id: this.createId(),
-          bookId: book.id,
-        })),
-      })),
-      games: document.games.map((game) => ({
-        ...normalizeGame(game),
-        id: this.createId(),
-        profileId,
-      })),
-      artworks: document.artworks.map((artwork) => ({
-        ...normalizeArtwork(artwork),
-        id: this.createId(),
-        profileId,
-      })),
-    }
-
-    for (const book of payload.books) {
-      for (const quote of book.quotes) {
-        if (quote.bookId !== book.id) {
-          throw new Error('Le remapping des citations du livre est incohérent.')
-        }
-      }
-    }
+    const payload = prepareNativeLibraryImport(document, {
+      id: profileId,
+      name: document.profile.name,
+      createdAt: importedAt,
+      updatedAt: importedAt,
+    }, this.createId)
 
     const result = await this.importNative(payload)
 
@@ -212,6 +223,30 @@ export class SqliteLibraryRepository {
     }
 
     return this.loadLibrary(profileId)
+  }
+
+  async importLibraryDocumentIntoEmptyProfile(
+    profile: Profile,
+    document: SyllogeLibraryDocument,
+  ): Promise<CulturalLibrary> {
+    const payload = prepareNativeLibraryImport(document, {
+      ...profile,
+      updatedAt: this.now(),
+    }, this.createId)
+    const result = await this.importIntoEmptyNative(payload)
+
+    if (
+      result.profileId !== profile.id
+      || result.filmCount !== payload.films.length
+      || result.seriesCount !== payload.series.length
+      || result.bookCount !== payload.books.length
+      || result.gameCount !== payload.games.length
+      || result.artworkCount !== payload.artworks.length
+    ) {
+      throw new Error('Le rapport SQLite de l’import ne correspond pas au document validé.')
+    }
+
+    return this.loadLibrary(profile.id)
   }
 }
 

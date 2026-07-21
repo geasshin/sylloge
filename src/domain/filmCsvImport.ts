@@ -606,8 +606,8 @@ function previewGenericCsv(
     : []
   const detectedRatingScale = detectRatingScale(ratingCells)
 
-  if (!titleColumn) errors.push({ path: 'Mapping', message: 'Le titre doit être mappé avant de pouvoir créer un profil.' })
-  if (!configuration.profileName.trim()) errors.push({ path: 'Profil', message: 'Le nouveau profil doit recevoir un nom explicite.' })
+  if (!titleColumn) errors.push({ path: 'Mapping', message: 'Le titre doit être mappé avant de pouvoir préparer l’import.' })
+  if (!configuration.profileName.trim()) errors.push({ path: 'Profil', message: 'Le profil courant doit avoir un nom explicite.' })
   errors.push(...mappingValidationErrors(session, configuration))
   if (detectedRatingScale === 'mixed') {
     errors.push({ path: 'Notes', message: 'Les notes indiquent à la fois /5 et /10. Corrigez les valeurs avant l’import.' })
