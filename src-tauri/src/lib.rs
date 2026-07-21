@@ -1,3 +1,4 @@
+mod books;
 mod database;
 mod portability;
 mod profiles;
@@ -36,6 +37,9 @@ pub fn run() {
             profiles::rename_profile,
             profiles::delete_profile,
             profiles::select_profile,
+            books::create_book_atomically,
+            books::update_book_atomically,
+            books::delete_book_atomically,
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,

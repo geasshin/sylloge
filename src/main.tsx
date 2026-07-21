@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
+import { BookDetail } from './components/BookDetail.tsx'
+import { BookForm } from './components/BookForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
 import { SeriesDetail } from './components/SeriesDetail.tsx'
@@ -44,9 +46,15 @@ import {
   type SeriesCategory,
 } from './domain/series.ts'
 import type { SeriesWriteInput } from './domain/seriesForm.ts'
+import {
+  BOOK_CATEGORY_LABELS,
+  BOOK_STATUS_LABELS,
+  type Book,
+} from './domain/book.ts'
+import type { BookWriteInput } from './domain/bookForm.ts'
 import './styles.css'
 
-type IconName = 'film' | 'home' | 'search' | 'series' | 'settings'
+type IconName = 'book' | 'film' | 'home' | 'search' | 'series' | 'settings'
 type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
@@ -62,11 +70,13 @@ const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
 type SidebarProps = {
   count: number | null
   seriesCount: number | null
+  bookCount: number | null
   currentProfileName: string | null
-  activeItem: 'home' | 'library' | 'series' | 'settings'
+  activeItem: 'books' | 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
   onSeries: () => void
+  onBooks: () => void
   onSettings: () => void
   settingsSection: SettingsSection
   onSettingsSection: (section: SettingsSection) => void
@@ -76,11 +86,13 @@ type SidebarProps = {
 function Sidebar({
   count,
   seriesCount,
+  bookCount,
   currentProfileName,
   activeItem,
   onHome,
   onLibrary,
   onSeries,
+  onBooks,
   onSettings,
   settingsSection,
   onSettingsSection,
@@ -137,6 +149,15 @@ function Sidebar({
           >
             {icon('series')} Séries
             {seriesCount !== null && <span className="nav-count">{seriesCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'books' ? 'active' : ''}`}
+            type="button"
+            onClick={onBooks}
+            aria-current={activeItem === 'books' ? 'page' : undefined}
+          >
+            {icon('book')} Livres
+            {bookCount !== null && <span className="nav-count">{bookCount}</span>}
           </button>
         </nav>
       )}
@@ -848,6 +869,75 @@ function SeriesLibrary({
   )
 }
 
+function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
+  const attribution = [BOOK_CATEGORY_LABELS[book.category], book.author, book.year]
+    .filter((value) => value !== null)
+    .join(' · ')
+  const progress = book.volumesRead !== null && book.volumesTotal !== null
+    ? `${book.volumesRead} / ${book.volumesTotal} tomes`
+    : null
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${book.title}`}>
+      <Poster title={book.title} src={book.coverUrl} />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{book.title}</b>
+          {book.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {attribution && <small>{attribution}</small>}
+        <span className={`status-line ${book.status === 'à lire' ? 'to-discover' : ''}`}>
+          {BOOK_STATUS_LABELS[book.status]}
+          {progress ? ` · ${progress}` : ''}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+type BooksLibraryProps = {
+  profileName: string
+  collection: Book[]
+  onCreate: () => void
+  onOpen: (book: Book) => void
+}
+
+function BooksLibrary({ profileName, collection, onCreate, onOpen }: BooksLibraryProps) {
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Livres</h1>
+        </div>
+        <div className="library-header-actions">
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
+        </div>
+      </header>
+
+      {collection.length === 0 ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Livres est vide.</h2>
+          <p>Ajoutez un premier livre, manga ou comics, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un livre</button>
+        </div>
+      ) : (
+        <>
+          <div className="collection-meta books-collection-meta" aria-live="polite">
+            <p>{collection.length} {collection.length === 1 ? 'livre affiché' : 'livres affichés'}</p>
+          </div>
+          <div className="film-grid">
+            {collection.map((book) => (
+              <BookCard book={book} key={book.id} onOpen={() => onOpen(book)} />
+            ))}
+          </div>
+        </>
+      )}
+    </main>
+  )
+}
+
 type View =
   | { name: 'home' }
   | { name: 'library' }
@@ -863,9 +953,17 @@ type View =
   | { name: 'series-create' }
   | { name: 'series-detail'; seriesId: string }
   | { name: 'series-edit'; seriesId: string }
+  | { name: 'books' }
+  | { name: 'book-create' }
+  | { name: 'book-detail'; bookId: string }
+  | { name: 'book-edit'; bookId: string }
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+}
+
+function sortBooks(books: Book[]): Book[] {
+  return [...books].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
 }
 
 type SqliteFilmDetailProps = {
@@ -939,6 +1037,7 @@ function App() {
   const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
   const [seriesContext, setSeriesContext] = useState<SeriesSearchCriteria>({ query: '', category: 'all' })
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
+  const [bookCollection, setBookCollection] = useState<Book[]>([])
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -999,6 +1098,23 @@ function App() {
       (error: unknown) => {
         console.error('Impossible de charger les séries depuis SQLite.', error)
         if (!cancelled) setSeriesCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listBooks(libraryState.library.profile.id).then(
+      (books) => { if (!cancelled) setBookCollection(books) },
+      (error: unknown) => {
+        console.error('Impossible de charger les livres depuis SQLite.', error)
+        if (!cancelled) setBookCollection([])
       },
     )
 
@@ -1123,6 +1239,7 @@ function App() {
 
   const count = libraryState.status === 'ready' ? libraryState.library.films.length : null
   const seriesCount = libraryState.status === 'ready' ? seriesCollection.length : null
+  const bookCount = libraryState.status === 'ready' ? bookCollection.length : null
   let content
 
   if (libraryState.status === 'loading') {
@@ -1438,6 +1555,101 @@ function App() {
         />
       )
     }
+  } else if (view.name === 'books') {
+    content = (
+      <BooksLibrary
+        profileName={libraryState.library.profile.name}
+        collection={bookCollection}
+        onCreate={() => leaveLibrary({ name: 'book-create' })}
+        onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
+      />
+    )
+  } else if (view.name === 'book-create') {
+    const { library } = libraryState
+    content = (
+      <BookForm
+        onCancel={() => setView({ name: 'books' })}
+        onSave={async (input: BookWriteInput) => {
+          const { quotes, ...bookInput } = input
+          const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
+          setBookCollection((current) => sortBooks([...current, book]))
+          requestAutomaticBackup(library)
+          setView({ name: 'book-detail', bookId: book.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'book-detail') {
+    const { library } = libraryState
+    const book = bookCollection.find((entry) => entry.id === view.bookId)
+    if (!book) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'books' })}>
+              ← Retour aux livres
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce livre ne peut pas être ouvert.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <BookDetail
+          book={book}
+          onBack={() => setView({ name: 'books' })}
+          onEdit={() => setView({ name: 'book-edit', bookId: view.bookId })}
+          onDelete={async () => {
+            await mediaRepository.deleteBook(library.profile.id, view.bookId)
+            setBookCollection((current) => current.filter((entry) => entry.id !== view.bookId))
+            requestAutomaticBackup(library)
+            setView({ name: 'books' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'book-edit') {
+    const { library } = libraryState
+    const book = bookCollection.find((entry) => entry.id === view.bookId)
+    if (!book) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'books' })}>
+              ← Retour aux livres
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce livre ne peut pas être modifié.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <BookForm
+          book={book}
+          onCancel={() => setView({ name: 'book-detail', bookId: view.bookId })}
+          onSave={async (input: BookWriteInput) => {
+            const { quotes, ...bookInput } = input
+            await mediaRepository.updateBook(library.profile.id, view.bookId, bookInput, quotes)
+            const refreshed = await mediaRepository.getBook(library.profile.id, view.bookId)
+            if (!refreshed) {
+              throw new Error('Le livre enregistré ne peut pas être relu depuis SQLite.')
+            }
+            setBookCollection((current) => sortBooks(current.map((entry) => (
+              entry.id === view.bookId ? refreshed : entry
+            ))))
+            requestAutomaticBackup(library)
+            setView({ name: 'book-detail', bookId: view.bookId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
   } else {
     content = (
       <FilmsLibrary
@@ -1458,6 +1670,7 @@ function App() {
       <Sidebar
         count={count}
         seriesCount={seriesCount}
+        bookCount={bookCount}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
         activeItem={
           libraryState.status !== 'ready' || view.name === 'home'
@@ -1466,11 +1679,14 @@ function App() {
               ? 'settings'
               : view.name === 'series' || view.name === 'series-create' || view.name === 'series-detail' || view.name === 'series-edit'
                 ? 'series'
-                : 'library'
+                : view.name === 'books' || view.name === 'book-create' || view.name === 'book-detail' || view.name === 'book-edit'
+                  ? 'books'
+                  : 'library'
         }
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
         onSeries={() => leaveLibrary({ name: 'series' })}
+        onBooks={() => leaveLibrary({ name: 'books' })}
         onSettings={() => showSettingsSection('profiles')}
         settingsSection={settingsSection}
         onSettingsSection={showSettingsSection}

@@ -4,6 +4,13 @@ import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../dom
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
 import type { DatabaseLoader, IdFactory, NowFactory } from './filmsRepository.ts'
+import {
+  createBookAtomically,
+  deleteBookAtomically,
+  updateBookAtomically,
+  type NativeBookDeleter,
+  type NativeBookWriter,
+} from './nativeBooks.ts'
 
 type SeriesRow = {
   id: string
@@ -304,15 +311,24 @@ export class SqliteMediaRepository {
   private readonly loadDatabase: DatabaseLoader
   private readonly createId: IdFactory
   private readonly now: NowFactory
+  private readonly createBookNative: NativeBookWriter
+  private readonly updateBookNative: NativeBookWriter
+  private readonly deleteBookNative: NativeBookDeleter
 
   constructor(
     loadDatabase: DatabaseLoader = loadSyllogeDatabase,
     createId: IdFactory = () => crypto.randomUUID(),
     now: NowFactory = () => new Date().toISOString(),
+    createBookNative: NativeBookWriter = createBookAtomically,
+    updateBookNative: NativeBookWriter = updateBookAtomically,
+    deleteBookNative: NativeBookDeleter = deleteBookAtomically,
   ) {
     this.loadDatabase = loadDatabase
     this.createId = createId
     this.now = now
+    this.createBookNative = createBookNative
+    this.updateBookNative = updateBookNative
+    this.deleteBookNative = deleteBookNative
   }
 
   async listSeries(profileId: string): Promise<Series[]> {
@@ -574,7 +590,6 @@ export class SqliteMediaRepository {
     input: Omit<Book, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'quotes'>,
     quotes: string[] = [],
   ): Promise<Book> {
-    const database = await this.loadDatabase()
     const id = this.createId()
     const now = this.now()
     const book = normalizeBook({
@@ -584,57 +599,11 @@ export class SqliteMediaRepository {
       progressUpdatedAt: resolveInitialProgress(input.volumesRead, now),
       createdAt: now,
       updatedAt: now,
-      quotes: [],
+      quotes: createBookQuotes(id, quotes, now, this.createId),
     })
-    const result = await database.execute(
-      `INSERT INTO books (
-         id,
-         profile_id,
-         title,
-         author,
-         year,
-         summary,
-         category,
-         status,
-         rating,
-         is_favorite,
-         volumes_read,
-         volumes_total,
-         progress_updated_at,
-         started_at,
-         cover_url,
-         personal_note,
-         created_at,
-         updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
-      [
-        book.id,
-        book.profileId,
-        book.title,
-        book.author,
-        book.year,
-        book.summary,
-        book.category,
-        book.status,
-        book.rating,
-        book.isFavorite ? 1 : 0,
-        book.volumesRead,
-        book.volumesTotal,
-        book.progressUpdatedAt,
-        book.startedAt,
-        book.coverUrl,
-        book.personalNote,
-        book.createdAt,
-        book.updatedAt,
-      ],
-    )
-
-    if (result.rowsAffected !== 1) {
-      throw new Error('La création du livre n’a modifié aucune ligne SQLite.')
-    }
-
-    const createdQuotes = await this.replaceQuotes(database, id, quotes, now)
-    return { ...book, quotes: createdQuotes }
+    const { quotes: createdQuotes, ...nativeBook } = book
+    await this.createBookNative({ book: nativeBook, quotes: createdQuotes })
+    return book
   }
 
   async updateBook(
@@ -643,7 +612,6 @@ export class SqliteMediaRepository {
     input: Omit<Book, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'quotes'>,
     quotes?: string[],
   ): Promise<string> {
-    const database = await this.loadDatabase()
     const existing = await this.getBook(profileId, id)
     if (!existing) {
       throw new Error('Le livre à modifier est introuvable dans le profil courant.')
@@ -655,110 +623,21 @@ export class SqliteMediaRepository {
       id,
       profileId,
       progressUpdatedAt: resolveProgressTimestamp(existing.volumesRead, input.volumesRead, existing.progressUpdatedAt, updatedAt),
-      createdAt: updatedAt,
+      createdAt: existing.createdAt,
       updatedAt,
-      quotes: [],
+      quotes: quotes === undefined
+        ? existing.quotes
+        : createBookQuotes(id, quotes, updatedAt, this.createId),
     })
-    const result = await database.execute(
-      `UPDATE books
-       SET
-         title = $1,
-         author = $2,
-         year = $3,
-         summary = $4,
-         category = $5,
-         status = $6,
-         rating = $7,
-         is_favorite = $8,
-         volumes_read = $9,
-         volumes_total = $10,
-         progress_updated_at = $11,
-         started_at = $12,
-         cover_url = $13,
-         personal_note = $14,
-         updated_at = $15
-       WHERE id = $16 AND profile_id = $17`,
-      [
-        book.title,
-        book.author,
-        book.year,
-        book.summary,
-        book.category,
-        book.status,
-        book.rating,
-        book.isFavorite ? 1 : 0,
-        book.volumesRead,
-        book.volumesTotal,
-        book.progressUpdatedAt,
-        book.startedAt,
-        book.coverUrl,
-        book.personalNote,
-        book.updatedAt,
-        id,
-        profileId,
-      ],
-    )
-
-    if (result.rowsAffected !== 1) {
-      throw new Error('Le livre à modifier est introuvable dans le profil courant.')
-    }
-
-    if (quotes !== undefined) {
-      await this.replaceQuotes(database, id, quotes, updatedAt)
-    }
-
+    const { quotes: updatedQuotes, ...nativeBook } = book
+    await this.updateBookNative({ book: nativeBook, quotes: updatedQuotes })
     return updatedAt
   }
 
   async deleteBook(profileId: string, id: string): Promise<void> {
-    const database = await this.loadDatabase()
-    const result = await database.execute(
-      `DELETE FROM books
-       WHERE id = $1 AND profile_id = $2`,
-      [id, profileId],
-    )
-
-    if (result.rowsAffected !== 1) {
-      throw new Error('Le livre à supprimer est introuvable dans le profil courant.')
-    }
+    await this.deleteBookNative(profileId, id)
   }
 
-  private async replaceQuotes(
-    database: Awaited<ReturnType<DatabaseLoader>>,
-    bookId: string,
-    quotes: string[],
-    now: string,
-  ): Promise<BookQuote[]> {
-    await database.execute(
-      `DELETE FROM book_quotes
-       WHERE book_id = $1`,
-      [bookId],
-    )
-
-    const created: BookQuote[] = []
-    for (const [position, body] of quotes.entries()) {
-      const trimmed = body.trim()
-      if (!trimmed) continue
-      const quote: BookQuote = {
-        id: this.createId(),
-        bookId,
-        body: trimmed,
-        position,
-        createdAt: now,
-      }
-      const result = await database.execute(
-        `INSERT INTO book_quotes (id, book_id, body, position, created_at)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [quote.id, quote.bookId, quote.body, quote.position, quote.createdAt],
-      )
-      if (result.rowsAffected !== 1) {
-        throw new Error('L’enregistrement d’une citation n’a modifié aucune ligne SQLite.')
-      }
-      created.push(quote)
-    }
-
-    return created
-  }
 
   async listGames(profileId: string): Promise<Game[]> {
     const database = await this.loadDatabase()
@@ -1067,6 +946,24 @@ function resolveInitialProgress(progress: number | null, now: string): string | 
 
 function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&')
+}
+
+function createBookQuotes(
+  bookId: string,
+  bodies: string[],
+  createdAt: string,
+  createId: IdFactory,
+): BookQuote[] {
+  return bodies
+    .map((body) => body.trim())
+    .filter(Boolean)
+    .map((body, position) => ({
+      id: createId(),
+      bookId,
+      body,
+      position,
+      createdAt,
+    }))
 }
 
 function resolveProgressTimestamp(

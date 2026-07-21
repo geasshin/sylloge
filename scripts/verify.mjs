@@ -2369,4 +2369,85 @@ assert.match(mediaRepositorySource, /COALESCE\(progress_updated_at, updated_at\)
   assert.deepEqual(searchCall.bindValues, ['default', '%lupin%', 'série télé'], 'La recherche doit lier requête et catégorie')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide.')
+// Jalon 0.4.5 — Livres : saisie manuelle, tomes et citations personnelles.
+const bookFormDomainSource = readFileSync(new URL('../src/domain/bookForm.ts', import.meta.url), 'utf8')
+const bookFormSource = readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8')
+const bookDetailSource = readFileSync(new URL('../src/components/BookDetail.tsx', import.meta.url), 'utf8')
+const mainSource045 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+const nativeBooksSource = readFileSync(new URL('../src/data/nativeBooks.ts', import.meta.url), 'utf8')
+const rustBooksSource = readFileSync(new URL('../src-tauri/src/books.rs', import.meta.url), 'utf8')
+
+assert.match(bookFormDomainSource, /resolveBookStatusForTotalChange/, 'La bascule Lu → En cours à nouveau tome doit vivre dans le domaine')
+assert.match(bookFormSource, /<Stepper/, 'Le compteur de tomes Manga et Comics doit utiliser les boutons +/−')
+assert.match(bookFormSource, /Ajouter une citation/, 'Le formulaire doit permettre plusieurs citations personnelles')
+assert.match(bookDetailSource, /<details className="quotes-section"/, 'La fiche doit afficher les citations dans un espace escamotable')
+assert.match(mainSource045, /icon\('book'\)\} Livres/, 'La sidebar doit proposer l’entrée Livres')
+assert.match(mainSource045, /mediaRepository\.listBooks/, 'La collection Livres doit être relue depuis SQLite')
+assert.match(nativeBooksSource, /create_book_atomically/, 'La création Livre et ses citations doit passer par une commande native atomique')
+assert.match(nativeBooksSource, /update_book_atomically/, 'La modification Livre et ses citations doit passer par une commande native atomique')
+assert.match(nativeBooksSource, /delete_book_atomically/, 'La suppression Livre et ses citations doit passer par une commande native atomique')
+assert.match(rustBooksSource, /pool\s*\.begin\(\)/, 'Les écritures Livres doivent ouvrir une transaction SQLite native')
+assert.match(rustBooksSource, /create_book_and_quotes_is_atomic/, 'Une preuve Rust doit couvrir le rollback de création')
+assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Rust doit couvrir le rollback de modification')
+
+{
+  const {
+    EMPTY_BOOK_FORM,
+    resolveBookStatusForTotalChange,
+    validateBookForm,
+  } = await import('../src/domain/bookForm.ts')
+
+  const base = { ...EMPTY_BOOK_FORM, title: 'Livre de test' }
+  const minimal = validateBookForm(base)
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer un livre')
+
+  const noTitle = validateBookForm({ ...base, title: '   ' })
+  assert.equal(noTitle.success, false, 'Le titre reste obligatoire')
+
+  const completedManga = validateBookForm({
+    ...base,
+    category: 'manga',
+    status: 'lu',
+    volumesTotal: '12',
+  })
+  assert.equal(completedManga.success, true)
+  assert.equal(completedManga.data.volumesRead, 12, 'Marquer un manga « lu » doit aligner les tomes lus sur le total')
+
+  const overflow = validateBookForm({
+    ...base,
+    category: 'comics',
+    status: 'en cours',
+    volumesRead: '13',
+    volumesTotal: '12',
+  })
+  assert.equal(overflow.success, false, 'Les tomes lus ne peuvent pas dépasser le total')
+  assert.ok(overflow.errors.volumesRead, 'L’erreur doit cibler les tomes lus')
+
+  const simpleBook = validateBookForm({
+    ...base,
+    category: 'livre',
+    volumesRead: '2',
+    volumesTotal: '3',
+  })
+  assert.equal(simpleBook.success, true)
+  assert.equal(simpleBook.data.volumesRead, null, 'Un livre simple ne doit pas persister un compteur de tomes masqué')
+  assert.equal(simpleBook.data.volumesTotal, null, 'Un livre simple ne doit pas persister un total de tomes masqué')
+
+  assert.equal(resolveBookStatusForTotalChange('lu', 12, 13), 'en cours', 'Un nouveau tome fait repasser une œuvre lue en cours')
+  assert.equal(resolveBookStatusForTotalChange('lu', 12, 12), 'lu', 'Une œuvre à jour reste lue')
+
+  const quotes = validateBookForm({
+    ...base,
+    quotes: ['  Première citation  ', '   ', 'Seconde citation'],
+  })
+  assert.equal(quotes.success, true)
+  assert.deepEqual(quotes.data.quotes, ['Première citation', 'Seconde citation'], 'Les citations doivent être ordonnées, nettoyées et les lignes vides ignorées')
+
+  const badRating = validateBookForm({ ...base, rating: '4.3' })
+  assert.equal(badRating.success, false, 'La note doit rester par demi-points')
+
+  const badCover = validateBookForm({ ...base, coverUrl: 'file:///couverture.jpg' })
+  assert.equal(badCover.success, false, 'La couverture doit rester une URL http(s)')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées.')

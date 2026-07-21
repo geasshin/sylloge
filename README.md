@@ -52,4 +52,4 @@ cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy -
 
 ## Périmètre actuel
 
-La release publique `0.4.0` livre Films, les imports/exports et l’enrichissement TMDB. Sur la branche du train `0.5.0`, Séries est utilisable de bout en bout et les fondations SQLite/JSON des cinq médiums sont en place, avec profils et portabilité multi-médiums. Livres, Jeux et Art n’ont pas encore leur interface finale. La synchronisation reste explicitement hors V1.
+La release publique `0.4.0` livre Films, les imports/exports et l’enrichissement TMDB. Sur la branche du train `0.5.0`, Séries est utilisable de bout en bout et Livres dispose de sa saisie manuelle, de sa fiche, du suivi des tomes Manga/Comics et des citations personnelles. Les fondations SQLite/JSON des cinq médiums sont en place, avec profils et portabilité multi-médiums. La recherche, les vues filtrées et la portabilité dédiée des Livres arrivent au jalon suivant ; Jeux et Art n’ont pas encore leur interface. La synchronisation reste explicitement hors V1.

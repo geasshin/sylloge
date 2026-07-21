@@ -243,6 +243,8 @@ Objectifs initiaux du jalon :
 
 ### `0.4.5` — Livres : données et saisie manuelle
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La verticale Livres est accessible depuis la sidebar avec une collection minimale, la création, la modification, la fiche et la suppression. Livre, Manga et Comics disposent de leurs statuts ; Manga et Comics utilisent un compteur de tomes +/− avec bascule Lu ↔ En cours lorsqu’un nouveau tome apparaît. Les citations personnelles sont ordonnées, modifiables et affichées dans un espace escamotable. La création, la modification et la suppression d’un livre avec ses citations passent par des transactions SQLite natives ; les tests prouvent le rollback sans écriture partielle. Recherche, vues filtrées et portabilité dédiée restent volontairement au jalon `0.4.6`.
+
 - Créer le modèle Livre, sa migration, ses statuts, son formulaire, sa fiche et ses notes personnelles.
 - Décider avant le code si pagination, édition, traduction et relecture sont nécessaires au premier parcours.
 
