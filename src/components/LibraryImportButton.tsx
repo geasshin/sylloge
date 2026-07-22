@@ -39,7 +39,7 @@ import {
   type ImportMode,
 } from '../data/libraryTransferService.ts'
 import { pickImportAny, pickImportJson } from '../data/nativePortability.ts'
-import { AccessibleDialog } from './Portability.tsx'
+import { AccessibleDialog } from './AccessibleDialog.tsx'
 import {
   DuplicatesResolver,
   ImportModeChoice,
@@ -381,21 +381,21 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                 <h3>Choisir un fichier à analyser</h3>
                 {props.kind === 'films' ? (
                   <>
-                    <p>Tu peux importer un export Sylloge JSON, un tableau CSV UTF-8 ou un export Notion ZIP contenant sa table CSV et ses pages Markdown.</p>
+                    <p>Tu peux importer un JSON, un tableau CSV UTF-8 ou un ZIP compatible contenant des données Films.</p>
                     <ul className="import-format-list">
-                      <li><b>JSON</b> — export Films historique ou bibliothèque Sylloge complète</li>
+                      <li><b>JSON</b> — export Films historique ou bibliothèque à cinq collections</li>
                       <li><b>CSV</b> — export Sylloge ou tableau avec mapping explicite</li>
-                      <li><b>ZIP Notion</b> — archive exportée par Notion, sans décompression manuelle</li>
+                      <li><b>ZIP</b> — conteneur compatible, sans décompression manuelle</li>
                     </ul>
                   </>
                 ) : props.kind === 'series' ? (
-                  <p>Les Séries utilisent actuellement le format Sylloge JSON v2. Les imports CSV et Notion restent propres aux Films tant qu’aucun contrat Série n’est défini.</p>
+                  <p>Les Séries utilisent actuellement le JSON identifié et versionné de Sylloge. Les imports CSV restent reportés au contrat tabulaire dédié.</p>
                 ) : props.kind === 'books' ? (
-                  <p>Les Livres utilisent le format Sylloge JSON v2, citations comprises. Les imports CSV et Notion restent propres aux Films tant qu’aucun contrat Livre n’est défini.</p>
+                  <p>Les Livres utilisent le JSON identifié et versionné de Sylloge, citations comprises. Les imports CSV restent reportés au contrat tabulaire dédié.</p>
                 ) : props.kind === 'games' ? (
-                  <p>Les Jeux utilisent le format Sylloge JSON v2. La plateforme libre, la note et les données personnelles sont validées avant toute écriture.</p>
+                  <p>Les Jeux utilisent le JSON identifié et versionné de Sylloge. La plateforme libre, la note et les données personnelles sont validées avant toute écriture.</p>
                 ) : (
-                  <p>Les œuvres d’Art utilisent le format Sylloge JSON v2, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
+                  <p>Les œuvres d’Art utilisent le JSON identifié et versionné de Sylloge, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
                 )}
                 <p>Aucune donnée ne sera écrite avant l’aperçu puis ton choix Remplacer ou Fusionner.</p>
                 <div className="assistant-actions">

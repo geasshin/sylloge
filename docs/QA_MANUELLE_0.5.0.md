@@ -2,7 +2,7 @@
 
 > Objectif : éprouver l’application native, la logique produit et l’intégrité des données avant la release publique `0.5.0`. Ce document ne cherche pas à valider la direction artistique finale du train `0.6.0`.
 
-> **État au 22 juillet 2026 : recette interrompue après la première passe.** Les retours ont ouvert les jalons de stabilisation `0.4.10+` décrits dans [`plans/0.5.0-stabilisation-post-qa.md`](plans/0.5.0-stabilisation-post-qa.md). Conserver les observations déjà relevées, mais ne pas reprendre cette checklist depuis le début avant sa mise à jour au jalon `0.4.22`.
+> **État au 22 juillet 2026 : recette interrompue après la première passe.** Les retours ont ouvert les jalons de stabilisation `0.4.10+` décrits dans [`plans/0.5.0-stabilisation-post-qa.md`](plans/0.5.0-stabilisation-post-qa.md). Cette checklist est mise à jour progressivement ; le jalon `0.4.14` ajoute ici les contrôles de cohérence des actions Importer/Exporter.
 
 ## Comment utiliser cette recette
 
@@ -26,7 +26,7 @@
 ## 0.1 Protéger les données existantes
 
 - [ ] Fermer toute autre instance de Sylloge avant de lancer la version de développement.
-- [ ] Si une bibliothèque personnelle réelle existe, l’exporter d’abord avec **Paramètres → Importer et exporter → Exporter la bibliothèque complète**.
+- [ ] Si une bibliothèque personnelle réelle existe, l’exporter d’abord avec **Paramètres → Importer et exporter → Exporter JSON**.
 - [ ] Vérifier que le fichier JSON d’export existe réellement et n’est pas vide.
 - [ ] Ne jamais copier `sylloge.db`, `sylloge.db-wal` ou `sylloge.db-shm` pendant que Sylloge est ouvert.
 - [ ] Pour une sauvegarde brute facultative, fermer Sylloge puis copier le dossier complet `~/Library/Application Support/com.aurelientrouble.sylloge/`.
@@ -382,9 +382,9 @@ Répéter pour Films, Séries, Livres, Jeux et Art depuis `QA Principal`.
 - [ ] Annuler le dialogue natif n’écrit aucun fichier et affiche un message non alarmant.
 - [ ] Choisir un emplacement : le fichier JSON est créé avec un nom compréhensible.
 - [ ] Ouvrir le JSON avec un éditeur de texte : il est lisible et encodé en UTF-8.
-- [ ] Pour Films, le document dédié reste un export historique compatible `sylloge-films` v1 ; pour Séries, Livres, Jeux et Art, il s’agit d’un `sylloge-library` v2.
+- [ ] Les cinq exports unitaires utilisent le document JSON versionné `sylloge-library` v2 ; seule la collection du médium exporté est renseignée.
 - [ ] Le profil de l’export correspond au profil actif.
-- [ ] Dans les exports v2, seule la collection du médium exporté contient des fiches et les quatre autres tableaux sont vides ; dans l’export Films v1, seuls les Films sont présents.
+- [ ] Dans chaque export unitaire, les quatre autres tableaux sont vides ; l’export JSON à cinq collections est une action distincte des Paramètres.
 - [ ] Les accents, emojis, retours à la ligne et champs vides sont fidèles.
 - [ ] Les identifiants et champs techniques ne rendent pas le document illisible.
 - [ ] Les images restent des URL facultatives ; aucune image binaire n’est intégrée.
@@ -394,7 +394,7 @@ Répéter pour Films, Séries, Livres, Jeux et Art depuis `QA Principal`.
 
 ### Export CSV Films
 
-- [ ] Depuis Paramètres → Importer et exporter, exporter les Films en CSV.
+- [ ] Depuis la bibliothèque Films ou Paramètres → Importer et exporter, exporter les Films en CSV.
 - [ ] Annuler une première fois : aucun fichier n’est écrit.
 - [ ] Exporter réellement puis ouvrir le CSV dans un éditeur et dans un tableur.
 - [ ] Les colonnes, accents, dates, notes et textes multilignes restent lisibles.
@@ -450,7 +450,7 @@ Préparer localement une fiche `Été Bleu` et importer une fiche `ete bleu` ou 
 
 ## 11.5 Particularités par médium
 
-- [ ] **Films** : JSON Sylloge, CSV UTF-8 et export Notion ZIP sont les seuls formats annoncés.
+- [ ] **Films** : JSON, CSV UTF-8 et ZIP compatible sont les formats annoncés.
 - [ ] **Séries** : catégories et compteurs de saisons restent fidèles.
 - [ ] **Livres** : citations locales restent intactes si l’existant est conservé ; citations importées arrivent avec une nouvelle fiche.
 - [ ] **Jeux** : plateforme libre, note et avis restent fidèles.
@@ -458,7 +458,7 @@ Préparer localement une fiche `Été Bleu` et importer une fiche `ete bleu` ou 
 
 ---
 
-# 12. Import Films CSV et Notion
+# 12. Import Films CSV et conteneur ZIP compatible
 
 À exercer avec un vrai export ou une fixture anonymisée, pas avec un fichier inventé qui ne correspond à aucun outil réel.
 
@@ -473,7 +473,7 @@ Préparer localement une fiche `Été Bleu` et importer une fiche `ete bleu` ou 
 - [ ] Les accents, virgules, guillemets et retours à la ligne sont conservés.
 - [ ] Remplacer et Fusionner suivent les mêmes règles que le JSON Films.
 
-## 12.2 Export Notion ZIP
+## 12.2 Conteneur ZIP historique Film
 
 - [ ] Le ZIP réel est accepté sans extraction manuelle préalable.
 - [ ] Si plusieurs CSV sont présents, l’utilisateur peut identifier la bonne source.
@@ -496,9 +496,9 @@ Préparer localement une fiche `Été Bleu` et importer une fiche `ete bleu` ou 
 
 Depuis `QA Principal`, rempli avec les cinq médiums :
 
-- [ ] Paramètres → Importer et exporter distingue clairement l’export global des exports unitaires.
+- [ ] Paramètres → Importer et exporter distingue clairement le JSON à cinq collections des exports unitaires.
 - [ ] Annuler l’export n’écrit aucun fichier.
-- [ ] Exporter réellement la bibliothèque complète.
+- [ ] Exporter réellement le JSON des cinq collections.
 - [ ] Le message final annonce le bon nombre pour les cinq médiums.
 - [ ] Ouvrir le JSON et vérifier les cinq tableaux `films`, `series`, `books`, `games`, `artworks`.
 - [ ] Vérifier au moins une fiche complète et une fiche minimale de chaque médium.

@@ -1,14 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
 import { backupService, type BackupNotice } from '../data/backupService.ts'
-import {
-  createLibraryExport,
-  exportFileName,
-  serializeLibraryExport,
-  validateLibraryImport,
-  type ImportPreview,
-} from '../domain/libraryTransfer.ts'
-import { filmsCsvExportFileName, serializeFilmsCsvExport } from '../domain/csvFilmExport.ts'
+import { validateLibraryImport, type ImportPreview } from '../domain/libraryTransfer.ts'
 import {
   FILM_IMPORT_FIELD_LABELS,
   IMPORTABLE_FILM_FIELDS,
@@ -33,7 +26,7 @@ import type { FilmLibrary } from '../data/filmsRepository.ts'
 import { filmsRepository } from '../data/filmsRepository.ts'
 import { profilesRepository, type ProfileSummary } from '../data/profilesRepository.ts'
 import { confirmValidatedImport } from '../data/libraryTransferService.ts'
-import { libraryRepository } from '../data/libraryRepository.ts'
+import { libraryRepository, type CulturalLibrary } from '../data/libraryRepository.ts'
 import {
   createLibraryDocument,
   libraryExportFileName,
@@ -43,12 +36,15 @@ import {
 import {
   pickImportJson,
   pickImportFilmsCsvOrNotion,
-  saveExportCsv,
   saveExportJson,
   type BackupSettings,
   type PickedFilmsImportFile,
 } from '../data/nativePortability.ts'
 import { UpdaterSettings } from './UpdaterSettings.tsx'
+import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { LibraryExportButton } from './LibraryExportButton.tsx'
+import { LibraryCsvExportButton } from './LibraryCsvExportButton.tsx'
+import { LibraryImportButton } from './LibraryImportButton.tsx'
 import type { AvailableUpdate } from '../data/updaterService.ts'
 
 type SelectedImport = {
@@ -90,6 +86,7 @@ type PortabilityProps = {
   onUpdateHandled: () => void
   onProfilesChanged: () => void
   onProfileDeleted: (deletedProfileId: string) => void
+  onLibraryChanged: () => void
 }
 
 export function Portability({
@@ -104,6 +101,7 @@ export function Portability({
   onUpdateHandled,
   onProfilesChanged,
   onProfileDeleted,
+  onLibraryChanged,
 }: PortabilityProps) {
   const [exportState, setExportState] = useState<'idle' | 'saving'>('idle')
   const [exportMessage, setExportMessage] = useState<string | null>(null)
@@ -132,6 +130,7 @@ export function Portability({
   const [importKind, setImportKind] = useState<ImportKind>(null)
   const [filmsImportStep, setFilmsImportStep] = useState<FilmsImportStep>('source')
   const [exportKind, setExportKind] = useState<'json' | 'csv' | null>(null)
+  const [fullLibrary, setFullLibrary] = useState<CulturalLibrary | null>(null)
   const importing = activeImport === 'json'
   const importingFilms = activeImport === 'films'
   const importInProgress = activeImport !== null
@@ -195,6 +194,22 @@ export function Portability({
       cancelled = true
     }
   }, [library.profile.id, onBackupNotice])
+
+  useEffect(() => {
+    let cancelled = false
+    libraryRepository.loadLibrary(library.profile.id).then(
+      (loaded) => {
+        if (!cancelled) setFullLibrary(loaded)
+      },
+      (error: unknown) => {
+        console.error('Impossible de lire les collections pour les actions de portabilité.', error)
+        if (!cancelled) setFullLibrary(null)
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [library.profile.id])
 
 
   const switchProfile = async (profileId: string) => {
@@ -298,8 +313,10 @@ export function Portability({
         {section === 'transfer' && (
           <GlobalTransferSection
             library={library}
+            fullLibrary={fullLibrary}
             onImported={onImported}
             onProfilesChanged={onProfilesChanged}
+            onLibraryChanged={onLibraryChanged}
           />
         )}
 
@@ -420,87 +437,6 @@ function ImportPreviewPanel({ selected, importing, disabled, onConfirm }: {
   )
 }
 
-export function AccessibleDialog({
-  title,
-  description,
-  closeDisabled,
-  onClose,
-  children,
-}: {
-  title: string
-  description: string
-  closeDisabled: boolean
-  onClose: () => void
-  children: ReactNode
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const returnFocusRef = useRef<HTMLElement | null>(null)
-
-  useEffect(() => {
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    window.requestAnimationFrame(() => closeButtonRef.current?.focus())
-    return () => returnFocusRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-
-    const focusableElements = () => [...dialog.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )]
-    const keepFocusInDialog = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        if (!closeDisabled) onClose()
-        return
-      }
-      if (event.key !== 'Tab') return
-
-      const focusable = focusableElements()
-      if (focusable.length === 0) {
-        event.preventDefault()
-        dialog.focus()
-        return
-      }
-
-      const activeElement = document.activeElement
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (!dialog.contains(activeElement) || activeElement === dialog || !focusable.includes(activeElement as HTMLElement)) {
-        event.preventDefault()
-        const destination = event.shiftKey ? last : first
-        destination.focus()
-      } else if (event.shiftKey && activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener('keydown', keepFocusInDialog, true)
-    if (closeDisabled && focusableElements().length === 0) dialog.focus()
-    return () => document.removeEventListener('keydown', keepFocusInDialog, true)
-  }, [closeDisabled, onClose])
-
-  return (
-    <div className="transfer-dialog-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget && !closeDisabled) onClose()
-    }}>
-      <div className="transfer-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" aria-describedby="transfer-dialog-description" tabIndex={-1}>
-        <header className="transfer-dialog-header">
-          <div><p className="card-kicker">Assistant local</p><h2 id="transfer-dialog-title">{title}</h2><p id="transfer-dialog-description">{description}</p></div>
-          <button className="dialog-close" ref={closeButtonRef} type="button" disabled={closeDisabled} onClick={onClose} aria-label="Fermer l’assistant">Fermer</button>
-        </header>
-        {children}
-      </div>
-    </div>
-  )
-}
-
 function ImportAssistant({
   kind,
   selectedImport,
@@ -558,9 +494,9 @@ function ImportAssistant({
             <small>Une bibliothèque Sylloge complète sera relue, vérifiée puis ajoutée dans un nouveau profil.</small>
           </button>
           <button className="transfer-choice" type="button" onClick={onChooseFilms} disabled={choosingFilmsImport || disabled}>
-            <span className="card-kicker">Bibliothèque Films externe CSV/Notion</span>
+            <span className="card-kicker">Bibliothèque Films externe CSV/ZIP</span>
             <b>Importer des Films</b>
-            <small>Un tableau CSV ou un export Notion sera mappé avant la création d’un nouveau profil.</small>
+            <small>Un tableau CSV ou une archive ZIP compatible sera mappé avant la création d’un nouveau profil.</small>
           </button>
         </div>
       </div>
@@ -593,8 +529,8 @@ function ImportAssistant({
       <div className="assistant-toolbar"><button className="secondary-button" type="button" onClick={onReset} disabled={disabled}>Choisir un autre format</button></div>
       {!selectedFilmsImport && !filmsImportReport && (
         <section className="assistant-stage">
-          <p className="card-kicker">Bibliothèque Films externe CSV/Notion</p>
-          <h3>Choisir un CSV ou un export Notion</h3>
+          <p className="card-kicker">Bibliothèque Films externe CSV/ZIP</p>
+          <h3>Choisir un CSV ou une archive ZIP</h3>
           <p>Les colonnes seront affichées, y compris celles qui ne seront pas importées. Rien n’est écrit à cette étape.</p>
           <button className="primary-button" type="button" onClick={onChooseFilms} disabled={choosingFilmsImport || disabled}>{choosingFilmsImport ? 'Choix du fichier…' : 'Choisir le fichier'}</button>
         </section>
@@ -655,7 +591,7 @@ function FilmsImportAssistant({
         <p className="card-kicker">Source</p>
         <h3>Fichier et table retenue</h3>
         <dl className="assistant-source-summary">
-          <div><dt>Fichier</dt><dd>{source.kind === 'notion' ? 'Archive Notion sélectionnée' : 'Fichier CSV sélectionné'}</dd></div>
+          <div><dt>Fichier</dt><dd>{source.kind === 'notion' ? 'Archive ZIP compatible sélectionnée' : 'Fichier CSV sélectionné'}</dd></div>
           <div><dt>Table</dt><dd>{selectedCandidateId ? sourceSelection.candidates.find((candidate) => candidate.id === selectedCandidateId)?.label ?? 'À choisir' : 'À choisir'}</dd></div>
         </dl>
         {sourceSelection.selectionRequired && (
@@ -729,7 +665,7 @@ function SourceToDestinationMapping({
     }
   })
   if (source.kind === 'notion' && source.markdownPages.length > 0) {
-    sources.push({ source: NOTION_MARKDOWN_NOTES_SOURCE, label: 'Pages Notion « Notes »', detail: 'Contenu texte associé, distinct d’une évaluation chiffrée' })
+    sources.push({ source: NOTION_MARKDOWN_NOTES_SOURCE, label: 'Pages de notes associées', detail: 'Contenu texte associé, distinct d’une évaluation chiffrée' })
   }
   const detectedScaleLabel = {
     none: 'Aucune évaluation détectée',
@@ -788,7 +724,7 @@ function FilmsImportPreviewSummary({ preview, importing, disabled, onConfirm }: 
   return (
     <>
       <dl className="transfer-summary compact films-import-summary">
-        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Bibliothèque Films Notion' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div><div><dt>Lignes lues</dt><dd>{preview.totalFilmCount}</dd></div><div><dt>Convertibles</dt><dd>{preview.validFilmCount}</dd></div><div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>
+        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Archive ZIP compatible' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div><div><dt>Lignes lues</dt><dd>{preview.totalFilmCount}</dd></div><div><dt>Convertibles</dt><dd>{preview.validFilmCount}</dd></div><div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>
       </dl>
       {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes visibles mais ignorées :</b> {preview.ignoredColumns.join(', ')}. Elles restent sur « Ne pas importer » et ne sont pas remplacées par une autre donnée.</p>}
       {preview.warnings.length > 0 && <div className="films-import-warnings" role="status"><p>Éléments non associés</p><ul>{preview.warnings.map((warning, index) => <li key={`${warning.path}-${index}`}><code>{warning.path}</code> {warning.message}</li>)}</ul></div>}
@@ -1105,15 +1041,15 @@ function ProfilesSection({
 
 type GlobalTransferSectionProps = {
   library: FilmLibrary
+  fullLibrary: CulturalLibrary | null
   onImported: (library: FilmLibrary) => void
   onProfilesChanged: () => void
+  onLibraryChanged: () => void
 }
 
-function GlobalTransferSection({ library, onImported, onProfilesChanged }: GlobalTransferSectionProps) {
+function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesChanged, onLibraryChanged }: GlobalTransferSectionProps) {
   const [exportState, setExportState] = useState<'idle' | 'saving'>('idle')
   const [exportMessage, setExportMessage] = useState<string | null>(null)
-  const [csvExportState, setCsvExportState] = useState<'idle' | 'saving'>('idle')
-  const [csvExportMessage, setCsvExportMessage] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
@@ -1129,33 +1065,13 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
         serializeLibraryDocument(document),
       )
       setExportMessage(savedName
-        ? `Export global enregistré dans « ${savedName} » (${full.films.length} films, ${full.series.length} séries, ${full.books.length} livres, ${full.games.length} jeux, ${full.artworks.length} œuvres).`
+        ? `Export JSON enregistré dans « ${savedName} » (${full.films.length} films, ${full.series.length} séries, ${full.books.length} livres, ${full.games.length} jeux, ${full.artworks.length} œuvres).`
         : 'Export annulé. Aucun fichier n’a été écrit.')
     } catch (error) {
       console.error('Impossible d’exporter la bibliothèque complète.', error)
-      setExportMessage('L’export global a échoué. La bibliothèque locale n’a pas été modifiée.')
+      setExportMessage('L’export JSON a échoué. La bibliothèque locale n’a pas été modifiée.')
     } finally {
       setExportState('idle')
-    }
-  }
-
-  const exportFilmsCsv = async () => {
-    setCsvExportState('saving')
-    setCsvExportMessage(null)
-    try {
-      const document = createLibraryExport({ profile: library.profile, films: library.films })
-      const savedName = await saveExportCsv(
-        filmsCsvExportFileName(document.exportedAt),
-        serializeFilmsCsvExport(document),
-      )
-      setCsvExportMessage(savedName
-        ? `Export CSV enregistré dans « ${savedName} » avec ${document.films.length} ${document.films.length === 1 ? 'film' : 'films'}.`
-        : 'Export CSV annulé. Aucun fichier n’a été écrit.')
-    } catch (error) {
-      console.error('Impossible d’exporter les Films en CSV.', error)
-      setCsvExportMessage('L’export CSV a échoué. La bibliothèque locale n’a pas été modifiée.')
-    } finally {
-      setCsvExportState('idle')
     }
   }
 
@@ -1177,7 +1093,7 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
         const full = await libraryRepository.loadLibrary(library.profile.id)
         const totalWorks = full.films.length + full.series.length + full.books.length + full.games.length + full.artworks.length
         if (totalWorks > 0) {
-          setImportError('L’import global est réservé à un profil vide. Créez un nouveau profil (Paramètres → Profils) puis importez-y cette bibliothèque, ou videz le profil courant.')
+          setImportError('Ce JSON réunit les cinq collections et ne peut être importé que dans un profil vide. Créez un profil ou videz le profil courant avant de recommencer.')
           return
         }
         const imported = await libraryRepository.importLibraryDocumentIntoEmptyProfile(
@@ -1195,7 +1111,7 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
         const full = await libraryRepository.loadLibrary(library.profile.id)
         const totalWorks = full.films.length + full.series.length + full.books.length + full.games.length + full.artworks.length
         if (totalWorks > 0) {
-          setImportError('L’import global est réservé à un profil vide. Créez un nouveau profil (Paramètres → Profils) puis importez-y cette bibliothèque, ou videz le profil courant.')
+          setImportError('Ce JSON réunit les cinq collections et ne peut être importé que dans un profil vide. Créez un profil ou videz le profil courant avant de recommencer.')
           return
         }
         const compatibleDocument = createLibraryDocument({
@@ -1216,7 +1132,7 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
         return
       }
 
-      setImportError('Le fichier choisi n’est pas un export Sylloge valide (JSON v1 ou v2). Aucune donnée n’a été écrite.')
+      setImportError('Le fichier choisi n’est pas un JSON Sylloge valide (v1 ou v2). Aucune donnée n’a été écrite.')
     } catch (error) {
       console.error('L’import global a échoué.', error)
       setImportError('L’import a échoué. La transaction a été annulée et aucune bibliothèque incomplète n’a été conservée.')
@@ -1230,20 +1146,20 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
       <div className="settings-section-heading">
         <p className="card-kicker">Formats portables</p>
         <h2 id="transfer-title">Importer et exporter</h2>
-        <p>Exportez votre bibliothèque complète au format Sylloge pour une réinstallation, ou restaurez une sauvegarde. L’import et l’export par médium se font directement dans chaque bibliothèque.</p>
+        <p>Choisis une action locale. JSON déplace une collection ou les cinq collections ; CSV sert aux échanges tabulaires d’un médium ; Snapshots créent des copies JSON datées.</p>
       </div>
 
       <div className="portability-card">
         <div className="portability-card-heading">
-          <div><p className="card-kicker">Bibliothèque complète</p><h3>Format Sylloge</h3></div>
+          <div><p className="card-kicker">JSON</p><h3>Les cinq collections</h3></div>
         </div>
-        <p>Une copie fidèle de vos cinq collections (Films, Séries, Livres, Jeux, Art), pensée pour être réimportée telle quelle dans Sylloge.</p>
+        <p>Ce fichier réunit Films, Séries, Livres, Jeux et Art dans le schéma JSON identifié et versionné de Sylloge. Il sert à déplacer toute la bibliothèque vers un profil vide.</p>
         <div className="backup-actions">
           <button className="primary-button" type="button" disabled={exportState === 'saving'} onClick={() => void exportGlobal()}>
-            {exportState === 'saving' ? 'Export…' : 'Exporter la bibliothèque complète'}
+            {exportState === 'saving' ? 'Export…' : 'Exporter JSON'}
           </button>
           <button className="secondary-button" type="button" disabled={importing} onClick={() => void importGlobal()}>
-            {importing ? 'Lecture…' : 'Restaurer une bibliothèque (profil vide)'}
+            {importing ? 'Lecture…' : 'Importer JSON'}
           </button>
         </div>
         {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
@@ -1253,29 +1169,56 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
 
       <div className="portability-card">
         <div className="portability-card-heading">
-          <div><p className="card-kicker">Collections disponibles</p><h3>Imports et exports par médium</h3></div>
+          <div><p className="card-kicker">Collections</p><h3>Actions par médium</h3></div>
         </div>
-        <p>Chaque bibliothèque dispose de ses propres actions Importer et Exporter. Aucun écran n’est créé pour un format absent.</p>
-        <dl className="settings-facts transfer-media-facts">
-          <div><dt>Films</dt><dd>JSON Sylloge, CSV UTF-8 et export Notion ZIP à l’import ; JSON et CSV à l’export.</dd></div>
-          <div><dt>Séries</dt><dd>JSON Sylloge v2, depuis la bibliothèque Séries.</dd></div>
-          <div><dt>Livres</dt><dd>JSON Sylloge v2 avec citations, depuis la bibliothèque Livres.</dd></div>
-          <div><dt>Jeux</dt><dd>JSON Sylloge v2 avec plateforme libre, depuis la bibliothèque Jeux.</dd></div>
-          <div><dt>Art</dt><dd>JSON Sylloge v2 sans note chiffrée, depuis la bibliothèque Art.</dd></div>
-        </dl>
-      </div>
-
-      <div className="portability-card">
-        <div className="portability-card-heading">
-          <div><p className="card-kicker">Lisible par un tableur</p><h3>Export Films CSV</h3></div>
-        </div>
-        <p>Un tableau Films lisible, sans téléchargement d’affiches ni ajout de données.</p>
-        <div className="backup-actions">
-          <button className="secondary-button" type="button" disabled={csvExportState === 'saving'} onClick={() => void exportFilmsCsv()}>
-            {csvExportState === 'saving' ? 'Export…' : 'Exporter les Films en CSV'}
-          </button>
-        </div>
-        {csvExportMessage && <p className="inline-report" role="status">{csvExportMessage}</p>}
+        <p>Chaque bibliothèque reprend les mêmes actions que son écran : importer ou exporter son JSON. Le CSV reste proposé pour Films jusqu’à l’ouverture de son contrat multi-médiums.</p>
+        {fullLibrary === null ? (
+          <p className="backup-state" role="status">Lecture des collections locales…</p>
+        ) : (
+          <div className="transfer-media-grid">
+            <section className="transfer-media-card" aria-labelledby="transfer-films-title">
+              <h4 id="transfer-films-title">Films</h4>
+              <p>JSON et CSV</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="films" buttonLabel="Importer" mediumLabel="film" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.films} onDone={onLibraryChanged} />
+                <LibraryExportButton kind="films" profileId={fullLibrary.profile.id} />
+                <LibraryCsvExportButton profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-series-title">
+              <h4 id="transfer-series-title">Séries</h4>
+              <p>JSON</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="series" buttonLabel="Importer" mediumLabel="série" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.series} onDone={onLibraryChanged} />
+                <LibraryExportButton kind="series" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-books-title">
+              <h4 id="transfer-books-title">Livres</h4>
+              <p>JSON, citations comprises</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="books" buttonLabel="Importer" mediumLabel="livre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.books} onDone={onLibraryChanged} />
+                <LibraryExportButton kind="books" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-games-title">
+              <h4 id="transfer-games-title">Jeux</h4>
+              <p>JSON</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="games" buttonLabel="Importer" mediumLabel="jeu" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.games} onDone={onLibraryChanged} />
+                <LibraryExportButton kind="games" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-art-title">
+              <h4 id="transfer-art-title">Art</h4>
+              <p>JSON, sans note chiffrée</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="artworks" buttonLabel="Importer" mediumLabel="œuvre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.artworks} onDone={onLibraryChanged} />
+                <LibraryExportButton kind="artworks" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </section>
   )

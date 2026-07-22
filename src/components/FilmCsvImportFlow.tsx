@@ -85,7 +85,7 @@ export function FilmCsvImportFlow({
 
   return (
     <div className="assistant-content">
-      <ol className="assistant-steps" aria-label="Étapes de l’import CSV ou Notion">
+      <ol className="assistant-steps" aria-label="Étapes de l’import CSV ou ZIP">
         {['Source', 'Mapping', 'Aperçu'].map((label, index) => {
           const current = step === 'source' ? 1 : step === 'mapping' ? 2 : 3
           return <li className={index + 1 === current ? 'active' : index + 1 < current ? 'complete' : ''} key={label}>{label}</li>
@@ -98,7 +98,7 @@ export function FilmCsvImportFlow({
       {step === 'source' && (
         <section className="assistant-stage">
           <p className="card-kicker">Source détectée</p>
-          <h3>{source.kind === 'notion' ? 'Export Notion ZIP' : 'Fichier CSV'}</h3>
+          <h3>{source.kind === 'notion' ? 'Archive ZIP compatible' : 'Fichier CSV'}</h3>
           <dl className="assistant-source-summary">
             <div><dt>Fichier</dt><dd>{source.name}</dd></div>
             <div>
@@ -192,7 +192,7 @@ function SourceToDestinationMapping({
   if (source.kind === 'notion' && source.markdownPages.length > 0) {
     sources.push({
       source: NOTION_MARKDOWN_NOTES_SOURCE,
-      label: 'Pages Notion « Notes »',
+      label: 'Pages de notes associées',
       detail: 'Contenu texte associé, distinct d’une évaluation chiffrée',
     })
   }
@@ -284,7 +284,7 @@ function FilmCsvImportPreviewPanel({
         <span>{valid ? 'Valide' : 'Import bloqué'}</span>
       </div>
       <dl className="transfer-summary compact films-import-summary">
-        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Bibliothèque Films Notion' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div>
+        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Archive ZIP compatible' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div>
         <div><dt>Lignes lues</dt><dd>{preview.totalFilmCount}</dd></div>
         <div><dt>Convertibles</dt><dd>{preview.validFilmCount}</dd></div>
         <div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>

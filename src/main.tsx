@@ -14,6 +14,8 @@ import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { TmdbAssociationConfirm } from './components/TmdbAssociationConfirm.tsx'
+import { LibraryExportButton } from './components/LibraryExportButton.tsx'
+import { LibraryCsvExportButton } from './components/LibraryCsvExportButton.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
@@ -27,18 +29,7 @@ import {
   type SeriesSearchCriteria,
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
-import {
-  createLibraryExport,
-  exportFileName,
-  serializeLibraryExport,
-} from './domain/libraryTransfer.ts'
-import { saveExportJson } from './data/nativePortability.ts'
-import { libraryRepository } from './data/libraryRepository.ts'
-import {
-  createLibraryDocument,
-  libraryExportFileName,
-  serializeLibraryDocument,
-} from './domain/libraryDocument.ts'
+
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { associateFilmWithTmdb, getFilmTmdbCache } from './data/tmdbService.ts'
 import {
@@ -594,19 +585,6 @@ function FilmsLibrary({
 }: FilmsLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.filter === 'all'
   const resultCount = searchState.status === 'ready' ? searchState.films.length : null
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
-
-  const exportLibrary = async () => {
-    setExportMessage(null)
-    try {
-      const document = createLibraryExport({ profile: library.profile, films: library.films })
-      const savedName = await saveExportJson(exportFileName(document.exportedAt), serializeLibraryExport(document))
-      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
-    } catch (error) {
-      console.error('Impossible d’exporter les Films.', error)
-      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
-    }
-  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
@@ -625,11 +603,11 @@ function FilmsLibrary({
             existing={library.films}
             onDone={onLibraryChanged}
           />
-          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
+          <LibraryExportButton kind="films" profileId={library.profile.id} />
+          <LibraryCsvExportButton profileId={library.profile.id} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
         </div>
       </header>
-      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
 
       {library.films.length === 0 && isUnfiltered ? (
         <EmptyLibrary onCreate={onCreate} />
@@ -780,25 +758,6 @@ function SeriesLibrary({
 }: SeriesLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.category === 'all'
   const resultCount = searchState.status === 'ready' ? searchState.series.length : null
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
-
-  const exportLibrary = async () => {
-    setExportMessage(null)
-    try {
-      const library = await libraryRepository.loadLibrary(profileId)
-      const document = createLibraryDocument(
-        { ...library, films: [], books: [], games: [], artworks: [] },
-      )
-      const savedName = await saveExportJson(
-        libraryExportFileName(document.exportedAt),
-        serializeLibraryDocument(document),
-      )
-      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
-    } catch (error) {
-      console.error('Impossible d’exporter les Séries.', error)
-      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
-    }
-  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
@@ -817,12 +776,10 @@ function SeriesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
+          <LibraryExportButton kind="series" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
         </div>
       </header>
-      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
-
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -977,21 +934,7 @@ function GamesLibrary({
 }: GamesLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.platform === 'all'
   const resultCount = searchState.status === 'ready' ? searchState.games.length : null
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
   const platforms = buildGamePlatformFilters(collection)
-
-  const exportLibrary = async () => {
-    setExportMessage(null)
-    try {
-      const library = await libraryRepository.loadLibrary(profileId)
-      const document = createLibraryDocument({ ...library, films: [], series: [], books: [], artworks: [] })
-      const savedName = await saveExportJson(libraryExportFileName(document.exportedAt), serializeLibraryDocument(document))
-      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
-    } catch (error) {
-      console.error('Impossible d’exporter les Jeux.', error)
-      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
-    }
-  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
@@ -1010,12 +953,10 @@ function GamesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
+          <LibraryExportButton kind="games" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
         </div>
       </header>
-      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
-
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -1140,20 +1081,6 @@ function ArtworksLibrary({
 }: ArtworksLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.form === 'all'
   const resultCount = searchState.status === 'ready' ? searchState.artworks.length : null
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
-
-  const exportLibrary = async () => {
-    setExportMessage(null)
-    try {
-      const library = await libraryRepository.loadLibrary(profileId)
-      const document = createLibraryDocument({ ...library, films: [], series: [], books: [], games: [] })
-      const savedName = await saveExportJson(libraryExportFileName(document.exportedAt), serializeLibraryDocument(document))
-      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
-    } catch (error) {
-      console.error('Impossible d’exporter l’Art.', error)
-      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
-    }
-  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
@@ -1172,12 +1099,10 @@ function ArtworksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
+          <LibraryExportButton kind="artworks" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
         </div>
       </header>
-      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
-
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -1280,25 +1205,6 @@ function BooksLibrary({
 }: BooksLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.category === 'all'
   const resultCount = searchState.status === 'ready' ? searchState.books.length : null
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
-
-  const exportLibrary = async () => {
-    setExportMessage(null)
-    try {
-      const library = await libraryRepository.loadLibrary(profileId)
-      const document = createLibraryDocument(
-        { ...library, films: [], series: [], games: [], artworks: [] },
-      )
-      const savedName = await saveExportJson(
-        libraryExportFileName(document.exportedAt),
-        serializeLibraryDocument(document),
-      )
-      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
-    } catch (error) {
-      console.error('Impossible d’exporter les Livres.', error)
-      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
-    }
-  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
@@ -1317,12 +1223,10 @@ function BooksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
+          <LibraryExportButton kind="books" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
         </div>
       </header>
-      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
-
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -1994,6 +1898,7 @@ function App() {
             setLoadAttempt((attempt) => attempt + 1)
           }
         }}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   } else if (view.name === 'detail') {
