@@ -301,8 +301,11 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.12` — Fiabilité de la création et de l’association TMDB
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La prévisualisation détaillée TMDB est désormais indépendante d’un `film_id` local et alimente réellement les champs éditoriaux du formulaire (titre, titre original, année, réalisation, résumé, affiche), sans toucher aux données personnelles. La création locale précède l’écriture du cache ; si l’association réseau échoue, la fiche reste créée et intacte, l’erreur est annoncée et l’association peut être relancée depuis le détail. L’association native relit le cache après écriture.
+
 - Corriger le défaut actuel où le candidat TMDB sélectionné ne préremplit pas réellement le formulaire et n’est pas associé après création.
 - Séparer les métadonnées éditoriales TMDB des données personnelles et définir une reprise sûre en cas d’échec réseau.
+- La QA native doit encore exercer une création assistée complète, une association existante, une dissociation, un rafraîchissement et un changement d’affiche.
 
 ### `0.4.13` — Parcours Film unifié et recherche TMDB contextuelle
 

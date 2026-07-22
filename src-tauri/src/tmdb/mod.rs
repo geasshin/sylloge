@@ -14,7 +14,7 @@ use tauri_plugin_sql::{DbInstances, DbPool};
 use crate::database::DATABASE_URL;
 
 pub use cache::CachedFilmTmdbPresentationDto;
-pub use client::TmdbSearchCandidateDto;
+pub use client::{TmdbFilmPresentationDto, TmdbSearchCandidateDto};
 use secrets::SecretValue;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,6 +91,23 @@ pub async fn search_tmdb_films(
 
     client
         .search_films(&secret, &query, &language)
+        .await
+        .map_err(error_message)
+}
+
+/// Récupère une présentation détaillée sans écrire dans SQLite.
+/// Cette commande sert à préremplir une nouvelle fiche avant sa validation.
+#[tauri::command]
+pub async fn preview_tmdb_film(
+    tmdb_id: i64,
+    language: Option<String>,
+) -> Result<TmdbFilmPresentationDto, String> {
+    let secret = get_secret().await?;
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    let language = language.unwrap_or_else(|| "fr-FR".to_string());
+
+    client
+        .fetch_film_presentation(&secret, tmdb_id, &language)
         .await
         .map_err(error_message)
 }

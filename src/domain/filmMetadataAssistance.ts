@@ -15,6 +15,16 @@ export type FilmMetadataResult = {
   providerId: string | null
 }
 
+export type FilmMetadataPresentation = {
+  tmdbId: number
+  title: string
+  originalTitle: string | null
+  releaseDate: string | null
+  synopsis: string | null
+  directors: string[]
+  posterUrl: string | null
+}
+
 export type FilmMetadataProvenance = {
   providerName: string
   providerId: string
@@ -56,6 +66,23 @@ export function filmMetadataResultToFormInitialValues(result: FilmMetadataResult
       posterUrl: optionalText(result.posterUrl),
     },
     provenance: filmMetadataProvenance(result),
+  }
+}
+
+export function tmdbPresentationToFilmMetadataResult(
+  presentation: FilmMetadataPresentation,
+): FilmMetadataResult {
+  const releaseYear = presentation.releaseDate?.match(/^\d{4}/)?.[0]
+
+  return {
+    title: presentation.title,
+    originalTitle: presentation.originalTitle,
+    year: releaseYear ? Number(releaseYear) : null,
+    director: presentation.directors.join(', ') || null,
+    summary: presentation.synopsis,
+    posterUrl: presentation.posterUrl,
+    providerName: 'TMDB',
+    providerId: String(presentation.tmdbId),
   }
 }
 

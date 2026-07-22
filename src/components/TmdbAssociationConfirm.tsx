@@ -1,15 +1,25 @@
 import { useState } from 'react'
 import {
   associateFilmWithTmdb,
+  previewTmdbFilm,
   type TmdbSearchCandidate,
 } from '../data/tmdbService.ts'
+import {
+  filmMetadataResultToFormInitialValues,
+  tmdbPresentationToFilmMetadataResult,
+  type AssistedFilmFormInitialValues,
+} from '../domain/filmMetadataAssistance.ts'
 import type { Film } from '../domain/film.ts'
 import { Poster } from './Poster.tsx'
 
 type TmdbAssociationConfirmProps = {
   film: Film | null // null = création assistée (préremplissage), Film = association à fiche existante
   candidate: TmdbSearchCandidate
-  onConfirm: (result: { tmdbId: number; title: string }) => void
+  onConfirm: (result: {
+    tmdbId: number
+    title: string
+    initialValues?: AssistedFilmFormInitialValues
+  }) => void
   onBack: () => void
   onCancel: () => void
 }
@@ -31,9 +41,16 @@ export function TmdbAssociationConfirm({
       if (film) {
         // Association à une fiche existante : écriture du cache TMDB
         await associateFilmWithTmdb(film.id, candidate.tmdbId)
+        onConfirm({ tmdbId: candidate.tmdbId, title: candidate.title })
+        return
       }
-      // En création assistée, on ne fait que retourner le candidat pour préremplissage
-      onConfirm({ tmdbId: candidate.tmdbId, title: candidate.title })
+
+      // En création assistée, détailler le candidat sans écrire avant la validation du formulaire.
+      const presentation = await previewTmdbFilm(candidate.tmdbId)
+      const initialValues = filmMetadataResultToFormInitialValues(
+        tmdbPresentationToFilmMetadataResult(presentation),
+      )
+      onConfirm({ tmdbId: candidate.tmdbId, title: candidate.title, initialValues })
     } catch (err) {
       console.error('L\'association TMDB a échoué.', err)
       setError('L\'association a échoué. Vérifiez votre clé TMDB et votre connexion, puis réessayez.')

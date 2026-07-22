@@ -40,7 +40,7 @@ import {
   serializeLibraryDocument,
 } from './domain/libraryDocument.ts'
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
-import { getFilmTmdbCache } from './data/tmdbService.ts'
+import { associateFilmWithTmdb, getFilmTmdbCache } from './data/tmdbService.ts'
 import {
   FILM_FILTER_LABELS,
   FILM_FILTERS,
@@ -48,7 +48,8 @@ import {
   type Film,
   type FilmFilter,
 } from './domain/film.ts'
-import type { FilmWriteInput } from './domain/filmForm.ts'
+import type { FilmFormValues, FilmWriteInput } from './domain/filmForm.ts'
+import type { FilmMetadataProvenance } from './domain/filmMetadataAssistance.ts'
 import {
   SERIES_CATEGORY_LABELS,
   SERIES_STATUS_LABELS,
@@ -1434,7 +1435,7 @@ type View =
   | { name: 'series' }
   | { name: 'settings' }
   | { name: 'create-choice' }
-  | { name: 'create' }
+  | { name: 'create'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
   | { name: 'tmdb-search' }
   | { name: 'tmdb-confirm'; candidate: TmdbSearchCandidate }
   | { name: 'tmdb-associate'; filmId: string }
@@ -1480,9 +1481,10 @@ type SqliteFilmDetailProps = {
   onEdit: () => void
   onDelete: () => Promise<void>
   onAssociateTmdb: () => void
+  tmdbNotice?: string | null
 }
 
-function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete, onAssociateTmdb }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, tmdbNotice }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -1508,7 +1510,7 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
   }, [attempt, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} tmdbNotice={tmdbNotice} />
   }
 
   return (
@@ -1562,6 +1564,7 @@ function App() {
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
+  const [tmdbNotice, setTmdbNotice] = useState<{ filmId: string; message: string } | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
 
@@ -1909,12 +1912,16 @@ function App() {
       <TmdbAssociationConfirm
         film={associatingFilm}
         candidate={view.candidate}
-        onConfirm={() => {
+        onConfirm={(result) => {
           setAssociatingFilm(null)
           if (associatingFilm) {
             setView({ name: 'detail', filmId: associatingFilm.id, returnTo: 'library' })
           } else {
-            setView({ name: 'create' })
+            setView({
+              name: 'create',
+              initialValues: result.initialValues?.values,
+              provenance: result.initialValues?.provenance ?? null,
+            })
           }
         }}
         onBack={() => setView({ name: 'tmdb-search' })}
@@ -1954,6 +1961,8 @@ function App() {
     const { library } = libraryState
     content = (
       <FilmForm
+        initialValues={view.initialValues}
+        provenance={view.provenance}
         onCancel={returnToLibrary}
         onSave={async (input, provenance) => {
           const film = await filmsRepository.createFilm(library.profile.id, input, provenance)
@@ -1963,6 +1972,18 @@ function App() {
             library: updatedLibrary,
           })
           requestAutomaticBackup(updatedLibrary)
+          setTmdbNotice(null)
+          if (provenance) {
+            try {
+              await associateFilmWithTmdb(film.id, Number(provenance.providerId))
+            } catch (error) {
+              console.error('Le film a été créé mais son association TMDB a échoué.', error)
+              setTmdbNotice({
+                filmId: film.id,
+                message: 'Le film a bien été créé, mais TMDB n’a pas pu être associé. La fiche reste intacte ; tu peux relancer l’association depuis cette page.',
+              })
+            }
+          }
           setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
           window.scrollTo({ top: 0 })
         }}
@@ -2020,10 +2041,12 @@ function App() {
         onAssociateTmdb={() => {
           const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
           if (film) {
+            setTmdbNotice(null)
             setAssociatingFilm(film)
             setView({ name: 'tmdb-associate', filmId: view.filmId })
           }
         }}
+        tmdbNotice={tmdbNotice?.filmId === view.filmId ? tmdbNotice.message : null}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
           const updatedLibrary: FilmLibrary = {

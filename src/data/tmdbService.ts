@@ -43,6 +43,10 @@ export function searchTmdbFilms(query: string, language?: string): Promise<TmdbS
   return invoke('search_tmdb_films', { query, language })
 }
 
+export function previewTmdbFilm(tmdbId: number, language?: string): Promise<TmdbFilmPresentation> {
+  return invoke('preview_tmdb_film', { tmdbId, language })
+}
+
 export function associateFilmWithTmdb(
   filmId: string,
   tmdbId: number,

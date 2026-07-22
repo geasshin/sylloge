@@ -21,9 +21,10 @@ type FilmDetailProps = {
   onEdit: () => void
   onDelete: () => Promise<void>
   onAssociateTmdb: () => void
+  tmdbNotice?: string | null
 }
 
-export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb }: FilmDetailProps) {
+export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, tmdbNotice = null }: FilmDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -155,6 +156,7 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
                 <span className="tmdb-badge">Associé</span>
               )}
             </div>
+            {tmdbNotice && <p className="inline-report error" role="alert">{tmdbNotice}</p>}
             {tmdbLoading ? (
               <p role="status">Lecture de l'association…</p>
             ) : tmdbCache ? (
