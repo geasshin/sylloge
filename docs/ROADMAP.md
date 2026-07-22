@@ -330,6 +330,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.16` — Imports CSV multi-médiums
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Séries, Livres, Jeux et Art acceptent désormais le CSV direct depuis leur bibliothèque et les Paramètres. Les exports CSV Sylloge v1 se réimportent avec les champs représentables ; un fichier externe passe par un mapping explicite, puis un aperçu bloquant au moindre défaut. Les imports réutilisent Remplacer/Fusionner, la résolution de doublons et les transactions SQLite unitaires existantes.
+
 - Généraliser le pipeline aperçu, mapping, validation, Remplacer/Fusionner et doublons aux quatre médiums non-Films.
 - Refuser toute ligne invalide avant écriture et préserver l’atomicité SQLite.
 

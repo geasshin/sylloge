@@ -13,11 +13,14 @@ export type CsvCollectionExport = {
 
 type CsvCell = string | number | boolean | null
 
-type CsvExportDefinition = {
+export type CollectionCsvContract = {
   format: string
+  entityHeaders: readonly string[]
+}
+
+type CsvExportDefinition = CollectionCsvContract & {
   fileNamePrefix: string
   mediumLabel: string
-  entityHeaders: readonly string[]
   rows: (library: CulturalLibrary) => CsvCell[][]
 }
 
@@ -33,17 +36,49 @@ const COMMON_HEADERS = [
 
 const CSV_VERSION = 1
 
-const DEFINITIONS: Record<Exclude<CsvCollectionMedium, 'films'>, CsvExportDefinition> = {
+export const COLLECTION_CSV_CONTRACTS: Record<Exclude<CsvCollectionMedium, 'films'>, CollectionCsvContract> = {
   series: {
     format: 'sylloge-series-csv',
-    fileNamePrefix: 'sylloge-series',
-    mediumLabel: 'série',
     entityHeaders: [
       'series_id', 'series_profile_id', 'series_title', 'series_showrunner', 'series_casting',
       'series_summary', 'series_category', 'series_status', 'series_rating', 'series_is_favorite',
       'series_seasons_seen', 'series_seasons_total', 'series_progress_updated_at', 'series_started_at',
       'series_poster_url', 'series_personal_note', 'series_created_at', 'series_updated_at',
     ],
+  },
+  books: {
+    format: 'sylloge-books-csv',
+    entityHeaders: [
+      'book_id', 'book_profile_id', 'book_title', 'book_author', 'book_year', 'book_summary',
+      'book_category', 'book_status', 'book_rating', 'book_is_favorite', 'book_volumes_read',
+      'book_volumes_total', 'book_progress_updated_at', 'book_started_at', 'book_cover_url',
+      'book_personal_note', 'book_quotes_json', 'book_created_at', 'book_updated_at',
+    ],
+  },
+  games: {
+    format: 'sylloge-games-csv',
+    entityHeaders: [
+      'game_id', 'game_profile_id', 'game_title', 'game_developer', 'game_platform', 'game_year',
+      'game_status', 'game_rating', 'game_is_favorite', 'game_played_at', 'game_cover_url',
+      'game_personal_note', 'game_created_at', 'game_updated_at',
+    ],
+  },
+  artworks: {
+    format: 'sylloge-artworks-csv',
+    entityHeaders: [
+      'artwork_id', 'artwork_profile_id', 'artwork_title', 'artwork_artist', 'artwork_year',
+      'artwork_form', 'artwork_location', 'artwork_exhibition', 'artwork_status',
+      'artwork_is_favorite', 'artwork_discovered_at', 'artwork_image_url',
+      'artwork_personal_note', 'artwork_created_at', 'artwork_updated_at',
+    ],
+  },
+}
+
+const DEFINITIONS: Record<Exclude<CsvCollectionMedium, 'films'>, CsvExportDefinition> = {
+  series: {
+    ...COLLECTION_CSV_CONTRACTS.series,
+    fileNamePrefix: 'sylloge-series',
+    mediumLabel: 'série',
     rows: (library) => library.series.map((series) => [
       series.id, series.profileId, series.title, series.showrunner, series.casting, series.summary,
       series.category, series.status, series.rating, series.isFavorite, series.seasonsSeen,
@@ -52,15 +87,10 @@ const DEFINITIONS: Record<Exclude<CsvCollectionMedium, 'films'>, CsvExportDefini
     ]),
   },
   books: {
+    ...COLLECTION_CSV_CONTRACTS.books,
     format: 'sylloge-books-csv',
     fileNamePrefix: 'sylloge-books',
     mediumLabel: 'livre',
-    entityHeaders: [
-      'book_id', 'book_profile_id', 'book_title', 'book_author', 'book_year', 'book_summary',
-      'book_category', 'book_status', 'book_rating', 'book_is_favorite', 'book_volumes_read',
-      'book_volumes_total', 'book_progress_updated_at', 'book_started_at', 'book_cover_url',
-      'book_personal_note', 'book_quotes_json', 'book_created_at', 'book_updated_at',
-    ],
     rows: (library) => library.books.map((book) => [
       book.id, book.profileId, book.title, book.author, book.year, book.summary, book.category,
       book.status, book.rating, book.isFavorite, book.volumesRead, book.volumesTotal,
@@ -73,14 +103,10 @@ const DEFINITIONS: Record<Exclude<CsvCollectionMedium, 'films'>, CsvExportDefini
     ]),
   },
   games: {
+    ...COLLECTION_CSV_CONTRACTS.games,
     format: 'sylloge-games-csv',
     fileNamePrefix: 'sylloge-games',
     mediumLabel: 'jeu',
-    entityHeaders: [
-      'game_id', 'game_profile_id', 'game_title', 'game_developer', 'game_platform', 'game_year',
-      'game_status', 'game_rating', 'game_is_favorite', 'game_played_at', 'game_cover_url',
-      'game_personal_note', 'game_created_at', 'game_updated_at',
-    ],
     rows: (library) => library.games.map((game) => [
       game.id, game.profileId, game.title, game.developer, game.platform, game.year, game.status,
       game.rating, game.isFavorite, game.playedAt, game.coverUrl, game.personalNote,
@@ -88,15 +114,10 @@ const DEFINITIONS: Record<Exclude<CsvCollectionMedium, 'films'>, CsvExportDefini
     ]),
   },
   artworks: {
+    ...COLLECTION_CSV_CONTRACTS.artworks,
     format: 'sylloge-artworks-csv',
     fileNamePrefix: 'sylloge-artworks',
     mediumLabel: 'œuvre',
-    entityHeaders: [
-      'artwork_id', 'artwork_profile_id', 'artwork_title', 'artwork_artist', 'artwork_year',
-      'artwork_form', 'artwork_location', 'artwork_exhibition', 'artwork_status',
-      'artwork_is_favorite', 'artwork_discovered_at', 'artwork_image_url',
-      'artwork_personal_note', 'artwork_created_at', 'artwork_updated_at',
-    ],
     rows: (library) => library.artworks.map((artwork) => [
       artwork.id, artwork.profileId, artwork.title, artwork.artist, artwork.year, artwork.form,
       artwork.location, artwork.exhibition, artwork.status, artwork.isFavorite,

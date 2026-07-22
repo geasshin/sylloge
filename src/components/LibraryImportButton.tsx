@@ -38,7 +38,7 @@ import {
   writeSeriesImport,
   type ImportMode,
 } from '../data/libraryTransferService.ts'
-import { pickImportAny, pickImportJson } from '../data/nativePortability.ts'
+import { pickImportAny } from '../data/nativePortability.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import {
   DuplicatesResolver,
@@ -49,6 +49,7 @@ import {
   gameSummary,
   seriesSummary,
 } from './CollectionImportFlow.tsx'
+import { CollectionCsvImportFlow } from './CollectionCsvImportFlow.tsx'
 import { FilmCsvImportFlow } from './FilmCsvImportFlow.tsx'
 
 type ImportStep = 'choose-file' | 'external-preview' | 'mode' | 'duplicates' | 'working' | 'done'
@@ -99,6 +100,10 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
   const [importedCount, setImportedCount] = useState(0)
   const [report, setReport] = useState<string | null>(null)
   const [externalFilmSource, setExternalFilmSource] = useState<PickedFilmsImportFile | null>(null)
+  const [externalCollectionCsv, setExternalCollectionCsv] = useState<{
+    kind: 'series' | 'books' | 'games' | 'artworks'
+    contents: string
+  } | null>(null)
   const writingRef = useRef(false)
 
   // Films state
@@ -137,6 +142,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     setImportedCount(0)
     setReport(null)
     setExternalFilmSource(null)
+    setExternalCollectionCsv(null)
     setFilmsImported([])
     setFilmDuplicates([])
     setFilmResolutions(new Map())
@@ -190,12 +196,23 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         setFilmsImported(parsed.items)
         setImportedCount(parsed.items.length)
       } else if (props.kind === 'series') {
-        const picked = await pickImportJson()
+        const picked = await pickImportAny()
         if (!picked) {
           setError('Sélection annulée. Aucune donnée n’a été écrite.')
           return
         }
         setFileName(picked.name)
+        if (picked.kind === 'csv') {
+          const contents = picked.csvCandidates[0]?.contents
+          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
+          setExternalCollectionCsv({ kind: 'series', contents })
+          setStep('external-preview')
+          return
+        }
+        if (picked.kind !== 'json' || picked.contents === null) {
+          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
+          return
+        }
         const parsed = parseSeriesCollectionJson(picked.contents)
         if (parsed.items === null) {
           setError(parsed.error)
@@ -204,12 +221,23 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         setSeriesImported(parsed.items)
         setImportedCount(parsed.items.length)
       } else if (props.kind === 'books') {
-        const picked = await pickImportJson()
+        const picked = await pickImportAny()
         if (!picked) {
           setError('Sélection annulée. Aucune donnée n’a été écrite.')
           return
         }
         setFileName(picked.name)
+        if (picked.kind === 'csv') {
+          const contents = picked.csvCandidates[0]?.contents
+          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
+          setExternalCollectionCsv({ kind: 'books', contents })
+          setStep('external-preview')
+          return
+        }
+        if (picked.kind !== 'json' || picked.contents === null) {
+          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
+          return
+        }
         const parsed = parseBooksCollectionJson(picked.contents)
         if (parsed.items === null) {
           setError(parsed.error)
@@ -218,12 +246,23 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         setBooksImported(parsed.items)
         setImportedCount(parsed.items.length)
       } else if (props.kind === 'games') {
-        const picked = await pickImportJson()
+        const picked = await pickImportAny()
         if (!picked) {
           setError('Sélection annulée. Aucune donnée n’a été écrite.')
           return
         }
         setFileName(picked.name)
+        if (picked.kind === 'csv') {
+          const contents = picked.csvCandidates[0]?.contents
+          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
+          setExternalCollectionCsv({ kind: 'games', contents })
+          setStep('external-preview')
+          return
+        }
+        if (picked.kind !== 'json' || picked.contents === null) {
+          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
+          return
+        }
         const parsed = parseGamesCollectionJson(picked.contents)
         if (parsed.items === null) {
           setError(parsed.error)
@@ -232,12 +271,23 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         setGamesImported(parsed.items)
         setImportedCount(parsed.items.length)
       } else {
-        const picked = await pickImportJson()
+        const picked = await pickImportAny()
         if (!picked) {
           setError('Sélection annulée. Aucune donnée n’a été écrite.')
           return
         }
         setFileName(picked.name)
+        if (picked.kind === 'csv') {
+          const contents = picked.csvCandidates[0]?.contents
+          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
+          setExternalCollectionCsv({ kind: 'artworks', contents })
+          setStep('external-preview')
+          return
+        }
+        if (picked.kind !== 'json' || picked.contents === null) {
+          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
+          return
+        }
         const parsed = parseArtworksCollectionJson(picked.contents)
         if (parsed.items === null) {
           setError(parsed.error)
@@ -258,6 +308,16 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
   const acceptExternalFilms = (films: Film[]) => {
     setFilmsImported(films)
     setImportedCount(films.length)
+    setStep('mode')
+  }
+
+  const acceptExternalCollectionCsv = (items: Artwork[] | Book[] | Game[] | Series[]) => {
+    if (props.kind === 'series') setSeriesImported(items as Series[])
+    else if (props.kind === 'books') setBooksImported(items as Book[])
+    else if (props.kind === 'games') setGamesImported(items as Game[])
+    else if (props.kind === 'artworks') setArtworksImported(items as Artwork[])
+    else return
+    setImportedCount(items.length)
     setStep('mode')
   }
 
@@ -389,13 +449,13 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                     </ul>
                   </>
                 ) : props.kind === 'series' ? (
-                  <p>Les Séries utilisent actuellement le JSON identifié et versionné de Sylloge. Les imports CSV restent reportés au contrat tabulaire dédié.</p>
+                  <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8. Un CSV externe passe toujours par un mapping et un aperçu.</p>
                 ) : props.kind === 'books' ? (
-                  <p>Les Livres utilisent le JSON identifié et versionné de Sylloge, citations comprises. Les imports CSV restent reportés au contrat tabulaire dédié.</p>
+                  <p>Tu peux importer un JSON identifié et versionné de Sylloge, citations comprises, ou un tableau CSV UTF-8. Les citations CSV sont validées avant toute écriture.</p>
                 ) : props.kind === 'games' ? (
-                  <p>Les Jeux utilisent le JSON identifié et versionné de Sylloge. La plateforme libre, la note et les données personnelles sont validées avant toute écriture.</p>
+                  <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8. La plateforme libre, la note et les données personnelles sont validées avant toute écriture.</p>
                 ) : (
-                  <p>Les œuvres d’Art utilisent le JSON identifié et versionné de Sylloge, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
+                  <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
                 )}
                 <p>Aucune donnée ne sera écrite avant l’aperçu puis ton choix Remplacer ou Fusionner.</p>
                 <div className="assistant-actions">
@@ -414,6 +474,19 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
               onReady={acceptExternalFilms}
               onChooseAnother={() => {
                 setExternalFilmSource(null)
+                setFileName(null)
+                setStep('choose-file')
+                setError(null)
+              }}
+            />
+          )}
+          {step === 'external-preview' && props.kind !== 'films' && externalCollectionCsv !== null && (
+            <CollectionCsvImportFlow
+              kind={externalCollectionCsv.kind}
+              contents={externalCollectionCsv.contents}
+              onReady={acceptExternalCollectionCsv}
+              onChooseAnother={() => {
+                setExternalCollectionCsv(null)
                 setFileName(null)
                 setStep('choose-file')
                 setError(null)

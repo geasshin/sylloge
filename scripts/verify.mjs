@@ -35,6 +35,11 @@ import {
 } from '../src/domain/csvFilmExport.ts'
 import { createCollectionCsvExport } from '../src/domain/collectionCsvTransfer.ts'
 import {
+  prepareCollectionCsvImport,
+  previewCollectionCsvImport,
+  setCollectionCsvSourceDestination,
+} from '../src/domain/collectionCsvImport.ts'
+import {
   NOTION_MARKDOWN_NOTES_SOURCE,
   conciseFilmImportReportSource,
   initialFilmImportConfiguration,
@@ -604,6 +609,90 @@ const completeExport = createLibraryExport({
   const parsedEmptyGames = parseCsv(emptyGames.contents)
   assert.equal(parsedEmptyGames.rows.length, 1, 'Une collection CSV vide doit conserver sa ligne de profil')
   assert.ok(parsedEmptyGames.rows[0].cells.slice(7).every((cell) => cell === ''), 'Une collection CSV vide ne doit inventer aucune fiche')
+
+  for (const kind of ['series', 'books', 'games', 'artworks']) {
+    const exported = createCollectionCsvExport(multiMediumLibrary, kind, exportedAt)
+    const session = prepareCollectionCsvImport(kind, exported.contents)
+    const preview = previewCollectionCsvImport(session, session.initialMapping, exportedAt)
+    assert.equal(preview.errors.length, 0, `Le CSV Sylloge ${kind} doit être réimportable sans erreur`)
+    assert.equal(preview.items?.length, 1, `Le CSV Sylloge ${kind} doit reconstituer sa fiche`)
+  }
+
+  const reimportedSeries = previewCollectionCsvImport(
+    prepareCollectionCsvImport('series', series.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    {
+      title: reimportedSeries?.title,
+      category: reimportedSeries?.category,
+      status: reimportedSeries?.status,
+      seasonsSeen: reimportedSeries?.seasonsSeen,
+      seasonsTotal: reimportedSeries?.seasonsTotal,
+      progressUpdatedAt: reimportedSeries?.progressUpdatedAt,
+      personalNote: reimportedSeries?.personalNote,
+    },
+    {
+      title: multiMediumLibrary.series[0].title,
+      category: multiMediumLibrary.series[0].category,
+      status: multiMediumLibrary.series[0].status,
+      seasonsSeen: multiMediumLibrary.series[0].seasonsSeen,
+      seasonsTotal: multiMediumLibrary.series[0].seasonsTotal,
+      progressUpdatedAt: multiMediumLibrary.series[0].progressUpdatedAt,
+      personalNote: multiMediumLibrary.series[0].personalNote,
+    },
+    'La réimportation Série doit préserver les champs CSV représentables',
+  )
+  const reimportedBook = previewCollectionCsvImport(
+    prepareCollectionCsvImport('books', books.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    reimportedBook?.quotes.map((quote) => quote.body),
+    ['=Première citation\navec retour', 'Seconde citation'],
+    'La réimportation Livre doit restaurer les citations CSV dans leur ordre',
+  )
+  const reimportedGame = previewCollectionCsvImport(
+    prepareCollectionCsvImport('games', games.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    [reimportedGame?.platform, reimportedGame?.rating, reimportedGame?.personalNote],
+    ['PC', 5, '@Note de jeu'],
+    'La réimportation Jeu doit préserver la plateforme libre et les données personnelles',
+  )
+  const reimportedArtwork = previewCollectionCsvImport(
+    prepareCollectionCsvImport('artworks', artworks.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    [reimportedArtwork?.form, reimportedArtwork?.location, reimportedArtwork?.exhibition, reimportedArtwork?.personalNote],
+    ['photographie', 'Paris', 'Exposition', 'Texte « libre »'],
+    'La réimportation Art doit préserver les champs libres sans inventer de note',
+  )
+
+  const externalSeries = prepareCollectionCsvImport('series', 'Nom,État,Préféré\nSérie externe,Vue,oui\n')
+  let externalMapping = externalSeries.initialMapping
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Nom', 'title')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'État', 'status')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Préféré', 'isFavorite')
+  const externalPreview = previewCollectionCsvImport(externalSeries, externalMapping, exportedAt)
+  assert.deepEqual(
+    [externalPreview.items?.[0]?.title, externalPreview.items?.[0]?.status, externalPreview.items?.[0]?.isFavorite],
+    ['Série externe', 'vue', true],
+    'Un CSV externe avec des en-têtes différents doit passer par un mapping explicite',
+  )
+
+  const invalidGames = prepareCollectionCsvImport('games', 'Nom,Statut\nJeu valide,Joué\n,En cours\n')
+  const invalidMapping = setCollectionCsvSourceDestination(invalidGames.initialMapping, 'Nom', 'title')
+  const invalidPreview = previewCollectionCsvImport(invalidGames, invalidMapping, exportedAt)
+  assert.equal(invalidPreview.items, null, 'Une seule ligne CSV invalide doit bloquer l’import entier avant écriture')
+  assert.equal(invalidPreview.validItemCount, 1, 'L’aperçu peut compter les lignes convertibles sans autoriser une écriture partielle')
+  assert.ok(invalidPreview.errors.some((error) => /titre est obligatoire/i.test(error.message)), 'La ligne CSV invalide doit signaler son titre manquant')
 }
 
 {
@@ -3242,4 +3331,4 @@ assert.match(tmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche TMDB doit 
 assert.match(tmdbSearchFlowSource, /spellCheck=\{false\}/, 'La recherche TMDB doit désactiver la correction orthographique')
 assert.match(mainSource047, /autoCorrect="off"[\s\S]*spellCheck=\{false\}/, 'La recherche locale Films doit désactiver les corrections automatiques')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. Exports CSV 0.4.15 : cinq contrats unitaires versionnés, citations Livres ordonnées et échappement tableur contrôlé.')
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide.')

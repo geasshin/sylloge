@@ -408,7 +408,7 @@ Répéter depuis la bibliothèque concernée puis depuis Paramètres → Importe
 - [ ] **Art** : forme, artiste, lieu, exposition et avis restent lisibles ; aucune colonne de note n’est présente.
 - [ ] Les valeurs commençant par `=`, `+`, `-`, `@` ou une apostrophe ne sont pas interprétées comme formules par le tableur.
 - [ ] Aucun CSV ne contient le cache TMDB, une clé, une image binaire ou un autre secret.
-- [ ] Noter que seuls les Films sont réimportables en CSV à ce stade ; les imports CSV Séries, Livres, Jeux et Art relèvent du jalon `0.4.16`.
+- [ ] Réimporter le CSV exporté dans chaque médium : ses champs représentables sont retrouvés, sans mélange avec les autres collections.
 
 ---
 
@@ -465,6 +465,14 @@ Préparer localement une fiche `Été Bleu` et importer une fiche `ete bleu` ou 
 - [ ] **Livres** : citations locales restent intactes si l’existant est conservé ; citations importées arrivent avec une nouvelle fiche.
 - [ ] **Jeux** : plateforme libre, note et avis restent fidèles.
 - [ ] **Art** : lieu, exposition et forme restent fidèles ; aucune note n’est introduite.
+
+## 11.6 CSV Séries, Livres, Jeux et Art
+
+- [ ] Depuis chaque bibliothèque puis depuis Paramètres, choisir un CSV direct : l’assistant ouvre un aperçu avant tout choix d’écriture.
+- [ ] Réimporter un CSV Sylloge v1 de chaque médium : Séries conserve catégories, compteurs et progression ; Livres conserve l’ordre des citations ; Jeux conserve plateforme, note et avis ; Art conserve forme, lieu, exposition et l’absence de note.
+- [ ] Préparer un CSV externe aux en-têtes différents : ajuster le mapping, vérifier les colonnes ignorées et confirmer que seuls les champs mappés sont proposés.
+- [ ] Introduire une valeur invalide dans une seule ligne : l’aperçu bloque l’import entier, puis relancer l’application confirme l’absence d’écriture partielle.
+- [ ] Continuer vers Remplacer puis Fusionner avec un doublon normalisé : les mêmes règles de conservation et de résolution que l’import JSON s’appliquent.
 
 ---
 

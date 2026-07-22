@@ -1,6 +1,6 @@
 # Contrat CSV des collections V1
 
-**Statut :** normatif pour les exports CSV unitaires Séries, Livres, Jeux et Art introduits au jalon interne `0.4.15` du train `0.5.0`. Le [contrat CSV Films v1](CONTRAT_CSV_FILMS_V1.md) reste inchangé afin de préserver sa réimportation historique.
+**Statut :** normatif pour les exports et imports CSV unitaires Séries, Livres, Jeux et Art introduits aux jalons internes `0.4.15` et `0.4.16` du train `0.5.0`. Le [contrat CSV Films v1](CONTRAT_CSV_FILMS_V1.md) reste inchangé afin de préserver sa réimportation historique.
 
 ## Portée et limites
 
@@ -8,7 +8,7 @@ Un CSV représente **une collection d’un seul médium** du profil courant. Il 
 
 Les fichiers n’incluent jamais la SQLite brute, le cache TMDB, une clé, une image téléchargée ou une donnée réseau. Les URL d’affiche, de couverture ou de visuel ne sont exportées que lorsqu’elles existent déjà dans la fiche locale.
 
-L’import CSV de ces quatre médiums n’est pas encore promis par ce contrat : il appartient au jalon `0.4.16`, qui devra réutiliser ces en-têtes sans inventer de champ.
+Les quatre formats sont réimportables depuis leur bibliothèque et les Paramètres. Un CSV Sylloge v1 respecte exactement les en-têtes et reconstitue tous les champs représentables ; les identifiants techniques sont régénérés à l’écriture dans le profil courant. Un tableau externe passe par un mapping explicite des colonnes vers les champs propres au médium. Toute erreur de syntaxe, de mapping ou de ligne bloque l’import entier avant l’écriture SQLite ; Remplacer et Fusionner conservent leurs garanties habituelles de consentement, doublons et atomicité.
 
 ## Encodage et protections communes
 
