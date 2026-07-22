@@ -4,7 +4,7 @@ Sylloge est une bibliothèque culturelle personnelle, locale et durable. La rele
 
 ## Structure
 
-- src/domain : modèle Film, validation et format JSON versionné.
+- src/domain : modèles culturels, validation et formats JSON versionnés.
 - src/data : accès SQLite et pont vers les commandes Tauri.
 - src/components : fiche, formulaire, affiche et portabilité.
 - src-tauri : application Rust, migrations SQLite et dialogues natifs.
@@ -52,4 +52,4 @@ cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy -
 
 ## Périmètre actuel
 
-La release publique `0.4.0` livre Films, les imports/exports et l’enrichissement TMDB. Sur la branche du train `0.5.0`, Séries et Livres sont utilisables de bout en bout : saisie, fiche, recherche, vues filtrées et portabilité JSON dédiée ; Livres conserve aussi le suivi des tomes Manga/Comics et les citations personnelles. Jeux dispose de sa collection, de la saisie, de la fiche et du CRUD local, avec plateforme libre assistée par des suggestions et sans mécanique de tracker ; recherche, filtres et portabilité dédiée arrivent avec la cohérence multi-médiums du jalon `0.4.9`. Les fondations SQLite/JSON des cinq médiums sont en place, avec profils, snapshots et portabilité multi-médiums. Art n’a pas encore son interface. La synchronisation reste explicitement hors V1.
+La release publique `0.4.0` livre Films, les imports/exports et l’enrichissement TMDB. Sur la branche du train `0.5.0`, Séries et Livres sont utilisables de bout en bout : saisie, fiche, recherche, vues filtrées et portabilité JSON dédiée ; Livres conserve aussi le suivi des tomes Manga/Comics et les citations personnelles. Jeux et Art disposent chacun de leur collection, de la saisie, de la fiche et du CRUD local. Jeux conserve une plateforme libre assistée par des suggestions et n’introduit aucun tracker ; Art n’a pas de note et garde lieu et exposition en textes libres facultatifs. Leur recherche, leurs filtres et leur portabilité dédiée arrivent avec la cohérence multi-médiums du jalon `0.4.9`. Les fondations SQLite/JSON des cinq médiums sont en place, avec profils, snapshots et portabilité multi-médiums. La synchronisation reste explicitement hors V1.

@@ -264,6 +264,8 @@ Objectifs initiaux du jalon :
 
 ### `0.4.8` — Art : verticale bornée
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage consolidée au jalon `0.4.9`.** La verticale Art est accessible depuis la sidebar avec une collection minimale, la création, la modification, la fiche et la suppression. Les formes Peinture / Sculpture / Photographie / Dessin / Poésie / Gravure / Performance / Art conceptuel / Autre, les statuts À découvrir / Découverte, le coup de cœur, l’artiste, l’année, la date et le visuel facultatif suivent le contrat `0.4.1`. Lieu et exposition restent des textes libres facultatifs, sans relation ni catalogue modélisé. Aucune note n’est introduite. Recherche, filtres et portabilité dédiée restent volontairement au jalon `0.4.9`.
+
 - Créer un modèle, une saisie manuelle et une fiche adaptés aux œuvres d’Art.
 - Ajouter artiste, exposition et lieu seulement lorsque ces relations servent une recherche ou une mémoire personnelle concrète.
 

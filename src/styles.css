@@ -161,6 +161,9 @@ nav { display: flex; flex-direction: column; gap: 3px; }
 .icon-game { height: 12px; margin-top: 3px; border: 1.5px solid currentColor; border-radius: 5px 5px 7px 7px; }
 .icon-game:before { content: "+"; position: absolute; left: 2px; top: -4px; font-size: 12px; font-weight: 600; }
 .icon-game:after { content: "··"; position: absolute; right: 2px; top: -5px; font-size: 12px; letter-spacing: 1px; }
+.icon-art { border: 1.5px solid currentColor; border-radius: 50% 50% 44% 56%; transform: rotate(-18deg); }
+.icon-art:before { content: ""; position: absolute; width: 3px; height: 3px; border-radius: 50%; background: currentColor; left: 3px; top: 4px; box-shadow: 6px -1px 0 currentColor, 7px 5px 0 currentColor; }
+.icon-art:after { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--color-surface); border: 1.5px solid currentColor; right: -2px; bottom: 0; }
 
 .main { margin-left: 225px; width: calc(100% - 225px); min-height: 100vh; }
 
@@ -274,6 +277,7 @@ nav { display: flex; flex-direction: column; gap: 3px; }
 .collection-meta p { margin: 0; font-size: 12px; color: var(--color-text-muted); }
 .books-collection-meta { margin-top: 35px; }
 .games-collection-meta { margin-top: 35px; }
+.artworks-collection-meta { margin-top: 35px; }
 .film-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 34px 19px; }
 .film-card { display: block; width: 100%; padding: 0; min-width: 0; text-align: left; border: 0; background: none; }
 .film-card:hover .poster { transform: translateY(-3px); border-color: rgba(97, 61, 108, .35); }

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ArtworkDetail } from './components/ArtworkDetail.tsx'
+import { ArtworkForm } from './components/ArtworkForm.tsx'
 import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { BookDetail } from './components/BookDetail.tsx'
@@ -61,9 +63,15 @@ import {
   type Game,
 } from './domain/game.ts'
 import type { GameWriteInput } from './domain/gameForm.ts'
+import {
+  ARTWORK_FORM_LABELS,
+  ARTWORK_STATUS_LABELS,
+  type Artwork,
+} from './domain/artwork.ts'
+import type { ArtworkWriteInput } from './domain/artworkForm.ts'
 import './styles.css'
 
-type IconName = 'book' | 'film' | 'game' | 'home' | 'search' | 'series' | 'settings'
+type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'search' | 'series' | 'settings'
 type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
@@ -81,13 +89,15 @@ type SidebarProps = {
   seriesCount: number | null
   bookCount: number | null
   gameCount: number | null
+  artworkCount: number | null
   currentProfileName: string | null
-  activeItem: 'books' | 'games' | 'home' | 'library' | 'series' | 'settings'
+  activeItem: 'artworks' | 'books' | 'games' | 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
   onSeries: () => void
   onBooks: () => void
   onGames: () => void
+  onArtworks: () => void
   onSettings: () => void
   settingsSection: SettingsSection
   onSettingsSection: (section: SettingsSection) => void
@@ -99,6 +109,7 @@ function Sidebar({
   seriesCount,
   bookCount,
   gameCount,
+  artworkCount,
   currentProfileName,
   activeItem,
   onHome,
@@ -106,6 +117,7 @@ function Sidebar({
   onSeries,
   onBooks,
   onGames,
+  onArtworks,
   onSettings,
   settingsSection,
   onSettingsSection,
@@ -180,6 +192,15 @@ function Sidebar({
           >
             {icon('game')} Jeux
             {gameCount !== null && <span className="nav-count">{gameCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'artworks' ? 'active' : ''}`}
+            type="button"
+            onClick={onArtworks}
+            aria-current={activeItem === 'artworks' ? 'page' : undefined}
+          >
+            {icon('art')} Art
+            {artworkCount !== null && <span className="nav-count">{artworkCount}</span>}
           </button>
         </nav>
       )}
@@ -990,6 +1011,71 @@ function GamesLibrary({ profileName, collection, onCreate, onOpen }: GamesLibrar
   )
 }
 
+function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void }) {
+  const attribution = [ARTWORK_FORM_LABELS[artwork.form], artwork.artist, artwork.year]
+    .filter((value) => value !== null)
+    .join(' · ')
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${artwork.title}`}>
+      <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{artwork.title}</b>
+          {artwork.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {attribution && <small>{attribution}</small>}
+        <span className={`status-line ${artwork.status === 'à découvrir' ? 'to-discover' : ''}`}>
+          {ARTWORK_STATUS_LABELS[artwork.status]}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+type ArtworksLibraryProps = {
+  profileName: string
+  collection: Artwork[]
+  onCreate: () => void
+  onOpen: (artwork: Artwork) => void
+}
+
+function ArtworksLibrary({ profileName, collection, onCreate, onOpen }: ArtworksLibraryProps) {
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Art</h1>
+        </div>
+        <div className="library-header-actions">
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
+        </div>
+      </header>
+
+      {collection.length === 0 ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Art est vide.</h2>
+          <p>Ajoutez une première œuvre, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une œuvre</button>
+        </div>
+      ) : (
+        <>
+          <div className="collection-meta artworks-collection-meta" aria-live="polite">
+            <p>{collection.length} {collection.length === 1 ? 'œuvre affichée' : 'œuvres affichées'}</p>
+          </div>
+          <div className="film-grid">
+            {collection.map((artwork) => (
+              <ArtworkCard artwork={artwork} key={artwork.id} onOpen={() => onOpen(artwork)} />
+            ))}
+          </div>
+        </>
+      )}
+    </main>
+  )
+}
+
 type BooksLibraryProps = {
   profileName: string
   collection: Book[]
@@ -1162,6 +1248,10 @@ type View =
   | { name: 'game-create' }
   | { name: 'game-detail'; gameId: string }
   | { name: 'game-edit'; gameId: string }
+  | { name: 'artworks' }
+  | { name: 'artwork-create' }
+  | { name: 'artwork-detail'; artworkId: string }
+  | { name: 'artwork-edit'; artworkId: string }
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
@@ -1173,6 +1263,10 @@ function sortBooks(books: Book[]): Book[] {
 
 function sortGames(games: Game[]): Game[] {
   return [...games].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+}
+
+function sortArtworks(artworks: Artwork[]): Artwork[] {
+  return [...artworks].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
 }
 
 type SqliteFilmDetailProps = {
@@ -1251,6 +1345,7 @@ function App() {
   const [bookContext, setBookContext] = useState<BookSearchCriteria>({ query: '', category: 'all' })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [gameCollection, setGameCollection] = useState<Game[]>([])
+  const [artworkCollection, setArtworkCollection] = useState<Artwork[]>([])
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -1345,6 +1440,23 @@ function App() {
       (error: unknown) => {
         console.error('Impossible de charger les jeux depuis SQLite.', error)
         if (!cancelled) setGameCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listArtworks(libraryState.library.profile.id).then(
+      (artworks) => { if (!cancelled) setArtworkCollection(sortArtworks(artworks)) },
+      (error: unknown) => {
+        console.error('Impossible de charger les œuvres depuis SQLite.', error)
+        if (!cancelled) setArtworkCollection([])
       },
     )
 
@@ -1493,6 +1605,7 @@ function App() {
   const seriesCount = libraryState.status === 'ready' ? seriesCollection.length : null
   const bookCount = libraryState.status === 'ready' ? bookCollection.length : null
   const gameCount = libraryState.status === 'ready' ? gameCollection.length : null
+  const artworkCount = libraryState.status === 'ready' ? artworkCollection.length : null
   let content
 
   if (libraryState.status === 'loading') {
@@ -2007,6 +2120,99 @@ function App() {
         />
       )
     }
+  } else if (view.name === 'artworks') {
+    content = (
+      <ArtworksLibrary
+        profileName={libraryState.library.profile.name}
+        collection={artworkCollection}
+        onCreate={() => leaveLibrary({ name: 'artwork-create' })}
+        onOpen={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
+      />
+    )
+  } else if (view.name === 'artwork-create') {
+    const { library } = libraryState
+    content = (
+      <ArtworkForm
+        onCancel={() => setView({ name: 'artworks' })}
+        onSave={async (input: ArtworkWriteInput) => {
+          const artwork = await mediaRepository.createArtwork(library.profile.id, input)
+          setArtworkCollection((current) => sortArtworks([...current, artwork]))
+          requestAutomaticBackup(library)
+          setView({ name: 'artwork-detail', artworkId: artwork.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'artwork-detail') {
+    const { library } = libraryState
+    const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
+    if (!artwork) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'artworks' })}>
+              ← Retour à l’Art
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette œuvre ne peut pas être ouverte.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <ArtworkDetail
+          artwork={artwork}
+          onBack={() => setView({ name: 'artworks' })}
+          onEdit={() => setView({ name: 'artwork-edit', artworkId: view.artworkId })}
+          onDelete={async () => {
+            await mediaRepository.deleteArtwork(library.profile.id, view.artworkId)
+            setArtworkCollection((current) => current.filter((entry) => entry.id !== view.artworkId))
+            requestAutomaticBackup(library)
+            setView({ name: 'artworks' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'artwork-edit') {
+    const { library } = libraryState
+    const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
+    if (!artwork) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'artworks' })}>
+              ← Retour à l’Art
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette œuvre ne peut pas être modifiée.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <ArtworkForm
+          artwork={artwork}
+          onCancel={() => setView({ name: 'artwork-detail', artworkId: view.artworkId })}
+          onSave={async (input: ArtworkWriteInput) => {
+            await mediaRepository.updateArtwork(library.profile.id, view.artworkId, input)
+            const refreshed = await mediaRepository.getArtwork(library.profile.id, view.artworkId)
+            if (!refreshed) {
+              throw new Error('L’œuvre enregistrée ne peut pas être relue depuis SQLite.')
+            }
+            setArtworkCollection((current) => sortArtworks(current.map((entry) => (
+              entry.id === view.artworkId ? refreshed : entry
+            ))))
+            requestAutomaticBackup(library)
+            setView({ name: 'artwork-detail', artworkId: view.artworkId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
   } else {
     content = (
       <FilmsLibrary
@@ -2029,6 +2235,7 @@ function App() {
         seriesCount={seriesCount}
         bookCount={bookCount}
         gameCount={gameCount}
+        artworkCount={artworkCount}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
         activeItem={
           libraryState.status !== 'ready' || view.name === 'home'
@@ -2041,13 +2248,16 @@ function App() {
                   ? 'books'
                   : view.name === 'games' || view.name === 'game-create' || view.name === 'game-detail' || view.name === 'game-edit'
                     ? 'games'
-                    : 'library'
+                    : view.name === 'artworks' || view.name === 'artwork-create' || view.name === 'artwork-detail' || view.name === 'artwork-edit'
+                      ? 'artworks'
+                      : 'library'
         }
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
         onSeries={() => leaveLibrary({ name: 'series' })}
         onBooks={() => leaveLibrary({ name: 'books' })}
         onGames={() => leaveLibrary({ name: 'games' })}
+        onArtworks={() => leaveLibrary({ name: 'artworks' })}
         onSettings={() => showSettingsSection('profiles')}
         settingsSection={settingsSection}
         onSettingsSection={showSettingsSection}

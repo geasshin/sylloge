@@ -2749,4 +2749,149 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
   assert.deepEqual(deletion.bindValues, ['game-local', 'default'], 'La suppression doit cibler le jeu et son profil')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 : collection, saisie libre de plateforme, fiche et CRUD local sans tracker.')
+// Jalon 0.4.8 — Art : verticale sans note, contexte libre et CRUD local.
+const artworkDomainSource = readFileSync(new URL('../src/domain/artwork.ts', import.meta.url), 'utf8')
+const artworkFormSource = readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8')
+const artworkDetailSource = readFileSync(new URL('../src/components/ArtworkDetail.tsx', import.meta.url), 'utf8')
+const mainSource048 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+assert.match(mainSource048, /icon\('art'\)\} Art/, 'La sidebar doit proposer l’entrée Art')
+assert.match(mainSource048, /mediaRepository\.listArtworks/, 'La collection Art doit être relue depuis SQLite')
+assert.match(mainSource048, /mediaRepository\.createArtwork/, 'La création d’œuvre doit écrire dans le repository SQLite')
+assert.match(mainSource048, /mediaRepository\.updateArtwork/, 'La modification d’œuvre doit écrire dans le repository SQLite')
+assert.match(mainSource048, /mediaRepository\.deleteArtwork/, 'La suppression d’œuvre doit écrire dans le repository SQLite')
+assert.match(artworkDomainSource, /ARTWORK_FORMS/, 'Le domaine doit borner les formes d’art décidées')
+assert.match(artworkFormSource, /artwork-location/, 'Le formulaire doit accepter un lieu libre facultatif')
+assert.match(artworkFormSource, /artwork-exhibition/, 'Le formulaire doit accepter une exposition libre facultative')
+assert.match(artworkDetailSource, /ARTWORK_FORM_LABELS/, 'La fiche doit afficher la forme propre à l’œuvre')
+assert.doesNotMatch(artworkFormSource, /\brating\b/, 'Le formulaire Art ne doit proposer aucune note chiffrée')
+assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit afficher aucune note chiffrée')
+
+{
+  const { EMPTY_ARTWORK_FORM, validateArtworkForm } = await import('../src/domain/artworkForm.ts')
+
+  const minimal = validateArtworkForm({ ...EMPTY_ARTWORK_FORM, title: '  Œuvre minimale  ' })
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer une œuvre')
+  assert.deepEqual(minimal.data, {
+    title: 'Œuvre minimale',
+    artist: null,
+    year: null,
+    form: 'autre',
+    location: null,
+    exhibition: null,
+    status: 'à découvrir',
+    isFavorite: false,
+    discoveredAt: null,
+    imageUrl: null,
+    personalNote: null,
+  }, 'Les champs Art facultatifs vides doivent rester null sans donnée inventée')
+
+  const complete = validateArtworkForm({
+    ...EMPTY_ARTWORK_FORM,
+    title: 'Photographie complète',
+    artist: '  Artiste locale  ',
+    year: '2026',
+    form: 'photographie',
+    location: '  Galerie municipale  ',
+    exhibition: '  Lumières d’été  ',
+    status: 'découverte',
+    isFavorite: true,
+    discoveredAt: '2026-07-22',
+    imageUrl: 'https://example.invalid/oeuvre.jpg',
+    personalNote: '  Avis personnel  ',
+  })
+  assert.equal(complete.success, true, 'Tous les champs Art contractuels valides doivent être acceptés')
+  assert.equal(complete.data.form, 'photographie', 'La forme sélectionnée doit être conservée')
+  assert.equal(complete.data.location, 'Galerie municipale', 'Le lieu libre doit être normalisé sans relation inventée')
+  assert.equal(complete.data.exhibition, 'Lumières d’été', 'L’exposition libre doit être normalisée sans relation inventée')
+
+  for (const values of [
+    { title: '   ' },
+    { title: 'Forme', form: 'installation' },
+    { title: 'Statut', status: 'en cours' },
+    { title: 'Année', year: '0' },
+    { title: 'Date', discoveredAt: '2026-02-30' },
+    { title: 'Visuel', imageUrl: 'file:///oeuvre.jpg' },
+  ]) {
+    assert.equal(
+      validateArtworkForm({ ...EMPTY_ARTWORK_FORM, ...values }).success,
+      false,
+      `Le formulaire Art doit refuser la saisie invalide ${JSON.stringify(values)}`,
+    )
+  }
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const timestamp = '2026-07-22T15:00:00.000Z'
+  const artworkRow = {
+    id: 'artwork-local',
+    profile_id: 'default',
+    title: 'Œuvre SQLite',
+    artist: 'Artiste locale',
+    year: 2026,
+    form: 'performance',
+    location: 'Lieu local',
+    exhibition: 'Exposition locale',
+    status: 'découverte',
+    is_favorite: 1,
+    discovered_at: '2026-07-22',
+    image_url: null,
+    personal_note: 'Avis local',
+    created_at: timestamp,
+    updated_at: timestamp,
+  }
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ kind: 'select', query, bindValues })
+      return [artworkRow]
+    },
+    async execute(query, bindValues) {
+      calls.push({ kind: 'execute', query, bindValues })
+      return { rowsAffected: 1 }
+    },
+  }
+  const repository = new SqliteMediaRepository(
+    async () => database,
+    () => 'artwork-created',
+    () => timestamp,
+  )
+
+  const listed = await repository.listArtworks('default')
+  assert.equal(listed[0].form, 'performance', 'La collection Art doit convertir les colonnes SQLite sans perte')
+  assert.deepEqual(calls.at(-1).bindValues, ['default'], 'La collection Art doit rester limitée au profil courant')
+
+  const input = {
+    title: 'Œuvre créée',
+    artist: 'Artiste',
+    year: 2026,
+    form: 'poésie',
+    location: 'Bibliothèque',
+    exhibition: null,
+    status: 'découverte',
+    isFavorite: true,
+    discoveredAt: '2026-07-22',
+    imageUrl: null,
+    personalNote: 'Découverte localement',
+  }
+  const created = await repository.createArtwork('default', input)
+  assert.equal(created.id, 'artwork-created', 'La création Art doit générer une identité locale')
+  const insert = calls.at(-1)
+  assert.match(insert.query, /INSERT INTO artworks/, 'La création doit cibler la table artworks')
+  assert.equal(insert.bindValues[1], 'default', 'La création doit cibler le profil courant')
+  assert.equal(insert.bindValues[5], 'poésie', 'La forme d’art doit être persistée telle que validée')
+
+  const updatedAt = await repository.updateArtwork('default', 'artwork-local', { ...input, status: 'à découvrir' })
+  assert.equal(updatedAt, timestamp, 'La modification doit restituer son horodatage local')
+  const update = calls.at(-1)
+  assert.match(update.query, /WHERE id = \$13 AND profile_id = \$14/, 'La modification doit cibler l’œuvre et son profil')
+  assert.deepEqual(update.bindValues.slice(-2), ['artwork-local', 'default'], 'La modification doit rester isolée au profil courant')
+
+  await repository.deleteArtwork('default', 'artwork-local')
+  const deletion = calls.at(-1)
+  assert.match(deletion.query, /DELETE FROM artworks/, 'La suppression doit cibler la table artworks')
+  assert.deepEqual(deletion.bindValues, ['artwork-local', 'default'], 'La suppression doit cibler l’œuvre et son profil')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 : collection, saisie libre de plateforme, fiche et CRUD local sans tracker. Art 0.4.8 : collection, formulaire sans note, contexte libre, visuel facultatif, fiche et CRUD local.')

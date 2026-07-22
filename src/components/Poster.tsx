@@ -4,7 +4,7 @@ type PosterProps = {
   title: string
   src: string | null
   className?: string
-  label?: 'Affiche' | 'Couverture'
+  label?: 'Affiche' | 'Couverture' | 'Visuel'
 }
 
 export function Poster({ title, src, className = '', label = 'Affiche' }: PosterProps) {
