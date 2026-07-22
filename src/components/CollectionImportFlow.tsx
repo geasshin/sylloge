@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react'
+import type { Book } from '../domain/book.ts'
 import type { Film } from '../domain/film.ts'
 import type { Series } from '../domain/series.ts'
 import type {
   DuplicateResolution,
+  BookDuplicate,
   FilmDuplicate,
   SeriesDuplicate,
 } from '../domain/importMerge.ts'
@@ -171,4 +173,21 @@ export function seriesSummary(series: Series, origin: 'existing' | 'imported'): 
   )
 }
 
-export type { FilmDuplicate, SeriesDuplicate }
+export function bookSummary(book: Book, origin: 'existing' | 'imported'): ReactNode {
+  void origin
+  const details = [book.author, book.year, book.status].filter((value) => value !== null && value !== '').join(' · ')
+  const volumes = book.volumesRead !== null && book.volumesTotal !== null
+    ? `${book.volumesRead}/${book.volumesTotal} tomes`
+    : null
+  return (
+    <span className="duplicate-summary">
+      <b>{book.title}</b>
+      {details && <small>{details}</small>}
+      {volumes && <small>{volumes}</small>}
+      {book.rating !== null && <small>Note : {book.rating}/5{book.isFavorite ? ' · favori' : ''}</small>}
+      {book.quotes.length > 0 && <small>{book.quotes.length} citation{book.quotes.length > 1 ? 's' : ''}</small>}
+    </span>
+  )
+}
+
+export type { BookDuplicate, FilmDuplicate, SeriesDuplicate }

@@ -51,7 +51,7 @@ export function BookDetail({ book, onBack, onEdit, onDelete }: BookDetailProps) 
       <article className="film-detail">
         <div className="film-detail-visual">
           <div className="poster-container">
-            <Poster title={book.title} src={book.coverUrl} className="detail-poster" />
+            <Poster title={book.title} src={book.coverUrl} className="detail-poster" label="Couverture" />
           </div>
         </div>
 

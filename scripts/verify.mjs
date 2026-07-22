@@ -20,8 +20,8 @@ import {
   serializeLibraryExport,
   validateLibraryImport,
 } from '../src/domain/libraryTransfer.ts'
-import { validateLibraryDocument } from '../src/domain/libraryDocument.ts'
-import { parseFilmsCollectionJson, parseSeriesCollectionJson } from '../src/domain/collectionJsonImport.ts'
+import { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument } from '../src/domain/libraryDocument.ts'
+import { parseBooksCollectionJson, parseFilmsCollectionJson, parseSeriesCollectionJson } from '../src/domain/collectionJsonImport.ts'
 import {
   filmsCsvExportFileName,
   serializeFilmsCsvExport,
@@ -1744,7 +1744,7 @@ assert.match(mainSource, /getFilm/, 'La fiche doit être relue depuis SQLite')
 assert.match(mainSource, /libraryContext/, 'Le contexte de recherche et de filtre doit rester porté par la bibliothèque')
 assert.match(mainSource, /libraryScrollPosition/, 'La position de consultation doit être restaurée au retour')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
-assert.match(posterSource, /alt={`Affiche du film/, 'Une affiche chargée doit conserver un texte alternatif pertinent')
+assert.match(posterSource, /alt={`\$\{label\} de/, 'Un visuel chargé doit conserver un texte alternatif pertinent pour son médium')
 assert.match(stylesSource, /\.film-card-info b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre d’une carte doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.poster-fallback b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre du fallback d’affiche doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.reading-section p \{[^}]*overflow-wrap: anywhere;/s, 'Le texte personnel de détail doit pouvoir couper une suite de caractères sans espace')
@@ -2051,6 +2051,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.equal(preview.document?.games[0]?.platform, 'Dreamcast', 'La plateforme libre doit survivre à l’aller-retour')
   assert.equal(parseFilmsCollectionJson(serialized).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit accepter un document v2')
   assert.equal(parseSeriesCollectionJson(serialized).items?.[0]?.title, 'Série v2', 'L’import unitaire Séries doit accepter un document v2')
+  assert.equal(parseBooksCollectionJson(serialized).items?.[0]?.quotes[0]?.body, 'Citation mémorable', 'L’import unitaire Livres doit conserver les citations du document v2')
 
   const v1Document = JSON.stringify({
     format: 'sylloge-films',
@@ -2063,6 +2064,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.equal(v1Preview.document, null, 'Un document v1 doit être refusé par le validateur v2')
   assert.equal(parseFilmsCollectionJson(v1Document).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit rester compatible avec un JSON Films v1')
   assert.equal(parseSeriesCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Séries')
+  assert.equal(parseBooksCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Livres')
 
   const invalidSeries = JSON.parse(serialized)
   invalidSeries.series[0].seasonsSeen = 12
@@ -2450,4 +2452,154 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   assert.equal(badCover.success, false, 'La couverture doit rester une URL http(s)')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées.')
+// Jalon 0.4.6 — Livres : recherche, vues et portabilité dédiée.
+{
+  const { planBookMerge, resolveBookMerge } = await import('../src/domain/importMerge.ts')
+  const timestamp = '2026-07-22T10:00:00.000Z'
+  const existingBook = {
+    id: 'book-local',
+    profileId: 'default',
+    title: "L'Étranger",
+    author: null,
+    year: null,
+    summary: null,
+    category: 'livre',
+    status: 'lu',
+    rating: 5,
+    isFavorite: true,
+    volumesRead: null,
+    volumesTotal: null,
+    progressUpdatedAt: null,
+    startedAt: '2026-07-01',
+    coverUrl: null,
+    personalNote: 'Avis personnel très long — ligne 1.\nLigne 2 conservée avec ses accents.',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    quotes: [{ id: 'quote-local', bookId: 'book-local', body: 'Citation locale préférée.', position: 0, createdAt: timestamp }],
+  }
+  const importedBook = {
+    ...existingBook,
+    id: 'book-imported',
+    profileId: 'source-profile',
+    title: "l'etranger",
+    author: 'Albert Camus',
+    year: 1942,
+    summary: 'Résumé éditorial — caractères préservés.',
+    status: 'à lire',
+    rating: null,
+    isFavorite: false,
+    startedAt: null,
+    coverUrl: 'https://example.invalid/couverture-étranger.jpg',
+    personalNote: null,
+    quotes: [{ id: 'quote-imported', bookId: 'book-imported', body: 'Citation importée.', position: 0, createdAt: timestamp }],
+  }
+
+  const plan = planBookMerge([existingBook], [importedBook])
+  assert.equal(plan.duplicates.length, 1, 'La fusion Livres doit détecter les doublons sans tenir compte de la casse ni des accents')
+  const keepExisting = resolveBookMerge([], plan, new Map([["l'etranger", 'keep-existing']]), timestamp).updates[0]
+  assert.equal(keepExisting.author, 'Albert Camus', 'L’import doit compléter un auteur local vide')
+  assert.equal(keepExisting.summary, importedBook.summary, 'L’import doit compléter un résumé local vide sans altérer ses caractères')
+  assert.equal(keepExisting.rating, 5, 'La note personnelle locale doit rester prioritaire')
+  assert.equal(keepExisting.personalNote, existingBook.personalNote, 'L’avis long local doit rester prioritaire')
+  assert.deepEqual(keepExisting.quotes, existingBook.quotes, 'Les citations locales doivent rester prioritaires si la fiche locale est conservée')
+
+  const keepImported = resolveBookMerge([], plan, new Map([["l'etranger", 'keep-imported']]), timestamp).updates[0]
+  assert.equal(keepImported.id, 'book-local', 'Conserver la fiche importée doit préserver l’identité SQLite locale')
+  assert.equal(keepImported.quotes[0].bookId, 'book-local', 'Les citations importées doivent être rattachées à l’identité locale conservée')
+
+  const dedicatedDocument = createLibraryDocument({
+    profile: {
+      id: 'default',
+      name: 'Profil Livres',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    films: [],
+    series: [],
+    books: [existingBook],
+    games: [],
+    artworks: [],
+  }, timestamp)
+  const dedicatedPreview = validateLibraryDocument(serializeLibraryDocument(dedicatedDocument))
+  assert.deepEqual(dedicatedPreview.document?.books[0], existingBook, 'L’export JSON Livre dédié doit préserver accents, retours à la ligne, avis et citations')
+
+  const calls = []
+  const bookRow = {
+    id: 'book-search',
+    profile_id: 'default',
+    title: 'Poésie à Montréal',
+    author: 'Élodie Test',
+    year: 2026,
+    summary: 'Résumé local',
+    category: 'livre',
+    status: 'lu',
+    rating: 4.5,
+    is_favorite: 1,
+    volumes_read: null,
+    volumes_total: null,
+    progress_updated_at: timestamp,
+    started_at: '2026-07-01',
+    cover_url: null,
+    personal_note: 'Note longue',
+    created_at: timestamp,
+    updated_at: timestamp,
+  }
+  const repository = new (await import('../src/data/mediaRepository.ts')).SqliteMediaRepository(async () => ({
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      if (query.includes('FROM book_quotes')) {
+        return [{ id: 'quote-search', book_id: 'book-search', body: 'Vers préservé', position: 0, created_at: timestamp }]
+      }
+      if (query.includes('FROM books')) return [bookRow]
+      throw new Error(`Requête inattendue : ${query}`)
+    },
+    async execute() {
+      throw new Error('Aucune écriture attendue pendant la recherche Livres')
+    },
+  }))
+  const searched = await repository.searchBooks('default', { query: '  Élodie  ', category: 'livre' })
+  assert.equal(searched[0].quotes[0].body, 'Vers préservé', 'La recherche doit restituer les citations de la fiche trouvée')
+  assert.match(calls[0].query, /author COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir l’auteur')
+  assert.match(calls[0].query, /summary COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir le résumé')
+  assert.match(calls[0].query, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue Livres récente doit suivre la progression interne')
+  assert.deepEqual(calls[0].bindValues, ['default', '%Élodie%', 'livre'], 'La recherche et la catégorie doivent être paramétrées')
+
+  const snapshots = []
+  const backup = new BackupService({
+    async getBackupSettings() { return null },
+    async pickBackupDirectory() { return null },
+    async saveManualBackupSnapshot() { throw new Error('Snapshot manuel non attendu') },
+    async saveAutomaticBackupSnapshot(profileId, contents, automaticDay) {
+      snapshots.push({ profileId, contents, automaticDay })
+      return { outcome: 'saved', fileName: 'snapshot-livres.json' }
+    },
+  }, () => new Date(2026, 6, 22, 12, 0, 0), async () => ({
+    profile: dedicatedDocument.profile,
+    films: [],
+    series: [],
+    books: [existingBook],
+    games: [],
+    artworks: [],
+  }))
+  await backup.tryAutomaticSnapshot({ profile: dedicatedDocument.profile, films: [] })
+  assert.deepEqual(
+    validateLibraryDocument(snapshots[0].contents).document?.books[0],
+    existingBook,
+    'Le snapshot global doit inclure fidèlement les Livres et leurs citations',
+  )
+}
+
+assert.match(mainSource045, /BOOK_CATEGORY_FILTERS/, 'La bibliothèque Livres doit offrir les vues Livre, Manga et Comics')
+assert.match(mainSource045, /searchBooks/, 'La recherche Livres doit reposer sur le repository SQLite')
+assert.match(mainSource045, /kind="books"/, 'La bibliothèque Livres doit proposer son import unitaire')
+assert.match(mainSource045, /Impossible d’exporter les Livres/, 'La bibliothèque Livres doit proposer son export dédié')
+assert.match(mediaRepositorySource, /async searchBooks/, 'Le repository doit exposer la recherche Livres')
+assert.match(libraryImportButtonSource, /parseBooksCollectionJson/, 'L’assistant Livres doit valider le document JSON v2 avant écriture')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_books_into_profile'/, 'Le frontend doit appeler le pont Tauri d’import Livres')
+assert.match(nativePortabilitySource, /pub async fn import_books_into_profile/, 'Le backend doit exposer l’import Livres atomique')
+assert.match(nativePortabilitySource, /books_collection_import_is_atomic_with_quotes/, 'Une preuve Rust doit couvrir le rollback d’un import Livres avec citations')
+assert.match(tauriLibrarySource, /portability::import_books_into_profile/, 'La commande Tauri d’import Livres doit être enregistrée')
+assert.match(posterSource, /label = 'Affiche'/, 'Le fallback visuel doit accepter un libellé propre au médium')
+assert.match(mainSource045, /label="Couverture"/, 'Les cartes Livres doivent annoncer une couverture, pas une affiche de film')
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations.')

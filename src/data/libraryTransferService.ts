@@ -1,16 +1,21 @@
 import type { ImportPreview, SyllogeExportDocument } from '../domain/libraryTransfer.ts'
+import type { Book } from '../domain/book.ts'
 import type { Film } from '../domain/film.ts'
 import type { Series } from '../domain/series.ts'
 import {
+  planBookMerge,
   planFilmMerge,
   planSeriesMerge,
+  resolveBookMerge,
   resolveFilmMerge,
   resolveSeriesMerge,
+  type BookMergePlan,
   type DuplicateResolution,
   type FilmMergePlan,
   type SeriesMergePlan,
 } from '../domain/importMerge.ts'
 import {
+  importBooksIntoProfile,
   importFilmsIntoProfile,
   importSeriesIntoProfile,
   type CollectionImportResult,
@@ -47,6 +52,12 @@ export type PreparedSeriesImport = {
   mergePlan: SeriesMergePlan | null
 }
 
+export type PreparedBooksImport = {
+  mode: ImportMode
+  imported: Book[]
+  mergePlan: BookMergePlan | null
+}
+
 /** Prépare un import Films : en mode fusion, détecte les doublons au titre. */
 export function prepareFilmsImport(mode: ImportMode, existing: Film[], imported: Film[]): PreparedFilmsImport {
   return {
@@ -62,6 +73,15 @@ export function prepareSeriesImport(mode: ImportMode, existing: Series[], import
     mode,
     imported,
     mergePlan: mode === 'merge' ? planSeriesMerge(existing, imported) : null,
+  }
+}
+
+/** Prépare un import Livres, citations comprises. */
+export function prepareBooksImport(mode: ImportMode, existing: Book[], imported: Book[]): PreparedBooksImport {
+  return {
+    mode,
+    imported,
+    mergePlan: mode === 'merge' ? planBookMerge(existing, imported) : null,
   }
 }
 
@@ -132,5 +152,44 @@ export async function writeSeriesImport(
     replaceExisting: false,
     inserts: writePlan.inserts.map((series) => ({ ...series, id: regenerateId(), profileId })),
     updates: writePlan.updates.map((series) => ({ ...series, profileId })),
+  })
+}
+
+/** Écrit un import Livres atomique dans le profil courant. */
+export async function writeBooksImport(
+  profileId: string,
+  prepared: PreparedBooksImport,
+  resolutions: Map<string, DuplicateResolution>,
+  regenerateId: () => string = () => crypto.randomUUID(),
+  now: () => string = () => new Date().toISOString(),
+): Promise<CollectionImportResult> {
+  const timestamp = now()
+  const remapBook = (book: Book, id: string): Book => ({
+    ...book,
+    id,
+    profileId,
+    updatedAt: timestamp,
+    quotes: book.quotes.map((quote) => ({
+      ...quote,
+      id: regenerateId(),
+      bookId: id,
+    })),
+  })
+
+  if (prepared.mode === 'replace' || prepared.mergePlan === null) {
+    return importBooksIntoProfile({
+      profileId,
+      replaceExisting: prepared.mode === 'replace',
+      inserts: prepared.imported.map((book) => remapBook(book, regenerateId())),
+      updates: [],
+    })
+  }
+
+  const writePlan = resolveBookMerge([], prepared.mergePlan, resolutions, timestamp)
+  return importBooksIntoProfile({
+    profileId,
+    replaceExisting: false,
+    inserts: writePlan.inserts.map((book) => remapBook(book, regenerateId())),
+    updates: writePlan.updates.map((book) => remapBook(book, book.id)),
   })
 }

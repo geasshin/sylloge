@@ -1,3 +1,4 @@
+import type { Book } from './book.ts'
 import type { Film } from './film.ts'
 import type { Series } from './series.ts'
 import { validateLibraryDocument } from './libraryDocument.ts'
@@ -40,4 +41,18 @@ export function parseSeriesCollectionJson(contents: string): CollectionJsonImpor
   return preview.document.series.length > 0
     ? { items: preview.document.series, error: null }
     : { items: null, error: 'Ce fichier Sylloge ne contient aucune série à importer.' }
+}
+
+export function parseBooksCollectionJson(contents: string): CollectionJsonImportResult<Book> {
+  const preview = validateLibraryDocument(contents)
+  if (preview.document === null) {
+    return {
+      items: null,
+      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
+    }
+  }
+
+  return preview.document.books.length > 0
+    ? { items: preview.document.books, error: null }
+    : { items: null, error: 'Ce fichier Sylloge ne contient aucun livre à importer.' }
 }

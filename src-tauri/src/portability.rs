@@ -161,7 +161,7 @@ pub struct ImportSeries {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportBook {
+pub struct ImportBook {
     id: String,
     profile_id: String,
     title: String,
@@ -1673,6 +1673,15 @@ pub async fn import_series_into_profile(
     write_series_import_plan(&pool, &plan).await
 }
 
+#[tauri::command]
+pub async fn import_books_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportBook>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_books_import_plan(&pool, &plan).await
+}
+
 async fn write_films_import_plan(
     pool: &sqlx::SqlitePool,
     plan: &CollectionImportPlan<ImportFilm>,
@@ -1763,6 +1772,65 @@ async fn write_series_import_plan(
         updated: plan.updates.len(),
         removed,
     })
+}
+
+async fn write_books_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportBook>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|book| book.profile_id.as_str())
+            .chain(plan.updates.iter().map(|book| book.profile_id.as_str())),
+    )?;
+    for book in plan.inserts.iter().chain(plan.updates.iter()) {
+        validate_import_book_quotes(book)?;
+    }
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Livres : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        let result = sqlx::query("DELETE FROM books WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Livres : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for book in &plan.updates {
+        upsert_book(&mut transaction, book, true).await?;
+    }
+    for book in &plan.inserts {
+        upsert_book(&mut transaction, book, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Livres : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+fn validate_import_book_quotes(book: &ImportBook) -> Result<(), String> {
+    if book.quotes.iter().any(|quote| quote.book_id != book.id) {
+        return Err(format!(
+            "Une citation ne correspond pas au livre « {} ».",
+            book.title
+        ));
+    }
+    Ok(())
 }
 
 fn validate_plan_profile<'a>(
@@ -1955,6 +2023,133 @@ async fn upsert_series(
             "L’écriture de la série « {} » n’a modifié aucune ligne SQLite.",
             series.title
         ));
+    }
+
+    Ok(())
+}
+
+async fn upsert_book(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    book: &ImportBook,
+    is_update: bool,
+) -> Result<(), String> {
+    let author = canonical_optional_text(&book.author);
+    let summary = canonical_optional_text(&book.summary);
+    let progress_updated_at = canonical_optional_text(&book.progress_updated_at);
+    let started_at = canonical_optional_text(&book.started_at);
+    let cover_url = canonical_optional_text(&book.cover_url);
+    let personal_note = canonical_optional_text(&book.personal_note);
+
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE books SET
+                title = $3, author = $4, year = $5, summary = $6, category = $7,
+                status = $8, rating = $9, is_favorite = $10, volumes_read = $11,
+                volumes_total = $12, progress_updated_at = $13, started_at = $14,
+                cover_url = $15, personal_note = $16, updated_at = $17
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&book.id)
+        .bind(&book.profile_id)
+        .bind(&book.title)
+        .bind(author)
+        .bind(book.year)
+        .bind(summary)
+        .bind(&book.category)
+        .bind(&book.status)
+        .bind(book.rating)
+        .bind(if book.is_favorite { 1 } else { 0 })
+        .bind(book.volumes_read)
+        .bind(book.volumes_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&book.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour le livre « {} » : {error}",
+                book.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO books (
+                id, profile_id, title, author, year, summary, category, status, rating,
+                is_favorite, volumes_read, volumes_total, progress_updated_at, started_at,
+                cover_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&book.id)
+        .bind(&book.profile_id)
+        .bind(&book.title)
+        .bind(author)
+        .bind(book.year)
+        .bind(summary)
+        .bind(&book.category)
+        .bind(&book.status)
+        .bind(book.rating)
+        .bind(if book.is_favorite { 1 } else { 0 })
+        .bind(book.volumes_read)
+        .bind(book.volumes_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&book.created_at)
+        .bind(&book.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer le livre « {} » : {error}",
+                book.title
+            )
+        })?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture du livre « {} » n’a modifié aucune ligne SQLite.",
+            book.title
+        ));
+    }
+
+    if is_update {
+        sqlx::query("DELETE FROM book_quotes WHERE book_id = $1")
+            .bind(&book.id)
+            .execute(&mut **transaction)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Impossible de remplacer les citations du livre « {} » : {error}",
+                    book.title
+                )
+            })?;
+    }
+
+    for quote in &book.quotes {
+        sqlx::query(
+            "INSERT INTO book_quotes (id, book_id, body, position, created_at)
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(&quote.id)
+        .bind(&quote.book_id)
+        .bind(&quote.body)
+        .bind(quote.position)
+        .bind(&quote.created_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer une citation du livre « {} » : {error}",
+                book.title
+            )
+        })?;
     }
 
     Ok(())
@@ -3366,6 +3561,98 @@ mod tests {
             assert_eq!(
                 profile_count.0, 0,
                 "un import refusé avant écriture ne doit créer aucun profil"
+            );
+        });
+    }
+
+    #[test]
+    fn books_collection_import_is_atomic_with_quotes() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-22T10:00:00.000Z";
+            let book = |id: &str, title: &str, quote_id: &str, quote_body: &str| ImportBook {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                author: Some("Autrice avec accents — Élodie".to_string()),
+                year: Some(2026),
+                summary: Some("Résumé long\nconservé sans transformation.".to_string()),
+                category: "livre".to_string(),
+                status: "lu".to_string(),
+                rating: Some(4.5),
+                is_favorite: true,
+                volumes_read: None,
+                volumes_total: None,
+                progress_updated_at: None,
+                started_at: Some("2026-07-01".to_string()),
+                cover_url: None,
+                personal_note: Some("Avis personnel\nmultiligne.".to_string()),
+                created_at: timestamp.to_string(),
+                updated_at: timestamp.to_string(),
+                quotes: vec![ImportBookQuote {
+                    id: quote_id.to_string(),
+                    book_id: id.to_string(),
+                    body: quote_body.to_string(),
+                    position: 0,
+                    created_at: timestamp.to_string(),
+                }],
+            };
+
+            write_books_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![book(
+                        "book-existing",
+                        "Livre conservé",
+                        "quote-existing",
+                        "Citation conservée",
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("installation de la collection initiale");
+
+            let failing_plan = CollectionImportPlan {
+                profile_id: "default".to_string(),
+                replace_existing: true,
+                inserts: vec![
+                    book("book-new-a", "Nouveau A", "quote-duplicate", "Citation A"),
+                    book("book-new-b", "Nouveau B", "quote-duplicate", "Citation B"),
+                ],
+                updates: Vec::new(),
+            };
+            assert!(
+                write_books_import_plan(&pool, &failing_plan).await.is_err(),
+                "un conflit de citation doit annuler tout le remplacement"
+            );
+
+            let books: Vec<(String, String)> = sqlx::query_as(
+                "SELECT id, title FROM books WHERE profile_id = 'default' ORDER BY id",
+            )
+            .fetch_all(&pool)
+            .await
+            .expect("relecture des livres après rollback");
+            let quotes: Vec<(String, String, String)> =
+                sqlx::query_as("SELECT id, book_id, body FROM book_quotes ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("relecture des citations après rollback");
+            assert_eq!(
+                books,
+                vec![("book-existing".to_string(), "Livre conservé".to_string())],
+                "le livre initial doit survivre au remplacement échoué"
+            );
+            assert_eq!(
+                quotes,
+                vec![(
+                    "quote-existing".to_string(),
+                    "book-existing".to_string(),
+                    "Citation conservée".to_string(),
+                )],
+                "la citation initiale doit survivre au remplacement échoué"
             );
         });
     }

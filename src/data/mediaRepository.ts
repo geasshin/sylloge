@@ -307,6 +307,11 @@ export type SeriesSearchCriteria = {
   category: SeriesCategory | 'all'
 }
 
+export type BookSearchCriteria = {
+  query: string
+  category: BookCategory | 'all'
+}
+
 export class SqliteMediaRepository {
   private readonly loadDatabase: DatabaseLoader
   private readonly createId: IdFactory
@@ -554,6 +559,57 @@ export class SqliteMediaRepository {
     )
     const quotesByBook = new Map<string, BookQuote[]>()
     for (const quote of quotes.map(toBookQuote)) {
+      const list = quotesByBook.get(quote.bookId) ?? []
+      list.push(quote)
+      quotesByBook.set(quote.bookId, list)
+    }
+
+    return rows.map((row) => toBook(row, quotesByBook.get(row.id) ?? []))
+  }
+
+  async searchBooks(profileId: string, criteria: BookSearchCriteria): Promise<Book[]> {
+    const database = await this.loadDatabase()
+    const clauses = ['profile_id = $1']
+    const bindValues: unknown[] = [profileId]
+    const query = criteria.query.trim()
+
+    if (query) {
+      bindValues.push(`%${escapeLikePattern(query)}%`)
+      const searchParameter = `$${bindValues.length}`
+      clauses.push(`(
+        title COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR author COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR summary COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+      )`)
+    }
+
+    if (criteria.category !== 'all') {
+      bindValues.push(criteria.category)
+      clauses.push(`category = $${bindValues.length}`)
+    }
+
+    const rows = await database.select<BookRow[]>(
+      `SELECT ${BOOK_COLUMNS}
+       FROM books
+       WHERE ${clauses.join('\n         AND ')}
+       ORDER BY
+         COALESCE(progress_updated_at, updated_at) DESC,
+         title COLLATE NOCASE ASC`,
+      bindValues,
+    )
+    if (rows.length === 0) return []
+
+    const quotes = await database.select<BookQuoteRow[]>(
+      `SELECT id, book_id, body, position, created_at
+       FROM book_quotes
+       WHERE book_id IN (SELECT id FROM books WHERE profile_id = $1)
+       ORDER BY position ASC, created_at ASC`,
+      [profileId],
+    )
+    const resultIds = new Set(rows.map((row) => row.id))
+    const quotesByBook = new Map<string, BookQuote[]>()
+    for (const quote of quotes.map(toBookQuote)) {
+      if (!resultIds.has(quote.bookId)) continue
       const list = quotesByBook.get(quote.bookId) ?? []
       list.push(quote)
       quotesByBook.set(quote.bookId, list)

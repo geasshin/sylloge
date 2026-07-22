@@ -303,7 +303,7 @@ export function BookForm({ book, onCancel, onSave }: BookFormProps) {
           {errors.coverUrl && <p className="field-error" id="book-cover-error">{errors.coverUrl}</p>}
           <div className="poster-preview">
             <p>Aperçu de la couverture</p>
-            <Poster title={previewTitle} src={previewUrl} className="form-poster-preview" />
+            <Poster title={previewTitle} src={previewUrl} className="form-poster-preview" label="Couverture" />
           </div>
         </div>
 

@@ -208,3 +208,9 @@ export function importSeriesIntoProfile(
 ): Promise<CollectionImportResult> {
   return invoke('import_series_into_profile', { plan })
 }
+
+export function importBooksIntoProfile(
+  plan: CollectionImportPlan<SyllogeLibraryDocument['books'][number]>,
+): Promise<CollectionImportResult> {
+  return invoke('import_books_into_profile', { plan })
+}

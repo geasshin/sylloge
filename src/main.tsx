@@ -15,7 +15,7 @@ import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
 import { profilesRepository, type ProfileSummary } from './data/profilesRepository.ts'
-import { mediaRepository, type SeriesSearchCriteria } from './data/mediaRepository.ts'
+import { mediaRepository, type BookSearchCriteria, type SeriesSearchCriteria } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import {
   createLibraryExport,
@@ -50,6 +50,7 @@ import {
   BOOK_CATEGORY_LABELS,
   BOOK_STATUS_LABELS,
   type Book,
+  type BookCategory,
 } from './domain/book.ts'
 import type { BookWriteInput } from './domain/bookForm.ts'
 import './styles.css'
@@ -690,11 +691,19 @@ type LibraryState =
   | { status: 'error' }
 
 type SeriesCategoryFilter = SeriesCategory | 'all'
+type BookCategoryFilter = BookCategory | 'all'
 
 const SERIES_CATEGORY_FILTERS: Array<{ id: SeriesCategoryFilter; label: string }> = [
   { id: 'all', label: 'Toutes' },
   { id: 'série télé', label: SERIES_CATEGORY_LABELS['série télé'] },
   { id: 'animation', label: SERIES_CATEGORY_LABELS.animation },
+]
+
+const BOOK_CATEGORY_FILTERS: Array<{ id: BookCategoryFilter; label: string }> = [
+  { id: 'all', label: 'Tous' },
+  { id: 'livre', label: BOOK_CATEGORY_LABELS.livre },
+  { id: 'manga', label: BOOK_CATEGORY_LABELS.manga },
+  { id: 'comics', label: BOOK_CATEGORY_LABELS.comics },
 ]
 
 function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) {
@@ -879,7 +888,7 @@ function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
 
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${book.title}`}>
-      <Poster title={book.title} src={book.coverUrl} />
+      <Poster title={book.title} src={book.coverUrl} label="Couverture" />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{book.title}</b>
@@ -898,11 +907,55 @@ function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
 type BooksLibraryProps = {
   profileName: string
   collection: Book[]
+  context: BookSearchCriteria
+  searchState: BookSearchState
+  onContextChange: (context: BookSearchCriteria) => void
+  onRetrySearch: () => void
   onCreate: () => void
   onOpen: (book: Book) => void
+  profileId: string
+  onLibraryChanged: () => void
 }
 
-function BooksLibrary({ profileName, collection, onCreate, onOpen }: BooksLibraryProps) {
+type BookSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; books: Book[] }
+  | { status: 'error' }
+
+function BooksLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+  profileId,
+  onLibraryChanged,
+}: BooksLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all'
+  const resultCount = searchState.status === 'ready' ? searchState.books.length : null
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+
+  const exportLibrary = async () => {
+    setExportMessage(null)
+    try {
+      const library = await libraryRepository.loadLibrary(profileId)
+      const document = createLibraryDocument(
+        { ...library, films: [], series: [], games: [], artworks: [] },
+      )
+      const savedName = await saveExportJson(
+        libraryExportFileName(document.exportedAt),
+        serializeLibraryDocument(document),
+      )
+      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
+    } catch (error) {
+      console.error('Impossible d’exporter les Livres.', error)
+      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
+    }
+  }
+
   return (
     <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
       <header className="library-header">
@@ -911,11 +964,22 @@ function BooksLibrary({ profileName, collection, onCreate, onOpen }: BooksLibrar
           <h1 className="display-title">Livres</h1>
         </div>
         <div className="library-header-actions">
+          <LibraryImportButton
+            kind="books"
+            buttonLabel="Importer"
+            mediumLabel="livre"
+            profileId={profileId}
+            profileName={profileName}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
         </div>
       </header>
+      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
 
-      {collection.length === 0 ? (
+      {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Livres est vide.</h2>
@@ -924,14 +988,65 @@ function BooksLibrary({ profileName, collection, onCreate, onOpen }: BooksLibrar
         </div>
       ) : (
         <>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, auteur ou résumé"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <div className="filters" role="group" aria-label="Filtrer les livres">
+              {BOOK_CATEGORY_FILTERS.map((filter) => (
+                <button
+                  className={`filter ${context.category === filter.id ? 'active' : ''}`}
+                  type="button"
+                  aria-pressed={context.category === filter.id}
+                  key={filter.id}
+                  onClick={() => onContextChange({ ...context, category: filter.id })}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="collection-meta books-collection-meta" aria-live="polite">
-            <p>{collection.length} {collection.length === 1 ? 'livre affiché' : 'livres affichés'}</p>
+            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
+              <p>{resultCount} {resultCount === 1 ? 'livre affiché' : 'livres affichés'}</p>
+            )}
           </div>
-          <div className="film-grid">
-            {collection.map((book) => (
-              <BookCard book={book} key={book.id} onOpen={() => onOpen(book)} />
-            ))}
-          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos livres restent enregistrés. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.books.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucun livre ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à tous les livres.</p>
+              <button
+                className="state-action"
+                type="button"
+                onClick={() => onContextChange({ query: '', category: 'all' })}
+              >
+                Afficher tous les livres
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+              {searchState.books.map((book) => (
+                <BookCard book={book} key={book.id} onOpen={() => onOpen(book)} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </main>
@@ -1038,6 +1153,9 @@ function App() {
   const [seriesContext, setSeriesContext] = useState<SeriesSearchCriteria>({ query: '', category: 'all' })
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [bookCollection, setBookCollection] = useState<Book[]>([])
+  const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
+  const [bookContext, setBookContext] = useState<BookSearchCriteria>({ query: '', category: 'all' })
+  const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -1144,6 +1262,28 @@ function App() {
       window.clearTimeout(timeout)
     }
   }, [seriesContext, libraryState, seriesSearchAttempt])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setBookSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      mediaRepository.searchBooks(libraryState.library.profile.id, bookContext).then(
+        (books) => {
+          if (!cancelled) setBookSearchState({ status: 'ready', books })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les livres dans SQLite.', error)
+          if (!cancelled) setBookSearchState({ status: 'error' })
+        },
+      )
+    }, bookContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [bookContext, libraryState, bookSearchAttempt])
 
   useEffect(() => {
     let cancelled = false
@@ -1560,8 +1700,14 @@ function App() {
       <BooksLibrary
         profileName={libraryState.library.profile.name}
         collection={bookCollection}
+        context={bookContext}
+        searchState={bookSearchState}
+        onContextChange={setBookContext}
+        onRetrySearch={() => setBookSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => leaveLibrary({ name: 'book-create' })}
         onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   } else if (view.name === 'book-create') {
@@ -1573,6 +1719,7 @@ function App() {
           const { quotes, ...bookInput } = input
           const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
           setBookCollection((current) => sortBooks([...current, book]))
+          setBookSearchAttempt((attempt) => attempt + 1)
           requestAutomaticBackup(library)
           setView({ name: 'book-detail', bookId: book.id })
           window.scrollTo({ top: 0 })
@@ -1605,6 +1752,7 @@ function App() {
           onDelete={async () => {
             await mediaRepository.deleteBook(library.profile.id, view.bookId)
             setBookCollection((current) => current.filter((entry) => entry.id !== view.bookId))
+            setBookSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'books' })
           }}
@@ -1643,6 +1791,7 @@ function App() {
             setBookCollection((current) => sortBooks(current.map((entry) => (
               entry.id === view.bookId ? refreshed : entry
             ))))
+            setBookSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'book-detail', bookId: view.bookId })
             window.scrollTo({ top: 0 })

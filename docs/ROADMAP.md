@@ -250,6 +250,8 @@ Objectifs initiaux du jalon :
 
 ### `0.4.6` — Livres : bibliothèque et portabilité
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La bibliothèque Livres recherche dans le titre, l’auteur et le résumé, propose les vues Tous / Livre / Manga / Comics et trie par progression interne récente. L’import et l’export dédiés utilisent le document Sylloge JSON v2, citations comprises, avec Remplacer ou Fusionner et résolution individuelle des doublons au titre normalisé. La fusion préserve les données personnelles et citations locales lorsque la fiche existante est conservée ; le backend écrit livres et citations dans une transaction unique. Les snapshots globaux incluent fidèlement les Livres. Le fallback visuel annonce désormais explicitement une couverture pour cette verticale.
+
 - Étendre recherche, filtres, bibliothèque, export, import, sauvegardes et fallback de couverture aux Livres.
 - Vérifier la préservation des caractères, notes longues et données éditoriales dans les formats locaux.
 

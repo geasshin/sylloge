@@ -32,6 +32,7 @@ pub fn run() {
             portability::import_library_document_into_empty_profile,
             portability::import_films_into_profile,
             portability::import_series_into_profile,
+            portability::import_books_into_profile,
             profiles::list_profiles,
             profiles::create_profile,
             profiles::rename_profile,
