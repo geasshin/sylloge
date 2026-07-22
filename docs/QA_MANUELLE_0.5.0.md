@@ -2,7 +2,7 @@
 
 > Objectif : éprouver l’application native, la logique produit et l’intégrité des données avant la release publique `0.5.0`. Ce document ne cherche pas à valider la direction artistique finale du train `0.6.0`.
 
-> **État au 22 juillet 2026 : recette interrompue après la première passe.** Les retours ont ouvert les jalons de stabilisation `0.4.10+` décrits dans [`plans/0.5.0-stabilisation-post-qa.md`](plans/0.5.0-stabilisation-post-qa.md). Cette checklist est mise à jour progressivement ; le jalon `0.4.14` ajoute ici les contrôles de cohérence des actions Importer/Exporter.
+> **État au 22 juillet 2026 : recette interrompue après la première passe.** Les retours ont ouvert les jalons de stabilisation `0.4.10+` décrits dans [`plans/0.5.0-stabilisation-post-qa.md`](plans/0.5.0-stabilisation-post-qa.md). Cette checklist est mise à jour progressivement ; les jalons `0.4.14` et `0.4.15` ajoutent ici les contrôles de cohérence Importer/Exporter et les exports CSV des cinq médiums.
 
 ## Comment utiliser cette recette
 
@@ -392,13 +392,23 @@ Répéter pour Films, Séries, Livres, Jeux et Art depuis `QA Principal`.
 - [ ] Pour Art, aucune note n’apparaît.
 - [ ] Pour Films enrichis, aucune clé secrète, aucun cache brut, aucun crédit ou liste d’affiches TMDB n’apparaît.
 
-### Export CSV Films
+### Export CSV unitaire
 
-- [ ] Depuis la bibliothèque Films ou Paramètres → Importer et exporter, exporter les Films en CSV.
-- [ ] Annuler une première fois : aucun fichier n’est écrit.
+Répéter depuis la bibliothèque concernée puis depuis Paramètres → Importer et exporter pour **Films, Séries, Livres, Jeux et Art**.
+
+- [ ] Les deux emplacements ouvrent le même dialogue natif et proposent un export CSV de la collection visée.
+- [ ] Annuler une première fois : aucun fichier n’est écrit et le message indique une annulation non alarmante.
 - [ ] Exporter réellement puis ouvrir le CSV dans un éditeur et dans un tableur.
-- [ ] Les colonnes, accents, dates, notes et textes multilignes restent lisibles.
-- [ ] Aucun contenu des quatre autres médiums n’est mélangé au CSV Films.
+- [ ] Les accents, virgules, guillemets, retours à la ligne, dates et champs vides restent lisibles sans décalage de colonne.
+- [ ] Aucun contenu des quatre autres médiums n’est mélangé au CSV unitaire.
+- [ ] Vérifier le nom de fichier et le préfixe cohérents avec le médium exporté.
+- [ ] **Séries** : saisons vues et saisons totales restent deux colonnes distinctes.
+- [ ] **Livres** : `book_quotes_json` est une cellule lisible contenant les citations dans le bon ordre ; la présence de virgules, guillemets ou retours à la ligne dans une citation ne casse pas le CSV.
+- [ ] **Jeux** : la plateforme libre, la note et l’avis restent lisibles.
+- [ ] **Art** : forme, artiste, lieu, exposition et avis restent lisibles ; aucune colonne de note n’est présente.
+- [ ] Les valeurs commençant par `=`, `+`, `-`, `@` ou une apostrophe ne sont pas interprétées comme formules par le tableur.
+- [ ] Aucun CSV ne contient le cache TMDB, une clé, une image binaire ou un autre secret.
+- [ ] Noter que seuls les Films sont réimportables en CSV à ce stade ; les imports CSV Séries, Livres, Jeux et Art relèvent du jalon `0.4.16`.
 
 ---
 

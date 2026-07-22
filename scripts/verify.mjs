@@ -33,6 +33,7 @@ import {
   serializeFilmsCsvExport,
   SYLLOGE_FILMS_CSV_HEADER,
 } from '../src/domain/csvFilmExport.ts'
+import { createCollectionCsvExport } from '../src/domain/collectionCsvTransfer.ts'
 import {
   NOTION_MARKDOWN_NOTES_SOURCE,
   conciseFilmImportReportSource,
@@ -521,6 +522,88 @@ const completeExport = createLibraryExport({
     ['Catalogue local', 'source-ete-42'],
     'La fixture Sylloge doit conserver une provenance complète comme paire atomique',
   )
+}
+
+{
+  const multiMediumLibrary = {
+    profile: completeExport.profile,
+    films: [completeTransferFilm],
+    series: [{
+      id: 'series-1', profileId: 'default', title: '+Série, « test »', showrunner: 'Créatrice', casting: 'A, B',
+      summary: 'Une ligne\nDeuxième ligne', category: 'animation', status: 'en cours', rating: 4.5,
+      isFavorite: true, seasonsSeen: 2, seasonsTotal: 3, progressUpdatedAt: '2026-07-18T10:00:00.000Z',
+      startedAt: '2026-07-17', posterUrl: null, personalNote: 'Note série',
+      createdAt: '2026-07-17T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+    }],
+    books: [{
+      id: 'book-1', profileId: 'default', title: 'Livre « test »', author: 'Autrice', year: 2025,
+      summary: null, category: 'manga', status: 'en cours', rating: 4, isFavorite: false,
+      volumesRead: 3, volumesTotal: 5, progressUpdatedAt: '2026-07-18T10:00:00.000Z',
+      startedAt: '2026-07-16', coverUrl: null, personalNote: 'Avis, avec virgule',
+      createdAt: '2026-07-16T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+      quotes: [
+        { id: 'quote-2', bookId: 'book-1', body: 'Seconde citation', position: 2, createdAt: '2026-07-18T10:00:00.000Z' },
+        { id: 'quote-1', bookId: 'book-1', body: '=Première citation\navec retour', position: 1, createdAt: '2026-07-17T10:00:00.000Z' },
+      ],
+    }],
+    games: [{
+      id: 'game-1', profileId: 'default', title: 'Jeu test', developer: 'Studio', platform: 'PC', year: 2024,
+      status: 'joué', rating: 5, isFavorite: true, playedAt: '2026-07-15', coverUrl: null,
+      personalNote: '@Note de jeu', createdAt: '2026-07-15T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+    }],
+    artworks: [{
+      id: 'art-1', profileId: 'default', title: 'Œuvre test', artist: 'Artiste', year: 2020,
+      form: 'photographie', location: 'Paris', exhibition: 'Exposition', status: 'découverte',
+      isFavorite: true, discoveredAt: '2026-07-14', imageUrl: null, personalNote: 'Texte « libre »',
+      createdAt: '2026-07-14T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+    }],
+  }
+  const exportedAt = '2026-07-18T12:00:00.000Z'
+  const expectedFormats = {
+    films: 'sylloge-films-csv', series: 'sylloge-series-csv', books: 'sylloge-books-csv',
+    games: 'sylloge-games-csv', artworks: 'sylloge-artworks-csv',
+  }
+
+  for (const kind of ['films', 'series', 'books', 'games', 'artworks']) {
+    const exported = createCollectionCsvExport(multiMediumLibrary, kind, exportedAt)
+    const parsed = parseCsv(exported.contents)
+    assert.deepEqual(parsed.errors, [], `Le CSV ${kind} doit être syntaxiquement lisible`)
+    assert.equal(parsed.rows.length, 1, `Le CSV ${kind} doit contenir une ligne de collection`)
+    assert.equal(parsed.rows[0].cells[0], expectedFormats[kind], `Le CSV ${kind} doit avoir son format versionné`)
+    assert.equal(parsed.rows[0].cells[1], '1', `Le CSV ${kind} doit annoncer sa version`)
+    assert.equal(new TextEncoder().encode(exported.contents)[0], 'f'.charCodeAt(0), `Le CSV ${kind} reste UTF-8 sans BOM`)
+    assert.match(exported.contents, /\r\n$/u, `Le CSV ${kind} doit finir avec CRLF`)
+  }
+
+  const series = createCollectionCsvExport(multiMediumLibrary, 'series', exportedAt)
+  const parsedSeries = parseCsv(series.contents)
+  assert.equal(parsedSeries.headers.includes('series_seasons_seen'), true, 'Le CSV Séries doit séparer saisons vues et total')
+  assert.equal(parsedSeries.rows[0].cells[9], "'+Série, « test »", 'Les titres Série commençant par + doivent être neutralisés pour les tableurs')
+  assert.equal(series.fileName, 'sylloge-series-2026-07-18.csv', 'Le nom Série doit être déterministe')
+
+  const books = createCollectionCsvExport(multiMediumLibrary, 'books', exportedAt)
+  const parsedBooks = parseCsv(books.contents)
+  const quotesIndex = parsedBooks.headers.indexOf('book_quotes_json')
+  assert.deepEqual(
+    JSON.parse(parsedBooks.rows[0].cells[quotesIndex]),
+    ['=Première citation\navec retour', 'Seconde citation'],
+    'Le CSV Livres doit conserver les citations dans leur ordre, avec leurs retours à la ligne',
+  )
+
+  const games = createCollectionCsvExport(multiMediumLibrary, 'games', exportedAt)
+  const parsedGames = parseCsv(games.contents)
+  assert.equal(parsedGames.rows[0].cells[18], "'@Note de jeu", 'Les notes Jeu à risque doivent être neutralisées pour les tableurs')
+  assert.equal(parsedGames.headers.includes('game_platform'), true, 'La plateforme libre doit rester une colonne Jeu dédiée')
+
+  const artworks = createCollectionCsvExport(multiMediumLibrary, 'artworks', exportedAt)
+  const parsedArtworks = parseCsv(artworks.contents)
+  assert.equal(parsedArtworks.headers.includes('artwork_rating'), false, 'Le CSV Art ne doit pas inventer de note')
+  assert.equal(parsedArtworks.headers.includes('artwork_location'), true, 'Le CSV Art doit conserver le lieu libre')
+
+  const emptyGames = createCollectionCsvExport({ ...multiMediumLibrary, games: [] }, 'games', exportedAt)
+  const parsedEmptyGames = parseCsv(emptyGames.contents)
+  assert.equal(parsedEmptyGames.rows.length, 1, 'Une collection CSV vide doit conserver sa ligne de profil')
+  assert.ok(parsedEmptyGames.rows[0].cells.slice(7).every((cell) => cell === ''), 'Une collection CSV vide ne doit inventer aucune fiche')
 }
 
 {
@@ -3159,4 +3242,4 @@ assert.match(tmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche TMDB doit 
 assert.match(tmdbSearchFlowSource, /spellCheck=\{false\}/, 'La recherche TMDB doit désactiver la correction orthographique')
 assert.match(mainSource047, /autoCorrect="off"[\s\S]*spellCheck=\{false\}/, 'La recherche locale Films doit désactiver les corrections automatiques')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection.')
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. Exports CSV 0.4.15 : cinq contrats unitaires versionnés, citations Livres ordonnées et échappement tableur contrôlé.')

@@ -604,7 +604,7 @@ function FilmsLibrary({
             onDone={onLibraryChanged}
           />
           <LibraryExportButton kind="films" profileId={library.profile.id} />
-          <LibraryCsvExportButton profileId={library.profile.id} />
+          <LibraryCsvExportButton kind="films" profileId={library.profile.id} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
         </div>
       </header>
@@ -777,6 +777,7 @@ function SeriesLibrary({
             onDone={onLibraryChanged}
           />
           <LibraryExportButton kind="series" profileId={profileId} />
+          <LibraryCsvExportButton kind="series" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
         </div>
       </header>
@@ -954,6 +955,7 @@ function GamesLibrary({
             onDone={onLibraryChanged}
           />
           <LibraryExportButton kind="games" profileId={profileId} />
+          <LibraryCsvExportButton kind="games" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
         </div>
       </header>
@@ -1100,6 +1102,7 @@ function ArtworksLibrary({
             onDone={onLibraryChanged}
           />
           <LibraryExportButton kind="artworks" profileId={profileId} />
+          <LibraryCsvExportButton kind="artworks" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
         </div>
       </header>
@@ -1224,6 +1227,7 @@ function BooksLibrary({
             onDone={onLibraryChanged}
           />
           <LibraryExportButton kind="books" profileId={profileId} />
+          <LibraryCsvExportButton kind="books" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
         </div>
       </header>

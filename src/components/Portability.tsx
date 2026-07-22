@@ -1171,7 +1171,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
         <div className="portability-card-heading">
           <div><p className="card-kicker">Collections</p><h3>Actions par médium</h3></div>
         </div>
-        <p>Chaque bibliothèque reprend les mêmes actions que son écran : importer ou exporter son JSON. Le CSV reste proposé pour Films jusqu’à l’ouverture de son contrat multi-médiums.</p>
+        <p>Chaque bibliothèque reprend les mêmes actions que son écran : importer ou exporter son JSON et exporter son CSV. Le JSON reste nécessaire pour une copie complète fidèle ; le CSV décrit une seule collection.</p>
         {fullLibrary === null ? (
           <p className="backup-state" role="status">Lecture des collections locales…</p>
         ) : (
@@ -1182,39 +1182,43 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
               <div className="backup-actions">
                 <LibraryImportButton kind="films" buttonLabel="Importer" mediumLabel="film" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.films} onDone={onLibraryChanged} />
                 <LibraryExportButton kind="films" profileId={fullLibrary.profile.id} />
-                <LibraryCsvExportButton profileId={fullLibrary.profile.id} />
+                <LibraryCsvExportButton kind="films" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-series-title">
               <h4 id="transfer-series-title">Séries</h4>
-              <p>JSON</p>
+              <p>JSON et CSV</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="series" buttonLabel="Importer" mediumLabel="série" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.series} onDone={onLibraryChanged} />
                 <LibraryExportButton kind="series" profileId={fullLibrary.profile.id} />
+                <LibraryCsvExportButton kind="series" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-books-title">
               <h4 id="transfer-books-title">Livres</h4>
-              <p>JSON, citations comprises</p>
+              <p>JSON et CSV, citations comprises</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="books" buttonLabel="Importer" mediumLabel="livre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.books} onDone={onLibraryChanged} />
                 <LibraryExportButton kind="books" profileId={fullLibrary.profile.id} />
+                <LibraryCsvExportButton kind="books" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-games-title">
               <h4 id="transfer-games-title">Jeux</h4>
-              <p>JSON</p>
+              <p>JSON et CSV</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="games" buttonLabel="Importer" mediumLabel="jeu" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.games} onDone={onLibraryChanged} />
                 <LibraryExportButton kind="games" profileId={fullLibrary.profile.id} />
+                <LibraryCsvExportButton kind="games" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-art-title">
               <h4 id="transfer-art-title">Art</h4>
-              <p>JSON, sans note chiffrée</p>
+              <p>JSON et CSV, sans note chiffrée</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="artworks" buttonLabel="Importer" mediumLabel="œuvre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.artworks} onDone={onLibraryChanged} />
                 <LibraryExportButton kind="artworks" profileId={fullLibrary.profile.id} />
+                <LibraryCsvExportButton kind="artworks" profileId={fullLibrary.profile.id} />
               </div>
             </section>
           </div>

@@ -323,6 +323,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.15` — Contrats et exports CSV des cinq médiums
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques et les Paramètres exposent désormais le même export CSV unitaire. Les formats Séries, Livres, Jeux et Art sont versionnés en v1 ; le contrat Films v1 reste inchangé. Les citations Livres sont représentées par une cellule `book_quotes_json` ordonnée, qui conserve leurs textes mais non leurs identifiants techniques ni horodatages.
+
 - Définir des colonnes propres à Films, Séries, Livres, Jeux et Art, y compris une décision explicite pour les citations de Livres.
 - Exposer les mêmes exports CSV unitaires dans les bibliothèques et les Paramètres.
 
