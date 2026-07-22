@@ -357,41 +357,6 @@ function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
   )
 }
 
-type FilmCreationChoiceProps = {
-  onManual: () => void
-  onAssisted: () => void
-  onCancel: () => void
-}
-
-function FilmCreationChoice({ onManual, onAssisted, onCancel }: FilmCreationChoiceProps) {
-  return (
-    <main className="main editor-main" aria-label="Ajouter un film">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
-
-      <div className="editor-heading creation-heading">
-        <p className="eyebrow">Film</p>
-        <h1 className="display-title">Ajouter un film</h1>
-        <p>Choisissez un parcours. Aucune fiche n’est créée avant la validation finale du formulaire.</p>
-      </div>
-
-      <div className="film-creation-choices" role="group" aria-label="Choisir un parcours de création">
-        <button className="film-creation-choice" type="button" onClick={onManual}>
-          <span className="card-kicker">Hors ligne</span>
-          <b>Saisie manuelle</b>
-          <span>Renseignez librement les informations du film, même sans aucune source externe.</span>
-        </button>
-        <button className="film-creation-choice" type="button" onClick={onAssisted}>
-          <span className="card-kicker">Métadonnées</span>
-          <b>Enrichissement assisté</b>
-          <span>Prépare une future recherche et un préremplissage, toujours modifiables avant l’enregistrement.</span>
-        </button>
-      </div>
-    </main>
-  )
-}
-
 function compareTitles(first: Film, second: Film): number {
   return first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }) || first.id.localeCompare(second.id)
 }
@@ -679,6 +644,9 @@ function FilmsLibrary({
                 value={context.query}
                 placeholder="Titre, titre original ou réalisation"
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </label>
             <div className="filters" role="group" aria-label="Filtrer les films">
@@ -1434,7 +1402,6 @@ type View =
   | { name: 'library' }
   | { name: 'series' }
   | { name: 'settings' }
-  | { name: 'create-choice' }
   | { name: 'create'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
   | { name: 'tmdb-search' }
   | { name: 'tmdb-confirm'; candidate: TmdbSearchCandidate }
@@ -1891,17 +1858,10 @@ function App() {
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'home' })}
       />
     )
-  } else if (view.name === 'create-choice') {
-    content = (
-      <FilmCreationChoice
-        onManual={() => setView({ name: 'create' })}
-        onAssisted={() => setView({ name: 'tmdb-search' })}
-        onCancel={returnToLibrary}
-      />
-    )
   } else if (view.name === 'tmdb-search') {
     content = (
       <TmdbSearchFlow
+        film={associatingFilm}
         onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
         onManual={() => setView({ name: 'create' })}
         onCancel={returnToLibrary}
@@ -1951,9 +1911,16 @@ function App() {
     } else {
       content = (
         <TmdbSearchFlow
+          film={film}
           onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
-          onManual={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
-          onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+          onManual={() => {
+            setAssociatingFilm(null)
+            setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
+          }}
+          onCancel={() => {
+            setAssociatingFilm(null)
+            setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
+          }}
         />
       )
     }
@@ -2519,7 +2486,10 @@ function App() {
         searchState={searchState}
         onContextChange={setLibraryContext}
         onRetrySearch={() => setSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'create-choice' })}
+        onCreate={() => {
+          setAssociatingFilm(null)
+          leaveLibrary({ name: 'tmdb-search' })
+        }}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />

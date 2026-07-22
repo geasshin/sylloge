@@ -309,6 +309,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.13` — Parcours Film unifié et recherche TMDB contextuelle
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La création Film ouvre directement une recherche TMDB avec suggestions temporisées pendant la saisie et une issue immédiate vers la saisie manuelle, sans écran intermédiaire. Une association depuis une fiche existante reprend son titre, conserve son affiche et son identité visuelle comme contexte, puis revient proprement à la fiche si le parcours est abandonné. Les recherches de titres désactivent autocorrection, capitalisation automatique et correction orthographique.
+
 - Supprimer l’écran intermédiaire « manuel ou assisté » au profit d’une recherche directe avec suggestions temporisées et issue manuelle.
 - Depuis une fiche existante, préremplir la recherche avec son titre et conserver la fiche comme contexte visuel.
 - Désactiver autocorrection et correction orthographique dans les champs de recherche de titres.
