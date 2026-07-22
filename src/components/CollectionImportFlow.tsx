@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
 import type { Film } from '../domain/film.ts'
@@ -11,6 +11,10 @@ import type {
   FilmDuplicate,
   GameDuplicate,
   SeriesDuplicate,
+} from '../domain/importMerge.ts'
+import {
+  countModifiedDuplicateResolutions,
+  filterDuplicatesByTitle,
 } from '../domain/importMerge.ts'
 
 /**
@@ -120,14 +124,61 @@ export function DuplicatesResolver<F, D extends { normalizedTitle: string; exist
   onBack,
   renderSummary,
 }: DuplicatesResolverProps<F, D>) {
+  const [search, setSearch] = useState('')
+  const [confirming, setConfirming] = useState(false)
+  const duplicatesListRef = useRef<HTMLDivElement>(null)
+  const visibleDuplicates = filterDuplicatesByTitle(duplicates, search)
+  const modifiedResolutionCount = countModifiedDuplicateResolutions(duplicates, resolutions)
+
+  const confirm = () => {
+    if (confirming) return
+    setConfirming(true)
+    onConfirm()
+  }
+
+  const clearSearch = () => {
+    setSearch('')
+    window.requestAnimationFrame(() => duplicatesListRef.current?.scrollIntoView({ block: 'start' }))
+  }
+
+  const actions = (
+    <div className="duplicates-actions">
+      <button className="secondary-button" type="button" onClick={onBack} disabled={confirming}>Retour</button>
+      <button className="primary-button" type="button" onClick={confirm} disabled={confirming}>
+        {confirming ? 'Fusion…' : 'Confirmer la fusion'}
+      </button>
+    </div>
+  )
+
   return (
     <div className="assistant-content">
       <p className="assistant-introduction">
         {duplicates.length} {duplicates.length === 1 ? 'doublon détecté' : 'doublons détectés'} (même titre).
         Pour chacun, choisissez la fiche à conserver.
       </p>
-      <div className="duplicates-list">
-        {duplicates.map((duplicate) => (
+      <div className="duplicates-header">
+        <div className="duplicates-summary" role="status" aria-live="polite">
+          <span><b>{duplicates.length}</b> total</span>
+          <span><b>{visibleDuplicates.length}</b> visible{visibleDuplicates.length > 1 ? 's' : ''}</span>
+          <span><b>{modifiedResolutionCount}</b> décision{modifiedResolutionCount > 1 ? 's' : ''} modifiée{modifiedResolutionCount > 1 ? 's' : ''}</span>
+        </div>
+        <div className="duplicates-search-row">
+          <label className="duplicates-search">
+            <span className="visually-hidden">Rechercher un doublon par titre</span>
+            <input
+              type="search"
+              value={search}
+              placeholder="Rechercher un titre"
+              spellCheck={false}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <button className="secondary-button" type="button" onClick={clearSearch} disabled={!search}>Effacer</button>
+        </div>
+        {actions}
+      </div>
+      <div className="duplicates-list" ref={duplicatesListRef} id="duplicates-list">
+        {visibleDuplicates.length > 0 ? visibleDuplicates.map((duplicate) => (
           <DuplicateItem
             key={duplicate.normalizedTitle}
             title={duplicate.normalizedTitle}
@@ -137,12 +188,11 @@ export function DuplicatesResolver<F, D extends { normalizedTitle: string; exist
             onResolve={(resolution) => onResolve(duplicate.normalizedTitle, resolution)}
             renderSummary={renderSummary}
           />
-        ))}
+        )) : (
+          <p className="duplicates-empty" role="status">Aucun doublon ne correspond à cette recherche.</p>
+        )}
       </div>
-      <div className="assistant-actions">
-        <button className="secondary-button" type="button" onClick={onBack}>Retour</button>
-        <button className="primary-button" type="button" onClick={onConfirm}>Confirmer la fusion</button>
-      </div>
+      {actions}
     </div>
   )
 }

@@ -84,6 +84,27 @@ export function normalizeTitle(title: string): string {
     .trim()
 }
 
+/** Filtre un plan de doublons sans modifier ni réordonner le plan source. */
+export function filterDuplicatesByTitle<D extends { normalizedTitle: string }>(
+  duplicates: readonly D[],
+  query: string,
+): D[] {
+  const normalizedQuery = normalizeTitle(query)
+  if (!normalizedQuery) return [...duplicates]
+  return duplicates.filter((duplicate) => normalizeTitle(duplicate.normalizedTitle).includes(normalizedQuery))
+}
+
+/** Compte les choix explicites qui s’écartent de la conservation de l’existant. */
+export function countModifiedDuplicateResolutions<D extends { normalizedTitle: string }>(
+  duplicates: readonly D[],
+  resolutions: ReadonlyMap<string, DuplicateResolution>,
+): number {
+  return duplicates.reduce(
+    (count, duplicate) => count + (resolutions.get(duplicate.normalizedTitle) === 'keep-imported' ? 1 : 0),
+    0,
+  )
+}
+
 function firstNonEmpty<T>(existing: T, imported: T): T {
   if (existing === null || existing === '') return imported
   return existing

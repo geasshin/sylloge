@@ -3098,6 +3098,24 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
   assert.deepEqual(snapshotDocument?.artworks[0], existingArtwork, 'Le snapshot global doit inclure fidèlement l’Art')
 }
 
+// Jalon 0.4.11 — résolveur de doublons praticable à grande échelle.
+{
+  const { countModifiedDuplicateResolutions, filterDuplicatesByTitle } = await import('../src/domain/importMerge.ts')
+  const duplicates = Array.from({ length: 401 }, (_, index) => ({
+    normalizedTitle: `film qa ${index + 1}`,
+  }))
+  const resolutions = new Map([
+    ['film qa 17', 'keep-imported'],
+    ['film qa 319', 'keep-imported'],
+  ])
+
+  assert.equal(filterDuplicatesByTitle(duplicates, 'Film QA 400').length, 1, 'La recherche locale doit filtrer une liste de 401 doublons par titre')
+  assert.equal(filterDuplicatesByTitle(duplicates, 'film qa').length, 401, 'Une recherche commune doit conserver tous les doublons correspondants')
+  assert.equal(filterDuplicatesByTitle(duplicates, '').length, 401, 'Effacer la recherche doit restaurer toute la liste sans modifier son ordre')
+  assert.equal(countModifiedDuplicateResolutions(duplicates, resolutions), 2, 'Les décisions prises sur des doublons masqués restent comptées')
+  assert.equal(resolutions.get('film qa 17'), 'keep-imported', 'Le choix d’un doublon doit survivre à un filtrage ultérieur')
+}
+
 assert.match(mainSource047, /searchGames/, 'La bibliothèque Jeux doit rechercher dans SQLite')
 assert.match(mainSource047, /kind="games"/, 'La bibliothèque Jeux doit proposer son import unitaire')
 assert.match(mainSource047, /Impossible d’exporter les Jeux/, 'La bibliothèque Jeux doit proposer son export dédié')
@@ -3110,4 +3128,4 @@ assert.match(nativePortabilitySource, /games_and_artworks_collection_imports_are
 assert.match(tauriLibrarySource, /portability::import_games_into_profile/, 'La commande Tauri Jeux doit être enregistrée')
 assert.match(tauriLibrarySource, /portability::import_artworks_into_profile/, 'La commande Tauri Art doit être enregistrée')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants.')
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée.')

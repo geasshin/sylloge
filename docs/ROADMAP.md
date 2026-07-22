@@ -294,6 +294,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.11` — Résolution de doublons à grande échelle
 
+**État : livré côté code et preuves automatisées, en attente de validation visible d’Aurélien.** Le résolveur affiche désormais une recherche locale, les compteurs total/visible/décisions modifiées et une barre d’actions persistante en haut de l’assistant. Les choix restent conservés lorsqu’une recherche masque temporairement des doublons ; la confirmation est protégée contre la double soumission. Une fixture de 401 doublons couvre le filtrage et la conservation du plan de décisions.
+
 - Ajouter une recherche locale, des compteurs et une barre d’actions persistante au résolveur de doublons.
 - Prouver qu’une fusion d’au moins 400 doublons conserve toutes les décisions et ne déclenche qu’une seule écriture.
 

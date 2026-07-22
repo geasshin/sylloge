@@ -778,6 +778,27 @@ nav { display: flex; flex-direction: column; gap: 3px; }
 .onboarding-hint { color: var(--color-text-subtle); font-size: 12px; line-height: 1.5; }
 .library-header-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .duplicates-list { display: grid; gap: 14px; margin: 18px 0; }
+.duplicates-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  gap: 12px;
+  margin: 18px -32px 0;
+  padding: 15px 32px 14px;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.duplicates-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--color-text-muted); font: 500 10px var(--font-label); letter-spacing: .03em; }
+.duplicates-summary b { color: var(--color-text); font-weight: 700; }
+.duplicates-search-row { display: flex; align-items: center; gap: 8px; }
+.duplicates-search { min-width: 0; flex: 1; }
+.duplicates-search input { width: 100%; min-height: 40px; border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 8px 10px; background: white; color: var(--color-text); font-size: 13px; }
+.duplicates-search input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.duplicates-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.duplicates-actions .secondary-button, .duplicates-actions .primary-button { min-height: 38px; }
+.duplicates-empty { margin: 0; padding: 32px 12px; border: 1px dashed var(--color-border); color: var(--color-text-muted); font-size: 13px; text-align: center; }
 .duplicate-item { display: grid; gap: 10px; }
 .duplicate-title { margin: 0; font-size: 13px; }
 .duplicate-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -891,6 +912,9 @@ nav { display: flex; flex-direction: column; gap: 3px; }
   .assistant-source-summary { grid-template-columns: 1fr; }
   .source-destination-header { display: none; }
   .source-destination-row { grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr); }
+  .duplicates-header { margin-inline: -22px; padding-inline: 22px; }
+  .duplicates-search-row { align-items: stretch; flex-direction: column; }
+  .duplicates-search-row .secondary-button { align-self: flex-start; }
 }
 
 @media (prefers-reduced-motion: reduce) {
