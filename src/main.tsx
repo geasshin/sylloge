@@ -4,6 +4,8 @@ import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { BookDetail } from './components/BookDetail.tsx'
 import { BookForm } from './components/BookForm.tsx'
+import { GameDetail } from './components/GameDetail.tsx'
+import { GameForm } from './components/GameForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
 import { SeriesDetail } from './components/SeriesDetail.tsx'
@@ -53,9 +55,15 @@ import {
   type BookCategory,
 } from './domain/book.ts'
 import type { BookWriteInput } from './domain/bookForm.ts'
+import {
+  buildGamePlatformSuggestions,
+  GAME_STATUS_LABELS,
+  type Game,
+} from './domain/game.ts'
+import type { GameWriteInput } from './domain/gameForm.ts'
 import './styles.css'
 
-type IconName = 'book' | 'film' | 'home' | 'search' | 'series' | 'settings'
+type IconName = 'book' | 'film' | 'game' | 'home' | 'search' | 'series' | 'settings'
 type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
@@ -72,12 +80,14 @@ type SidebarProps = {
   count: number | null
   seriesCount: number | null
   bookCount: number | null
+  gameCount: number | null
   currentProfileName: string | null
-  activeItem: 'books' | 'home' | 'library' | 'series' | 'settings'
+  activeItem: 'books' | 'games' | 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
   onSeries: () => void
   onBooks: () => void
+  onGames: () => void
   onSettings: () => void
   settingsSection: SettingsSection
   onSettingsSection: (section: SettingsSection) => void
@@ -88,12 +98,14 @@ function Sidebar({
   count,
   seriesCount,
   bookCount,
+  gameCount,
   currentProfileName,
   activeItem,
   onHome,
   onLibrary,
   onSeries,
   onBooks,
+  onGames,
   onSettings,
   settingsSection,
   onSettingsSection,
@@ -159,6 +171,15 @@ function Sidebar({
           >
             {icon('book')} Livres
             {bookCount !== null && <span className="nav-count">{bookCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'games' ? 'active' : ''}`}
+            type="button"
+            onClick={onGames}
+            aria-current={activeItem === 'games' ? 'page' : undefined}
+          >
+            {icon('game')} Jeux
+            {gameCount !== null && <span className="nav-count">{gameCount}</span>}
           </button>
         </nav>
       )}
@@ -904,6 +925,71 @@ function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
   )
 }
 
+function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
+  const attribution = [game.platform, game.developer, game.year]
+    .filter((value) => value !== null)
+    .join(' · ')
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${game.title}`}>
+      <Poster title={game.title} src={game.coverUrl} label="Couverture" />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{game.title}</b>
+          {game.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {attribution && <small>{attribution}</small>}
+        <span className={`status-line ${game.status === 'à jouer' ? 'to-discover' : ''}`}>
+          {GAME_STATUS_LABELS[game.status]}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+type GamesLibraryProps = {
+  profileName: string
+  collection: Game[]
+  onCreate: () => void
+  onOpen: (game: Game) => void
+}
+
+function GamesLibrary({ profileName, collection, onCreate, onOpen }: GamesLibraryProps) {
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Jeux</h1>
+        </div>
+        <div className="library-header-actions">
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
+        </div>
+      </header>
+
+      {collection.length === 0 ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Jeux est vide.</h2>
+          <p>Ajoutez un premier jeu, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un jeu</button>
+        </div>
+      ) : (
+        <>
+          <div className="collection-meta games-collection-meta" aria-live="polite">
+            <p>{collection.length} {collection.length === 1 ? 'jeu affiché' : 'jeux affichés'}</p>
+          </div>
+          <div className="film-grid">
+            {collection.map((game) => (
+              <GameCard game={game} key={game.id} onOpen={() => onOpen(game)} />
+            ))}
+          </div>
+        </>
+      )}
+    </main>
+  )
+}
+
 type BooksLibraryProps = {
   profileName: string
   collection: Book[]
@@ -1072,6 +1158,10 @@ type View =
   | { name: 'book-create' }
   | { name: 'book-detail'; bookId: string }
   | { name: 'book-edit'; bookId: string }
+  | { name: 'games' }
+  | { name: 'game-create' }
+  | { name: 'game-detail'; gameId: string }
+  | { name: 'game-edit'; gameId: string }
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
@@ -1079,6 +1169,10 @@ function sortFilms(films: Film[]): Film[] {
 
 function sortBooks(books: Book[]): Book[] {
   return [...books].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+}
+
+function sortGames(games: Game[]): Game[] {
+  return [...games].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
 }
 
 type SqliteFilmDetailProps = {
@@ -1156,6 +1250,7 @@ function App() {
   const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
   const [bookContext, setBookContext] = useState<BookSearchCriteria>({ query: '', category: 'all' })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
+  const [gameCollection, setGameCollection] = useState<Game[]>([])
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -1233,6 +1328,23 @@ function App() {
       (error: unknown) => {
         console.error('Impossible de charger les livres depuis SQLite.', error)
         if (!cancelled) setBookCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listGames(libraryState.library.profile.id).then(
+      (games) => { if (!cancelled) setGameCollection(sortGames(games)) },
+      (error: unknown) => {
+        console.error('Impossible de charger les jeux depuis SQLite.', error)
+        if (!cancelled) setGameCollection([])
       },
     )
 
@@ -1380,6 +1492,7 @@ function App() {
   const count = libraryState.status === 'ready' ? libraryState.library.films.length : null
   const seriesCount = libraryState.status === 'ready' ? seriesCollection.length : null
   const bookCount = libraryState.status === 'ready' ? bookCollection.length : null
+  const gameCount = libraryState.status === 'ready' ? gameCollection.length : null
   let content
 
   if (libraryState.status === 'loading') {
@@ -1799,6 +1912,101 @@ function App() {
         />
       )
     }
+  } else if (view.name === 'games') {
+    content = (
+      <GamesLibrary
+        profileName={libraryState.library.profile.name}
+        collection={gameCollection}
+        onCreate={() => leaveLibrary({ name: 'game-create' })}
+        onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
+      />
+    )
+  } else if (view.name === 'game-create') {
+    const { library } = libraryState
+    content = (
+      <GameForm
+        platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
+        onCancel={() => setView({ name: 'games' })}
+        onSave={async (input: GameWriteInput) => {
+          const game = await mediaRepository.createGame(library.profile.id, input)
+          setGameCollection((current) => sortGames([...current, game]))
+          requestAutomaticBackup(library)
+          setView({ name: 'game-detail', gameId: game.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'game-detail') {
+    const { library } = libraryState
+    const game = gameCollection.find((entry) => entry.id === view.gameId)
+    if (!game) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'games' })}>
+              ← Retour aux jeux
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce jeu ne peut pas être ouvert.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <GameDetail
+          game={game}
+          onBack={() => setView({ name: 'games' })}
+          onEdit={() => setView({ name: 'game-edit', gameId: view.gameId })}
+          onDelete={async () => {
+            await mediaRepository.deleteGame(library.profile.id, view.gameId)
+            setGameCollection((current) => current.filter((entry) => entry.id !== view.gameId))
+            requestAutomaticBackup(library)
+            setView({ name: 'games' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'game-edit') {
+    const { library } = libraryState
+    const game = gameCollection.find((entry) => entry.id === view.gameId)
+    if (!game) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'games' })}>
+              ← Retour aux jeux
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce jeu ne peut pas être modifié.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <GameForm
+          game={game}
+          platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
+          onCancel={() => setView({ name: 'game-detail', gameId: view.gameId })}
+          onSave={async (input: GameWriteInput) => {
+            await mediaRepository.updateGame(library.profile.id, view.gameId, input)
+            const refreshed = await mediaRepository.getGame(library.profile.id, view.gameId)
+            if (!refreshed) {
+              throw new Error('Le jeu enregistré ne peut pas être relu depuis SQLite.')
+            }
+            setGameCollection((current) => sortGames(current.map((entry) => (
+              entry.id === view.gameId ? refreshed : entry
+            ))))
+            requestAutomaticBackup(library)
+            setView({ name: 'game-detail', gameId: view.gameId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
   } else {
     content = (
       <FilmsLibrary
@@ -1820,6 +2028,7 @@ function App() {
         count={count}
         seriesCount={seriesCount}
         bookCount={bookCount}
+        gameCount={gameCount}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
         activeItem={
           libraryState.status !== 'ready' || view.name === 'home'
@@ -1830,12 +2039,15 @@ function App() {
                 ? 'series'
                 : view.name === 'books' || view.name === 'book-create' || view.name === 'book-detail' || view.name === 'book-edit'
                   ? 'books'
-                  : 'library'
+                  : view.name === 'games' || view.name === 'game-create' || view.name === 'game-detail' || view.name === 'game-edit'
+                    ? 'games'
+                    : 'library'
         }
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
         onSeries={() => leaveLibrary({ name: 'series' })}
         onBooks={() => leaveLibrary({ name: 'books' })}
+        onGames={() => leaveLibrary({ name: 'games' })}
         onSettings={() => showSettingsSection('profiles')}
         settingsSection={settingsSection}
         onSettingsSection={showSettingsSection}

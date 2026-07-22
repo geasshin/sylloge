@@ -257,6 +257,8 @@ Objectifs initiaux du jalon :
 
 ### `0.4.7` — Jeux : verticale bornée
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage consolidée au jalon `0.4.9`.** La verticale Jeux est accessible depuis la sidebar avec une collection minimale, la création, la modification, la fiche et la suppression. Les statuts À jouer / En cours / Joué / Abandonné / Regardé, la note, le coup de cœur, le studio, l’année, la date et la couverture facultative suivent le contrat `0.4.1`. La plateforme reste une saisie libre : une liste initiale sobre aide la saisie et toute valeur déjà enregistrée devient une suggestion, sans catalogue fermé ni nouvelle table. Aucun temps de jeu, session ou mécanisme de tracker n’est introduit. Recherche, filtres et portabilité dédiée restent volontairement au jalon `0.4.9`.
+
 - Créer un modèle, une saisie manuelle, une fiche et les statuts réellement utiles pour les Jeux.
 - N’ajouter plateforme, temps de jeu ou sessions qu’après décision documentée ; aucune mécanique de tracker ne doit apparaître par défaut.
 

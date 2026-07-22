@@ -2602,4 +2602,151 @@ assert.match(tauriLibrarySource, /portability::import_books_into_profile/, 'La c
 assert.match(posterSource, /label = 'Affiche'/, 'Le fallback visuel doit accepter un libellé propre au médium')
 assert.match(mainSource045, /label="Couverture"/, 'Les cartes Livres doivent annoncer une couverture, pas une affiche de film')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations.')
+// Jalon 0.4.7 — Jeux : verticale bornée, plateforme libre et CRUD local.
+const gameDomainSource = readFileSync(new URL('../src/domain/game.ts', import.meta.url), 'utf8')
+const gameFormSource = readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8')
+const gameDetailSource = readFileSync(new URL('../src/components/GameDetail.tsx', import.meta.url), 'utf8')
+const mainSource047 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+assert.match(mainSource047, /icon\('game'\)\} Jeux/, 'La sidebar doit proposer l’entrée Jeux')
+assert.match(mainSource047, /mediaRepository\.listGames/, 'La collection Jeux doit être relue depuis SQLite')
+assert.match(mainSource047, /mediaRepository\.createGame/, 'La création Jeu doit écrire dans le repository SQLite')
+assert.match(mainSource047, /mediaRepository\.updateGame/, 'La modification Jeu doit écrire dans le repository SQLite')
+assert.match(mainSource047, /mediaRepository\.deleteGame/, 'La suppression Jeu doit écrire dans le repository SQLite')
+assert.match(gameDomainSource, /DEFAULT_GAME_PLATFORMS/, 'Le domaine doit proposer un socle sobre de plateformes')
+assert.match(gameFormSource, /list="game-platform-suggestions"/, 'La plateforme doit rester une saisie libre enrichie de suggestions')
+assert.match(gameDetailSource, /GAME_STATUS_LABELS/, 'La fiche Jeu doit afficher les statuts propres à la verticale')
+assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formulaire Jeux ne doit introduire aucun tracker de temps ou de sessions')
+
+{
+  const { EMPTY_GAME_FORM, validateGameForm } = await import('../src/domain/gameForm.ts')
+  const { buildGamePlatformSuggestions } = await import('../src/domain/game.ts')
+
+  const minimal = validateGameForm({ ...EMPTY_GAME_FORM, title: '  Jeu minimal  ' })
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer un jeu')
+  assert.deepEqual(minimal.data, {
+    title: 'Jeu minimal',
+    developer: null,
+    platform: null,
+    year: null,
+    status: 'à jouer',
+    rating: null,
+    isFavorite: false,
+    playedAt: null,
+    coverUrl: null,
+    personalNote: null,
+  }, 'Les champs Jeu facultatifs vides doivent rester null sans donnée inventée')
+
+  const complete = validateGameForm({
+    ...EMPTY_GAME_FORM,
+    title: 'Jeu complet',
+    developer: '  Studio local  ',
+    platform: '  Steam Deck  ',
+    year: '2026',
+    status: 'regardé',
+    rating: '4.5',
+    isFavorite: true,
+    playedAt: '2026-07-22',
+    coverUrl: 'https://example.invalid/jeu.jpg',
+    personalNote: '  Avis personnel  ',
+  })
+  assert.equal(complete.success, true, 'Tous les champs Jeu contractuels valides doivent être acceptés')
+  assert.equal(complete.data.platform, 'Steam Deck', 'La plateforme libre doit être normalisée sans être remplacée')
+  assert.equal(complete.data.status, 'regardé', 'Le statut Regardé doit couvrir les jeux suivis en vidéo')
+
+  for (const values of [
+    { title: '   ' },
+    { title: 'Statut', status: 'inconnu' },
+    { title: 'Année', year: '0' },
+    { title: 'Note', rating: '4.3' },
+    { title: 'Date', playedAt: '2026-02-30' },
+    { title: 'Couverture', coverUrl: 'file:///jeu.jpg' },
+  ]) {
+    assert.equal(
+      validateGameForm({ ...EMPTY_GAME_FORM, ...values }).success,
+      false,
+      `Le formulaire Jeu doit refuser la saisie invalide ${JSON.stringify(values)}`,
+    )
+  }
+
+  const suggestions = buildGamePlatformSuggestions([
+    { platform: 'Steam Deck' },
+    { platform: ' pc ' },
+  ])
+  assert.ok(suggestions.includes('PC'), 'PC doit faire partie des suggestions initiales')
+  assert.ok(suggestions.includes('Steam Deck'), 'Une plateforme libre déjà enregistrée doit devenir une suggestion')
+  assert.equal(suggestions.filter((platform) => platform.toLocaleLowerCase('fr') === 'pc').length, 1, 'Les suggestions doivent éviter les doublons de casse')
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const timestamp = '2026-07-22T14:00:00.000Z'
+  const gameRow = {
+    id: 'game-local',
+    profile_id: 'default',
+    title: 'Jeu SQLite',
+    developer: 'Studio local',
+    platform: 'PC',
+    year: 2026,
+    status: 'en cours',
+    rating: 4.5,
+    is_favorite: 1,
+    played_at: '2026-07-22',
+    cover_url: null,
+    personal_note: 'Avis local',
+    created_at: timestamp,
+    updated_at: timestamp,
+  }
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ kind: 'select', query, bindValues })
+      return [gameRow]
+    },
+    async execute(query, bindValues) {
+      calls.push({ kind: 'execute', query, bindValues })
+      return { rowsAffected: 1 }
+    },
+  }
+  const repository = new SqliteMediaRepository(
+    async () => database,
+    () => 'game-created',
+    () => timestamp,
+  )
+
+  const listed = await repository.listGames('default')
+  assert.equal(listed[0].platform, 'PC', 'La collection Jeux doit convertir les colonnes SQLite sans perte')
+  assert.deepEqual(calls.at(-1).bindValues, ['default'], 'La collection Jeux doit rester limitée au profil courant')
+
+  const input = {
+    title: 'Jeu créé',
+    developer: null,
+    platform: 'Steam Deck',
+    year: 2026,
+    status: 'joué',
+    rating: 5,
+    isFavorite: true,
+    playedAt: '2026-07-22',
+    coverUrl: null,
+    personalNote: 'Terminé localement',
+  }
+  const created = await repository.createGame('default', input)
+  assert.equal(created.id, 'game-created', 'La création Jeu doit générer une identité locale')
+  const insert = calls.at(-1)
+  assert.match(insert.query, /INSERT INTO games/, 'La création doit cibler la table games')
+  assert.equal(insert.bindValues[1], 'default', 'La création doit cibler le profil courant')
+  assert.equal(insert.bindValues[4], 'Steam Deck', 'La plateforme libre doit être persistée telle que validée')
+
+  const updatedAt = await repository.updateGame('default', 'game-local', { ...input, status: 'abandonné' })
+  assert.equal(updatedAt, timestamp, 'La modification doit restituer son horodatage local')
+  const update = calls.at(-1)
+  assert.match(update.query, /WHERE id = \$12 AND profile_id = \$13/, 'La modification doit cibler le jeu et son profil')
+  assert.deepEqual(update.bindValues.slice(-2), ['game-local', 'default'], 'La modification doit rester isolée au profil courant')
+
+  await repository.deleteGame('default', 'game-local')
+  const deletion = calls.at(-1)
+  assert.match(deletion.query, /DELETE FROM games/, 'La suppression doit cibler la table games')
+  assert.deepEqual(deletion.bindValues, ['game-local', 'default'], 'La suppression doit cibler le jeu et son profil')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 : collection, saisie libre de plateforme, fiche et CRUD local sans tracker.')

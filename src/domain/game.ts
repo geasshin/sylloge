@@ -10,6 +10,25 @@ export const GAME_STATUS_LABELS: Record<GameStatus, string> = {
   regardé: 'Regardé',
 }
 
+export const DEFAULT_GAME_PLATFORMS = [
+  'PC',
+  'PlayStation 5',
+  'Xbox Series X|S',
+  'Nintendo Switch',
+  'PlayStation 4',
+  'Xbox One',
+  'Nintendo 3DS',
+  'PlayStation 3',
+  'Xbox 360',
+  'Wii',
+  'PlayStation 2',
+  'GameCube',
+  'Nintendo 64',
+  'Super Nintendo',
+  'Mega Drive',
+  'Game Boy',
+] as const
+
 export type Game = {
   id: string
   profileId: string
@@ -25,6 +44,31 @@ export type Game = {
   personalNote: string | null
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * Les plateformes déjà saisies enrichissent les suggestions initiales sans
+ * enfermer le formulaire dans une liste fermée.
+ */
+export function buildGamePlatformSuggestions(games: readonly Game[]): string[] {
+  const suggestions: string[] = []
+  const seen = new Set<string>()
+
+  const add = (value: string) => {
+    const trimmed = value.trim()
+    const key = trimmed.toLocaleLowerCase('fr')
+    if (!trimmed || seen.has(key)) return
+    seen.add(key)
+    suggestions.push(trimmed)
+  }
+
+  DEFAULT_GAME_PLATFORMS.forEach(add)
+  games
+    .flatMap((game) => game.platform ? [game.platform] : [])
+    .sort((first, second) => first.localeCompare(second, 'fr', { sensitivity: 'base' }))
+    .forEach(add)
+
+  return suggestions
 }
 
 /**
