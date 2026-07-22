@@ -1,11 +1,15 @@
 import { useState, type ReactNode } from 'react'
+import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
 import type { Film } from '../domain/film.ts'
+import type { Game } from '../domain/game.ts'
 import type { Series } from '../domain/series.ts'
 import type {
+  ArtworkDuplicate,
   DuplicateResolution,
   BookDuplicate,
   FilmDuplicate,
+  GameDuplicate,
   SeriesDuplicate,
 } from '../domain/importMerge.ts'
 
@@ -190,4 +194,32 @@ export function bookSummary(book: Book, origin: 'existing' | 'imported'): ReactN
   )
 }
 
-export type { BookDuplicate, FilmDuplicate, SeriesDuplicate }
+export function gameSummary(game: Game, origin: 'existing' | 'imported'): ReactNode {
+  void origin
+  const details = [game.developer, game.platform, game.year, game.status]
+    .filter((value) => value !== null && value !== '')
+    .join(' · ')
+  return (
+    <span className="duplicate-summary">
+      <b>{game.title}</b>
+      {details && <small>{details}</small>}
+      {game.rating !== null && <small>Note : {game.rating}/5{game.isFavorite ? ' · favori' : ''}</small>}
+    </span>
+  )
+}
+
+export function artworkSummary(artwork: Artwork, origin: 'existing' | 'imported'): ReactNode {
+  void origin
+  const details = [artwork.artist, artwork.form, artwork.location, artwork.status]
+    .filter((value) => value !== null && value !== '')
+    .join(' · ')
+  return (
+    <span className="duplicate-summary">
+      <b>{artwork.title}</b>
+      {details && <small>{details}</small>}
+      {artwork.isFavorite && <small>Favori</small>}
+    </span>
+  )
+}
+
+export type { ArtworkDuplicate, BookDuplicate, FilmDuplicate, GameDuplicate, SeriesDuplicate }

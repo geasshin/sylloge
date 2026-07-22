@@ -271,15 +271,96 @@ Objectifs initiaux du jalon :
 
 ### `0.4.9` — Cohérence multi-médiums
 
+**État : livré côté code et preuves automatisées, mais non validé en usage.** La première recette native d’Aurélien a été interrompue le 22 juillet 2026 après avoir révélé des blocages, des défauts de flux et plusieurs nouvelles décisions produit. Jeux recherche désormais par titre, studio ou plateforme et filtre sur les plateformes réellement présentes ; Art recherche par titre, artiste, lieu ou exposition et filtre par forme. Les deux verticales disposent de l’import et de l’export JSON v2 avec Remplacer ou Fusionner, résolution individuelle des doublons au titre normalisé et transactions SQLite atomiques. Ces preuves ne suffisent pas à fermer le jalon : la stabilisation est répartie dans les jalons `0.4.10+` ci-dessous.
+
 - Étendre aux Jeux et à l’Art les parcours communs validés : recherche, filtres, export, import, sauvegardes et fallbacks visuels.
 - Exercer les bibliothèques mixtes, les contenus incomplets et les migrations depuis une installation Films existante.
 - Réorganiser les réglages de données autour des médiums effectivement disponibles : chaque collection dispose de son import et de son export explicites, sans écran ou destination factice pour un médium absent. Les formats et mappings restent propres à leur type de bibliothèque ; aucun fichier mixte n’est imposé.
 - Décider et tester, après stabilisation du modèle multi-médiums, si une même session d’import peut préparer plusieurs collections d’un nouveau profil. Cette décision ne doit pas être anticipée par cinq colonnes figées dans les réglages Films-only.
 
+### Amendement post-QA du train
+
+La première recette manuelle promeut dans le train actif plusieurs sujets auparavant différés ou limités : création et association TMDB réellement assistées, imports et exports JSON/CSV multi-médiums, détection de ces formats dans des ZIP ou dossiers, architecture claire des données, filtres et tris combinables, puis vues enregistrées. Le plan canonique est [`plans/0.5.0-stabilisation-post-qa.md`](plans/0.5.0-stabilisation-post-qa.md).
+
+Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train vers `0.5.0`, sans tag ni changement de manifeste. Les formes `0.4.9.1` et `0.4.91` ne sont pas retenues : elles rendraient le versionnement ambigu.
+
+### `0.4.10` — Déblocage QA et réglages sûrs
+
+**État : livré côté code et preuves automatisées, en attente de validation visible d’Aurélien.** Le bouton de création de profil est séparé de la liste, le focus des recherches est redessiné sans supprimer le repère clavier, et le dossier de snapshots peut être oublié sans supprimer les fichiers existants. La disponibilité du chemin est vérifiée à la lecture : un dossier supprimé hors de l’application est signalé et ne peut plus recevoir de snapshot manuel. La désactivation est sérialisée avec les écritures de snapshots et oublie atomiquement le réglage et son registre de rétention. L’accès natif aux cinq bibliothèques et le rendu des corrections restent à reprendre dans l’application pendant la prochaine passe QA.
+
+- Reproduire et lever tout blocage réel d’accès aux cinq bibliothèques.
+- Corriger le chevauchement du bouton de création de profil et redessiner le focus de recherche sans supprimer l’accessibilité clavier.
+- Permettre d’oublier ou désactiver le dossier de snapshots et détecter un dossier supprimé hors de l’application.
+
+### `0.4.11` — Résolution de doublons à grande échelle
+
+- Ajouter une recherche locale, des compteurs et une barre d’actions persistante au résolveur de doublons.
+- Prouver qu’une fusion d’au moins 400 doublons conserve toutes les décisions et ne déclenche qu’une seule écriture.
+
+### `0.4.12` — Fiabilité de la création et de l’association TMDB
+
+- Corriger le défaut actuel où le candidat TMDB sélectionné ne préremplit pas réellement le formulaire et n’est pas associé après création.
+- Séparer les métadonnées éditoriales TMDB des données personnelles et définir une reprise sûre en cas d’échec réseau.
+
+### `0.4.13` — Parcours Film unifié et recherche TMDB contextuelle
+
+- Supprimer l’écran intermédiaire « manuel ou assisté » au profit d’une recherche directe avec suggestions temporisées et issue manuelle.
+- Depuis une fiche existante, préremplir la recherche avec son titre et conserver la fiche comme contexte visuel.
+- Désactiver autocorrection et correction orthographique dans les champs de recherche de titres.
+
+### `0.4.14` — Architecture claire des imports, exports et sauvegardes
+
+- Réduire le vocabulaire de l’interface à Importer, Exporter, JSON, CSV et Snapshots ; les précisions de portée apparaissent seulement au moment utile.
+- Faire des Paramètres un hub d’actions réelles et réutiliser les mêmes capacités depuis chaque bibliothèque.
+- Conserver en interne un schéma JSON identifié et versionné pour la rétrocompatibilité.
+
+### `0.4.15` — Contrats et exports CSV des cinq médiums
+
+- Définir des colonnes propres à Films, Séries, Livres, Jeux et Art, y compris une décision explicite pour les citations de Livres.
+- Exposer les mêmes exports CSV unitaires dans les bibliothèques et les Paramètres.
+
+### `0.4.16` — Imports CSV multi-médiums
+
+- Généraliser le pipeline aperçu, mapping, validation, Remplacer/Fusionner et doublons aux quatre médiums non-Films.
+- Refuser toute ligne invalide avant écriture et préserver l’atomicité SQLite.
+
+### `0.4.17` — Contrat d’inspection des ZIP et dossiers
+
+- Définir une détection bornée et sûre des JSON/CSV compatibles dans un ZIP ou un dossier explicitement choisi.
+- Préserver la lecture Film historique de certaines notes Markdown sans promouvoir Markdown ou Notion comme format public.
+
+### `0.4.18` — Imports depuis ZIP ou dossier
+
+- Présenter les candidats JSON/CSV détectés et envoyer le fichier choisi vers le pipeline d’import correspondant.
+- Ne créer ni extraction persistante, ni surveillance, ni synchronisation du dossier choisi.
+
+### `0.4.19` — Vues intégrées et tris essentiels
+
+- Installer des vues cohérentes Tous, Récents, Favoris et Classement lorsque la note existe.
+- Déplacer les statuts terminaux dans les critères de filtre plutôt que d’imposer une vue « Terminé ».
+
+### `0.4.20` — Filtres avancés et tri combinable
+
+- Combiner recherche textuelle, critères communs, critères propres au médium et ordre de tri.
+- Afficher les critères actifs, le nombre de résultats et une remise à zéro explicite.
+
+### `0.4.21` — Vues personnalisées enregistrées
+
+- Nommer, rappeler, renommer et supprimer un couple filtres + tri, isolé par profil et médium.
+- Décider avant migration si ces vues appartiennent seulement à SQLite locale, aux snapshots ou à l’export complet.
+
+### `0.4.22` — Reprise complète de la recette et corrections de clôture
+
+- Rejouer la recette native consolidée sur les cinq médiums et mettre à jour sa checklist.
+- Tout nouveau lot non trivial découvert devient `0.4.23`, puis `0.4.24`, etc. Aucun plafond artificiel n’est fixé avant `0.5.0`.
+
 ### `0.5.0` — Release publique Extension culturelle
+
+La recette native consolidée du train est suivie dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md).
 
 - Revoir, intégrer et valider les cinq verticales du contrat V1 ; ne publier que des médiums complets, documentés et migrables.
 - Vérifier que recherche, filtres, profils, exports, imports, sauvegardes et fallbacks visuels se comportent pour Films, Séries, Livres, Jeux et Art.
+- Ne changer manifestes, tag et artefacts qu’après fermeture de tous les jalons internes et validation humaine de la recette.
 
 ## 8. Trains suivants — document dédié
 
@@ -290,11 +371,9 @@ Les trains `0.6.0` (front-end définitif), `0.7.0` (fiabilité et confidentialit
 Les éléments suivants peuvent être utiles, mais n’entrent dans une version que lorsqu’un besoin concret les justifie :
 
 - thème sombre ;
-- tris supplémentaires et vues de collection ;
 - tags, collections éditoriales ou listes personnelles ;
 - localisation anglaise et autres langues ;
 - statistiques personnelles sobres ;
-- importateurs additionnels à partir d’exports réels ;
 - traitement de doublons entre imports ;
 - améliorations de performances pour des bibliothèques très volumineuses.
 

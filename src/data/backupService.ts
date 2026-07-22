@@ -1,5 +1,6 @@
 import type { FilmLibrary } from './filmsRepository.ts'
 import {
+  clearBackupSettings,
   getBackupSettings,
   pickBackupDirectory,
   saveAutomaticBackupSnapshot,
@@ -23,6 +24,7 @@ export type BackupNotice = {
 export type BackupNativeBridge = {
   getBackupSettings: (profileId: string) => Promise<BackupSettings | null>
   pickBackupDirectory: (profileId: string) => Promise<BackupSettings | null>
+  clearBackupSettings: (profileId: string) => Promise<void>
   saveManualBackupSnapshot: (profileId: string, contents: string) => Promise<BackupSnapshotResult>
   saveAutomaticBackupSnapshot: (
     profileId: string,
@@ -32,6 +34,7 @@ export type BackupNativeBridge = {
 }
 
 const nativeBridge: BackupNativeBridge = {
+  clearBackupSettings,
   getBackupSettings,
   pickBackupDirectory,
   saveManualBackupSnapshot,
@@ -68,6 +71,10 @@ export class BackupService {
 
   pickDirectory(profileId: string): Promise<BackupSettings | null> {
     return this.native.pickBackupDirectory(profileId)
+  }
+
+  clearSettings(profileId: string): Promise<void> {
+    return this.native.clearBackupSettings(profileId)
   }
 
   async saveManualSnapshot(library: FilmLibrary): Promise<BackupNotice> {

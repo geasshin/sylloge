@@ -1,5 +1,7 @@
+import type { Artwork } from './artwork.ts'
 import type { Book } from './book.ts'
 import type { Film } from './film.ts'
+import type { Game } from './game.ts'
 import type { Series } from './series.ts'
 
 /**
@@ -35,6 +37,18 @@ export type BookDuplicate = {
   imported: Book
 }
 
+export type GameDuplicate = {
+  normalizedTitle: string
+  existing: Game
+  imported: Game
+}
+
+export type ArtworkDuplicate = {
+  normalizedTitle: string
+  existing: Artwork
+  imported: Artwork
+}
+
 export type FilmMergePlan = {
   additions: Film[]
   duplicates: FilmDuplicate[]
@@ -48,6 +62,16 @@ export type SeriesMergePlan = {
 export type BookMergePlan = {
   additions: Book[]
   duplicates: BookDuplicate[]
+}
+
+export type GameMergePlan = {
+  additions: Game[]
+  duplicates: GameDuplicate[]
+}
+
+export type ArtworkMergePlan = {
+  additions: Artwork[]
+  duplicates: ArtworkDuplicate[]
 }
 
 /** Normalisation de titre : casse, diacritiques et espaces insensibles. */
@@ -97,6 +121,21 @@ const BOOK_MERGEABLE_KEYS = [
   'coverUrl',
 ] as const satisfies readonly (keyof Book)[]
 
+const GAME_MERGEABLE_KEYS = [
+  'developer',
+  'platform',
+  'year',
+  'coverUrl',
+] as const satisfies readonly (keyof Game)[]
+
+const ARTWORK_MERGEABLE_KEYS = [
+  'artist',
+  'year',
+  'location',
+  'exhibition',
+  'imageUrl',
+] as const satisfies readonly (keyof Artwork)[]
+
 /**
  * Fusion intelligente d'une fiche Film : l'existant garde son identité et
  * toutes ses données personnelles ; l'importé ne comble que les champs
@@ -114,6 +153,14 @@ export function mergeSeriesKeepExisting(existing: Series, imported: Series): Ser
 /** Les données personnelles et citations locales restent prioritaires. */
 export function mergeBookKeepExisting(existing: Book, imported: Book): Book {
   return fillEmptyFields(existing, imported, BOOK_MERGEABLE_KEYS)
+}
+
+export function mergeGameKeepExisting(existing: Game, imported: Game): Game {
+  return fillEmptyFields(existing, imported, GAME_MERGEABLE_KEYS)
+}
+
+export function mergeArtworkKeepExisting(existing: Artwork, imported: Artwork): Artwork {
+  return fillEmptyFields(existing, imported, ARTWORK_MERGEABLE_KEYS)
 }
 
 /** Prépare le plan de fusion Films : nouveautés d'un côté, doublons de l'autre. */
@@ -168,6 +215,36 @@ export function planBookMerge(existing: Book[], imported: Book[]): BookMergePlan
     } else {
       additions.push(book)
     }
+  }
+
+  return { additions, duplicates }
+}
+
+export function planGameMerge(existing: Game[], imported: Game[]): GameMergePlan {
+  const existingByTitle = new Map(existing.map((game) => [normalizeTitle(game.title), game]))
+  const additions: Game[] = []
+  const duplicates: GameDuplicate[] = []
+
+  for (const game of imported) {
+    const normalizedTitle = normalizeTitle(game.title)
+    const match = existingByTitle.get(normalizedTitle)
+    if (match) duplicates.push({ normalizedTitle, existing: match, imported: game })
+    else additions.push(game)
+  }
+
+  return { additions, duplicates }
+}
+
+export function planArtworkMerge(existing: Artwork[], imported: Artwork[]): ArtworkMergePlan {
+  const existingByTitle = new Map(existing.map((artwork) => [normalizeTitle(artwork.title), artwork]))
+  const additions: Artwork[] = []
+  const duplicates: ArtworkDuplicate[] = []
+
+  for (const artwork of imported) {
+    const normalizedTitle = normalizeTitle(artwork.title)
+    const match = existingByTitle.get(normalizedTitle)
+    if (match) duplicates.push({ normalizedTitle, existing: match, imported: artwork })
+    else additions.push(artwork)
   }
 
   return { additions, duplicates }
@@ -278,4 +355,56 @@ export function resolveBookMerge(
 
   void existing
   return { inserts, updates, deletes }
+}
+
+export function resolveGameMerge(
+  existing: Game[],
+  plan: GameMergePlan,
+  resolutions: Map<string, DuplicateResolution>,
+  now: string,
+): MergeWritePlan<Game> {
+  const inserts = plan.additions.map((game) => ({ ...game, updatedAt: now }))
+  const updates: Game[] = []
+
+  for (const duplicate of plan.duplicates) {
+    const resolution = resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'
+    updates.push(resolution === 'keep-imported'
+      ? {
+          ...duplicate.imported,
+          id: duplicate.existing.id,
+          profileId: duplicate.existing.profileId,
+          createdAt: duplicate.existing.createdAt,
+          updatedAt: now,
+        }
+      : { ...mergeGameKeepExisting(duplicate.existing, duplicate.imported), updatedAt: now })
+  }
+
+  void existing
+  return { inserts, updates, deletes: [] }
+}
+
+export function resolveArtworkMerge(
+  existing: Artwork[],
+  plan: ArtworkMergePlan,
+  resolutions: Map<string, DuplicateResolution>,
+  now: string,
+): MergeWritePlan<Artwork> {
+  const inserts = plan.additions.map((artwork) => ({ ...artwork, updatedAt: now }))
+  const updates: Artwork[] = []
+
+  for (const duplicate of plan.duplicates) {
+    const resolution = resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'
+    updates.push(resolution === 'keep-imported'
+      ? {
+          ...duplicate.imported,
+          id: duplicate.existing.id,
+          profileId: duplicate.existing.profileId,
+          createdAt: duplicate.existing.createdAt,
+          updatedAt: now,
+        }
+      : { ...mergeArtworkKeepExisting(duplicate.existing, duplicate.imported), updatedAt: now })
+  }
+
+  void existing
+  return { inserts, updates, deletes: [] }
 }

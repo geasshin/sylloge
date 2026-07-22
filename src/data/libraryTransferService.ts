@@ -1,22 +1,32 @@
 import type { ImportPreview, SyllogeExportDocument } from '../domain/libraryTransfer.ts'
+import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
 import type { Film } from '../domain/film.ts'
+import type { Game } from '../domain/game.ts'
 import type { Series } from '../domain/series.ts'
 import {
+  planArtworkMerge,
   planBookMerge,
   planFilmMerge,
+  planGameMerge,
   planSeriesMerge,
+  resolveArtworkMerge,
   resolveBookMerge,
   resolveFilmMerge,
+  resolveGameMerge,
   resolveSeriesMerge,
+  type ArtworkMergePlan,
   type BookMergePlan,
   type DuplicateResolution,
   type FilmMergePlan,
+  type GameMergePlan,
   type SeriesMergePlan,
 } from '../domain/importMerge.ts'
 import {
+  importArtworksIntoProfile,
   importBooksIntoProfile,
   importFilmsIntoProfile,
+  importGamesIntoProfile,
   importSeriesIntoProfile,
   type CollectionImportResult,
 } from './nativePortability.ts'
@@ -58,6 +68,18 @@ export type PreparedBooksImport = {
   mergePlan: BookMergePlan | null
 }
 
+export type PreparedGamesImport = {
+  mode: ImportMode
+  imported: Game[]
+  mergePlan: GameMergePlan | null
+}
+
+export type PreparedArtworksImport = {
+  mode: ImportMode
+  imported: Artwork[]
+  mergePlan: ArtworkMergePlan | null
+}
+
 /** Prépare un import Films : en mode fusion, détecte les doublons au titre. */
 export function prepareFilmsImport(mode: ImportMode, existing: Film[], imported: Film[]): PreparedFilmsImport {
   return {
@@ -83,6 +105,14 @@ export function prepareBooksImport(mode: ImportMode, existing: Book[], imported:
     imported,
     mergePlan: mode === 'merge' ? planBookMerge(existing, imported) : null,
   }
+}
+
+export function prepareGamesImport(mode: ImportMode, existing: Game[], imported: Game[]): PreparedGamesImport {
+  return { mode, imported, mergePlan: mode === 'merge' ? planGameMerge(existing, imported) : null }
+}
+
+export function prepareArtworksImport(mode: ImportMode, existing: Artwork[], imported: Artwork[]): PreparedArtworksImport {
+  return { mode, imported, mergePlan: mode === 'merge' ? planArtworkMerge(existing, imported) : null }
 }
 
 /**
@@ -191,5 +221,57 @@ export async function writeBooksImport(
     replaceExisting: false,
     inserts: writePlan.inserts.map((book) => remapBook(book, regenerateId())),
     updates: writePlan.updates.map((book) => remapBook(book, book.id)),
+  })
+}
+
+export async function writeGamesImport(
+  profileId: string,
+  prepared: PreparedGamesImport,
+  resolutions: Map<string, DuplicateResolution>,
+  regenerateId: () => string = () => crypto.randomUUID(),
+  now: () => string = () => new Date().toISOString(),
+): Promise<CollectionImportResult> {
+  const timestamp = now()
+  if (prepared.mode === 'replace' || prepared.mergePlan === null) {
+    return importGamesIntoProfile({
+      profileId,
+      replaceExisting: prepared.mode === 'replace',
+      inserts: prepared.imported.map((game) => ({ ...game, id: regenerateId(), profileId, updatedAt: timestamp })),
+      updates: [],
+    })
+  }
+
+  const writePlan = resolveGameMerge([], prepared.mergePlan, resolutions, timestamp)
+  return importGamesIntoProfile({
+    profileId,
+    replaceExisting: false,
+    inserts: writePlan.inserts.map((game) => ({ ...game, id: regenerateId(), profileId })),
+    updates: writePlan.updates.map((game) => ({ ...game, profileId })),
+  })
+}
+
+export async function writeArtworksImport(
+  profileId: string,
+  prepared: PreparedArtworksImport,
+  resolutions: Map<string, DuplicateResolution>,
+  regenerateId: () => string = () => crypto.randomUUID(),
+  now: () => string = () => new Date().toISOString(),
+): Promise<CollectionImportResult> {
+  const timestamp = now()
+  if (prepared.mode === 'replace' || prepared.mergePlan === null) {
+    return importArtworksIntoProfile({
+      profileId,
+      replaceExisting: prepared.mode === 'replace',
+      inserts: prepared.imported.map((artwork) => ({ ...artwork, id: regenerateId(), profileId, updatedAt: timestamp })),
+      updates: [],
+    })
+  }
+
+  const writePlan = resolveArtworkMerge([], prepared.mergePlan, resolutions, timestamp)
+  return importArtworksIntoProfile({
+    profileId,
+    replaceExisting: false,
+    inserts: writePlan.inserts.map((artwork) => ({ ...artwork, id: regenerateId(), profileId })),
+    updates: writePlan.updates.map((artwork) => ({ ...artwork, profileId })),
   })
 }

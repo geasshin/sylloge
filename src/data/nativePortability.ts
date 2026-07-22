@@ -45,6 +45,7 @@ export type ImportLibraryResult = {
 export type BackupSettings = {
   backupDirectory: string
   lastAutomaticSnapshotDay: string | null
+  directoryAvailable: boolean
 }
 
 export type BackupSnapshotResult = {
@@ -118,6 +119,10 @@ export function getBackupSettings(profileId: string): Promise<BackupSettings | n
 
 export function pickBackupDirectory(profileId: string): Promise<BackupSettings | null> {
   return invoke('pick_backup_directory', { profileId })
+}
+
+export function clearBackupSettings(profileId: string): Promise<void> {
+  return invoke('clear_backup_settings', { profileId })
 }
 
 export function saveManualBackupSnapshot(profileId: string, contents: string): Promise<BackupSnapshotResult> {
@@ -213,4 +218,16 @@ export function importBooksIntoProfile(
   plan: CollectionImportPlan<SyllogeLibraryDocument['books'][number]>,
 ): Promise<CollectionImportResult> {
   return invoke('import_books_into_profile', { plan })
+}
+
+export function importGamesIntoProfile(
+  plan: CollectionImportPlan<SyllogeLibraryDocument['games'][number]>,
+): Promise<CollectionImportResult> {
+  return invoke('import_games_into_profile', { plan })
+}
+
+export function importArtworksIntoProfile(
+  plan: CollectionImportPlan<SyllogeLibraryDocument['artworks'][number]>,
+): Promise<CollectionImportResult> {
+  return invoke('import_artworks_into_profile', { plan })
 }

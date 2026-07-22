@@ -21,7 +21,13 @@ import {
   validateLibraryImport,
 } from '../src/domain/libraryTransfer.ts'
 import { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument } from '../src/domain/libraryDocument.ts'
-import { parseBooksCollectionJson, parseFilmsCollectionJson, parseSeriesCollectionJson } from '../src/domain/collectionJsonImport.ts'
+import {
+  parseArtworksCollectionJson,
+  parseBooksCollectionJson,
+  parseFilmsCollectionJson,
+  parseGamesCollectionJson,
+  parseSeriesCollectionJson,
+} from '../src/domain/collectionJsonImport.ts'
 import {
   filmsCsvExportFileName,
   serializeFilmsCsvExport,
@@ -297,16 +303,21 @@ const completeExport = createLibraryExport({
 {
   const automaticSnapshots = []
   const manualSnapshots = []
+  const clearedProfiles = []
   let automaticCallCount = 0
   const service = new BackupService({
     async getBackupSettings() {
       return {
         backupDirectory: '/dossier-de-test',
         lastAutomaticSnapshotDay: null,
+        directoryAvailable: true,
       }
     },
     async pickBackupDirectory() {
       return null
+    },
+    async clearBackupSettings(profileId) {
+      clearedProfiles.push(profileId)
     },
     async saveManualBackupSnapshot(profileId, contents) {
       manualSnapshots.push({ profileId, contents })
@@ -341,6 +352,8 @@ const completeExport = createLibraryExport({
   const manualNotice = await service.saveManualSnapshot(library)
   assert.equal(manualNotice.kind, 'success', 'Le snapshot manuel doit rester disponible après le snapshot automatique')
   assert.equal(manualSnapshots.length, 1, 'La sauvegarde manuelle doit appeler sa commande native dédiée')
+  await service.clearSettings(library.profile.id)
+  assert.deepEqual(clearedProfiles, ['default'], 'Désactiver les snapshots doit oublier le réglage du profil courant')
   assert.equal(
     validateLibraryDocument(manualSnapshots[0].contents).counts.films,
     1,
@@ -1748,6 +1761,14 @@ assert.match(posterSource, /alt={`\$\{label\} de/, 'Un visuel chargé doit conse
 assert.match(stylesSource, /\.film-card-info b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre d’une carte doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.poster-fallback b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre du fallback d’affiche doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.reading-section p \{[^}]*overflow-wrap: anywhere;/s, 'Le texte personnel de détail doit pouvoir couper une suite de caractères sans espace')
+assert.match(stylesSource, /\.profile-card > \.primary-button \{[^}]*margin-top:/s, 'Le bouton de création de profil doit rester séparé de la dernière ligne')
+assert.match(stylesSource, /\.search input:focus \{[^}]*outline: none;/s, 'Le champ de recherche doit déléguer son focus visuel au conteneur')
+assert.match(stylesSource, /\.search:has\(input:focus-visible\)/, 'Le conteneur de recherche doit conserver un indicateur de focus clavier sobre')
+assert.match(portabilitySource, /Oublier ce dossier/, 'Les réglages doivent permettre de désactiver le dossier de snapshots')
+assert.match(portabilitySource, /directoryAvailable/, 'Un dossier supprimé hors de l’application doit être signalé')
+assert.match(nativePortabilityBridgeSource, /invoke\('clear_backup_settings'/, 'Le frontend doit appeler la commande native de désactivation des snapshots')
+assert.match(nativePortabilitySource, /pub async fn clear_backup_settings/, 'Le backend doit exposer la désactivation des snapshots')
+assert.match(tauriLibrarySource, /portability::clear_backup_settings/, 'La commande de désactivation des snapshots doit être enregistrée dans Tauri')
 assert.match(formSource, /Aperçu de l’affiche/, 'Le formulaire doit afficher un aperçu de poster_url')
 assert.match(formSource, /<Poster title={previewTitle} src={previewUrl}/, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
 assert.match(formSource, /Utiliser aujourd’hui/, 'Le statut terminé doit proposer la date du jour sans la saisir automatiquement')
@@ -2568,6 +2589,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   const backup = new BackupService({
     async getBackupSettings() { return null },
     async pickBackupDirectory() { return null },
+    async clearBackupSettings() {},
     async saveManualBackupSnapshot() { throw new Error('Snapshot manuel non attendu') },
     async saveAutomaticBackupSnapshot(profileId, contents, automaticDay) {
       snapshots.push({ profileId, contents, automaticDay })
@@ -2620,7 +2642,7 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
 
 {
   const { EMPTY_GAME_FORM, validateGameForm } = await import('../src/domain/gameForm.ts')
-  const { buildGamePlatformSuggestions } = await import('../src/domain/game.ts')
+  const { buildGamePlatformFilters, buildGamePlatformSuggestions } = await import('../src/domain/game.ts')
 
   const minimal = validateGameForm({ ...EMPTY_GAME_FORM, title: '  Jeu minimal  ' })
   assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer un jeu')
@@ -2676,6 +2698,11 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
   assert.ok(suggestions.includes('PC'), 'PC doit faire partie des suggestions initiales')
   assert.ok(suggestions.includes('Steam Deck'), 'Une plateforme libre déjà enregistrée doit devenir une suggestion')
   assert.equal(suggestions.filter((platform) => platform.toLocaleLowerCase('fr') === 'pc').length, 1, 'Les suggestions doivent éviter les doublons de casse')
+  assert.deepEqual(
+    buildGamePlatformFilters([{ platform: 'Steam Deck' }, { platform: 'steam deck' }, { platform: null }]),
+    ['Steam Deck'],
+    'Les filtres doivent proposer seulement les plateformes réellement présentes, sans doublon de casse',
+  )
 }
 
 {
@@ -2894,4 +2921,193 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
   assert.deepEqual(deletion.bindValues, ['artwork-local', 'default'], 'La suppression doit cibler l’œuvre et son profil')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 : collection, saisie libre de plateforme, fiche et CRUD local sans tracker. Art 0.4.8 : collection, formulaire sans note, contexte libre, visuel facultatif, fiche et CRUD local.')
+// Jalon 0.4.9 — cohérence Jeux/Art : recherche, filtres, portabilité et snapshots.
+{
+  const timestamp = '2026-07-22T16:00:00.000Z'
+  const profile = {
+    id: 'default',
+    name: 'Profil mixte',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  const existingGame = {
+    id: 'game-local',
+    profileId: 'default',
+    title: 'Café Racer',
+    developer: null,
+    platform: null,
+    year: null,
+    status: 'joué',
+    rating: 5,
+    isFavorite: true,
+    playedAt: '2026-07-22',
+    coverUrl: null,
+    personalNote: 'Avis local\npréservé.',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  const importedGame = {
+    ...existingGame,
+    id: 'game-imported',
+    profileId: 'source',
+    title: 'cafe racer',
+    developer: 'Studio Éclair',
+    platform: 'Steam Deck',
+    year: 2026,
+    status: 'à jouer',
+    rating: null,
+    isFavorite: false,
+    playedAt: null,
+    personalNote: null,
+  }
+  const existingArtwork = {
+    id: 'artwork-local',
+    profileId: 'default',
+    title: 'Été bleu',
+    artist: null,
+    year: null,
+    form: 'photographie',
+    location: null,
+    exhibition: null,
+    status: 'découverte',
+    isFavorite: true,
+    discoveredAt: '2026-07-22',
+    imageUrl: null,
+    personalNote: 'Souvenir personnel\nmultiligne.',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  const importedArtwork = {
+    ...existingArtwork,
+    id: 'artwork-imported',
+    profileId: 'source',
+    title: 'ete bleu',
+    artist: 'Anaïs Lumière',
+    year: 2025,
+    form: 'peinture',
+    location: 'Montréal',
+    exhibition: 'Lumières d’été',
+    status: 'à découvrir',
+    isFavorite: false,
+    discoveredAt: null,
+    personalNote: null,
+  }
+
+  const {
+    planArtworkMerge,
+    planGameMerge,
+    resolveArtworkMerge,
+    resolveGameMerge,
+  } = await import('../src/domain/importMerge.ts')
+  const gamePlan = planGameMerge([existingGame], [importedGame])
+  const artworkPlan = planArtworkMerge([existingArtwork], [importedArtwork])
+  assert.equal(gamePlan.duplicates.length, 1, 'La fusion Jeux doit détecter un titre sans tenir compte des accents')
+  assert.equal(artworkPlan.duplicates.length, 1, 'La fusion Art doit détecter un titre sans tenir compte des accents')
+  const mergedGame = resolveGameMerge([], gamePlan, new Map([['cafe racer', 'keep-existing']]), timestamp).updates[0]
+  const mergedArtwork = resolveArtworkMerge([], artworkPlan, new Map([['ete bleu', 'keep-existing']]), timestamp).updates[0]
+  assert.equal(mergedGame.platform, 'Steam Deck', 'La fusion Jeux doit compléter une plateforme locale vide')
+  assert.equal(mergedGame.rating, 5, 'La fusion Jeux doit préserver la note personnelle locale')
+  assert.equal(mergedGame.personalNote, existingGame.personalNote, 'La fusion Jeux doit préserver l’avis local')
+  assert.equal(mergedArtwork.artist, 'Anaïs Lumière', 'La fusion Art doit compléter un artiste local vide')
+  assert.equal(mergedArtwork.location, 'Montréal', 'La fusion Art doit compléter un lieu local vide')
+  assert.equal(mergedArtwork.personalNote, existingArtwork.personalNote, 'La fusion Art doit préserver l’avis local')
+
+  const dedicatedDocument = createLibraryDocument({
+    profile,
+    films: [],
+    series: [],
+    books: [],
+    games: [existingGame],
+    artworks: [existingArtwork],
+  }, timestamp)
+  const serialized = serializeLibraryDocument(dedicatedDocument)
+  assert.deepEqual(parseGamesCollectionJson(serialized).items?.[0], existingGame, 'L’import Jeux dédié doit préserver les caractères et notes longues')
+  assert.deepEqual(parseArtworksCollectionJson(serialized).items?.[0], existingArtwork, 'L’import Art dédié doit préserver les caractères et notes longues')
+
+  const calls = []
+  const repository = new (await import('../src/data/mediaRepository.ts')).SqliteMediaRepository(async () => ({
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      if (query.includes('FROM games')) return [{
+        id: existingGame.id,
+        profile_id: existingGame.profileId,
+        title: existingGame.title,
+        developer: existingGame.developer,
+        platform: 'Steam Deck',
+        year: existingGame.year,
+        status: existingGame.status,
+        rating: existingGame.rating,
+        is_favorite: 1,
+        played_at: existingGame.playedAt,
+        cover_url: existingGame.coverUrl,
+        personal_note: existingGame.personalNote,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }]
+      if (query.includes('FROM artworks')) return [{
+        id: existingArtwork.id,
+        profile_id: existingArtwork.profileId,
+        title: existingArtwork.title,
+        artist: 'Anaïs Lumière',
+        year: existingArtwork.year,
+        form: existingArtwork.form,
+        location: 'Montréal',
+        exhibition: existingArtwork.exhibition,
+        status: existingArtwork.status,
+        is_favorite: 1,
+        discovered_at: existingArtwork.discoveredAt,
+        image_url: existingArtwork.imageUrl,
+        personal_note: existingArtwork.personalNote,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }]
+      throw new Error(`Requête inattendue : ${query}`)
+    },
+    async execute() { throw new Error('Aucune écriture attendue pendant la recherche') },
+  }))
+  await repository.searchGames('default', { query: '  Éclair  ', platform: 'Steam Deck' })
+  await repository.searchArtworks('default', { query: '  Montréal  ', form: 'photographie' })
+  assert.match(calls[0].query, /developer COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir le studio')
+  assert.match(calls[0].query, /platform COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir la plateforme')
+  assert.deepEqual(calls[0].bindValues, ['default', '%Éclair%', 'Steam Deck'], 'Le filtre de plateforme doit être paramétré')
+  assert.match(calls[1].query, /location COLLATE NOCASE LIKE/, 'La recherche Art doit couvrir le lieu')
+  assert.match(calls[1].query, /exhibition COLLATE NOCASE LIKE/, 'La recherche Art doit couvrir l’exposition')
+  assert.deepEqual(calls[1].bindValues, ['default', '%Montréal%', 'photographie'], 'Le filtre de forme doit être paramétré')
+
+  const snapshots = []
+  const backup = new BackupService({
+    async getBackupSettings() { return null },
+    async pickBackupDirectory() { return null },
+    async clearBackupSettings() {},
+    async saveManualBackupSnapshot() { throw new Error('Snapshot manuel non attendu') },
+    async saveAutomaticBackupSnapshot(profileId, contents, automaticDay) {
+      snapshots.push({ profileId, contents, automaticDay })
+      return { outcome: 'saved', fileName: 'snapshot-mixte.json' }
+    },
+  }, () => new Date(2026, 6, 22, 16, 0, 0), async () => ({
+    profile,
+    films: [],
+    series: [],
+    books: [],
+    games: [existingGame],
+    artworks: [existingArtwork],
+  }))
+  await backup.tryAutomaticSnapshot({ profile, films: [] })
+  const snapshotDocument = validateLibraryDocument(snapshots[0].contents).document
+  assert.deepEqual(snapshotDocument?.games[0], existingGame, 'Le snapshot global doit inclure fidèlement les Jeux')
+  assert.deepEqual(snapshotDocument?.artworks[0], existingArtwork, 'Le snapshot global doit inclure fidèlement l’Art')
+}
+
+assert.match(mainSource047, /searchGames/, 'La bibliothèque Jeux doit rechercher dans SQLite')
+assert.match(mainSource047, /kind="games"/, 'La bibliothèque Jeux doit proposer son import unitaire')
+assert.match(mainSource047, /Impossible d’exporter les Jeux/, 'La bibliothèque Jeux doit proposer son export dédié')
+assert.match(mainSource048, /searchArtworks/, 'La bibliothèque Art doit rechercher dans SQLite')
+assert.match(mainSource048, /kind="artworks"/, 'La bibliothèque Art doit proposer son import unitaire')
+assert.match(mainSource048, /Impossible d’exporter l’Art/, 'La bibliothèque Art doit proposer son export dédié')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_games_into_profile'/, 'Le frontend doit appeler le pont Tauri d’import Jeux')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_artworks_into_profile'/, 'Le frontend doit appeler le pont Tauri d’import Art')
+assert.match(nativePortabilitySource, /games_and_artworks_collection_imports_are_atomic/, 'Une preuve Rust doit couvrir le rollback des imports Jeux et Art')
+assert.match(tauriLibrarySource, /portability::import_games_into_profile/, 'La commande Tauri Jeux doit être enregistrée')
+assert.match(tauriLibrarySource, /portability::import_artworks_into_profile/, 'La commande Tauri Art doit être enregistrée')
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants.')

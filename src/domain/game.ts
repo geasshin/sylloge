@@ -63,12 +63,21 @@ export function buildGamePlatformSuggestions(games: readonly Game[]): string[] {
   }
 
   DEFAULT_GAME_PLATFORMS.forEach(add)
-  games
-    .flatMap((game) => game.platform ? [game.platform] : [])
-    .sort((first, second) => first.localeCompare(second, 'fr', { sensitivity: 'base' }))
-    .forEach(add)
+  buildGamePlatformFilters(games).forEach(add)
 
   return suggestions
+}
+
+/** Plateformes réellement présentes, triées et dédupliquées sans tenir compte de la casse. */
+export function buildGamePlatformFilters(games: readonly Game[]): string[] {
+  const platforms = new Map<string, string>()
+  games.forEach((game) => {
+    const value = game.platform?.trim()
+    const key = value?.toLocaleLowerCase('fr')
+    if (value && key && !platforms.has(key)) platforms.set(key, value)
+  })
+  return [...platforms.values()]
+    .sort((first, second) => first.localeCompare(second, 'fr', { sensitivity: 'base' }))
 }
 
 /**

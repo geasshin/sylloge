@@ -312,6 +312,16 @@ export type BookSearchCriteria = {
   category: BookCategory | 'all'
 }
 
+export type GameSearchCriteria = {
+  query: string
+  platform: string | 'all'
+}
+
+export type ArtworkSearchCriteria = {
+  query: string
+  form: ArtworkForm | 'all'
+}
+
 export class SqliteMediaRepository {
   private readonly loadDatabase: DatabaseLoader
   private readonly createId: IdFactory
@@ -708,6 +718,38 @@ export class SqliteMediaRepository {
     return rows.map(toGame)
   }
 
+  async searchGames(profileId: string, criteria: GameSearchCriteria): Promise<Game[]> {
+    const database = await this.loadDatabase()
+    const clauses = ['profile_id = $1']
+    const bindValues: unknown[] = [profileId]
+    const query = criteria.query.trim()
+
+    if (query) {
+      bindValues.push(`%${escapeLikePattern(query)}%`)
+      const searchParameter = `$${bindValues.length}`
+      clauses.push(`(
+        title COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR developer COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR platform COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+      )`)
+    }
+
+    if (criteria.platform !== 'all') {
+      bindValues.push(criteria.platform)
+      clauses.push(`platform = $${bindValues.length} COLLATE NOCASE`)
+    }
+
+    const rows = await database.select<GameRow[]>(
+      `SELECT ${GAME_COLUMNS}
+       FROM games
+       WHERE ${clauses.join('\n         AND ')}
+       ORDER BY updated_at DESC, title COLLATE NOCASE ASC`,
+      bindValues,
+    )
+
+    return rows.map(toGame)
+  }
+
   async getGame(profileId: string, id: string): Promise<Game | null> {
     const database = await this.loadDatabase()
     const rows = await database.select<GameRow[]>(
@@ -851,6 +893,39 @@ export class SqliteMediaRepository {
        WHERE profile_id = $1
        ORDER BY title COLLATE NOCASE ASC, created_at ASC`,
       [profileId],
+    )
+
+    return rows.map(toArtwork)
+  }
+
+  async searchArtworks(profileId: string, criteria: ArtworkSearchCriteria): Promise<Artwork[]> {
+    const database = await this.loadDatabase()
+    const clauses = ['profile_id = $1']
+    const bindValues: unknown[] = [profileId]
+    const query = criteria.query.trim()
+
+    if (query) {
+      bindValues.push(`%${escapeLikePattern(query)}%`)
+      const searchParameter = `$${bindValues.length}`
+      clauses.push(`(
+        title COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR artist COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR location COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR exhibition COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+      )`)
+    }
+
+    if (criteria.form !== 'all') {
+      bindValues.push(criteria.form)
+      clauses.push(`form = $${bindValues.length}`)
+    }
+
+    const rows = await database.select<ArtworkRow[]>(
+      `SELECT ${ARTWORK_COLUMNS}
+       FROM artworks
+       WHERE ${clauses.join('\n         AND ')}
+       ORDER BY updated_at DESC, title COLLATE NOCASE ASC`,
+      bindValues,
     )
 
     return rows.map(toArtwork)

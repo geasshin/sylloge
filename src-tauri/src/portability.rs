@@ -66,6 +66,7 @@ pub struct MarkdownPage {
 pub struct BackupSettings {
     backup_directory: String,
     last_automatic_snapshot_day: Option<String>,
+    directory_available: bool,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
@@ -195,7 +196,7 @@ struct ImportBookQuote {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportGame {
+pub struct ImportGame {
     id: String,
     profile_id: String,
     title: String,
@@ -214,7 +215,7 @@ struct ImportGame {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportArtwork {
+pub struct ImportArtwork {
     id: String,
     profile_id: String,
     title: String,
@@ -678,6 +679,17 @@ pub async fn pick_backup_directory(
 }
 
 #[tauri::command]
+pub async fn clear_backup_settings(
+    db_instances: State<'_, DbInstances>,
+    backup_snapshot_lock: State<'_, BackupSnapshotLock>,
+    profile_id: String,
+) -> Result<(), String> {
+    let _lock = backup_snapshot_lock.0.lock().await;
+    let pool = sqlite_pool(&db_instances).await?;
+    clear_backup_configuration(&pool, &profile_id).await
+}
+
+#[tauri::command]
 pub async fn save_manual_backup_snapshot(
     db_instances: State<'_, DbInstances>,
     backup_snapshot_lock: State<'_, BackupSnapshotLock>,
@@ -819,10 +831,36 @@ async fn read_backup_settings(
 
     Ok(row.map(
         |(backup_directory, last_automatic_snapshot_day)| BackupSettings {
+            directory_available: validate_backup_directory(Path::new(&backup_directory)).is_ok(),
             backup_directory,
             last_automatic_snapshot_day,
         },
     ))
+}
+
+async fn clear_backup_configuration(
+    pool: &sqlx::SqlitePool,
+    profile_id: &str,
+) -> Result<(), String> {
+    ensure_profile_exists(pool, profile_id).await?;
+    let mut transaction = pool.begin().await.map_err(|error| {
+        format!("Impossible de démarrer la désactivation des snapshots : {error}")
+    })?;
+
+    sqlx::query("DELETE FROM backup_snapshots WHERE profile_id = $1")
+        .bind(profile_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’oublier le registre des snapshots : {error}"))?;
+    sqlx::query("DELETE FROM backup_settings WHERE profile_id = $1")
+        .bind(profile_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible de désactiver les snapshots : {error}"))?;
+
+    transaction.commit().await.map_err(|error| {
+        format!("Impossible de confirmer la désactivation des snapshots : {error}")
+    })
 }
 
 async fn upsert_backup_directory(
@@ -1682,6 +1720,24 @@ pub async fn import_books_into_profile(
     write_books_import_plan(&pool, &plan).await
 }
 
+#[tauri::command]
+pub async fn import_games_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportGame>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_games_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_artworks_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportArtwork>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_artworks_import_plan(&pool, &plan).await
+}
+
 async fn write_films_import_plan(
     pool: &sqlx::SqlitePool,
     plan: &CollectionImportPlan<ImportFilm>,
@@ -1816,6 +1872,98 @@ async fn write_books_import_plan(
         .await
         .map_err(|error| format!("Impossible de finaliser l’import Livres : {error}"))?;
 
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+async fn write_games_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportGame>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|game| game.profile_id.as_str())
+            .chain(plan.updates.iter().map(|game| game.profile_id.as_str())),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Jeux : {error}"))?;
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        removed = sqlx::query("DELETE FROM games WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Jeux : {error}"))?
+            .rows_affected() as usize;
+    }
+
+    for game in &plan.updates {
+        upsert_game(&mut transaction, game, true).await?;
+    }
+    for game in &plan.inserts {
+        upsert_game(&mut transaction, game, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Jeux : {error}"))?;
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+async fn write_artworks_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportArtwork>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|artwork| artwork.profile_id.as_str())
+            .chain(
+                plan.updates
+                    .iter()
+                    .map(|artwork| artwork.profile_id.as_str()),
+            ),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Art : {error}"))?;
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        removed = sqlx::query("DELETE FROM artworks WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Art : {error}"))?
+            .rows_affected() as usize;
+    }
+
+    for artwork in &plan.updates {
+        upsert_artwork(&mut transaction, artwork, true).await?;
+    }
+    for artwork in &plan.inserts {
+        upsert_artwork(&mut transaction, artwork, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Art : {error}"))?;
     Ok(CollectionImportResult {
         inserted: plan.inserts.len(),
         updated: plan.updates.len(),
@@ -2155,6 +2303,162 @@ async fn upsert_book(
     Ok(())
 }
 
+async fn upsert_game(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    game: &ImportGame,
+    is_update: bool,
+) -> Result<(), String> {
+    let developer = canonical_optional_text(&game.developer);
+    let platform = canonical_optional_text(&game.platform);
+    let played_at = canonical_optional_text(&game.played_at);
+    let cover_url = canonical_optional_text(&game.cover_url);
+    let personal_note = canonical_optional_text(&game.personal_note);
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE games SET
+                title = $3, developer = $4, platform = $5, year = $6, status = $7,
+                rating = $8, is_favorite = $9, played_at = $10, cover_url = $11,
+                personal_note = $12, updated_at = $13
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&game.id)
+        .bind(&game.profile_id)
+        .bind(&game.title)
+        .bind(developer)
+        .bind(platform)
+        .bind(game.year)
+        .bind(&game.status)
+        .bind(game.rating)
+        .bind(if game.is_favorite { 1 } else { 0 })
+        .bind(played_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&game.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour le jeu « {} » : {error}",
+                game.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO games (
+                id, profile_id, title, developer, platform, year, status, rating, is_favorite,
+                played_at, cover_url, personal_note, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        )
+        .bind(&game.id)
+        .bind(&game.profile_id)
+        .bind(&game.title)
+        .bind(developer)
+        .bind(platform)
+        .bind(game.year)
+        .bind(&game.status)
+        .bind(game.rating)
+        .bind(if game.is_favorite { 1 } else { 0 })
+        .bind(played_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&game.created_at)
+        .bind(&game.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le jeu « {} » : {error}", game.title))?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture du jeu « {} » n’a modifié aucune ligne SQLite.",
+            game.title
+        ));
+    }
+    Ok(())
+}
+
+async fn upsert_artwork(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    artwork: &ImportArtwork,
+    is_update: bool,
+) -> Result<(), String> {
+    let artist = canonical_optional_text(&artwork.artist);
+    let location = canonical_optional_text(&artwork.location);
+    let exhibition = canonical_optional_text(&artwork.exhibition);
+    let discovered_at = canonical_optional_text(&artwork.discovered_at);
+    let image_url = canonical_optional_text(&artwork.image_url);
+    let personal_note = canonical_optional_text(&artwork.personal_note);
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE artworks SET
+                title = $3, artist = $4, year = $5, form = $6, location = $7,
+                exhibition = $8, status = $9, is_favorite = $10, discovered_at = $11,
+                image_url = $12, personal_note = $13, updated_at = $14
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&artwork.id)
+        .bind(&artwork.profile_id)
+        .bind(&artwork.title)
+        .bind(artist)
+        .bind(artwork.year)
+        .bind(&artwork.form)
+        .bind(location)
+        .bind(exhibition)
+        .bind(&artwork.status)
+        .bind(if artwork.is_favorite { 1 } else { 0 })
+        .bind(discovered_at)
+        .bind(image_url)
+        .bind(personal_note)
+        .bind(&artwork.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour l’œuvre « {} » : {error}",
+                artwork.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO artworks (
+                id, profile_id, title, artist, year, form, location, exhibition, status,
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+        )
+        .bind(&artwork.id)
+        .bind(&artwork.profile_id)
+        .bind(&artwork.title)
+        .bind(artist)
+        .bind(artwork.year)
+        .bind(&artwork.form)
+        .bind(location)
+        .bind(exhibition)
+        .bind(&artwork.status)
+        .bind(if artwork.is_favorite { 1 } else { 0 })
+        .bind(discovered_at)
+        .bind(image_url)
+        .bind(personal_note)
+        .bind(&artwork.created_at)
+        .bind(&artwork.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer l’œuvre « {} » : {error}",
+                artwork.title
+            )
+        })?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture de l’œuvre « {} » n’a modifié aucune ligne SQLite.",
+            artwork.title
+        ));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2254,7 +2558,67 @@ mod tests {
                 .expect("réglage enregistré");
             assert_eq!(settings.backup_directory, directory_text);
             assert_eq!(settings.last_automatic_snapshot_day, None);
+            assert!(settings.directory_available);
 
+            fs::remove_dir_all(&directory).expect("suppression externe du dossier temporaire");
+            let stale_settings = read_backup_settings(&pool, "default")
+                .await
+                .expect("lecture du réglage devenu inaccessible")
+                .expect("le chemin reste mémorisé tant que l’utilisateur ne le désactive pas");
+            assert!(
+                !stale_settings.directory_available,
+                "un dossier supprimé hors de Sylloge ne doit pas rester annoncé comme disponible"
+            );
+        });
+    }
+
+    #[test]
+    fn clearing_backup_configuration_forgets_the_path_but_keeps_existing_files() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            let directory = temporary_directory("clear-setting");
+            configure_backup_directory(&pool, "default", &directory)
+                .await
+                .expect("réglage initial");
+            let file_name = "sylloge-snapshot-existing.json";
+            fs::write(directory.join(file_name), "{}\n").expect("snapshot existant");
+            sqlx::query(
+                "INSERT INTO backup_snapshots (profile_id, file_name, created_at)
+                 VALUES ('default', $1, '2026-07-22T10:00:00.000Z')",
+            )
+            .bind(file_name)
+            .execute(&pool)
+            .await
+            .expect("registre de snapshot");
+
+            clear_backup_configuration(&pool, "default")
+                .await
+                .expect("désactivation des snapshots");
+
+            assert_eq!(
+                read_backup_settings(&pool, "default")
+                    .await
+                    .expect("lecture après désactivation"),
+                None
+            );
+            let registered_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM backup_snapshots WHERE profile_id = 'default'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("comptage du registre");
+            assert_eq!(
+                registered_count, 0,
+                "le registre lié à l’ancien dossier doit être oublié"
+            );
+            assert!(
+                directory.join(file_name).exists(),
+                "désactiver les snapshots ne doit jamais supprimer les fichiers existants"
+            );
+
+            clear_backup_configuration(&pool, "default")
+                .await
+                .expect("désactivation idempotente");
             fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
         });
     }
@@ -3653,6 +4017,160 @@ mod tests {
                     "Citation conservée".to_string(),
                 )],
                 "la citation initiale doit survivre au remplacement échoué"
+            );
+        });
+    }
+
+    #[test]
+    fn games_and_artworks_collection_imports_are_atomic() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-22T16:00:00.000Z";
+            let game = |id: &str, title: &str, status: &str| ImportGame {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                developer: Some("Studio local".to_string()),
+                platform: Some("Steam Deck".to_string()),
+                year: Some(2026),
+                status: status.to_string(),
+                rating: Some(4.5),
+                is_favorite: true,
+                played_at: Some("2026-07-22".to_string()),
+                cover_url: None,
+                personal_note: Some("Avis local".to_string()),
+                created_at: timestamp.to_string(),
+                updated_at: timestamp.to_string(),
+            };
+            let artwork = |id: &str, title: &str, form: &str| ImportArtwork {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                artist: Some("Artiste locale".to_string()),
+                year: Some(2026),
+                form: form.to_string(),
+                location: Some("Galerie".to_string()),
+                exhibition: Some("Exposition locale".to_string()),
+                status: "découverte".to_string(),
+                is_favorite: true,
+                discovered_at: Some("2026-07-22".to_string()),
+                image_url: None,
+                personal_note: Some("Avis local".to_string()),
+                created_at: timestamp.to_string(),
+                updated_at: timestamp.to_string(),
+            };
+
+            write_games_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![game("game-existing", "Jeu conservé", "joué")],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("installation du jeu initial");
+            write_artworks_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![artwork("artwork-existing", "Œuvre conservée", "poésie")],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("installation de l’œuvre initiale");
+
+            assert!(
+                write_games_import_plan(
+                    &pool,
+                    &CollectionImportPlan {
+                        profile_id: "default".to_string(),
+                        replace_existing: true,
+                        inserts: vec![
+                            game("game-new", "Nouveau jeu", "joué"),
+                            game("game-invalid", "Jeu invalide", "terminé"),
+                        ],
+                        updates: Vec::new(),
+                    },
+                )
+                .await
+                .is_err(),
+                "un statut Jeu invalide doit annuler tout le remplacement"
+            );
+            assert!(
+                write_artworks_import_plan(
+                    &pool,
+                    &CollectionImportPlan {
+                        profile_id: "default".to_string(),
+                        replace_existing: true,
+                        inserts: vec![
+                            artwork("artwork-new", "Nouvelle œuvre", "peinture"),
+                            artwork("artwork-invalid", "Œuvre invalide", "installation"),
+                        ],
+                        updates: Vec::new(),
+                    },
+                )
+                .await
+                .is_err(),
+                "une forme d’Art invalide doit annuler tout le remplacement"
+            );
+
+            let games: Vec<(String,)> =
+                sqlx::query_as("SELECT id FROM games WHERE profile_id = 'default' ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("relecture des jeux après rollback");
+            let artworks: Vec<(String,)> =
+                sqlx::query_as("SELECT id FROM artworks WHERE profile_id = 'default' ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("relecture des œuvres après rollback");
+            assert_eq!(games, vec![("game-existing".to_string(),)]);
+            assert_eq!(artworks, vec![("artwork-existing".to_string(),)]);
+
+            write_games_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: Vec::new(),
+                    updates: vec![game("game-existing", "Jeu enrichi", "en cours")],
+                },
+            )
+            .await
+            .expect("mise à jour fusionnée du jeu");
+            write_artworks_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: Vec::new(),
+                    updates: vec![artwork("artwork-existing", "Œuvre enrichie", "peinture")],
+                },
+            )
+            .await
+            .expect("mise à jour fusionnée de l’œuvre");
+
+            let updated_game: (String, String) =
+                sqlx::query_as("SELECT title, status FROM games WHERE id = 'game-existing'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture du jeu fusionné");
+            let updated_artwork: (String, String) =
+                sqlx::query_as("SELECT title, form FROM artworks WHERE id = 'artwork-existing'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture de l’œuvre fusionnée");
+            assert_eq!(
+                updated_game,
+                ("Jeu enrichi".to_string(), "en cours".to_string())
+            );
+            assert_eq!(
+                updated_artwork,
+                ("Œuvre enrichie".to_string(), "peinture".to_string())
             );
         });
     }

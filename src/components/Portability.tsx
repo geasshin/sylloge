@@ -125,6 +125,7 @@ export function Portability({
   const [loadingBackupSettings, setLoadingBackupSettings] = useState(true)
   const [choosingBackupDirectory, setChoosingBackupDirectory] = useState(false)
   const [savingBackup, setSavingBackup] = useState(false)
+  const [clearingBackupSettings, setClearingBackupSettings] = useState(false)
   const [backupMessage, setBackupMessage] = useState<BackupNotice | null>(null)
   const [installedVersion, setInstalledVersion] = useState<string | null>(null)
   const [transferDialog, setTransferDialog] = useState<TransferDialog | null>(null)
@@ -179,7 +180,7 @@ export function Portability({
         if (!cancelled) {
           const notice: BackupNotice = {
             kind: 'error',
-            message: 'Le réglage de sauvegarde n’a pas pu être lu. Les films restent disponibles dans SQLite.',
+            message: 'Le réglage de sauvegarde n’a pas pu être lu. Les cinq collections restent disponibles dans SQLite.',
           }
           setBackupSettings(null)
           setBackupMessage(notice)
@@ -248,6 +249,32 @@ export function Portability({
     setSavingBackup(false)
   }
 
+  const forgetBackupDirectory = async () => {
+    if (clearingBackupSettings) return
+    setClearingBackupSettings(true)
+    setBackupMessage(null)
+    try {
+      await backupService.clearSettings(library.profile.id)
+      const notice: BackupNotice = {
+        kind: 'success',
+        message: 'Snapshots désactivés pour ce profil. Les fichiers déjà présents dans l’ancien dossier sont conservés.',
+      }
+      setBackupSettings(null)
+      setBackupMessage(notice)
+      onBackupNotice(notice)
+    } catch (error) {
+      console.error('Impossible de désactiver les snapshots.', error)
+      const notice: BackupNotice = {
+        kind: 'error',
+        message: 'Le dossier n’a pas pu être oublié. Le réglage précédent reste actif.',
+      }
+      setBackupMessage(notice)
+      onBackupNotice(notice)
+    } finally {
+      setClearingBackupSettings(false)
+    }
+  }
+
   return (
     <>
       <main className="main portability-main">
@@ -292,13 +319,18 @@ export function Portability({
                 <>
                   <dl className="backup-summary">
                     <div><dt>Dossier</dt><dd title={backupSettings.backupDirectory}>{backupSettings.backupDirectory}</dd></div>
+                    <div><dt>État</dt><dd>{backupSettings.directoryAvailable ? 'Disponible' : 'Dossier introuvable'}</dd></div>
                     <div><dt>Automatique</dt><dd>{backupSettings.lastAutomaticSnapshotDay ?? 'Pas encore créé'}</dd></div>
                     <div><dt>Conservation</dt><dd>30 snapshots par profil</dd></div>
                   </dl>
+                  {!backupSettings.directoryAvailable && (
+                    <p className="inline-report error" role="alert">Ce dossier n’existe plus ou n’est plus accessible. Choisis un autre dossier ou oublie ce réglage.</p>
+                  )}
                   <p className="backup-policy">Un snapshot est tenté après le premier changement réussi de ce profil chaque jour local. « Sauvegarder maintenant » crée toujours un nouveau JSON.</p>
                   <div className="backup-actions">
-                    <button className="primary-button" type="button" onClick={saveManualBackup} disabled={savingBackup || choosingBackupDirectory}>{savingBackup ? 'Sauvegarde…' : 'Sauvegarder maintenant'}</button>
-                    <button className="secondary-button" type="button" onClick={chooseBackupDirectory} disabled={savingBackup || choosingBackupDirectory}>{choosingBackupDirectory ? 'Choix du dossier…' : 'Changer de dossier'}</button>
+                    <button className="primary-button" type="button" onClick={saveManualBackup} disabled={!backupSettings.directoryAvailable || savingBackup || choosingBackupDirectory || clearingBackupSettings}>{savingBackup ? 'Sauvegarde…' : 'Sauvegarder maintenant'}</button>
+                    <button className="secondary-button" type="button" onClick={chooseBackupDirectory} disabled={savingBackup || choosingBackupDirectory || clearingBackupSettings}>{choosingBackupDirectory ? 'Choix du dossier…' : 'Changer de dossier'}</button>
+                    <button className="secondary-button danger" type="button" onClick={() => void forgetBackupDirectory()} disabled={savingBackup || choosingBackupDirectory || clearingBackupSettings}>{clearingBackupSettings ? 'Désactivation…' : 'Oublier ce dossier'}</button>
                   </div>
                 </>
               ) : (
@@ -329,7 +361,7 @@ export function Portability({
             <dl className="settings-facts">
               <div><dt>Application</dt><dd>Sylloge</dd></div>
               <div><dt>Version installée</dt><dd>{installedVersion ?? 'Indisponible'}</dd></div>
-              <div><dt>Collection disponible</dt><dd>Films</dd></div>
+              <div><dt>Collections disponibles</dt><dd>Films, Séries, Livres, Jeux et Art</dd></div>
               <div><dt>Métadonnées Films</dt><dd>Ce produit utilise l’API TMDB sans être approuvé ni certifié par TMDB. <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">themoviedb.org</a></dd></div>
             </dl>
           </section>
@@ -1217,6 +1249,20 @@ function GlobalTransferSection({ library, onImported, onProfilesChanged }: Globa
         {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
         {importMessage && <p className="inline-report" role="status">{importMessage}</p>}
         {importError && <p className="inline-report error" role="alert">{importError}</p>}
+      </div>
+
+      <div className="portability-card">
+        <div className="portability-card-heading">
+          <div><p className="card-kicker">Collections disponibles</p><h3>Imports et exports par médium</h3></div>
+        </div>
+        <p>Chaque bibliothèque dispose de ses propres actions Importer et Exporter. Aucun écran n’est créé pour un format absent.</p>
+        <dl className="settings-facts transfer-media-facts">
+          <div><dt>Films</dt><dd>JSON Sylloge, CSV UTF-8 et export Notion ZIP à l’import ; JSON et CSV à l’export.</dd></div>
+          <div><dt>Séries</dt><dd>JSON Sylloge v2, depuis la bibliothèque Séries.</dd></div>
+          <div><dt>Livres</dt><dd>JSON Sylloge v2 avec citations, depuis la bibliothèque Livres.</dd></div>
+          <div><dt>Jeux</dt><dd>JSON Sylloge v2 avec plateforme libre, depuis la bibliothèque Jeux.</dd></div>
+          <div><dt>Art</dt><dd>JSON Sylloge v2 sans note chiffrée, depuis la bibliothèque Art.</dd></div>
+        </dl>
       </div>
 
       <div className="portability-card">

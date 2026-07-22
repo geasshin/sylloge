@@ -1,30 +1,54 @@
 import { useRef, useState } from 'react'
+import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
 import type { Film } from '../domain/film.ts'
+import type { Game } from '../domain/game.ts'
 import type { Series } from '../domain/series.ts'
-import { parseBooksCollectionJson, parseFilmsCollectionJson, parseSeriesCollectionJson } from '../domain/collectionJsonImport.ts'
+import {
+  parseArtworksCollectionJson,
+  parseBooksCollectionJson,
+  parseFilmsCollectionJson,
+  parseGamesCollectionJson,
+  parseSeriesCollectionJson,
+} from '../domain/collectionJsonImport.ts'
 import type { PickedFilmsImportFile } from '../domain/filmCsvImport.ts'
 import {
+  planArtworkMerge,
   planBookMerge,
   planFilmMerge,
+  planGameMerge,
   planSeriesMerge,
+  type ArtworkDuplicate,
   type BookDuplicate,
   type DuplicateResolution,
   type FilmDuplicate,
+  type GameDuplicate,
   type SeriesDuplicate,
 } from '../domain/importMerge.ts'
 import {
+  prepareArtworksImport,
   prepareBooksImport,
   prepareFilmsImport,
+  prepareGamesImport,
   prepareSeriesImport,
+  writeArtworksImport,
   writeBooksImport,
   writeFilmsImport,
+  writeGamesImport,
   writeSeriesImport,
   type ImportMode,
 } from '../data/libraryTransferService.ts'
 import { pickImportAny, pickImportJson } from '../data/nativePortability.ts'
 import { AccessibleDialog } from './Portability.tsx'
-import { DuplicatesResolver, ImportModeChoice, bookSummary, filmSummary, seriesSummary } from './CollectionImportFlow.tsx'
+import {
+  DuplicatesResolver,
+  ImportModeChoice,
+  artworkSummary,
+  bookSummary,
+  filmSummary,
+  gameSummary,
+  seriesSummary,
+} from './CollectionImportFlow.tsx'
 import { FilmCsvImportFlow } from './FilmCsvImportFlow.tsx'
 
 type ImportStep = 'choose-file' | 'external-preview' | 'mode' | 'duplicates' | 'working' | 'done'
@@ -54,7 +78,19 @@ type BooksImportProps = BaseProps & {
   existing: Book[]
 }
 
-export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps | BooksImportProps) {
+type GamesImportProps = BaseProps & {
+  kind: 'games'
+  profileId: string
+  existing: Game[]
+}
+
+type ArtworksImportProps = BaseProps & {
+  kind: 'artworks'
+  profileId: string
+  existing: Artwork[]
+}
+
+export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps | BooksImportProps | GamesImportProps | ArtworksImportProps) {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<ImportStep>('choose-file')
   const [choosingFile, setChoosingFile] = useState(false)
@@ -83,6 +119,16 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
   const [bookResolutions, setBookResolutions] = useState<Map<string, DuplicateResolution>>(new Map())
   const [booksMode, setBooksMode] = useState<ImportMode>('merge')
 
+  const [gamesImported, setGamesImported] = useState<Game[]>([])
+  const [gameDuplicates, setGameDuplicates] = useState<GameDuplicate[]>([])
+  const [gameResolutions, setGameResolutions] = useState<Map<string, DuplicateResolution>>(new Map())
+  const [gamesMode, setGamesMode] = useState<ImportMode>('merge')
+
+  const [artworksImported, setArtworksImported] = useState<Artwork[]>([])
+  const [artworkDuplicates, setArtworkDuplicates] = useState<ArtworkDuplicate[]>([])
+  const [artworkResolutions, setArtworkResolutions] = useState<Map<string, DuplicateResolution>>(new Map())
+  const [artworksMode, setArtworksMode] = useState<ImportMode>('merge')
+
   const reset = () => {
     setStep('choose-file')
     setChoosingFile(false)
@@ -100,6 +146,12 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     setBooksImported([])
     setBookDuplicates([])
     setBookResolutions(new Map())
+    setGamesImported([])
+    setGameDuplicates([])
+    setGameResolutions(new Map())
+    setArtworksImported([])
+    setArtworkDuplicates([])
+    setArtworkResolutions(new Map())
   }
 
   const close = () => {
@@ -151,7 +203,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         }
         setSeriesImported(parsed.items)
         setImportedCount(parsed.items.length)
-      } else {
+      } else if (props.kind === 'books') {
         const picked = await pickImportJson()
         if (!picked) {
           setError('Sélection annulée. Aucune donnée n’a été écrite.')
@@ -164,6 +216,34 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
           return
         }
         setBooksImported(parsed.items)
+        setImportedCount(parsed.items.length)
+      } else if (props.kind === 'games') {
+        const picked = await pickImportJson()
+        if (!picked) {
+          setError('Sélection annulée. Aucune donnée n’a été écrite.')
+          return
+        }
+        setFileName(picked.name)
+        const parsed = parseGamesCollectionJson(picked.contents)
+        if (parsed.items === null) {
+          setError(parsed.error)
+          return
+        }
+        setGamesImported(parsed.items)
+        setImportedCount(parsed.items.length)
+      } else {
+        const picked = await pickImportJson()
+        if (!picked) {
+          setError('Sélection annulée. Aucune donnée n’a été écrite.')
+          return
+        }
+        setFileName(picked.name)
+        const parsed = parseArtworksCollectionJson(picked.contents)
+        if (parsed.items === null) {
+          setError(parsed.error)
+          return
+        }
+        setArtworksImported(parsed.items)
         setImportedCount(parsed.items.length)
       }
       setStep('mode')
@@ -204,7 +284,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       } else {
         void confirmImport('replace', new Map(), seriesImported)
       }
-    } else {
+    } else if (props.kind === 'books') {
       setBooksMode(mode)
       if (mode === 'merge') {
         const plan = planBookMerge(props.existing, booksImported)
@@ -215,13 +295,35 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       } else {
         void confirmImport('replace', new Map(), booksImported)
       }
+    } else if (props.kind === 'games') {
+      setGamesMode(mode)
+      if (mode === 'merge') {
+        const plan = planGameMerge(props.existing, gamesImported)
+        setGameDuplicates(plan.duplicates)
+        setGameResolutions(new Map(plan.duplicates.map((duplicate) => [duplicate.normalizedTitle, 'keep-existing'])))
+        setStep(plan.duplicates.length > 0 ? 'duplicates' : 'working')
+        if (plan.duplicates.length === 0) void confirmImport('merge', new Map(), gamesImported)
+      } else {
+        void confirmImport('replace', new Map(), gamesImported)
+      }
+    } else {
+      setArtworksMode(mode)
+      if (mode === 'merge') {
+        const plan = planArtworkMerge(props.existing, artworksImported)
+        setArtworkDuplicates(plan.duplicates)
+        setArtworkResolutions(new Map(plan.duplicates.map((duplicate) => [duplicate.normalizedTitle, 'keep-existing'])))
+        setStep(plan.duplicates.length > 0 ? 'duplicates' : 'working')
+        if (plan.duplicates.length === 0) void confirmImport('merge', new Map(), artworksImported)
+      } else {
+        void confirmImport('replace', new Map(), artworksImported)
+      }
     }
   }
 
   const confirmImport = async (
     mode: ImportMode,
     resolutions: Map<string, DuplicateResolution>,
-    imported: Book[] | Film[] | Series[],
+    imported: Artwork[] | Book[] | Film[] | Game[] | Series[],
   ) => {
     if (writingRef.current) return
     writingRef.current = true
@@ -236,10 +338,18 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         const prepared = prepareSeriesImport(mode, props.existing, imported as Series[])
         const result = await writeSeriesImport(props.profileId, prepared, resolutions)
         setReport(`${result.inserted} série${result.inserted > 1 ? 's' : ''} ajoutée${result.inserted > 1 ? 's' : ''}, ${result.updated} mise${result.updated > 1 ? 's' : ''} à jour${result.removed > 0 ? `, ${result.removed} remplacée${result.removed > 1 ? 's' : ''}` : ''}.`)
-      } else {
+      } else if (props.kind === 'books') {
         const prepared = prepareBooksImport(mode, props.existing, imported as Book[])
         const result = await writeBooksImport(props.profileId, prepared, resolutions)
         setReport(`${result.inserted} livre${result.inserted > 1 ? 's' : ''} ajouté${result.inserted > 1 ? 's' : ''}, ${result.updated} mis à jour${result.removed > 0 ? `, ${result.removed} remplacé${result.removed > 1 ? 's' : ''}` : ''}.`)
+      } else if (props.kind === 'games') {
+        const prepared = prepareGamesImport(mode, props.existing, imported as Game[])
+        const result = await writeGamesImport(props.profileId, prepared, resolutions)
+        setReport(`${result.inserted} jeu${result.inserted > 1 ? 'x' : ''} ajouté${result.inserted > 1 ? 's' : ''}, ${result.updated} mis à jour${result.removed > 0 ? `, ${result.removed} remplacé${result.removed > 1 ? 's' : ''}` : ''}.`)
+      } else {
+        const prepared = prepareArtworksImport(mode, props.existing, imported as Artwork[])
+        const result = await writeArtworksImport(props.profileId, prepared, resolutions)
+        setReport(`${result.inserted} œuvre${result.inserted > 1 ? 's' : ''} ajoutée${result.inserted > 1 ? 's' : ''}, ${result.updated} mise${result.updated > 1 ? 's' : ''} à jour${result.removed > 0 ? `, ${result.removed} remplacée${result.removed > 1 ? 's' : ''}` : ''}.`)
       }
       setStep('done')
       props.onDone()
@@ -280,8 +390,12 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                   </>
                 ) : props.kind === 'series' ? (
                   <p>Les Séries utilisent actuellement le format Sylloge JSON v2. Les imports CSV et Notion restent propres aux Films tant qu’aucun contrat Série n’est défini.</p>
-                ) : (
+                ) : props.kind === 'books' ? (
                   <p>Les Livres utilisent le format Sylloge JSON v2, citations comprises. Les imports CSV et Notion restent propres aux Films tant qu’aucun contrat Livre n’est défini.</p>
+                ) : props.kind === 'games' ? (
+                  <p>Les Jeux utilisent le format Sylloge JSON v2. La plateforme libre, la note et les données personnelles sont validées avant toute écriture.</p>
+                ) : (
+                  <p>Les œuvres d’Art utilisent le format Sylloge JSON v2, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
                 )}
                 <p>Aucune donnée ne sera écrite avant l’aperçu puis ton choix Remplacer ou Fusionner.</p>
                 <div className="assistant-actions">
@@ -349,6 +463,30 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
               onConfirm={() => void confirmImport(booksMode, bookResolutions, booksImported)}
               onBack={() => setStep('mode')}
               renderSummary={bookSummary}
+            />
+          )}
+          {step === 'duplicates' && props.kind === 'games' && (
+            <DuplicatesResolver
+              duplicates={gameDuplicates}
+              resolutions={gameResolutions}
+              onResolve={(normalizedTitle, resolution) => {
+                setGameResolutions((current) => new Map(current).set(normalizedTitle, resolution))
+              }}
+              onConfirm={() => void confirmImport(gamesMode, gameResolutions, gamesImported)}
+              onBack={() => setStep('mode')}
+              renderSummary={gameSummary}
+            />
+          )}
+          {step === 'duplicates' && props.kind === 'artworks' && (
+            <DuplicatesResolver
+              duplicates={artworkDuplicates}
+              resolutions={artworkResolutions}
+              onResolve={(normalizedTitle, resolution) => {
+                setArtworkResolutions((current) => new Map(current).set(normalizedTitle, resolution))
+              }}
+              onConfirm={() => void confirmImport(artworksMode, artworkResolutions, artworksImported)}
+              onBack={() => setStep('mode')}
+              renderSummary={artworkSummary}
             />
           )}
           {step === 'working' && (

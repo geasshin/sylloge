@@ -1,6 +1,8 @@
 import type { Book } from './book.ts'
 import type { Film } from './film.ts'
+import type { Game } from './game.ts'
 import type { Series } from './series.ts'
+import type { Artwork } from './artwork.ts'
 import { validateLibraryDocument } from './libraryDocument.ts'
 import { validateLibraryImport } from './libraryTransfer.ts'
 
@@ -55,4 +57,32 @@ export function parseBooksCollectionJson(contents: string): CollectionJsonImport
   return preview.document.books.length > 0
     ? { items: preview.document.books, error: null }
     : { items: null, error: 'Ce fichier Sylloge ne contient aucun livre à importer.' }
+}
+
+export function parseGamesCollectionJson(contents: string): CollectionJsonImportResult<Game> {
+  const preview = validateLibraryDocument(contents)
+  if (preview.document === null) {
+    return {
+      items: null,
+      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
+    }
+  }
+
+  return preview.document.games.length > 0
+    ? { items: preview.document.games, error: null }
+    : { items: null, error: 'Ce fichier Sylloge ne contient aucun jeu à importer.' }
+}
+
+export function parseArtworksCollectionJson(contents: string): CollectionJsonImportResult<Artwork> {
+  const preview = validateLibraryDocument(contents)
+  if (preview.document === null) {
+    return {
+      items: null,
+      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
+    }
+  }
+
+  return preview.document.artworks.length > 0
+    ? { items: preview.document.artworks, error: null }
+    : { items: null, error: 'Ce fichier Sylloge ne contient aucune œuvre d’art à importer.' }
 }

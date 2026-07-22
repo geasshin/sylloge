@@ -19,7 +19,13 @@ import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
 import { profilesRepository, type ProfileSummary } from './data/profilesRepository.ts'
-import { mediaRepository, type BookSearchCriteria, type SeriesSearchCriteria } from './data/mediaRepository.ts'
+import {
+  mediaRepository,
+  type ArtworkSearchCriteria,
+  type BookSearchCriteria,
+  type GameSearchCriteria,
+  type SeriesSearchCriteria,
+} from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import {
   createLibraryExport,
@@ -58,12 +64,14 @@ import {
 } from './domain/book.ts'
 import type { BookWriteInput } from './domain/bookForm.ts'
 import {
+  buildGamePlatformFilters,
   buildGamePlatformSuggestions,
   GAME_STATUS_LABELS,
   type Game,
 } from './domain/game.ts'
 import type { GameWriteInput } from './domain/gameForm.ts'
 import {
+  ARTWORK_FORMS,
   ARTWORK_FORM_LABELS,
   ARTWORK_STATUS_LABELS,
   type Artwork,
@@ -971,11 +979,51 @@ function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
 type GamesLibraryProps = {
   profileName: string
   collection: Game[]
+  context: GameSearchCriteria
+  searchState: GameSearchState
+  onContextChange: (context: GameSearchCriteria) => void
+  onRetrySearch: () => void
   onCreate: () => void
   onOpen: (game: Game) => void
+  profileId: string
+  onLibraryChanged: () => void
 }
 
-function GamesLibrary({ profileName, collection, onCreate, onOpen }: GamesLibraryProps) {
+type GameSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; games: Game[] }
+  | { status: 'error' }
+
+function GamesLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+  profileId,
+  onLibraryChanged,
+}: GamesLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.platform === 'all'
+  const resultCount = searchState.status === 'ready' ? searchState.games.length : null
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const platforms = buildGamePlatformFilters(collection)
+
+  const exportLibrary = async () => {
+    setExportMessage(null)
+    try {
+      const library = await libraryRepository.loadLibrary(profileId)
+      const document = createLibraryDocument({ ...library, films: [], series: [], books: [], artworks: [] })
+      const savedName = await saveExportJson(libraryExportFileName(document.exportedAt), serializeLibraryDocument(document))
+      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
+    } catch (error) {
+      console.error('Impossible d’exporter les Jeux.', error)
+      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
+    }
+  }
+
   return (
     <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
       <header className="library-header">
@@ -984,11 +1032,22 @@ function GamesLibrary({ profileName, collection, onCreate, onOpen }: GamesLibrar
           <h1 className="display-title">Jeux</h1>
         </div>
         <div className="library-header-actions">
+          <LibraryImportButton
+            kind="games"
+            buttonLabel="Importer"
+            mediumLabel="jeu"
+            profileId={profileId}
+            profileName={profileName}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
         </div>
       </header>
+      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
 
-      {collection.length === 0 ? (
+      {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Jeux est vide.</h2>
@@ -997,14 +1056,61 @@ function GamesLibrary({ profileName, collection, onCreate, onOpen }: GamesLibrar
         </div>
       ) : (
         <>
-          <div className="collection-meta games-collection-meta" aria-live="polite">
-            <p>{collection.length} {collection.length === 1 ? 'jeu affiché' : 'jeux affichés'}</p>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, studio ou plateforme"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <div className="filters collection-filters" role="group" aria-label="Filtrer les jeux par plateforme">
+              {['all', ...platforms].map((platform) => (
+                <button
+                  className={`filter ${context.platform === platform ? 'active' : ''}`}
+                  type="button"
+                  aria-pressed={context.platform === platform}
+                  key={platform}
+                  onClick={() => onContextChange({ ...context, platform })}
+                >
+                  {platform === 'all' ? 'Toutes' : platform}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="film-grid">
-            {collection.map((game) => (
+
+          <div className="collection-meta" aria-live="polite">
+            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
+              <p>{resultCount} {resultCount === 1 ? 'jeu affiché' : 'jeux affichés'}</p>
+            )}
+          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos jeux restent enregistrés. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.games.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucun jeu ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à tous les jeux.</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all' })}>
+                Afficher tous les jeux
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+            {searchState.games.map((game) => (
               <GameCard game={game} key={game.id} onOpen={() => onOpen(game)} />
             ))}
-          </div>
+            </div>
+          )}
         </>
       )}
     </main>
@@ -1036,11 +1142,50 @@ function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void
 type ArtworksLibraryProps = {
   profileName: string
   collection: Artwork[]
+  context: ArtworkSearchCriteria
+  searchState: ArtworkSearchState
+  onContextChange: (context: ArtworkSearchCriteria) => void
+  onRetrySearch: () => void
   onCreate: () => void
   onOpen: (artwork: Artwork) => void
+  profileId: string
+  onLibraryChanged: () => void
 }
 
-function ArtworksLibrary({ profileName, collection, onCreate, onOpen }: ArtworksLibraryProps) {
+type ArtworkSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; artworks: Artwork[] }
+  | { status: 'error' }
+
+function ArtworksLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+  profileId,
+  onLibraryChanged,
+}: ArtworksLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.form === 'all'
+  const resultCount = searchState.status === 'ready' ? searchState.artworks.length : null
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+
+  const exportLibrary = async () => {
+    setExportMessage(null)
+    try {
+      const library = await libraryRepository.loadLibrary(profileId)
+      const document = createLibraryDocument({ ...library, films: [], series: [], books: [], games: [] })
+      const savedName = await saveExportJson(libraryExportFileName(document.exportedAt), serializeLibraryDocument(document))
+      setExportMessage(savedName ? `Export enregistré dans « ${savedName} ».` : 'Export annulé.')
+    } catch (error) {
+      console.error('Impossible d’exporter l’Art.', error)
+      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
+    }
+  }
+
   return (
     <main className="main library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
       <header className="library-header">
@@ -1049,11 +1194,22 @@ function ArtworksLibrary({ profileName, collection, onCreate, onOpen }: Artworks
           <h1 className="display-title">Art</h1>
         </div>
         <div className="library-header-actions">
+          <LibraryImportButton
+            kind="artworks"
+            buttonLabel="Importer"
+            mediumLabel="œuvre"
+            profileId={profileId}
+            profileName={profileName}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <button className="secondary-button" type="button" onClick={() => void exportLibrary()}>Exporter</button>
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
         </div>
       </header>
+      {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
 
-      {collection.length === 0 ? (
+      {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Art est vide.</h2>
@@ -1062,14 +1218,61 @@ function ArtworksLibrary({ profileName, collection, onCreate, onOpen }: Artworks
         </div>
       ) : (
         <>
-          <div className="collection-meta artworks-collection-meta" aria-live="polite">
-            <p>{collection.length} {collection.length === 1 ? 'œuvre affichée' : 'œuvres affichées'}</p>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, artiste, lieu ou exposition</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, artiste, lieu ou exposition"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <div className="filters collection-filters" role="group" aria-label="Filtrer les œuvres par forme">
+              {(['all', ...ARTWORK_FORMS] as const).map((form) => (
+                <button
+                  className={`filter ${context.form === form ? 'active' : ''}`}
+                  type="button"
+                  aria-pressed={context.form === form}
+                  key={form}
+                  onClick={() => onContextChange({ ...context, form })}
+                >
+                  {form === 'all' ? 'Toutes' : ARTWORK_FORM_LABELS[form]}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="film-grid">
-            {collection.map((artwork) => (
+
+          <div className="collection-meta" aria-live="polite">
+            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
+              <p>{resultCount} {resultCount === 1 ? 'œuvre affichée' : 'œuvres affichées'}</p>
+            )}
+          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos œuvres restent enregistrées. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.artworks.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucune œuvre ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à toutes les œuvres.</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all' })}>
+                Afficher toutes les œuvres
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+            {searchState.artworks.map((artwork) => (
               <ArtworkCard artwork={artwork} key={artwork.id} onOpen={() => onOpen(artwork)} />
             ))}
-          </div>
+            </div>
+          )}
         </>
       )}
     </main>
@@ -1345,7 +1548,13 @@ function App() {
   const [bookContext, setBookContext] = useState<BookSearchCriteria>({ query: '', category: 'all' })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [gameCollection, setGameCollection] = useState<Game[]>([])
+  const [gameSearchState, setGameSearchState] = useState<GameSearchState>({ status: 'loading' })
+  const [gameContext, setGameContext] = useState<GameSearchCriteria>({ query: '', platform: 'all' })
+  const [gameSearchAttempt, setGameSearchAttempt] = useState(0)
   const [artworkCollection, setArtworkCollection] = useState<Artwork[]>([])
+  const [artworkSearchState, setArtworkSearchState] = useState<ArtworkSearchState>({ status: 'loading' })
+  const [artworkContext, setArtworkContext] = useState<ArtworkSearchCriteria>({ query: '', form: 'all' })
+  const [artworkSearchAttempt, setArtworkSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -1464,6 +1673,50 @@ function App() {
       cancelled = true
     }
   }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setGameSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      mediaRepository.searchGames(libraryState.library.profile.id, gameContext).then(
+        (games) => {
+          if (!cancelled) setGameSearchState({ status: 'ready', games })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les jeux dans SQLite.', error)
+          if (!cancelled) setGameSearchState({ status: 'error' })
+        },
+      )
+    }, gameContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [gameContext, gameSearchAttempt, libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setArtworkSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      mediaRepository.searchArtworks(libraryState.library.profile.id, artworkContext).then(
+        (artworks) => {
+          if (!cancelled) setArtworkSearchState({ status: 'ready', artworks })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les œuvres dans SQLite.', error)
+          if (!cancelled) setArtworkSearchState({ status: 'error' })
+        },
+      )
+    }, artworkContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [artworkContext, artworkSearchAttempt, libraryState])
 
   useEffect(() => {
     if (libraryState.status !== 'ready') return
@@ -1725,6 +1978,10 @@ function App() {
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
           setLibraryContext({ query: '', filter: 'all' })
+          setSeriesContext({ query: '', category: 'all' })
+          setBookContext({ query: '', category: 'all' })
+          setGameContext({ query: '', platform: 'all' })
+          setArtworkContext({ query: '', form: 'all' })
           setLibraryState({ status: 'ready', library: selectedLibrary })
         }}
         onImported={(importedLibrary) => {
@@ -2030,8 +2287,14 @@ function App() {
       <GamesLibrary
         profileName={libraryState.library.profile.name}
         collection={gameCollection}
+        context={gameContext}
+        searchState={gameSearchState}
+        onContextChange={setGameContext}
+        onRetrySearch={() => setGameSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => leaveLibrary({ name: 'game-create' })}
         onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   } else if (view.name === 'game-create') {
@@ -2043,6 +2306,7 @@ function App() {
         onSave={async (input: GameWriteInput) => {
           const game = await mediaRepository.createGame(library.profile.id, input)
           setGameCollection((current) => sortGames([...current, game]))
+          setGameSearchAttempt((attempt) => attempt + 1)
           requestAutomaticBackup(library)
           setView({ name: 'game-detail', gameId: game.id })
           window.scrollTo({ top: 0 })
@@ -2075,6 +2339,7 @@ function App() {
           onDelete={async () => {
             await mediaRepository.deleteGame(library.profile.id, view.gameId)
             setGameCollection((current) => current.filter((entry) => entry.id !== view.gameId))
+            setGameSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'games' })
           }}
@@ -2113,6 +2378,7 @@ function App() {
             setGameCollection((current) => sortGames(current.map((entry) => (
               entry.id === view.gameId ? refreshed : entry
             ))))
+            setGameSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'game-detail', gameId: view.gameId })
             window.scrollTo({ top: 0 })
@@ -2125,8 +2391,14 @@ function App() {
       <ArtworksLibrary
         profileName={libraryState.library.profile.name}
         collection={artworkCollection}
+        context={artworkContext}
+        searchState={artworkSearchState}
+        onContextChange={setArtworkContext}
+        onRetrySearch={() => setArtworkSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => leaveLibrary({ name: 'artwork-create' })}
         onOpen={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   } else if (view.name === 'artwork-create') {
@@ -2137,6 +2409,7 @@ function App() {
         onSave={async (input: ArtworkWriteInput) => {
           const artwork = await mediaRepository.createArtwork(library.profile.id, input)
           setArtworkCollection((current) => sortArtworks([...current, artwork]))
+          setArtworkSearchAttempt((attempt) => attempt + 1)
           requestAutomaticBackup(library)
           setView({ name: 'artwork-detail', artworkId: artwork.id })
           window.scrollTo({ top: 0 })
@@ -2169,6 +2442,7 @@ function App() {
           onDelete={async () => {
             await mediaRepository.deleteArtwork(library.profile.id, view.artworkId)
             setArtworkCollection((current) => current.filter((entry) => entry.id !== view.artworkId))
+            setArtworkSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'artworks' })
           }}
@@ -2206,6 +2480,7 @@ function App() {
             setArtworkCollection((current) => sortArtworks(current.map((entry) => (
               entry.id === view.artworkId ? refreshed : entry
             ))))
+            setArtworkSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'artwork-detail', artworkId: view.artworkId })
             window.scrollTo({ top: 0 })
