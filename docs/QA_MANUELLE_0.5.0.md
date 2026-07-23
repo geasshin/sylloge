@@ -500,6 +500,9 @@ Préparer localement une fiche `Été Bleu` et importer une fiche `ete bleu` ou 
 - [ ] Une URL Notion temporaire n’est pas conservée comme affiche permanente.
 - [ ] Annuler avant confirmation ne crée aucune fiche.
 - [ ] Un ZIP invalide, trop volumineux ou excessivement imbriqué est refusé sans écriture.
+- [ ] Un ZIP contenant un chemin `..`, une entrée chiffrée ou un lien symbolique est refusé sans écriture.
+
+> Les candidats JSON/CSV génériques dans un ZIP ou un dossier et le sélecteur de dossier arrivent au jalon `0.4.18`. À ce stade, seul l’adaptateur ZIP Film historique est exercé visiblement ; ses limites sont décrites dans [`CONTRAT_CONTENEURS_IMPORT_V1.md`](CONTRAT_CONTENEURS_IMPORT_V1.md).
 
 ### Observation d’expérience
 

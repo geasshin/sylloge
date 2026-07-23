@@ -337,6 +337,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.17` — Contrat d’inspection des ZIP et dossiers
 
+**État : implémenté dans le code et documenté ; validation native visible reportée au sélecteur ZIP/dossier du jalon `0.4.18`.** Le contrat V1 fixe les limites de taille, de profondeur, de volume et de décompression ; l’adaptateur ZIP Film historique refuse désormais explicitement les chemins non sûrs, les archives chiffrées et les liens symboliques. Il n’extrait aucun fichier sur disque. La sélection générique de candidat JSON/CSV et le sélecteur de dossier restent volontairement au jalon suivant.
+
 - Définir une détection bornée et sûre des JSON/CSV compatibles dans un ZIP ou un dossier explicitement choisi.
 - Préserver la lecture Film historique de certaines notes Markdown sans promouvoir Markdown ou Notion comme format public.
 
