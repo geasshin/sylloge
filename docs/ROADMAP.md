@@ -344,6 +344,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.18` — Imports depuis ZIP ou dossier
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques peuvent choisir un fichier JSON/CSV, un ZIP ou un dossier local. Un conteneur ne fait que présenter les candidats JSON/CSV détectés, avec leur chemin relatif ; un candidat unique part directement dans le pipeline existant, plusieurs demandent un choix explicite. L’inspection reste en mémoire, bornée, sans extraction, surveillance ni synchronisation ; les pages Markdown restent réservées à l’association déterministe du flux Films historique.
+
 - Présenter les candidats JSON/CSV détectés et envoyer le fichier choisi vers le pipeline d’import correspondant.
 - Ne créer ni extraction persistante, ni surveillance, ni synchronisation du dossier choisi.
 

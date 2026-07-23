@@ -38,7 +38,12 @@ import {
   writeSeriesImport,
   type ImportMode,
 } from '../data/libraryTransferService.ts'
-import { pickImportAny } from '../data/nativePortability.ts'
+import {
+  pickImportAny,
+  pickImportContainer,
+  type ImportContainerCandidate,
+  type PickedAnyImportFile,
+} from '../data/nativePortability.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import {
   DuplicatesResolver,
@@ -52,7 +57,7 @@ import {
 import { CollectionCsvImportFlow } from './CollectionCsvImportFlow.tsx'
 import { FilmCsvImportFlow } from './FilmCsvImportFlow.tsx'
 
-type ImportStep = 'choose-file' | 'external-preview' | 'mode' | 'duplicates' | 'working' | 'done'
+type ImportStep = 'choose-file' | 'container-source' | 'external-preview' | 'mode' | 'duplicates' | 'working' | 'done'
 
 type BaseProps = {
   buttonLabel: string
@@ -104,6 +109,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     kind: 'series' | 'books' | 'games' | 'artworks'
     contents: string
   } | null>(null)
+  const [containerSource, setContainerSource] = useState<Extract<PickedAnyImportFile, { kind: 'container' }> | null>(null)
   const writingRef = useRef(false)
 
   // Films state
@@ -143,6 +149,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     setReport(null)
     setExternalFilmSource(null)
     setExternalCollectionCsv(null)
+    setContainerSource(null)
     setFilmsImported([])
     setFilmDuplicates([])
     setFilmResolutions(new Map())
@@ -166,137 +173,98 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     reset()
   }
 
-  const pickAndPrepare = async () => {
+  const prepareJson = (contents: string) => {
+    const parsed = props.kind === 'films'
+      ? parseFilmsCollectionJson(contents)
+      : props.kind === 'series'
+        ? parseSeriesCollectionJson(contents)
+        : props.kind === 'books'
+          ? parseBooksCollectionJson(contents)
+          : props.kind === 'games'
+            ? parseGamesCollectionJson(contents)
+            : parseArtworksCollectionJson(contents)
+    if (parsed.items === null) {
+      setError(parsed.error)
+      return
+    }
+    if (props.kind === 'films') setFilmsImported(parsed.items as Film[])
+    else if (props.kind === 'series') setSeriesImported(parsed.items as Series[])
+    else if (props.kind === 'books') setBooksImported(parsed.items as Book[])
+    else if (props.kind === 'games') setGamesImported(parsed.items as Game[])
+    else setArtworksImported(parsed.items as Artwork[])
+    setImportedCount(parsed.items.length)
+    setStep('mode')
+  }
+
+  const prepareContainerCandidate = (
+    source: Extract<PickedAnyImportFile, { kind: 'container' }>,
+    candidate: ImportContainerCandidate,
+  ) => {
+    setContainerSource(null)
+    setFileName(`${source.name} · ${candidate.name}`)
+    if (candidate.kind === 'json') {
+      prepareJson(candidate.contents)
+      return
+    }
+    if (props.kind === 'films') {
+      setExternalFilmSource({
+        name: source.name,
+        kind: 'container',
+        csvCandidates: [{ id: candidate.id, name: candidate.name, contents: candidate.contents }],
+        markdownPages: source.markdownPages,
+      })
+    } else {
+      setExternalCollectionCsv({ kind: props.kind, contents: candidate.contents })
+    }
+    setStep('external-preview')
+  }
+
+  const preparePicked = (picked: PickedAnyImportFile) => {
+    setFileName(picked.name)
+    if (picked.kind === 'container') {
+      if (picked.containerCandidates.length === 1) {
+        prepareContainerCandidate(picked, picked.containerCandidates[0])
+      } else {
+        setContainerSource(picked)
+        setStep('container-source')
+      }
+      return
+    }
+    if (picked.kind === 'json') {
+      prepareJson(picked.contents)
+      return
+    }
+    if (props.kind === 'films') {
+      setExternalFilmSource({
+        name: picked.name,
+        kind: picked.kind,
+        csvCandidates: picked.csvCandidates,
+        markdownPages: picked.markdownPages,
+      })
+      setStep('external-preview')
+      return
+    }
+    if (picked.kind !== 'csv') {
+      setError('Ce conteneur ne contient aucun CSV directement importable dans cette bibliothèque.')
+      return
+    }
+    const contents = picked.csvCandidates[0]?.contents
+    if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
+    setExternalCollectionCsv({ kind: props.kind, contents })
+    setStep('external-preview')
+  }
+
+  const pickAndPrepare = async (pick: () => Promise<PickedAnyImportFile | null>) => {
     if (choosingFile) return
     setChoosingFile(true)
     setError(null)
     try {
-      if (props.kind === 'films') {
-        const picked = await pickImportAny()
-        if (!picked) {
-          setError('Sélection annulée. Aucune donnée n’a été écrite.')
-          return
-        }
-        setFileName(picked.name)
-        if (picked.kind !== 'json') {
-          setExternalFilmSource({
-            name: picked.name,
-            kind: picked.kind,
-            csvCandidates: picked.csvCandidates,
-            markdownPages: picked.markdownPages,
-          })
-          setStep('external-preview')
-          return
-        }
-        const parsed = parseFilmsCollectionJson(picked.contents)
-        if (parsed.items === null) {
-          setError(parsed.error)
-          return
-        }
-        setFilmsImported(parsed.items)
-        setImportedCount(parsed.items.length)
-      } else if (props.kind === 'series') {
-        const picked = await pickImportAny()
-        if (!picked) {
-          setError('Sélection annulée. Aucune donnée n’a été écrite.')
-          return
-        }
-        setFileName(picked.name)
-        if (picked.kind === 'csv') {
-          const contents = picked.csvCandidates[0]?.contents
-          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
-          setExternalCollectionCsv({ kind: 'series', contents })
-          setStep('external-preview')
-          return
-        }
-        if (picked.kind !== 'json' || picked.contents === null) {
-          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
-          return
-        }
-        const parsed = parseSeriesCollectionJson(picked.contents)
-        if (parsed.items === null) {
-          setError(parsed.error)
-          return
-        }
-        setSeriesImported(parsed.items)
-        setImportedCount(parsed.items.length)
-      } else if (props.kind === 'books') {
-        const picked = await pickImportAny()
-        if (!picked) {
-          setError('Sélection annulée. Aucune donnée n’a été écrite.')
-          return
-        }
-        setFileName(picked.name)
-        if (picked.kind === 'csv') {
-          const contents = picked.csvCandidates[0]?.contents
-          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
-          setExternalCollectionCsv({ kind: 'books', contents })
-          setStep('external-preview')
-          return
-        }
-        if (picked.kind !== 'json' || picked.contents === null) {
-          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
-          return
-        }
-        const parsed = parseBooksCollectionJson(picked.contents)
-        if (parsed.items === null) {
-          setError(parsed.error)
-          return
-        }
-        setBooksImported(parsed.items)
-        setImportedCount(parsed.items.length)
-      } else if (props.kind === 'games') {
-        const picked = await pickImportAny()
-        if (!picked) {
-          setError('Sélection annulée. Aucune donnée n’a été écrite.')
-          return
-        }
-        setFileName(picked.name)
-        if (picked.kind === 'csv') {
-          const contents = picked.csvCandidates[0]?.contents
-          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
-          setExternalCollectionCsv({ kind: 'games', contents })
-          setStep('external-preview')
-          return
-        }
-        if (picked.kind !== 'json' || picked.contents === null) {
-          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
-          return
-        }
-        const parsed = parseGamesCollectionJson(picked.contents)
-        if (parsed.items === null) {
-          setError(parsed.error)
-          return
-        }
-        setGamesImported(parsed.items)
-        setImportedCount(parsed.items.length)
-      } else {
-        const picked = await pickImportAny()
-        if (!picked) {
-          setError('Sélection annulée. Aucune donnée n’a été écrite.')
-          return
-        }
-        setFileName(picked.name)
-        if (picked.kind === 'csv') {
-          const contents = picked.csvCandidates[0]?.contents
-          if (!contents) throw new Error('Le CSV sélectionné ne contient aucune table lisible.')
-          setExternalCollectionCsv({ kind: 'artworks', contents })
-          setStep('external-preview')
-          return
-        }
-        if (picked.kind !== 'json' || picked.contents === null) {
-          setError('Les archives ZIP et dossiers seront pris en charge dans un jalon dédié. Choisissez un JSON ou un CSV direct.')
-          return
-        }
-        const parsed = parseArtworksCollectionJson(picked.contents)
-        if (parsed.items === null) {
-          setError(parsed.error)
-          return
-        }
-        setArtworksImported(parsed.items)
-        setImportedCount(parsed.items.length)
+      const picked = await pick()
+      if (!picked) {
+        setError('Sélection annulée. Aucune donnée n’a été écrite.')
+        return
       }
-      setStep('mode')
+      preparePicked(picked)
     } catch (cause) {
       console.error('Impossible de lire le fichier d’import.', cause)
       setError('Le fichier choisi n’a pas pu être lu. Aucune donnée n’a été écrite.')
@@ -438,7 +406,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
             <div className="assistant-content">
               <section className="assistant-stage">
                 <p className="card-kicker">Formats acceptés</p>
-                <h3>Choisir un fichier à analyser</h3>
+                <h3>Choisir une source à analyser</h3>
                 {props.kind === 'films' ? (
                   <>
                     <p>Tu peux importer un JSON, un tableau CSV UTF-8 ou un ZIP compatible contenant des données Films.</p>
@@ -457,12 +425,41 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                 ) : (
                   <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
                 )}
-                <p>Aucune donnée ne sera écrite avant l’aperçu puis ton choix Remplacer ou Fusionner.</p>
+                <p>Un ZIP ou dossier sert uniquement à détecter des JSON et CSV, sans extraction ni suivi. Aucune donnée ne sera écrite avant l’aperçu puis ton choix Remplacer ou Fusionner.</p>
                 <div className="assistant-actions">
                   <button className="secondary-button" type="button" onClick={close}>Annuler</button>
-                  <button className="primary-button" type="button" disabled={choosingFile} onClick={() => void pickAndPrepare()}>
-                    {choosingFile ? 'Choix du fichier…' : 'Choisir un fichier'}
+                  <button className="secondary-button" type="button" disabled={choosingFile} onClick={() => void pickAndPrepare(pickImportContainer)}>
+                    {choosingFile ? 'Choix en cours…' : 'Choisir un dossier'}
                   </button>
+                  <button className="primary-button" type="button" disabled={choosingFile} onClick={() => void pickAndPrepare(pickImportAny)}>
+                    {choosingFile ? 'Choix en cours…' : 'Choisir un fichier ou ZIP'}
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
+          {step === 'container-source' && containerSource !== null && (
+            <div className="assistant-content">
+              <section className="assistant-stage">
+                <p className="card-kicker">Conteneur analysé</p>
+                <h3>Choisir les données à prévisualiser</h3>
+                <p>{containerSource.containerCandidates.length} candidat{containerSource.containerCandidates.length > 1 ? 's ont été détectés' : ' a été détecté'} dans <b>{containerSource.name}</b>. Le choix n’écrit encore aucune donnée.</p>
+                <div className="assistant-choice-grid">
+                  {containerSource.containerCandidates.map((candidate) => (
+                    <button
+                      className="transfer-choice"
+                      key={candidate.id}
+                      type="button"
+                      onClick={() => prepareContainerCandidate(containerSource, candidate)}
+                    >
+                      <span className="card-kicker">{candidate.kind.toUpperCase()}</span>
+                      <b>{candidate.name}</b>
+                      <small>Prévisualiser et valider avant import</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="assistant-actions">
+                  <button className="secondary-button" type="button" onClick={() => { setContainerSource(null); setFileName(null); setStep('choose-file') }}>Choisir une autre source</button>
                 </div>
               </section>
             </div>

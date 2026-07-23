@@ -41,7 +41,7 @@ export type FilmImportCsvCandidate = {
 
 export type PickedFilmsImportFile = {
   name: string
-  kind: 'csv' | 'notion'
+  kind: 'csv' | 'notion' | 'container'
   csvCandidates: FilmImportCsvCandidate[]
   markdownPages: MarkdownPage[]
 }
@@ -80,7 +80,7 @@ export type FilmImportSourceSelection = {
 }
 
 export type FilmsCsvImportPreview = ImportPreview & {
-  sourceKind: 'sylloge-csv-v1' | 'csv' | 'notion'
+  sourceKind: 'sylloge-csv-v1' | 'csv' | 'notion' | 'container'
   sourceLabel: string
   mapping: Array<{ field: string; column: string }>
   ignoredColumns: string[]
@@ -90,7 +90,7 @@ export type FilmsCsvImportPreview = ImportPreview & {
 
 type GenericFilmImportSession = {
   kind: 'generic'
-  sourceKind: 'csv' | 'notion'
+  sourceKind: 'csv' | 'notion' | 'container'
   sourceLabel: string
   notionDatabaseRoots: string[]
   headers: string[]
@@ -280,7 +280,11 @@ export function prepareFilmCsvImport(
   if (!candidate || !candidateIsSelectable) throw new Error('Choisissez une table CSV Notion avant de préparer son aperçu.')
 
   const table = parseCsv(candidate.contents)
-  const sourceLabel = source.kind === 'notion' ? `Export Notion : ${candidate.name}` : 'CSV'
+  const sourceLabel = source.kind === 'notion'
+    ? `Export Notion : ${candidate.name}`
+    : source.kind === 'container'
+      ? `Conteneur local : ${candidate.name}`
+      : 'CSV'
 
   if (isSyllogeCsvHeader(table.headers)) {
     return { kind: 'sylloge', sourceLabel: 'CSV Sylloge Films v1', table }
@@ -1019,8 +1023,8 @@ function isSyllogeCsvHeader(headers: string[]): boolean {
     && headers.every((header, index) => header === SYLLOGE_FILMS_CSV_HEADER[index])
 }
 
-function suggestedProfileName(tableName: string, kind: 'csv' | 'notion'): string {
-  const segments = tableName
+function suggestedProfileName(fileName: string, sourceKind: 'csv' | 'notion' | 'container'): string {
+  const segments = fileName
     .replace(/\\/gu, '/')
     .split('/')
     .map((segment) => readableTableName(segment))
@@ -1028,7 +1032,7 @@ function suggestedProfileName(tableName: string, kind: 'csv' | 'notion'): string
   const filmsTable = [...segments].reverse().find((segment) => /(^|\s)films?(\s|$)/iu.test(segment))
   const name = filmsTable ?? segments.at(-1) ?? 'Films'
 
-  return kind === 'notion' ? name : `Import ${name}`
+  return sourceKind === 'notion' ? name : `Import ${name}`
 }
 
 function readableTableName(value: string): string {

@@ -98,7 +98,7 @@ export function FilmCsvImportFlow({
       {step === 'source' && (
         <section className="assistant-stage">
           <p className="card-kicker">Source détectée</p>
-          <h3>{source.kind === 'notion' ? 'Archive ZIP compatible' : 'Fichier CSV'}</h3>
+          <h3>{source.kind === 'notion' ? 'Archive ZIP compatible' : source.kind === 'container' ? 'Conteneur local' : 'Fichier CSV'}</h3>
           <dl className="assistant-source-summary">
             <div><dt>Fichier</dt><dd>{source.name}</dd></div>
             <div>
@@ -284,7 +284,7 @@ function FilmCsvImportPreviewPanel({
         <span>{valid ? 'Valide' : 'Import bloqué'}</span>
       </div>
       <dl className="transfer-summary compact films-import-summary">
-        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Archive ZIP compatible' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div>
+        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Archive ZIP compatible' : preview.sourceKind === 'container' ? 'Conteneur local' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div>
         <div><dt>Lignes lues</dt><dd>{preview.totalFilmCount}</dd></div>
         <div><dt>Convertibles</dt><dd>{preview.validFilmCount}</dd></div>
         <div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>

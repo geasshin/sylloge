@@ -502,7 +502,16 @@ Préparer localement une fiche `Été Bleu` et importer une fiche `ete bleu` ou 
 - [ ] Un ZIP invalide, trop volumineux ou excessivement imbriqué est refusé sans écriture.
 - [ ] Un ZIP contenant un chemin `..`, une entrée chiffrée ou un lien symbolique est refusé sans écriture.
 
-> Les candidats JSON/CSV génériques dans un ZIP ou un dossier et le sélecteur de dossier arrivent au jalon `0.4.18`. À ce stade, seul l’adaptateur ZIP Film historique est exercé visiblement ; ses limites sont décrites dans [`CONTRAT_CONTENEURS_IMPORT_V1.md`](CONTRAT_CONTENEURS_IMPORT_V1.md).
+> Les candidats JSON/CSV génériques dans un ZIP ou un dossier sont disponibles depuis le jalon `0.4.18`. Les pages Markdown restent réservées à l’association déterministe du flux Films historique ; les limites communes sont décrites dans [`CONTRAT_CONTENEURS_IMPORT_V1.md`](CONTRAT_CONTENEURS_IMPORT_V1.md).
+
+## 12.3 Conteneurs JSON/CSV génériques
+
+- [ ] Depuis chaque bibliothèque, choisir un ZIP contenant un JSON ou CSV du médium, puis vérifier que le candidat unique rejoint directement l’aperçu existant.
+- [ ] Préparer un ZIP ou dossier contenant plusieurs JSON/CSV : les chemins relatifs et le type de chaque candidat sont affichés avant le choix.
+- [ ] Choisir un candidat JSON, puis un CSV : chacun suit le même aperçu, mapping éventuel, choix Remplacer/Fusionner et rapport que le fichier direct.
+- [ ] Choisir un dossier : aucun dossier n’est mémorisé, surveillé ou synchronisé après l’import.
+- [ ] Un ZIP ou dossier sans JSON/CSV est refusé proprement sans écriture.
+- [ ] Rejouer un conteneur aux chemins non sûrs, chiffré, avec lien symbolique ou hors limites : l’erreur est explicite et la collection reste inchangée après relance.
 
 ### Observation d’expérience
 

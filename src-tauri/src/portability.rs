@@ -54,6 +54,15 @@ pub struct CsvImportCandidate {
     contents: String,
 }
 
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportContainerCandidate {
+    id: String,
+    name: String,
+    kind: &'static str,
+    contents: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarkdownPage {
@@ -255,17 +264,20 @@ pub struct ImportLibraryDocumentResult {
 #[serde(rename_all = "camelCase")]
 pub struct PickedAnyImportFile {
     name: String,
-    /// Type détecté côté natif : "json" | "csv" | "notion" (adaptateur Film historique).
+    /// Type détecté côté natif : "json" | "csv" | "notion" (adaptateur Film historique)
+    /// | "container" (ZIP ou dossier à choisir côté interface).
     kind: String,
     /// Contenu texte pour JSON/CSV ; None pour un ZIP binaire.
     contents: Option<String>,
     /// Pour l’adaptateur ZIP Film historique : candidats CSV et pages Markdown extraits.
     csv_candidates: Vec<CsvImportCandidate>,
     markdown_pages: Vec<MarkdownPage>,
+    /// Pour un ZIP ou dossier : candidats JSON/CSV relus en mémoire et bornés.
+    container_candidates: Vec<ImportContainerCandidate>,
 }
 
-/// Sélecteur d'import unifié : accepte JSON Sylloge, CSV et ZIP Film historique,
-/// puis détecte le type pour que l'interface lance le bon parcours.
+/// Sélecteur d'import unifié : accepte JSON, CSV et ZIP, puis détecte le type
+/// afin que l'interface réutilise le pipeline d’import approprié.
 #[tauri::command]
 pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFile>, String> {
     let Some(file_path) = app
@@ -301,6 +313,7 @@ pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFil
                 contents: Some(contents),
                 csv_candidates: Vec::new(),
                 markdown_pages: Vec::new(),
+                container_candidates: Vec::new(),
             }))
         }
         "csv" => {
@@ -315,21 +328,30 @@ pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFil
                 kind: "csv".to_string(),
                 contents: None,
                 markdown_pages: Vec::new(),
+                container_candidates: Vec::new(),
             }))
         }
-        "zip" => {
-            let extracted =
-                extract_notion_zip(&name, &read_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?)?;
-            Ok(Some(PickedAnyImportFile {
-                name,
-                kind: "notion".to_string(),
-                contents: None,
-                csv_candidates: extracted.csv_candidates,
-                markdown_pages: extracted.markdown_pages,
-            }))
-        }
+        "zip" => inspect_zip_container(&name, &read_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?)
+            .map(Some),
         _ => Err("Choisissez un fichier JSON, CSV ou ZIP compatible.".to_string()),
     }
+}
+
+#[tauri::command]
+pub async fn pick_import_container(app: AppHandle) -> Result<Option<PickedAnyImportFile>, String> {
+    let Some(folder_path) = app
+        .dialog()
+        .file()
+        .set_title("Choisir un dossier à analyser")
+        .blocking_pick_folder()
+    else {
+        return Ok(None);
+    };
+
+    let path = folder_path
+        .into_path()
+        .map_err(|error| format!("Chemin de dossier illisible : {error}"))?;
+    inspect_directory_container(&path).map(Some)
 }
 
 #[tauri::command]
@@ -583,6 +605,289 @@ impl NotionZipExtraction {
         }
         Ok(())
     }
+}
+
+#[derive(Default)]
+struct ContainerExtraction {
+    entry_count: usize,
+    decompressed_bytes: u128,
+    next_candidate_id: usize,
+    candidates: Vec<ImportContainerCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+}
+
+impl ContainerExtraction {
+    fn read_zip_archive(
+        &mut self,
+        contents: &[u8],
+        nesting_depth: usize,
+        entry_prefix: &str,
+    ) -> Result<(), String> {
+        let mut archive = zip::ZipArchive::new(Cursor::new(contents))
+            .map_err(|error| format!("L’archive ZIP est invalide : {error}"))?;
+
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index).map_err(zip_entry_error)?;
+            let raw_name = file.name();
+            let safe_path = checked_zip_path(raw_name)?;
+            self.count_entry("L’archive ZIP")?;
+            if file.encrypted() {
+                return Err("Les archives ZIP chiffrées ne sont pas prises en charge.".to_string());
+            }
+            if file.is_symlink() {
+                return Err(
+                    "L’archive ZIP contient un lien symbolique non pris en charge.".to_string(),
+                );
+            }
+            if file.is_dir() {
+                continue;
+            }
+
+            let entry_name = safe_path.to_string_lossy().into_owned();
+            let lower_name = entry_name.to_ascii_lowercase();
+            let is_nested_zip = lower_name.ends_with(".zip");
+            let is_candidate = lower_name.ends_with(".json") || lower_name.ends_with(".csv");
+            let is_legacy_markdown = lower_name.ends_with(".md");
+            if !is_nested_zip && !is_candidate && !is_legacy_markdown {
+                continue;
+            }
+            if file.size() > MAX_ZIP_ENTRY_BYTES {
+                return Err(
+                    "Une entrée de l’archive ZIP dépasse la limite sûre de 4 Mio.".to_string(),
+                );
+            }
+            if is_nested_zip && nesting_depth >= MAX_ZIP_NESTING_DEPTH {
+                return Err(format!(
+                    "L’archive ZIP dépasse la limite de {MAX_ZIP_NESTING_DEPTH} archives ZIP imbriquées."
+                ));
+            }
+
+            let entry_contents = read_zip_entry(&mut file)?;
+            self.count_decompressed_bytes(entry_contents.len(), "L’archive ZIP")?;
+            if is_nested_zip {
+                self.read_zip_archive(
+                    &entry_contents,
+                    nesting_depth + 1,
+                    &format!("{entry_prefix}{entry_name}!/"),
+                )?;
+                continue;
+            }
+
+            let text = String::from_utf8(entry_contents)
+                .map_err(|_| format!("L’entrée « {entry_name} » doit être encodée en UTF-8."))?;
+            let display_name = format!("{entry_prefix}{entry_name}");
+            if is_candidate {
+                self.push_candidate(
+                    display_name,
+                    if lower_name.ends_with(".json") {
+                        "json"
+                    } else {
+                        "csv"
+                    },
+                    text,
+                );
+            } else {
+                self.markdown_pages.push(MarkdownPage {
+                    name: display_name,
+                    contents: text,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn read_directory(
+        &mut self,
+        root: &Path,
+        directory: &Path,
+        depth: usize,
+    ) -> Result<(), String> {
+        let mut entries = fs::read_dir(directory)
+            .map_err(|error| format!("Impossible de lire le dossier choisi : {error}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| {
+                format!("Impossible de lire une entrée du dossier choisi : {error}")
+            })?;
+        entries.sort_by_key(|entry| entry.file_name());
+
+        for entry in entries {
+            let path = entry.path();
+            let relative = path.strip_prefix(root).map_err(|_| {
+                "Le dossier choisi contient un chemin qui ne peut pas être inspecté.".to_string()
+            })?;
+            let component_count = relative.components().count();
+            if component_count == 0
+                || component_count > MAX_ZIP_PATH_COMPONENTS
+                || depth + 1 != component_count
+            {
+                return Err(format!(
+                    "Le dossier choisi dépasse la limite de {MAX_ZIP_PATH_COMPONENTS} segments de chemin."
+                ));
+            }
+            self.count_entry("Le dossier choisi")?;
+            let metadata = fs::symlink_metadata(&path).map_err(|error| {
+                format!("Impossible de lire une entrée du dossier choisi : {error}")
+            })?;
+            if metadata.file_type().is_symlink() {
+                return Err(
+                    "Le dossier choisi contient un lien symbolique non pris en charge.".to_string(),
+                );
+            }
+            if metadata.is_dir() {
+                self.read_directory(root, &path, depth + 1)?;
+                continue;
+            }
+            if !metadata.is_file() {
+                continue;
+            }
+
+            let display_name = relative.to_string_lossy().replace('\\', "/");
+            let lower_name = display_name.to_ascii_lowercase();
+            let kind = if lower_name.ends_with(".json") {
+                Some("json")
+            } else if lower_name.ends_with(".csv") {
+                Some("csv")
+            } else {
+                None
+            };
+            let Some(kind) = kind else {
+                continue;
+            };
+            if metadata.len() > MAX_IMPORT_FILE_BYTES {
+                return Err(
+                    "Un fichier du dossier choisi dépasse la limite sûre de 16 Mio.".to_string(),
+                );
+            }
+            let bytes = fs::read(&path).map_err(|error| {
+                format!("Impossible de lire un fichier du dossier choisi : {error}")
+            })?;
+            self.count_decompressed_bytes(bytes.len(), "Le dossier choisi")?;
+            let contents = String::from_utf8(bytes)
+                .map_err(|_| format!("Le fichier « {display_name} » doit être encodé en UTF-8."))?;
+            self.push_candidate(display_name, kind, contents);
+        }
+
+        Ok(())
+    }
+
+    fn push_candidate(&mut self, name: String, kind: &'static str, contents: String) {
+        let id = format!("candidate-{}", self.next_candidate_id);
+        self.next_candidate_id += 1;
+        self.candidates.push(ImportContainerCandidate {
+            id,
+            name,
+            kind,
+            contents,
+        });
+    }
+
+    fn count_entry(&mut self, container_label: &str) -> Result<(), String> {
+        self.entry_count += 1;
+        if self.entry_count > MAX_ZIP_CONTAINER_ENTRIES {
+            return Err(format!(
+                "{container_label} contient plus de {MAX_ZIP_CONTAINER_ENTRIES} entrées."
+            ));
+        }
+        Ok(())
+    }
+
+    fn count_decompressed_bytes(
+        &mut self,
+        byte_count: usize,
+        container_label: &str,
+    ) -> Result<(), String> {
+        self.decompressed_bytes += byte_count as u128;
+        if self.decompressed_bytes > MAX_ZIP_UNCOMPRESSED_BYTES {
+            return Err(format!(
+                "{container_label} dépasse la limite de contenu cumulé de 32 Mio."
+            ));
+        }
+        Ok(())
+    }
+
+    fn into_picked(self, name: String) -> Result<PickedAnyImportFile, String> {
+        if self.candidates.is_empty() {
+            return Err(
+                "Le conteneur choisi ne contient aucun fichier JSON ou CSV à importer.".to_string(),
+            );
+        }
+        Ok(PickedAnyImportFile {
+            name,
+            kind: "container".to_string(),
+            contents: None,
+            csv_candidates: Vec::new(),
+            markdown_pages: self.markdown_pages,
+            container_candidates: self.candidates,
+        })
+    }
+}
+
+fn inspect_zip_container(name: &str, contents: &[u8]) -> Result<PickedAnyImportFile, String> {
+    if contents.len() as u64 > MAX_IMPORT_FILE_BYTES {
+        return Err("L’archive ZIP dépasse la limite sûre de 16 Mio.".to_string());
+    }
+    let mut extraction = ContainerExtraction::default();
+    extraction.read_zip_archive(contents, 0, "")?;
+    extraction.into_picked(name.to_string())
+}
+
+fn inspect_directory_container(path: &Path) -> Result<PickedAnyImportFile, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Impossible de lire le dossier choisi : {error}"))?;
+    if metadata.file_type().is_symlink() {
+        return Err("Le dossier choisi ne peut pas être un lien symbolique.".to_string());
+    }
+    if !metadata.is_dir() {
+        return Err("Le chemin choisi n’est pas un dossier.".to_string());
+    }
+    let mut extraction = ContainerExtraction::default();
+    extraction.read_directory(path, path, 0)?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("dossier-import")
+        .to_string();
+    extraction.into_picked(name)
+}
+
+fn zip_entry_error(error: zip::result::ZipError) -> String {
+    let message = error.to_string();
+    if message.to_ascii_lowercase().contains("password required")
+        || message.to_ascii_lowercase().contains("encrypt")
+    {
+        "Les archives ZIP chiffrées ne sont pas prises en charge.".to_string()
+    } else {
+        format!("Une entrée de l’archive ZIP est illisible : {message}")
+    }
+}
+
+fn checked_zip_path(raw_name: &str) -> Result<PathBuf, String> {
+    let raw_path = Path::new(raw_name);
+    let has_windows_volume_prefix = raw_name
+        .as_bytes()
+        .get(..2)
+        .is_some_and(|prefix| prefix[0].is_ascii_alphabetic() && prefix[1] == b':');
+    if raw_name.contains('\\')
+        || has_windows_volume_prefix
+        || raw_path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err("L’archive ZIP contient un chemin de fichier non sûr.".to_string());
+    }
+    let safe_path = raw_path.to_path_buf();
+    if safe_path.components().count() > MAX_ZIP_PATH_COMPONENTS {
+        return Err(format!(
+            "L’archive ZIP dépasse la limite de {MAX_ZIP_PATH_COMPONENTS} segments de chemin."
+        ));
+    }
+    Ok(safe_path)
 }
 
 fn read_zip_entry(file: &mut zip::read::ZipFile<'_>) -> Result<Vec<u8>, String> {
@@ -3133,6 +3438,117 @@ mod tests {
             picked.csv_candidates[1].contents,
             "Name,Status,Rating,Vu le\nLe Passage,Watched,8 (Excellent),18 juillet 2024\n"
         );
+    }
+
+    #[test]
+    fn generic_zip_container_lists_json_and_csv_candidates_without_extraction() {
+        let archive = notion_zip(&[
+            ("exports/films.json", "{\"format\":\"sylloge-library\"}"),
+            ("exports/livres.csv", "title,author\nLe Nom,Autrice\n"),
+            ("assets/cover.png", "fichier étranger ignoré"),
+            (
+                "exports/Films/Le Nom.md",
+                "# Le Nom\n\n### Notes :\n\nNote liée.\n",
+            ),
+        ]);
+
+        let picked = inspect_zip_container("bibliotheque.zip", &archive)
+            .expect("inspection générique du ZIP");
+
+        assert_eq!(picked.kind, "container");
+        assert_eq!(picked.container_candidates.len(), 2);
+        assert_eq!(picked.container_candidates[0].name, "exports/films.json");
+        assert_eq!(picked.container_candidates[0].kind, "json");
+        assert_eq!(picked.container_candidates[1].name, "exports/livres.csv");
+        assert_eq!(picked.container_candidates[1].kind, "csv");
+        assert_eq!(picked.markdown_pages.len(), 1);
+        assert_eq!(
+            picked.markdown_pages[0].name, "exports/Films/Le Nom.md",
+            "les pages Markdown historiques restent disponibles seulement pour le flux Film"
+        );
+    }
+
+    #[test]
+    fn generic_zip_container_keeps_candidates_from_nested_zip_parts() {
+        let nested = notion_zip(&[("exports/art.csv", "title,form\nAube,peinture\n")]);
+        let archive = notion_zip_bytes(&[("partie-1.zip", nested.as_slice())]);
+
+        let picked = inspect_zip_container("bibliotheque.zip", &archive)
+            .expect("inspection du ZIP imbriqué");
+
+        assert_eq!(picked.container_candidates.len(), 1);
+        assert_eq!(
+            picked.container_candidates[0].name,
+            "partie-1.zip!/exports/art.csv"
+        );
+        assert_eq!(
+            picked.container_candidates[0].contents,
+            "title,form\nAube,peinture\n"
+        );
+    }
+
+    #[test]
+    fn generic_container_without_json_or_csv_is_refused_before_import() {
+        let archive = notion_zip(&[("assets/cover.png", "fichier étranger")]);
+
+        let result = inspect_zip_container("sans-donnees.zip", &archive);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("aucun fichier JSON ou CSV")),
+            "un conteneur sans candidat ne doit pas ouvrir de parcours d’import"
+        );
+    }
+
+    #[test]
+    fn directory_container_lists_nested_json_and_csv_candidates() {
+        let directory = temporary_directory("container-directory");
+        let nested = directory.join("exports/2026");
+        fs::create_dir_all(&nested).expect("création du dossier imbriqué");
+        fs::write(
+            nested.join("series.json"),
+            "{\"format\":\"sylloge-library\"}",
+        )
+        .expect("fixture JSON");
+        fs::write(nested.join("games.csv"), "title,platform\nJeu,PC\n").expect("fixture CSV");
+        fs::write(directory.join("ignore.txt"), "fichier étranger").expect("fixture étrangère");
+
+        let picked = inspect_directory_container(&directory).expect("inspection du dossier");
+
+        assert_eq!(picked.kind, "container");
+        assert_eq!(picked.container_candidates.len(), 2);
+        assert_eq!(
+            picked.container_candidates[0].name,
+            "exports/2026/games.csv"
+        );
+        assert_eq!(
+            picked.container_candidates[1].name,
+            "exports/2026/series.json"
+        );
+        fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn directory_container_rejects_symbolic_links_without_following_them() {
+        use std::os::unix::fs::symlink;
+
+        let directory = temporary_directory("container-symlink");
+        let external_file = temporary_directory("container-external").join("films.csv");
+        fs::write(&external_file, "title\nHors périmètre\n").expect("fixture externe");
+        symlink(&external_file, directory.join("films.csv")).expect("lien symbolique de test");
+
+        let result = inspect_directory_container(&directory);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("lien symbolique")),
+            "un dossier ne doit jamais suivre un lien symbolique"
+        );
+        let external_directory = external_file
+            .parent()
+            .expect("dossier externe")
+            .to_path_buf();
+        fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+        fs::remove_dir_all(external_directory).expect("nettoyage de la fixture externe");
     }
 
     #[test]

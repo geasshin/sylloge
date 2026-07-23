@@ -10,7 +10,7 @@ Les seuls formats de données publics recherchés dans un conteneur sont les fic
 
 L’adaptateur Film historique peut aussi lire certaines pages Markdown présentes dans un ZIP afin d’associer des notes longues à un CSV déjà sélectionné. Markdown n’est pas un format d’import général et n’apparaît pas comme tel dans l’interface.
 
-Le jalon `0.4.17` fixe ce contrat et durcit l’adaptateur ZIP Film existant. Le sélecteur de dossier, la liste des candidats JSON/CSV et leur envoi vers les flux communs arrivent au jalon `0.4.18`.
+Le jalon `0.4.17` fixe ce contrat et durcit l’adaptateur ZIP Film existant. Le jalon `0.4.18` livre le sélecteur de dossier, la liste des candidats JSON/CSV et leur envoi vers les flux communs.
 
 ## Parcours prévu
 
@@ -31,7 +31,7 @@ Le jalon `0.4.17` fixe ce contrat et durcit l’adaptateur ZIP Film existant. Le
 | Entrées ZIP | 512 | répertoires compris, toutes les archives imbriquées confondues |
 | Chemin relatif | 8 segments | fichier compris ; exemple autorisé : `exports/2026/films.csv` |
 | ZIP imbriqués | 4 niveaux | sous l’archive racine |
-| Dossier choisi | 512 entrées, 8 segments, 32 Mio cumulés | règle à appliquer au sélecteur de dossier de `0.4.18` |
+| Dossier choisi | 512 entrées, 8 segments, 32 Mio cumulés | inspection récursive sans suivi de liens ni persistance |
 
 Une archive ZIP chiffrée est refusée explicitement : Sylloge ne demande ni ne conserve de mot de passe. Les entrées de type lien symbolique, les chemins absolus, les préfixes de volume et tout segment `..` sont refusés. Les fichiers JSON, CSV ou Markdown Film historique qui ne sont pas UTF-8 sont refusés ; les autres fichiers restent hors périmètre et sont ignorés.
 
@@ -47,4 +47,4 @@ Ces bornes limitent la mémoire et le temps de traitement : une archive très co
 
 ## Preuves automatisées attendues
 
-Les tests natifs couvrent la lecture en mémoire du ZIP Film historique, les candidats CSV multiples, les archives imbriquées, les limites de taille, de volume, de profondeur et de nombre d’entrées, ainsi que le refus des chemins non sûrs, archives chiffrées et liens symboliques. Le jalon `0.4.18` ajoutera les fixtures JSON/CSV génériques et les preuves spécifiques au dossier choisi.
+Les tests natifs couvrent la lecture en mémoire du ZIP Film historique, les candidats CSV multiples, les archives imbriquées, les limites de taille, de volume, de profondeur et de nombre d’entrées, ainsi que le refus des chemins non sûrs, archives chiffrées et liens symboliques. Le jalon `0.4.18` ajoute les fixtures JSON/CSV génériques dans un ZIP et un dossier, ainsi que le refus d’un lien symbolique de dossier sans suivre sa cible.

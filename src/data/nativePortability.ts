@@ -9,7 +9,7 @@ export type PickedJsonFile = {
 
 export type PickedFilmsImportFile = {
   name: string
-  kind: 'csv' | 'notion'
+  kind: 'csv' | 'notion' | 'container'
   csvCandidates: Array<{
     id: string
     name: string
@@ -21,6 +21,13 @@ export type PickedFilmsImportFile = {
   }>
 }
 
+export type ImportContainerCandidate = {
+  id: string
+  name: string
+  kind: 'json' | 'csv'
+  contents: string
+}
+
 export type PickedAnyImportFile =
   | {
       name: string
@@ -28,6 +35,7 @@ export type PickedAnyImportFile =
       contents: string
       csvCandidates: []
       markdownPages: []
+      containerCandidates: []
     }
   | {
       name: string
@@ -35,6 +43,15 @@ export type PickedAnyImportFile =
       contents: null
       csvCandidates: PickedFilmsImportFile['csvCandidates']
       markdownPages: PickedFilmsImportFile['markdownPages']
+      containerCandidates: []
+    }
+  | {
+      name: string
+      kind: 'container'
+      contents: null
+      csvCandidates: []
+      markdownPages: PickedFilmsImportFile['markdownPages']
+      containerCandidates: ImportContainerCandidate[]
     }
 
 export type ImportLibraryResult = {
@@ -99,6 +116,10 @@ export function pickImportJson(): Promise<PickedJsonFile | null> {
 
 export function pickImportAny(): Promise<PickedAnyImportFile | null> {
   return invoke('pick_import_any')
+}
+
+export function pickImportContainer(): Promise<PickedAnyImportFile | null> {
+  return invoke('pick_import_container')
 }
 
 export function pickImportFilmsCsvOrNotion(): Promise<PickedFilmsImportFile | null> {
