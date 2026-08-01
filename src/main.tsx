@@ -30,6 +30,7 @@ import {
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { LibraryFilterPanel, type LibraryFilterPanelConfig } from './components/LibraryFilterPanel.tsx'
+import { SavedViewsBar } from './components/SavedViewsBar.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { associateFilmWithTmdb, getFilmTmdbCache } from './data/tmdbService.ts'
@@ -684,6 +685,13 @@ function FilmsLibrary({
             onChange={(filters) => onContextChange({ ...context, filters })}
           />
 
+          <SavedViewsBar
+            profileId={library.profile.id}
+            medium="films"
+            current={{ view: context.view, mediumFilter: 'all', filters: normalizeLibraryFilters(context.filters) }}
+            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, filters: criteria.filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'film affiché' : 'films affichés'}</p>
@@ -921,6 +929,13 @@ function SeriesLibrary({
             onChange={(filters) => onContextChange({ ...context, filters })}
           />
 
+          <SavedViewsBar
+            profileId={profileId}
+            medium="series"
+            current={{ view: context.view, mediumFilter: context.category, filters: normalizeLibraryFilters(context.filters) }}
+            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, category: criteria.mediumFilter as SeriesCategory | 'all', filters: criteria.filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'série affichée' : 'séries affichées'}</p>
@@ -1112,6 +1127,13 @@ function GamesLibrary({
             onChange={(filters) => onContextChange({ ...context, filters })}
           />
 
+          <SavedViewsBar
+            profileId={profileId}
+            medium="games"
+            current={{ view: context.view, mediumFilter: context.platform, filters: normalizeLibraryFilters(context.filters) }}
+            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, platform: criteria.mediumFilter, filters: criteria.filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'jeu affiché' : 'jeux affichés'}</p>
@@ -1272,6 +1294,13 @@ function ArtworksLibrary({
             onChange={(filters) => onContextChange({ ...context, filters })}
           />
 
+          <SavedViewsBar
+            profileId={profileId}
+            medium="artworks"
+            current={{ view: context.view, mediumFilter: context.form, filters: normalizeLibraryFilters(context.filters) }}
+            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, form: criteria.mediumFilter as ArtworkSearchCriteria['form'], filters: criteria.filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'œuvre affichée' : 'œuvres affichées'}</p>
@@ -1408,6 +1437,13 @@ function BooksLibrary({
             config={BOOK_FILTER_PANEL_CONFIG}
             idPrefix="books-filters"
             onChange={(filters) => onContextChange({ ...context, filters })}
+          />
+
+          <SavedViewsBar
+            profileId={profileId}
+            medium="books"
+            current={{ view: context.view, mediumFilter: context.category, filters: normalizeLibraryFilters(context.filters) }}
+            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, category: criteria.mediumFilter as BookCategory | 'all', filters: criteria.filters })}
           />
 
           <div className="collection-meta books-collection-meta" aria-live="polite">

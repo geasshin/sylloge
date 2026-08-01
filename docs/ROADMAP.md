@@ -365,8 +365,10 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.21` — Vues personnalisées enregistrées
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** **Décision de portabilité actée : les vues enregistrées restent locales à la base SQLite — elles n'entrent ni dans les snapshots ni dans l'export complet de restauration.** La migration 12 crée `saved_views` (nom unique par profil et médium, schéma de critères JSON versionné, jamais de SQL persisté). Chaque bibliothèque peut nommer la vue courante (tri + filtre du médium + critères avancés, sans la recherche textuelle libre), la rappeler, la renommer et la supprimer après confirmation. Les critères relus sont réparés par le domaine : statut ou catégorie inconnus, note hors borne et JSON corrompu retombent sur les valeurs neutres, et l'Art ne peut jamais détenir une vue Classement.
+
 - Nommer, rappeler, renommer et supprimer un couple filtres + tri, isolé par profil et médium.
-- Décider avant migration si ces vues appartiennent seulement à SQLite locale, aux snapshots ou à l’export complet.
+- Décider avant migration si ces vues appartiennent seulement à SQLite locale, aux snapshots ou à l'export complet.
 
 ### `0.4.22` — Reprise complète de la recette et corrections de clôture
 

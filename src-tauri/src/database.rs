@@ -70,5 +70,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0011_nullable_current_profile.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 12,
+            description: "create_saved_views",
+            sql: include_str!("../migrations/0012_create_saved_views.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

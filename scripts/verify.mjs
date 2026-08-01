@@ -3493,4 +3493,174 @@ assert.match(libraryFilterPanelSource, /Réinitialiser/, 'Le panneau doit propos
 assert.match(libraryFilterPanelSource, /aria-label="Critères actifs"/, 'Les critères actifs doivent être affichés et accessibles')
 assert.match(mainSource0419, /EMPTY_LIBRARY_FILTERS \}\)/, 'Réinitialiser doit ramener à un état clairement défini')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite.')
+// Jalon 0.4.21 — vues personnalisées enregistrées, locales et isolées.
+const savedViewsMigrationSource = readFileSync(new URL('../src-tauri/migrations/0012_create_saved_views.sql', import.meta.url), 'utf8')
+const rustDatabaseSource = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
+const savedViewsBarSource = readFileSync(new URL('../src/components/SavedViewsBar.tsx', import.meta.url), 'utf8')
+const libraryDocumentSource0421 = readFileSync(new URL('../src/domain/libraryDocument.ts', import.meta.url), 'utf8')
+const rustPortabilitySource0421 = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
+
+assert.match(savedViewsMigrationSource, /UNIQUE \(profile_id, medium, name\)/, 'Le nom d’une vue doit être unique par profil et médium')
+assert.match(savedViewsMigrationSource, /schema_version INTEGER/, 'Le schéma des critères doit être versionné')
+assert.doesNotMatch(savedViewsMigrationSource, /CHECK \(view IN \('all', 'recent', 'favorites'\)\)/, 'La contrainte SQL ne doit pas exclure ranking : la règle Art vit dans le domaine')
+assert.match(rustDatabaseSource, /0012_create_saved_views\.sql/, 'La migration 12 doit être enregistrée')
+assert.doesNotMatch(libraryDocumentSource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans le document d’export (décision : local uniquement)')
+assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans les snapshots ni la portabilité native')
+
+{
+  const {
+    assertSavedViewAllowed,
+    deserializeSavedViewCriteria,
+    sanitizeSavedViewCriteria,
+    serializeSavedViewCriteria,
+    validateSavedViewName,
+  } = await import('../src/domain/savedViews.ts')
+
+  assert.equal(validateSavedViewName('   ').ok, false, 'Un nom vide doit être refusé')
+  assert.equal(validateSavedViewName('x'.repeat(81)).ok, false, 'Un nom trop long doit être refusé')
+  const normalized = validateSavedViewName('  Mes   films  2026  ')
+  assert.deepEqual(normalized, { ok: true, name: 'Mes films 2026' }, 'Le nom doit être nettoyé et borné')
+
+  assert.throws(
+    () => assertSavedViewAllowed('artworks', { view: 'ranking', mediumFilter: 'all', filters: { status: 'all', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' } }),
+    /Classement/,
+    'Une vue Classement ne doit jamais être enregistrée pour l’Art',
+  )
+
+  const drifted = sanitizeSavedViewCriteria('books', {
+    view: 'inexistante',
+    mediumFilter: 'poche',
+    filters: { status: 'relu', favoritesOnly: true, minRating: 99, year: 2020.5, personalDateFrom: 'hier', specificText: 42 },
+  })
+  assert.equal(drifted.view, 'all', 'Une vue inconnue après évolution du schéma doit retomber sur Tous')
+  assert.equal(drifted.mediumFilter, 'all', 'Une catégorie Livre inconnue doit retomber sur le filtre neutre')
+  assert.equal(drifted.filters.status, 'all', 'Un statut inconnu doit retomber sur le filtre neutre')
+  assert.equal(drifted.filters.minRating, null, 'Une note hors borne doit être abandonnée')
+  assert.equal(drifted.filters.year, null, 'Une année non entière doit être abandonnée')
+  assert.equal(drifted.filters.personalDateFrom, null, 'Une date invalide doit être abandonnée')
+  assert.equal(drifted.filters.specificText, '', 'Un texte non chaîne doit être abandonné')
+  assert.equal(drifted.filters.favoritesOnly, true, 'Les critères valides doivent survivre à la réparation')
+
+  const artRanking = sanitizeSavedViewCriteria('artworks', { view: 'ranking', mediumFilter: 'all', filters: {} })
+  assert.equal(artRanking.view, 'all', 'Une vue Classement persistée pour l’Art doit être réparée à la lecture')
+
+  const corrupted = deserializeSavedViewCriteria('films', '{pas du json')
+  assert.equal(corrupted.view, 'all', 'Un JSON corrompu doit retomber sur le critère neutre')
+
+  const gameView = sanitizeSavedViewCriteria('games', { view: 'favorites', mediumFilter: 'Steam Deck', filters: {} })
+  assert.equal(gameView.mediumFilter, 'Steam Deck', 'La plateforme Jeu saisie librement doit être conservée')
+
+  const roundTrip = deserializeSavedViewCriteria('series', serializeSavedViewCriteria({
+    view: 'recent',
+    mediumFilter: 'animation',
+    filters: { status: 'en cours', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: '2026-02-01', specificText: '', location: '', exhibition: '' },
+  }))
+  assert.equal(roundTrip.view, 'recent', 'Le tri de la vue doit survivre à la sérialisation')
+  assert.equal(roundTrip.mediumFilter, 'animation', 'Le filtre de catégorie doit survivre à la sérialisation')
+  assert.equal(roundTrip.filters.minRating, 4, 'Les critères avancés doivent survivre à la sérialisation')
+}
+
+{
+  const rows = []
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      return rows
+        .filter((row) => row.profile_id === bindValues[0] && row.medium === bindValues[1])
+        .map((row) => ({ ...row }))
+    },
+    async execute(query, bindValues) {
+      if (query.startsWith('INSERT')) {
+        if (rows.some((row) => row.profile_id === bindValues[1] && row.medium === bindValues[2] && row.name === bindValues[3])) {
+          throw new Error('UNIQUE constraint failed: saved_views.profile_id, saved_views.medium, saved_views.name')
+        }
+        rows.push({
+          id: bindValues[0], profile_id: bindValues[1], medium: bindValues[2], name: bindValues[3],
+          criteria_json: bindValues[5], created_at: bindValues[7], updated_at: bindValues[8],
+        })
+        return { rowsAffected: 1 }
+      }
+      if (query.startsWith('UPDATE')) {
+        const row = rows.find((entry) => entry.id === bindValues[2] && entry.profile_id === bindValues[3])
+        if (!row) return { rowsAffected: 0 }
+        if (rows.some((entry) => entry !== row && entry.profile_id === row.profile_id && entry.medium === row.medium && entry.name === bindValues[0])) {
+          throw new Error('UNIQUE constraint failed: saved_views.profile_id, saved_views.medium, saved_views.name')
+        }
+        row.name = bindValues[0]
+        row.updated_at = bindValues[1]
+        return { rowsAffected: 1 }
+      }
+      if (query.startsWith('DELETE')) {
+        const index = rows.findIndex((entry) => entry.id === bindValues[0] && entry.profile_id === bindValues[1])
+        if (index === -1) return { rowsAffected: 0 }
+        rows.splice(index, 1)
+        return { rowsAffected: 1 }
+      }
+      throw new Error(`Requête inattendue : ${query}`)
+    },
+  }
+  const { SqliteSavedViewsRepository } = await import('../src/data/savedViewsRepository.ts')
+  let idCounter = 0
+  const repository = new SqliteSavedViewsRepository(async () => database, () => `vue-${++idCounter}`, () => '2026-08-01T10:00:00.000Z')
+  const criteria = {
+    view: 'ranking',
+    mediumFilter: 'all',
+    filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  }
+
+  const created = await repository.create('profil-a', 'films', '  Mes préférés  ', criteria)
+  assert.equal(created.name, 'Mes préférés', 'Le nom doit être nettoyé avant écriture')
+  assert.match(calls.at(-1)?.query ?? rows[0].criteria_json, /ranking/, 'Le critère doit être persisté')
+  assert.ok(!rows[0].criteria_json.includes('WHERE'), 'Aucune chaîne SQL ne doit être persistée dans les critères')
+
+  await repository.create('profil-b', 'films', 'Mes préférés', criteria)
+  assert.equal(rows.length, 2, 'Le même nom doit être possible dans un autre profil')
+
+  await assert.rejects(
+    () => repository.create('profil-a', 'films', 'Mes préférés', criteria),
+    /porte déjà ce nom/,
+    'Un doublon de nom dans le même profil et médium doit produire une erreur explicite',
+  )
+
+  await assert.rejects(
+    () => repository.create('profil-a', 'films', '   ', criteria),
+    /ne peut pas être vide/,
+    'Un nom vide doit être refusé avant écriture',
+  )
+
+  const artView = await repository.create('profil-a', 'artworks', 'Rétrospective', { ...criteria, mediumFilter: 'peinture' })
+  assert.equal(artView.criteria.view, 'all', 'Une vue Classement demandée pour l’Art doit être réparée avant écriture')
+  assert.equal(artView.criteria.filters.minRating, null, 'Le critère de note doit être absent pour l’Art')
+
+  const filmsViewsA = await repository.list('profil-a', 'films')
+  assert.equal(filmsViewsA.length, 1, 'La liste doit être isolée par profil')
+  assert.match(calls.at(-1).query, /WHERE profile_id = \$1 AND medium = \$2/, 'La liste doit cibler explicitement profil et médium')
+  assert.equal(filmsViewsA[0].criteria.filters.status, 'terminé', 'Le critère relu doit être réparé et fidèle')
+
+  rows[0].criteria_json = '{corrompu'
+  const repaired = await repository.list('profil-a', 'films')
+  assert.equal(repaired[0].criteria.view, 'all', 'Un critère corrompu en base doit retomber sur le critère neutre sans casser la liste')
+
+  await repository.rename('profil-a', created.id, 'Soirées cinéma')
+  assert.equal(rows.find((row) => row.id === created.id).name, 'Soirées cinéma', 'Le renommage doit mettre à jour le nom')
+  await assert.rejects(
+    () => repository.rename('profil-a', 'vue-inconnue', 'Test'),
+    /introuvable/,
+    'Renommer une vue d’un autre profil doit échouer explicitement',
+  )
+
+  await repository.remove('profil-a', created.id)
+  assert.equal(rows.filter((row) => row.profile_id === 'profil-a' && row.medium === 'films').length, 0, 'La suppression doit retirer la vue du profil')
+  await assert.rejects(
+    () => repository.remove('profil-a', created.id),
+    /introuvable/,
+    'Supprimer une vue absente du profil doit échouer explicitement',
+  )
+}
+
+assert.equal((mainSource0419.match(/<SavedViewsBar/g) ?? []).length, 5, 'Les cinq bibliothèques doivent proposer les vues enregistrées')
+assert.match(savedViewsBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
+assert.match(savedViewsBarSource, /Enregistrer la vue/, 'La barre doit permettre de nommer la vue courante')
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité.')
