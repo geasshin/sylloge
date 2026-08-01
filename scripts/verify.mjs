@@ -2513,7 +2513,7 @@ assert.match(stepperSource, /aria-label=\{`Ajouter 1 à \$\{label\}`\}/, 'Le bou
 assert.match(stepperSource, /aria-label=\{`Retirer 1 à \$\{label\}`\}/, 'Le bouton − doit rester accessible')
 assert.match(seriesDetailSource, /saison/, 'La fiche doit afficher l’avancement en saisons')
 assert.match(mainSource043, /icon\('series'\)\} Séries/, 'La sidebar doit proposer l’entrée Séries')
-assert.match(mainSource043, /SERIES_CATEGORY_FILTERS/, 'La bibliothèque Séries doit offrir les vues globale, télé et animation')
+assert.match(mainSource043, /label: 'Catégorie'/, 'La bibliothèque Séries doit offrir le filtre par catégorie')
 assert.match(mainSource043, /searchSeries/, 'La recherche Séries doit reposer sur le repository')
 assert.match(mediaRepositorySource, /searchSeries/, 'Le repository doit exposer la recherche Séries')
 assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_QUERY_COLUMNS\)/, 'Le tri Séries doit reposer sur les colonnes documentées du médium')
@@ -2821,7 +2821,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   )
 }
 
-assert.match(mainSource045, /BOOK_CATEGORY_FILTERS/, 'La bibliothèque Livres doit offrir les vues Livre, Manga et Comics')
+assert.match(mainSource045, /BOOK_CATEGORIES\.map/, 'La bibliothèque Livres doit offrir le filtre Livre, Manga et Comics')
 assert.match(mainSource045, /searchBooks/, 'La recherche Livres doit reposer sur le repository SQLite')
 assert.match(mainSource045, /kind="books"/, 'La bibliothèque Livres doit proposer son import unitaire')
 assert.match(mainSource045, /LibraryExportButton kind="books"/, 'La bibliothèque Livres doit proposer son export dédié')
@@ -3392,13 +3392,13 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
   assert.deepEqual(resolveLibraryQuery(favorites, EMPTY_LIBRARY_FILTERS, null).sort, favorites.sort, 'Sans tri explicite, le tri du préset s’applique')
 }
 
-assert.equal((mainSource0419.match(/<LibraryViewTabs/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager la même rangée de vues')
-assert.match(mainSource0419, /views=\{UNRATED_BUILTIN_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
+assert.equal((mainSource0419.match(/<LibraryViewBar/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager la même rangée de vues unifiée')
+assert.match(mainSource0419, /builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
 assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
 assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
 
-// Jalon 0.4.20 — filtres avancés combinables avec la recherche et la vue active.
-const libraryFilterPanelSource = readFileSync(new URL('../src/components/LibraryFilterPanel.tsx', import.meta.url), 'utf8')
+// Jalon 0.4.20 — filtres avancés combinables ; jalon 0.4.24 — popovers Filtre/Tri de la rangée unifiée.
+const libraryViewBarSource = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
 
 {
   const {
@@ -3513,16 +3513,17 @@ const libraryFilterPanelSource = readFileSync(new URL('../src/components/Library
   assert.match(artworkCall.query, /is_favorite = 1/, 'Le filtre favoris doit rester actif pendant le filtrage Art')
 }
 
-assert.equal((mainSource0419.match(/<LibraryFilterPanel/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager le panneau de filtres')
-assert.match(libraryFilterPanelSource, /Réinitialiser/, 'Le panneau doit proposer une remise à zéro explicite')
-assert.match(libraryFilterPanelSource, /aria-label="Critères actifs"/, 'Les critères actifs doivent être affichés et accessibles')
+assert.match(libraryViewBarSource, /Réinitialiser/, 'Le popover Filtre doit proposer une remise à zéro explicite')
+assert.match(libraryViewBarSource, /aria-label="Filtres"/, 'Le popover Filtre doit rester accessible')
+assert.match(libraryViewBarSource, /aria-label="Tri"/, 'Le popover Tri doit rester accessible')
+assert.match(libraryViewBarSource, /view-bar-badge/, 'Les critères actifs doivent être comptés sur l’icône Filtre')
+assert.match(libraryViewBarSource, /role="dialog"/, 'Filtre et Tri doivent s’ouvrir dans des popovers, pas des panneaux permanents')
 assert.match(mainSource0419, /EMPTY_LIBRARY_FILTERS, sortOverride: null \}\)/, 'Réinitialiser doit ramener à un état clairement défini')
 
 // Jalons 0.4.21 puis 0.4.23 — vues personnalisées enregistrées, locales et isolées, modèle unifié.
 const savedViewsMigrationSource = readFileSync(new URL('../src-tauri/migrations/0012_create_saved_views.sql', import.meta.url), 'utf8')
 const savedViewsMigration13Source = readFileSync(new URL('../src-tauri/migrations/0013_saved_views_unified_criteria.sql', import.meta.url), 'utf8')
 const rustDatabaseSource = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
-const savedViewsBarSource = readFileSync(new URL('../src/components/SavedViewsBar.tsx', import.meta.url), 'utf8')
 const libraryDocumentSource0421 = readFileSync(new URL('../src/domain/libraryDocument.ts', import.meta.url), 'utf8')
 const rustPortabilitySource0421 = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
 
@@ -3697,8 +3698,8 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
   )
 }
 
-assert.equal((mainSource0419.match(/<SavedViewsBar/g) ?? []).length, 5, 'Les cinq bibliothèques doivent proposer les vues enregistrées')
-assert.match(savedViewsBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
-assert.match(savedViewsBarSource, /Enregistrer la vue/, 'La barre doit permettre de nommer la vue courante')
+assert.match(libraryViewBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
+assert.match(libraryViewBarSource, /Enregistrer comme vue/, 'La rangée doit permettre d’enregistrer le combo courant comme vue')
+assert.match(libraryViewBarSource, /INLINE_SAVED_VIEWS/, 'Le débordement des vues enregistrées doit rester borné dans la rangée')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture.')
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue.')

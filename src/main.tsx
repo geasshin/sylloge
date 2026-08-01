@@ -29,8 +29,7 @@ import {
   type SeriesSearchCriteria,
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
-import { LibraryFilterPanel, type LibraryFilterPanelConfig } from './components/LibraryFilterPanel.tsx'
-import { SavedViewsBar } from './components/SavedViewsBar.tsx'
+import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { associateFilmWithTmdb, getFilmTmdbCache } from './data/tmdbService.ts'
@@ -54,6 +53,7 @@ import {
   type LibraryFilters,
 } from './domain/libraryFilters.ts'
 import {
+  SERIES_CATEGORIES,
   SERIES_CATEGORY_LABELS,
   SERIES_STATUS_LABELS,
   SERIES_STATUSES,
@@ -62,6 +62,7 @@ import {
 } from './domain/series.ts'
 import type { SeriesWriteInput } from './domain/seriesForm.ts'
 import {
+  BOOK_CATEGORIES,
   BOOK_CATEGORY_LABELS,
   BOOK_STATUS_LABELS,
   BOOK_STATUSES,
@@ -568,32 +569,6 @@ function Home({ library, onOpen }: HomeProps) {
   )
 }
 
-type LibraryViewTabsProps = {
-  views: readonly LibraryViewDefinition[]
-  currentId: string
-  ariaLabel: string
-  onChange: (view: LibraryViewDefinition) => void
-}
-
-/** Rangée de vues partagée par les cinq bibliothèques (jalon 0.4.23). */
-function LibraryViewTabs({ views, currentId, ariaLabel, onChange }: LibraryViewTabsProps) {
-  return (
-    <div className="filters library-views" role="group" aria-label={ariaLabel}>
-      {views.map((view) => (
-        <button
-          className={`filter ${currentId === view.id ? 'active' : ''}`}
-          type="button"
-          aria-pressed={currentId === view.id}
-          key={view.id}
-          onClick={() => onChange(view)}
-        >
-          {view.name}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 type LibraryContext = {
   query: string
   view: LibraryViewDefinition
@@ -704,32 +679,23 @@ function FilmsLibrary({
                 spellCheck={false}
               />
             </label>
-            <LibraryViewTabs
-              views={RATED_BUILTIN_VIEWS}
-              currentId={context.view.id}
-              ariaLabel="Choisir la vue des films"
-              onChange={(view) => onContextChange({ ...context, view })}
+            <LibraryViewBar
+              profileId={library.profile.id}
+              medium="films"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={FILM_FILTER_PANEL_CONFIG}
+              mediumFilterValue="all"
+              onMediumFilterChange={() => {}}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
             />
           </div>
-
-          <LibraryFilterPanel
-            filters={context.extraFilters}
-            config={FILM_FILTER_PANEL_CONFIG}
-            idPrefix="films-filters"
-            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-          />
-
-          <SavedViewsBar
-            profileId={library.profile.id}
-            medium="films"
-            current={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
-            onApply={(savedView) => onContextChange({
-              ...context,
-              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
-              extraFilters: EMPTY_LIBRARY_FILTERS,
-              sortOverride: null,
-            })}
-          />
 
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
@@ -776,10 +742,9 @@ type LibraryState =
   | { status: 'no-profile' }
   | { status: 'error' }
 
-type SeriesCategoryFilter = SeriesCategory | 'all'
-type BookCategoryFilter = BookCategory | 'all'
 
-const FILM_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+const FILM_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: null,
   statusOptions: FILM_STATUSES.map((status) => ({ value: status, label: FILM_STATUS_LABELS[status] })),
   showRating: true,
   showYear: true,
@@ -789,7 +754,14 @@ const FILM_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
   showExhibition: false,
 }
 
-const SERIES_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+const SERIES_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: {
+    label: 'Catégorie',
+    options: [
+      { value: 'all', label: 'Toutes' },
+      ...SERIES_CATEGORIES.map((category) => ({ value: category as string, label: SERIES_CATEGORY_LABELS[category] })),
+    ],
+  },
   statusOptions: SERIES_STATUSES.map((status) => ({ value: status, label: SERIES_STATUS_LABELS[status] })),
   showRating: true,
   showYear: false,
@@ -799,7 +771,14 @@ const SERIES_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
   showExhibition: false,
 }
 
-const BOOK_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+const BOOK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: {
+    label: 'Catégorie',
+    options: [
+      { value: 'all', label: 'Tous' },
+      ...BOOK_CATEGORIES.map((category) => ({ value: category as string, label: BOOK_CATEGORY_LABELS[category] })),
+    ],
+  },
   statusOptions: BOOK_STATUSES.map((status) => ({ value: status, label: BOOK_STATUS_LABELS[status] })),
   showRating: true,
   showYear: true,
@@ -809,7 +788,8 @@ const BOOK_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
   showExhibition: false,
 }
 
-const GAME_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+const GAME_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: null,
   statusOptions: GAME_STATUSES.map((status) => ({ value: status, label: GAME_STATUS_LABELS[status] })),
   showRating: true,
   showYear: true,
@@ -819,7 +799,14 @@ const GAME_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
   showExhibition: false,
 }
 
-const ARTWORK_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+const ARTWORK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: {
+    label: 'Forme',
+    options: [
+      { value: 'all', label: 'Toutes' },
+      ...ARTWORK_FORMS.map((form) => ({ value: form as string, label: ARTWORK_FORM_LABELS[form] })),
+    ],
+  },
   statusOptions: ARTWORK_STATUSES.map((status) => ({ value: status, label: ARTWORK_STATUS_LABELS[status] })),
   showRating: false,
   showYear: true,
@@ -828,19 +815,6 @@ const ARTWORK_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
   showLocation: true,
   showExhibition: true,
 }
-
-const SERIES_CATEGORY_FILTERS: Array<{ id: SeriesCategoryFilter; label: string }> = [
-  { id: 'all', label: 'Toutes' },
-  { id: 'série télé', label: SERIES_CATEGORY_LABELS['série télé'] },
-  { id: 'animation', label: SERIES_CATEGORY_LABELS.animation },
-]
-
-const BOOK_CATEGORY_FILTERS: Array<{ id: BookCategoryFilter; label: string }> = [
-  { id: 'all', label: 'Tous' },
-  { id: 'livre', label: BOOK_CATEGORY_LABELS.livre },
-  { id: 'manga', label: BOOK_CATEGORY_LABELS.manga },
-  { id: 'comics', label: BOOK_CATEGORY_LABELS.comics },
-]
 
 function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) {
   const progress = series.seasonsSeen !== null && series.seasonsTotal !== null
@@ -941,46 +915,23 @@ function SeriesLibrary({
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
               />
             </label>
-            <LibraryViewTabs
-              views={RATED_BUILTIN_VIEWS}
-              currentId={context.view.id}
-              ariaLabel="Choisir la vue des séries"
-              onChange={(view) => onContextChange({ ...context, view })}
+            <LibraryViewBar
+              profileId={profileId}
+              medium="series"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={SERIES_FILTER_PANEL_CONFIG}
+              mediumFilterValue={context.category}
+              onMediumFilterChange={(category) => onContextChange({ ...context, category: category as SeriesCategory | 'all' })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: false }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
             />
-            <div className="filters" role="group" aria-label="Filtrer les séries">
-              {SERIES_CATEGORY_FILTERS.map((filter) => (
-                <button
-                  className={`filter ${context.category === filter.id ? 'active' : ''}`}
-                  type="button"
-                  aria-pressed={context.category === filter.id}
-                  key={filter.id}
-                  onClick={() => onContextChange({ ...context, category: filter.id })}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
           </div>
-
-          <LibraryFilterPanel
-            filters={context.extraFilters}
-            config={SERIES_FILTER_PANEL_CONFIG}
-            idPrefix="series-filters"
-            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-          />
-
-          <SavedViewsBar
-            profileId={profileId}
-            medium="series"
-            current={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
-            onApply={(savedView) => onContextChange({
-              ...context,
-              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
-              category: savedView.criteria.mediumFilter as SeriesCategory | 'all',
-              extraFilters: EMPTY_LIBRARY_FILTERS,
-              sortOverride: null,
-            })}
-          />
 
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
@@ -1146,46 +1097,29 @@ function GamesLibrary({
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
               />
             </label>
-            <LibraryViewTabs
-              views={RATED_BUILTIN_VIEWS}
-              currentId={context.view.id}
-              ariaLabel="Choisir la vue des jeux"
-              onChange={(view) => onContextChange({ ...context, view })}
+            <LibraryViewBar
+              profileId={profileId}
+              medium="games"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={{
+                ...GAME_FILTER_PANEL_CONFIG,
+                mediumFilter: {
+                  label: 'Plateforme',
+                  options: [{ value: 'all', label: 'Toutes' }, ...platforms.map((platform) => ({ value: platform, label: platform }))],
+                },
+              }}
+              mediumFilterValue={context.platform}
+              onMediumFilterChange={(platform) => onContextChange({ ...context, platform })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
             />
-            <div className="filters collection-filters" role="group" aria-label="Filtrer les jeux par plateforme">
-              {['all', ...platforms].map((platform) => (
-                <button
-                  className={`filter ${context.platform === platform ? 'active' : ''}`}
-                  type="button"
-                  aria-pressed={context.platform === platform}
-                  key={platform}
-                  onClick={() => onContextChange({ ...context, platform })}
-                >
-                  {platform === 'all' ? 'Toutes' : platform}
-                </button>
-              ))}
-            </div>
           </div>
-
-          <LibraryFilterPanel
-            filters={context.extraFilters}
-            config={GAME_FILTER_PANEL_CONFIG}
-            idPrefix="games-filters"
-            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-          />
-
-          <SavedViewsBar
-            profileId={profileId}
-            medium="games"
-            current={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
-            onApply={(savedView) => onContextChange({
-              ...context,
-              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
-              platform: savedView.criteria.mediumFilter,
-              extraFilters: EMPTY_LIBRARY_FILTERS,
-              sortOverride: null,
-            })}
-          />
 
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
@@ -1320,46 +1254,23 @@ function ArtworksLibrary({
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
               />
             </label>
-            <LibraryViewTabs
-              views={UNRATED_BUILTIN_VIEWS}
-              currentId={context.view.id}
-              ariaLabel="Choisir la vue des œuvres"
-              onChange={(view) => onContextChange({ ...context, view })}
+            <LibraryViewBar
+              profileId={profileId}
+              medium="artworks"
+              builtinViews={UNRATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={ARTWORK_FILTER_PANEL_CONFIG}
+              mediumFilterValue={context.form}
+              onMediumFilterChange={(form) => onContextChange({ ...context, form: form as ArtworkSearchCriteria['form'] })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: false, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
             />
-            <div className="filters collection-filters" role="group" aria-label="Filtrer les œuvres par forme">
-              {(['all', ...ARTWORK_FORMS] as const).map((form) => (
-                <button
-                  className={`filter ${context.form === form ? 'active' : ''}`}
-                  type="button"
-                  aria-pressed={context.form === form}
-                  key={form}
-                  onClick={() => onContextChange({ ...context, form })}
-                >
-                  {form === 'all' ? 'Toutes' : ARTWORK_FORM_LABELS[form]}
-                </button>
-              ))}
-            </div>
           </div>
-
-          <LibraryFilterPanel
-            filters={context.extraFilters}
-            config={ARTWORK_FILTER_PANEL_CONFIG}
-            idPrefix="artworks-filters"
-            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-          />
-
-          <SavedViewsBar
-            profileId={profileId}
-            medium="artworks"
-            current={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
-            onApply={(savedView) => onContextChange({
-              ...context,
-              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
-              form: savedView.criteria.mediumFilter as ArtworkSearchCriteria['form'],
-              extraFilters: EMPTY_LIBRARY_FILTERS,
-              sortOverride: null,
-            })}
-          />
 
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
@@ -1472,46 +1383,23 @@ function BooksLibrary({
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
               />
             </label>
-            <LibraryViewTabs
-              views={RATED_BUILTIN_VIEWS}
-              currentId={context.view.id}
-              ariaLabel="Choisir la vue des livres"
-              onChange={(view) => onContextChange({ ...context, view })}
+            <LibraryViewBar
+              profileId={profileId}
+              medium="books"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={BOOK_FILTER_PANEL_CONFIG}
+              mediumFilterValue={context.category}
+              onMediumFilterChange={(category) => onContextChange({ ...context, category: category as BookCategory | 'all' })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
             />
-            <div className="filters" role="group" aria-label="Filtrer les livres">
-              {BOOK_CATEGORY_FILTERS.map((filter) => (
-                <button
-                  className={`filter ${context.category === filter.id ? 'active' : ''}`}
-                  type="button"
-                  aria-pressed={context.category === filter.id}
-                  key={filter.id}
-                  onClick={() => onContextChange({ ...context, category: filter.id })}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
           </div>
-
-          <LibraryFilterPanel
-            filters={context.extraFilters}
-            config={BOOK_FILTER_PANEL_CONFIG}
-            idPrefix="books-filters"
-            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-          />
-
-          <SavedViewsBar
-            profileId={profileId}
-            medium="books"
-            current={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
-            onApply={(savedView) => onContextChange({
-              ...context,
-              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
-              category: savedView.criteria.mediumFilter as BookCategory | 'all',
-              extraFilters: EMPTY_LIBRARY_FILTERS,
-              sortOverride: null,
-            })}
-          />
 
           <div className="collection-meta books-collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (

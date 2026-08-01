@@ -381,6 +381,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.24` — Rangée de vues unifiée et popovers Filtre / Tri
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Chaque bibliothèque n'a plus qu'une seule ligne d'outils : recherche, vues intégrées et vues enregistrées dans la même rangée (débordement borné « +n » au-delà de trois vues personnelles), puis trois icônes — Filtre, Tri, Enregistrer comme vue — ouvrant chacune un popover sobre refermable au clic extérieur ou à Échap. Le filtre propre au médium (catégorie, plateforme, forme) vit dans le popover Filtre ; les critères actifs sont comptés sur l'icône. Le tri explicite remplace celui du préset actif et retombe au tri de la vue sur demande. Le panneau de filtres et la barre de vues enregistrées de `0.4.20`–`0.4.21` sont supprimés ; appliquer une vue enregistrée absorbe les réglages à la volée, changer de vue intégrée les conserve.
+
 - Présenter vues intégrées et vues enregistrées dans une même rangée, avec débordement discret quand la ligne est pleine (inspiration Notion), sans pousser les boutons hors de l'écran.
 - Deux icônes en bout de ligne, Filtre et Tri, ouvrant chacune un popover sobre ; « Enregistrer comme vue » capture le combo effectif dans la rangée.
 - Supprimer le panneau de filtres et la barre de vues enregistrées introduits en `0.4.20`–`0.4.21`.
