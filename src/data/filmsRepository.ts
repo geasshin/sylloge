@@ -1,9 +1,11 @@
-import { FILM_STATUSES, normalizeFilm, type Film, type FilmFilter, type FilmStatus } from '../domain/film.ts'
+import { FILM_STATUSES, normalizeFilm, type Film, type FilmStatus } from '../domain/film.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
+import type { LibraryView } from '../domain/libraryViews.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
 import type { Profile } from '../domain/profile.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
+import { libraryViewOrderBy, libraryViewWhereClause } from './libraryViewQuery.ts'
 import {
   importLibraryAtomically,
   type ImportLibraryResult,
@@ -52,7 +54,7 @@ type ProfileSummaryRow = ProfileRow & {
 
 export type FilmSearchCriteria = {
   query: string
-  filter: FilmFilter
+  view: LibraryView
 }
 
 export type SqliteQueryResult = {
@@ -277,14 +279,9 @@ export class SqliteFilmsRepository {
       )`)
     }
 
-    if (criteria.filter === 'to-discover') {
-      bindValues.push('à découvrir')
-      clauses.push(`status = $${bindValues.length}`)
-    } else if (criteria.filter === 'completed') {
-      bindValues.push('terminé')
-      clauses.push(`status = $${bindValues.length}`)
-    } else if (criteria.filter === 'favorites') {
-      clauses.push('is_favorite = 1')
+    const viewClause = libraryViewWhereClause(criteria.view)
+    if (viewClause) {
+      clauses.push(viewClause)
     }
 
     const rows = await database.select<FilmRow[]>(
@@ -308,7 +305,7 @@ export class SqliteFilmsRepository {
          updated_at
        FROM films
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY title COLLATE NOCASE ASC, created_at ASC`,
+       ORDER BY ${libraryViewOrderBy(criteria.view)}`,
       bindValues,
     )
 

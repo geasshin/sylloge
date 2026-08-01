@@ -2,8 +2,10 @@ import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type A
 import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
+import type { LibraryView } from '../domain/libraryViews.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
 import type { DatabaseLoader, IdFactory, NowFactory } from './filmsRepository.ts'
+import { libraryViewOrderBy, libraryViewWhereClause } from './libraryViewQuery.ts'
 import {
   createBookAtomically,
   deleteBookAtomically,
@@ -305,21 +307,25 @@ export function toArtwork(row: ArtworkRow): Artwork {
 export type SeriesSearchCriteria = {
   query: string
   category: SeriesCategory | 'all'
+  view: LibraryView
 }
 
 export type BookSearchCriteria = {
   query: string
   category: BookCategory | 'all'
+  view: LibraryView
 }
 
 export type GameSearchCriteria = {
   query: string
   platform: string | 'all'
+  view: LibraryView
 }
 
 export type ArtworkSearchCriteria = {
   query: string
   form: ArtworkForm | 'all'
+  view: LibraryView
 }
 
 export class SqliteMediaRepository {
@@ -380,13 +386,16 @@ export class SqliteMediaRepository {
       clauses.push(`category = $${bindValues.length}`)
     }
 
+    const viewClause = libraryViewWhereClause(criteria.view)
+    if (viewClause) {
+      clauses.push(viewClause)
+    }
+
     const rows = await database.select<SeriesRow[]>(
       `SELECT ${SERIES_COLUMNS}
        FROM series
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY
-         COALESCE(progress_updated_at, updated_at) DESC,
-         title COLLATE NOCASE ASC`,
+       ORDER BY ${libraryViewOrderBy(criteria.view, { progressColumn: 'progress_updated_at' })}`,
       bindValues,
     )
 
@@ -598,13 +607,16 @@ export class SqliteMediaRepository {
       clauses.push(`category = $${bindValues.length}`)
     }
 
+    const viewClause = libraryViewWhereClause(criteria.view)
+    if (viewClause) {
+      clauses.push(viewClause)
+    }
+
     const rows = await database.select<BookRow[]>(
       `SELECT ${BOOK_COLUMNS}
        FROM books
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY
-         COALESCE(progress_updated_at, updated_at) DESC,
-         title COLLATE NOCASE ASC`,
+       ORDER BY ${libraryViewOrderBy(criteria.view, { progressColumn: 'progress_updated_at' })}`,
       bindValues,
     )
     if (rows.length === 0) return []
@@ -739,11 +751,16 @@ export class SqliteMediaRepository {
       clauses.push(`platform = $${bindValues.length} COLLATE NOCASE`)
     }
 
+    const viewClause = libraryViewWhereClause(criteria.view)
+    if (viewClause) {
+      clauses.push(viewClause)
+    }
+
     const rows = await database.select<GameRow[]>(
       `SELECT ${GAME_COLUMNS}
        FROM games
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY updated_at DESC, title COLLATE NOCASE ASC`,
+       ORDER BY ${libraryViewOrderBy(criteria.view)}`,
       bindValues,
     )
 
@@ -920,11 +937,16 @@ export class SqliteMediaRepository {
       clauses.push(`form = $${bindValues.length}`)
     }
 
+    const viewClause = libraryViewWhereClause(criteria.view)
+    if (viewClause) {
+      clauses.push(viewClause)
+    }
+
     const rows = await database.select<ArtworkRow[]>(
       `SELECT ${ARTWORK_COLUMNS}
        FROM artworks
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY updated_at DESC, title COLLATE NOCASE ASC`,
+       ORDER BY ${libraryViewOrderBy(criteria.view)}`,
       bindValues,
     )
 

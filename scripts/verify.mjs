@@ -1570,27 +1570,26 @@ const completeExport = createLibraryExport({
   }
   const repository = new SqliteFilmsRepository(async () => database)
 
-  const searched = await repository.searchFilms('default', { query: '  Chihiro  ', filter: 'all' })
+  const searched = await repository.searchFilms('default', { query: '  Chihiro  ', view: 'all' })
   assert.equal(searched[0].id, filmRow.id, 'La recherche doit convertir les résultats SQLite')
   assert.match(calls[0].query, /title COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger le titre dans SQLite')
   assert.match(calls[0].query, /original_title COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger le titre original dans SQLite')
   assert.match(calls[0].query, /director COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger la réalisation dans SQLite')
   assert.deepEqual(calls[0].bindValues, ['default', '%Chihiro%'], 'Le texte recherché doit être normalisé et paramétré')
 
-  await repository.searchFilms('default', { query: '100%_film', filter: 'to-discover' })
-  assert.deepEqual(calls[1].bindValues, ['default', '%100\\%\\_film%', 'à découvrir'], 'Les jokers LIKE doivent être échappés et le filtre paramétré')
-  assert.match(calls[1].query, /status = \$3/, 'Le filtre à découvrir doit être exécuté dans SQLite')
+  await repository.searchFilms('default', { query: '100%_film', view: 'favorites' })
+  assert.deepEqual(calls[1].bindValues, ['default', '%100\\%\\_film%'], 'Les jokers LIKE doivent être échappés et le filtre paramétré')
+  assert.match(calls[1].query, /is_favorite = 1/, 'La vue favoris doit être exécutée dans SQLite')
 
-  await repository.searchFilms('default', { query: '', filter: 'completed' })
-  assert.deepEqual(calls[2].bindValues, ['default', 'terminé'], 'Le filtre terminés doit être paramétré dans SQLite')
-  assert.match(calls[2].query, /status = \$2/, 'Le filtre terminés doit être exécuté dans SQLite')
+  await repository.searchFilms('default', { query: '', view: 'recent' })
+  assert.match(calls[2].query, /ORDER BY updated_at DESC, title COLLATE NOCASE ASC/, 'La vue récente doit trier par dernière modification dans SQLite')
 
-  await repository.searchFilms('default', { query: '', filter: 'favorites' })
-  assert.deepEqual(calls[3].bindValues, ['default'], 'Le filtre favoris doit rester limité au profil courant')
-  assert.match(calls[3].query, /is_favorite = 1/, 'Le filtre favoris doit être exécuté dans SQLite')
+  await repository.searchFilms('default', { query: '', view: 'ranking' })
+  assert.match(calls[3].query, /ORDER BY rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC/, 'Le classement doit trier par note décroissante, absences en fin')
 
-  await repository.searchFilms('default', { query: '', filter: 'all' })
-  assert.doesNotMatch(calls[4].query, /status =|is_favorite = 1/, 'Le filtre tous ne doit ajouter aucune restriction')
+  await repository.searchFilms('default', { query: '', view: 'all' })
+  assert.doesNotMatch(calls[4].query, /is_favorite = 1/, 'La vue tous ne doit ajouter aucune restriction')
+  assert.match(calls[4].query, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'La vue tous doit conserver l’ordre canonique par titre')
 
   const detail = await repository.getFilm('default', 'film-test')
   assert.equal(detail?.id, 'film-test', 'La fiche doit être relue depuis SQLite')
@@ -2513,7 +2512,7 @@ assert.match(mainSource043, /icon\('series'\)\} Séries/, 'La sidebar doit propo
 assert.match(mainSource043, /SERIES_CATEGORY_FILTERS/, 'La bibliothèque Séries doit offrir les vues globale, télé et animation')
 assert.match(mainSource043, /searchSeries/, 'La recherche Séries doit reposer sur le repository')
 assert.match(mediaRepositorySource, /searchSeries/, 'Le repository doit exposer la recherche Séries')
-assert.match(mediaRepositorySource, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue récente Séries doit reposer sur l’horodatage interne de progression')
+assert.match(mediaRepositorySource, /libraryViewOrderBy\(criteria\.view, \{ progressColumn: 'progress_updated_at' \}\)/, 'La vue récente Séries doit reposer sur l’horodatage interne de progression')
 
 {
   const {
@@ -2579,17 +2578,20 @@ assert.match(mediaRepositorySource, /COALESCE\(progress_updated_at, updated_at\)
   }
   const repository = new SqliteMediaRepository(async () => database)
 
-  await repository.searchSeries('default', { query: '', category: 'all' })
+  await repository.searchSeries('default', { query: '', category: 'all', view: 'all' })
   const globalQuery = calls.at(-1).query
   assert.ok(!globalQuery.includes('category = $'), 'La vue globale ne doit pas filtrer par catégorie')
-  assert.match(globalQuery, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue récente doit trier par progression interne')
+  assert.match(globalQuery, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'La vue tous doit trier par titre')
 
-  await repository.searchSeries('default', { query: '', category: 'animation' })
+  await repository.searchSeries('default', { query: '', category: 'all', view: 'recent' })
+  assert.match(calls.at(-1).query, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue récente doit trier par progression interne')
+
+  await repository.searchSeries('default', { query: '', category: 'animation', view: 'all' })
   const animationQuery = calls.at(-1)
   assert.match(animationQuery.query, /category = \$\d+/, 'La vue animation doit filtrer la catégorie')
   assert.deepEqual(animationQuery.bindValues, ['default', 'animation'], 'Le filtre animation doit lier la catégorie demandée')
 
-  await repository.searchSeries('default', { query: 'lupin', category: 'série télé' })
+  await repository.searchSeries('default', { query: 'lupin', category: 'série télé', view: 'all' })
   const searchCall = calls.at(-1)
   assert.match(searchCall.query, /showrunner COLLATE NOCASE LIKE/, 'La recherche doit couvrir le showrunner')
   assert.match(searchCall.query, /casting COLLATE NOCASE LIKE/, 'La recherche doit couvrir le casting')
@@ -2782,7 +2784,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
       throw new Error('Aucune écriture attendue pendant la recherche Livres')
     },
   }))
-  const searched = await repository.searchBooks('default', { query: '  Élodie  ', category: 'livre' })
+  const searched = await repository.searchBooks('default', { query: '  Élodie  ', category: 'livre', view: 'recent' })
   assert.equal(searched[0].quotes[0].body, 'Vers préservé', 'La recherche doit restituer les citations de la fiche trouvée')
   assert.match(calls[0].query, /author COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir l’auteur')
   assert.match(calls[0].query, /summary COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir le résumé')
@@ -3269,8 +3271,8 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     },
     async execute() { throw new Error('Aucune écriture attendue pendant la recherche') },
   }))
-  await repository.searchGames('default', { query: '  Éclair  ', platform: 'Steam Deck' })
-  await repository.searchArtworks('default', { query: '  Montréal  ', form: 'photographie' })
+  await repository.searchGames('default', { query: '  Éclair  ', platform: 'Steam Deck', view: 'all' })
+  await repository.searchArtworks('default', { query: '  Montréal  ', form: 'photographie', view: 'all' })
   assert.match(calls[0].query, /developer COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir le studio')
   assert.match(calls[0].query, /platform COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir la plateforme')
   assert.deepEqual(calls[0].bindValues, ['default', '%Éclair%', 'Steam Deck'], 'Le filtre de plateforme doit être paramétré')
@@ -3341,4 +3343,33 @@ assert.match(tmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche TMDB doit 
 assert.match(tmdbSearchFlowSource, /spellCheck=\{false\}/, 'La recherche TMDB doit désactiver la correction orthographique')
 assert.match(mainSource047, /autoCorrect="off"[\s\S]*spellCheck=\{false\}/, 'La recherche locale Films doit désactiver les corrections automatiques')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide.')
+// Jalon 0.4.19 — vues intégrées Tous / Récents / Favoris / Classement, tris SQL documentés.
+const libraryViewQuerySource = readFileSync(new URL('../src/data/libraryViewQuery.ts', import.meta.url), 'utf8')
+const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+{
+  const { LIBRARY_VIEWS, RATED_LIBRARY_VIEWS, UNRATED_LIBRARY_VIEWS } = await import('../src/domain/libraryViews.ts')
+  const { libraryViewOrderBy, libraryViewWhereClause } = await import('../src/data/libraryViewQuery.ts')
+
+  assert.deepEqual([...LIBRARY_VIEWS], ['all', 'recent', 'favorites', 'ranking'], 'Le vocabulaire des vues doit être borné à quatre entrées')
+  assert.deepEqual([...RATED_LIBRARY_VIEWS], [...LIBRARY_VIEWS], 'Les médiums notés doivent proposer les quatre vues')
+  assert.ok(!UNRATED_LIBRARY_VIEWS.includes('ranking'), 'L’Art ne doit jamais proposer de classement par note')
+
+  assert.equal(libraryViewOrderBy('all'), 'title COLLATE NOCASE ASC, created_at ASC', 'Tous doit conserver l’ordre canonique par titre')
+  assert.equal(libraryViewOrderBy('recent'), 'updated_at DESC, title COLLATE NOCASE ASC', 'Récents sans progression doit suivre la dernière modification')
+  assert.equal(
+    libraryViewOrderBy('recent', { progressColumn: 'progress_updated_at' }),
+    'COALESCE(progress_updated_at, updated_at) DESC, title COLLATE NOCASE ASC',
+    'Récents doit privilégier la progression métier horodatée quand elle existe',
+  )
+  assert.equal(libraryViewOrderBy('ranking'), 'rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC', 'Classement doit trier par note décroissante, absences de note en fin')
+  assert.equal(libraryViewWhereClause('favorites'), 'is_favorite = 1', 'Favoris doit filtrer les coups de cœur dans SQLite')
+  assert.equal(libraryViewWhereClause('all'), null, 'Tous ne doit ajouter aucune restriction')
+}
+
+assert.equal((mainSource0419.match(/<LibraryViewTabs/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager la même rangée de vues')
+assert.match(mainSource0419, /views=\{UNRATED_LIBRARY_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
+assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
+assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note.')

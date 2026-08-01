@@ -351,6 +351,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.19` — Vues intégrées et tris essentiels
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques partagent la même rangée de vues Tous, Récents, Favoris et Classement (absent de l'Art, sans note). Les ordres sont résolus en colonnes SQL documentées : Tous suit le titre, Récents la progression horodatée (saisons, tomes) ou la dernière modification, Classement la note décroissante avec les absences en fin. Les anciens filtres Films par statut disparaissent de la vue principale : les statuts terminaux deviendront des critères du panneau de filtres au jalon `0.4.20`. Les catégories Série/Livre, plateformes Jeux et formes Art restent des filtres propres à leur médium.
+
 - Installer des vues cohérentes Tous, Récents, Favoris et Classement lorsque la note existe.
 - Déplacer les statuts terminaux dans les critères de filtre plutôt que d’imposer une vue « Terminé ».
 
