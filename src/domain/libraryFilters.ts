@@ -101,3 +101,22 @@ export function describeActiveFilters(
 export function clearFilterChip(filters: LibraryFilters, key: keyof LibraryFilters): LibraryFilters {
   return { ...filters, [key]: EMPTY_LIBRARY_FILTERS[key] }
 }
+
+/**
+ * Fusionne les filtres de base d'une vue avec les filtres choisis à la volée
+ * (jalon 0.4.23) : chaque critère renseigné à la volée l'emporte sur la base,
+ * et le favori se cumule — un filtre « favoris » ne peut pas annuler la vue
+ * Favoris, il s'applique à l'intérieur d'elle.
+ */
+export function mergeLibraryFilters(base: LibraryFilters, extra: LibraryFilters): LibraryFilters {
+  return {
+    status: extra.status !== 'all' ? extra.status : base.status,
+    favoritesOnly: base.favoritesOnly || extra.favoritesOnly,
+    minRating: extra.minRating ?? base.minRating,
+    year: extra.year ?? base.year,
+    personalDateFrom: extra.personalDateFrom ?? base.personalDateFrom,
+    specificText: extra.specificText.trim() !== '' ? extra.specificText : base.specificText,
+    location: extra.location.trim() !== '' ? extra.location : base.location,
+    exhibition: extra.exhibition.trim() !== '' ? extra.exhibition : base.exhibition,
+  }
+}

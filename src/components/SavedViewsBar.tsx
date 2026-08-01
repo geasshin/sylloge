@@ -6,7 +6,7 @@ type SavedViewsBarProps = {
   profileId: string
   medium: SavedViewMedium
   current: SavedViewCriteria
-  onApply: (criteria: SavedViewCriteria) => void
+  onApply: (view: SavedView) => void
 }
 
 type EditorMode =
@@ -103,7 +103,7 @@ export function SavedViewsBar({ profileId, medium, current, onApply }: SavedView
             setSelectedId(id)
             setConfirmingDelete(false)
             const view = views.find((entry) => entry.id === id)
-            if (view) onApply(view.criteria)
+            if (view) onApply(view)
           }}
         >
           <option value="">Vues enregistrées…</option>

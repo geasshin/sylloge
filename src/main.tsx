@@ -42,15 +42,15 @@ import {
 import type { FilmFormValues, FilmWriteInput } from './domain/filmForm.ts'
 import type { FilmMetadataProvenance } from './domain/filmMetadataAssistance.ts'
 import {
-  LIBRARY_VIEW_LABELS,
-  RATED_LIBRARY_VIEWS,
-  UNRATED_LIBRARY_VIEWS,
-  type LibraryView,
+  RATED_BUILTIN_VIEWS,
+  UNRATED_BUILTIN_VIEWS,
+  resolveLibraryQuery,
+  type LibrarySort,
+  type LibraryViewDefinition,
 } from './domain/libraryViews.ts'
 import {
   EMPTY_LIBRARY_FILTERS,
   hasActiveFilters,
-  normalizeLibraryFilters,
   type LibraryFilters,
 } from './domain/libraryFilters.ts'
 import {
@@ -569,25 +569,25 @@ function Home({ library, onOpen }: HomeProps) {
 }
 
 type LibraryViewTabsProps = {
-  views: readonly LibraryView[]
-  current: LibraryView
+  views: readonly LibraryViewDefinition[]
+  currentId: string
   ariaLabel: string
-  onChange: (view: LibraryView) => void
+  onChange: (view: LibraryViewDefinition) => void
 }
 
-/** Rangée de vues partagée par les cinq bibliothèques (jalon 0.4.19). */
-function LibraryViewTabs({ views, current, ariaLabel, onChange }: LibraryViewTabsProps) {
+/** Rangée de vues partagée par les cinq bibliothèques (jalon 0.4.23). */
+function LibraryViewTabs({ views, currentId, ariaLabel, onChange }: LibraryViewTabsProps) {
   return (
     <div className="filters library-views" role="group" aria-label={ariaLabel}>
       {views.map((view) => (
         <button
-          className={`filter ${current === view ? 'active' : ''}`}
+          className={`filter ${currentId === view.id ? 'active' : ''}`}
           type="button"
-          aria-pressed={current === view}
-          key={view}
+          aria-pressed={currentId === view.id}
+          key={view.id}
           onClick={() => onChange(view)}
         >
-          {LIBRARY_VIEW_LABELS[view]}
+          {view.name}
         </button>
       ))}
     </div>
@@ -596,8 +596,41 @@ function LibraryViewTabs({ views, current, ariaLabel, onChange }: LibraryViewTab
 
 type LibraryContext = {
   query: string
-  view: LibraryView
-  filters?: LibraryFilters
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+}
+
+type SeriesLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  category: SeriesCategory | 'all'
+}
+
+type BookLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  category: BookCategory | 'all'
+}
+
+type GameLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  platform: string
+}
+
+type ArtworkLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  form: ArtworkSearchCriteria['form']
 }
 
 type SearchState =
@@ -626,8 +659,9 @@ function FilmsLibrary({
   onOpen,
   onLibraryChanged,
 }: FilmsLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
+  const isUnfiltered = context.query.trim() === '' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resultCount = searchState.status === 'ready' ? searchState.films.length : null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
@@ -671,25 +705,30 @@ function FilmsLibrary({
               />
             </label>
             <LibraryViewTabs
-              views={RATED_LIBRARY_VIEWS}
-              current={context.view}
+              views={RATED_BUILTIN_VIEWS}
+              currentId={context.view.id}
               ariaLabel="Choisir la vue des films"
               onChange={(view) => onContextChange({ ...context, view })}
             />
           </div>
 
           <LibraryFilterPanel
-            filters={context.filters}
+            filters={context.extraFilters}
             config={FILM_FILTER_PANEL_CONFIG}
             idPrefix="films-filters"
-            onChange={(filters) => onContextChange({ ...context, filters })}
+            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
           />
 
           <SavedViewsBar
             profileId={library.profile.id}
             medium="films"
-            current={{ view: context.view, mediumFilter: 'all', filters: normalizeLibraryFilters(context.filters) }}
-            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, filters: criteria.filters })}
+            current={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
+            onApply={(savedView) => onContextChange({
+              ...context,
+              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
+              extraFilters: EMPTY_LIBRARY_FILTERS,
+              sortOverride: null,
+            })}
           />
 
           <div className="collection-meta" aria-live="polite">
@@ -713,7 +752,7 @@ function FilmsLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}
+                onClick={() => onContextChange({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher tous les films
               </button>
@@ -829,9 +868,9 @@ function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) 
 type SeriesLibraryProps = {
   profileName: string
   collection: Series[]
-  context: SeriesSearchCriteria
+  context: SeriesLibraryContext
   searchState: SeriesSearchState
-  onContextChange: (context: SeriesSearchCriteria) => void
+  onContextChange: (context: SeriesLibraryContext) => void
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (series: Series) => void
@@ -856,8 +895,9 @@ function SeriesLibrary({
   profileId,
   onLibraryChanged,
 }: SeriesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resultCount = searchState.status === 'ready' ? searchState.series.length : null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
@@ -902,8 +942,8 @@ function SeriesLibrary({
               />
             </label>
             <LibraryViewTabs
-              views={RATED_LIBRARY_VIEWS}
-              current={context.view}
+              views={RATED_BUILTIN_VIEWS}
+              currentId={context.view.id}
               ariaLabel="Choisir la vue des séries"
               onChange={(view) => onContextChange({ ...context, view })}
             />
@@ -923,17 +963,23 @@ function SeriesLibrary({
           </div>
 
           <LibraryFilterPanel
-            filters={context.filters}
+            filters={context.extraFilters}
             config={SERIES_FILTER_PANEL_CONFIG}
             idPrefix="series-filters"
-            onChange={(filters) => onContextChange({ ...context, filters })}
+            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
           />
 
           <SavedViewsBar
             profileId={profileId}
             medium="series"
-            current={{ view: context.view, mediumFilter: context.category, filters: normalizeLibraryFilters(context.filters) }}
-            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, category: criteria.mediumFilter as SeriesCategory | 'all', filters: criteria.filters })}
+            current={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
+            onApply={(savedView) => onContextChange({
+              ...context,
+              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
+              category: savedView.criteria.mediumFilter as SeriesCategory | 'all',
+              extraFilters: EMPTY_LIBRARY_FILTERS,
+              sortOverride: null,
+            })}
           />
 
           <div className="collection-meta" aria-live="polite">
@@ -957,7 +1003,7 @@ function SeriesLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}
+                onClick={() => onContextChange({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher toutes les séries
               </button>
@@ -1026,9 +1072,9 @@ function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
 type GamesLibraryProps = {
   profileName: string
   collection: Game[]
-  context: GameSearchCriteria
+  context: GameLibraryContext
   searchState: GameSearchState
-  onContextChange: (context: GameSearchCriteria) => void
+  onContextChange: (context: GameLibraryContext) => void
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (game: Game) => void
@@ -1053,8 +1099,9 @@ function GamesLibrary({
   profileId,
   onLibraryChanged,
 }: GamesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
+  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resultCount = searchState.status === 'ready' ? searchState.games.length : null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const platforms = buildGamePlatformFilters(collection)
 
   return (
@@ -1100,8 +1147,8 @@ function GamesLibrary({
               />
             </label>
             <LibraryViewTabs
-              views={RATED_LIBRARY_VIEWS}
-              current={context.view}
+              views={RATED_BUILTIN_VIEWS}
+              currentId={context.view.id}
               ariaLabel="Choisir la vue des jeux"
               onChange={(view) => onContextChange({ ...context, view })}
             />
@@ -1121,17 +1168,23 @@ function GamesLibrary({
           </div>
 
           <LibraryFilterPanel
-            filters={context.filters}
+            filters={context.extraFilters}
             config={GAME_FILTER_PANEL_CONFIG}
             idPrefix="games-filters"
-            onChange={(filters) => onContextChange({ ...context, filters })}
+            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
           />
 
           <SavedViewsBar
             profileId={profileId}
             medium="games"
-            current={{ view: context.view, mediumFilter: context.platform, filters: normalizeLibraryFilters(context.filters) }}
-            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, platform: criteria.mediumFilter, filters: criteria.filters })}
+            current={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
+            onApply={(savedView) => onContextChange({
+              ...context,
+              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
+              platform: savedView.criteria.mediumFilter,
+              extraFilters: EMPTY_LIBRARY_FILTERS,
+              sortOverride: null,
+            })}
           />
 
           <div className="collection-meta" aria-live="polite">
@@ -1152,7 +1205,7 @@ function GamesLibrary({
             <div className="results-state empty-results">
               <h2>Aucun jeu ne correspond.</h2>
               <p>Modifiez la recherche ou revenez à tous les jeux.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
                 Afficher tous les jeux
               </button>
             </div>
@@ -1194,9 +1247,9 @@ function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void
 type ArtworksLibraryProps = {
   profileName: string
   collection: Artwork[]
-  context: ArtworkSearchCriteria
+  context: ArtworkLibraryContext
   searchState: ArtworkSearchState
-  onContextChange: (context: ArtworkSearchCriteria) => void
+  onContextChange: (context: ArtworkLibraryContext) => void
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (artwork: Artwork) => void
@@ -1221,8 +1274,9 @@ function ArtworksLibrary({
   profileId,
   onLibraryChanged,
 }: ArtworksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
+  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resultCount = searchState.status === 'ready' ? searchState.artworks.length : null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
@@ -1267,8 +1321,8 @@ function ArtworksLibrary({
               />
             </label>
             <LibraryViewTabs
-              views={UNRATED_LIBRARY_VIEWS}
-              current={context.view}
+              views={UNRATED_BUILTIN_VIEWS}
+              currentId={context.view.id}
               ariaLabel="Choisir la vue des œuvres"
               onChange={(view) => onContextChange({ ...context, view })}
             />
@@ -1288,17 +1342,23 @@ function ArtworksLibrary({
           </div>
 
           <LibraryFilterPanel
-            filters={context.filters}
+            filters={context.extraFilters}
             config={ARTWORK_FILTER_PANEL_CONFIG}
             idPrefix="artworks-filters"
-            onChange={(filters) => onContextChange({ ...context, filters })}
+            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
           />
 
           <SavedViewsBar
             profileId={profileId}
             medium="artworks"
-            current={{ view: context.view, mediumFilter: context.form, filters: normalizeLibraryFilters(context.filters) }}
-            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, form: criteria.mediumFilter as ArtworkSearchCriteria['form'], filters: criteria.filters })}
+            current={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
+            onApply={(savedView) => onContextChange({
+              ...context,
+              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
+              form: savedView.criteria.mediumFilter as ArtworkSearchCriteria['form'],
+              extraFilters: EMPTY_LIBRARY_FILTERS,
+              sortOverride: null,
+            })}
           />
 
           <div className="collection-meta" aria-live="polite">
@@ -1319,7 +1379,7 @@ function ArtworksLibrary({
             <div className="results-state empty-results">
               <h2>Aucune œuvre ne correspond.</h2>
               <p>Modifiez la recherche ou revenez à toutes les œuvres.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
                 Afficher toutes les œuvres
               </button>
             </div>
@@ -1339,9 +1399,9 @@ function ArtworksLibrary({
 type BooksLibraryProps = {
   profileName: string
   collection: Book[]
-  context: BookSearchCriteria
+  context: BookLibraryContext
   searchState: BookSearchState
-  onContextChange: (context: BookSearchCriteria) => void
+  onContextChange: (context: BookLibraryContext) => void
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (book: Book) => void
@@ -1366,8 +1426,9 @@ function BooksLibrary({
   profileId,
   onLibraryChanged,
 }: BooksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resultCount = searchState.status === 'ready' ? searchState.books.length : null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
@@ -1412,8 +1473,8 @@ function BooksLibrary({
               />
             </label>
             <LibraryViewTabs
-              views={RATED_LIBRARY_VIEWS}
-              current={context.view}
+              views={RATED_BUILTIN_VIEWS}
+              currentId={context.view.id}
               ariaLabel="Choisir la vue des livres"
               onChange={(view) => onContextChange({ ...context, view })}
             />
@@ -1433,17 +1494,23 @@ function BooksLibrary({
           </div>
 
           <LibraryFilterPanel
-            filters={context.filters}
+            filters={context.extraFilters}
             config={BOOK_FILTER_PANEL_CONFIG}
             idPrefix="books-filters"
-            onChange={(filters) => onContextChange({ ...context, filters })}
+            onChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
           />
 
           <SavedViewsBar
             profileId={profileId}
             medium="books"
-            current={{ view: context.view, mediumFilter: context.category, filters: normalizeLibraryFilters(context.filters) }}
-            onApply={(criteria) => onContextChange({ ...context, view: criteria.view, category: criteria.mediumFilter as BookCategory | 'all', filters: criteria.filters })}
+            current={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
+            onApply={(savedView) => onContextChange({
+              ...context,
+              view: { id: savedView.id, name: savedView.name, filters: savedView.criteria.filters, sort: savedView.criteria.sort, builtin: false },
+              category: savedView.criteria.mediumFilter as BookCategory | 'all',
+              extraFilters: EMPTY_LIBRARY_FILTERS,
+              sortOverride: null,
+            })}
           />
 
           <div className="collection-meta books-collection-meta" aria-live="polite">
@@ -1467,7 +1534,7 @@ function BooksLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}
+                onClick={() => onContextChange({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher tous les livres
               </button>
@@ -1595,22 +1662,22 @@ function App() {
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
-  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [seriesCollection, setSeriesCollection] = useState<Series[]>([])
   const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
-  const [seriesContext, setSeriesContext] = useState<SeriesSearchCriteria>({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [bookCollection, setBookCollection] = useState<Book[]>([])
   const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
-  const [bookContext, setBookContext] = useState<BookSearchCriteria>({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [gameCollection, setGameCollection] = useState<Game[]>([])
   const [gameSearchState, setGameSearchState] = useState<GameSearchState>({ status: 'loading' })
-  const [gameContext, setGameContext] = useState<GameSearchCriteria>({ query: '', platform: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+  const [gameContext, setGameContext] = useState<GameLibraryContext>({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [gameSearchAttempt, setGameSearchAttempt] = useState(0)
   const [artworkCollection, setArtworkCollection] = useState<Artwork[]>([])
   const [artworkSearchState, setArtworkSearchState] = useState<ArtworkSearchState>({ status: 'loading' })
-  const [artworkContext, setArtworkContext] = useState<ArtworkSearchCriteria>({ query: '', form: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+  const [artworkContext, setArtworkContext] = useState<ArtworkLibraryContext>({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [artworkSearchAttempt, setArtworkSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
@@ -1737,7 +1804,8 @@ function App() {
     let cancelled = false
     setGameSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
-      mediaRepository.searchGames(libraryState.library.profile.id, gameContext).then(
+      const resolved = resolveLibraryQuery(gameContext.view, gameContext.extraFilters, gameContext.sortOverride)
+      mediaRepository.searchGames(libraryState.library.profile.id, { query: gameContext.query, platform: gameContext.platform, filters: resolved.filters, sort: resolved.sort }).then(
         (games) => {
           if (!cancelled) setGameSearchState({ status: 'ready', games })
         },
@@ -1759,7 +1827,8 @@ function App() {
     let cancelled = false
     setArtworkSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
-      mediaRepository.searchArtworks(libraryState.library.profile.id, artworkContext).then(
+      const resolved = resolveLibraryQuery(artworkContext.view, artworkContext.extraFilters, artworkContext.sortOverride)
+      mediaRepository.searchArtworks(libraryState.library.profile.id, { query: artworkContext.query, form: artworkContext.form, filters: resolved.filters, sort: resolved.sort }).then(
         (artworks) => {
           if (!cancelled) setArtworkSearchState({ status: 'ready', artworks })
         },
@@ -1781,7 +1850,8 @@ function App() {
     let cancelled = false
     setSeriesSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
-      mediaRepository.searchSeries(libraryState.library.profile.id, seriesContext).then(
+      const resolved = resolveLibraryQuery(seriesContext.view, seriesContext.extraFilters, seriesContext.sortOverride)
+      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: seriesContext.category, filters: resolved.filters, sort: resolved.sort }).then(
         (series) => {
           if (!cancelled) setSeriesSearchState({ status: 'ready', series })
         },
@@ -1803,7 +1873,8 @@ function App() {
     let cancelled = false
     setBookSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
-      mediaRepository.searchBooks(libraryState.library.profile.id, bookContext).then(
+      const resolved = resolveLibraryQuery(bookContext.view, bookContext.extraFilters, bookContext.sortOverride)
+      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: bookContext.category, filters: resolved.filters, sort: resolved.sort }).then(
         (books) => {
           if (!cancelled) setBookSearchState({ status: 'ready', books })
         },
@@ -1848,7 +1919,8 @@ function App() {
     let cancelled = false
     setSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
-      filmsRepository.searchFilms(libraryState.library.profile.id, libraryContext).then(
+      const resolved = resolveLibraryQuery(libraryContext.view, libraryContext.extraFilters, libraryContext.sortOverride)
+      filmsRepository.searchFilms(libraryState.library.profile.id, { query: libraryContext.query, filters: resolved.filters, sort: resolved.sort }).then(
         (films) => {
           if (!cancelled) setSearchState({ status: 'ready', films })
         },
@@ -2053,15 +2125,15 @@ function App() {
         profiles={profiles}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
-          setLibraryContext({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
-          setSeriesContext({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
-          setBookContext({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
-          setGameContext({ query: '', platform: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
-          setArtworkContext({ query: '', form: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+          setLibraryContext({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setSeriesContext({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setBookContext({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setGameContext({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setArtworkContext({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: selectedLibrary })
         }}
         onImported={(importedLibrary) => {
-          setLibraryContext({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+          setLibraryContext({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: importedLibrary })
           requestAutomaticBackup(importedLibrary)
           profilesRepository.list().then(setProfiles, (error: unknown) => {

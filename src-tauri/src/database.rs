@@ -76,5 +76,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0012_create_saved_views.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 13,
+            description: "saved_views_unified_criteria",
+            sql: include_str!("../migrations/0013_saved_views_unified_criteria.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

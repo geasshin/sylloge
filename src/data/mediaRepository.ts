@@ -2,11 +2,11 @@ import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type A
 import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
-import type { LibraryView } from '../domain/libraryViews.ts'
+import type { LibrarySort } from '../domain/libraryViews.ts'
 import type { LibraryFilters } from '../domain/libraryFilters.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
 import type { DatabaseLoader, IdFactory, NowFactory } from './filmsRepository.ts'
-import { appendLibraryFilterClauses, libraryViewOrderBy, libraryViewWhereClause, type LibraryFilterColumns } from './libraryViewQuery.ts'
+import { appendLibraryFilterClauses, librarySortOrderBy, type LibraryQueryColumns } from './libraryViewQuery.ts'
 import {
   createBookAtomically,
   deleteBookAtomically,
@@ -308,66 +308,70 @@ export function toArtwork(row: ArtworkRow): Artwork {
 export type SeriesSearchCriteria = {
   query: string
   category: SeriesCategory | 'all'
-  view: LibraryView
   filters?: LibraryFilters
+  sort: LibrarySort
 }
 
 export type BookSearchCriteria = {
   query: string
   category: BookCategory | 'all'
-  view: LibraryView
   filters?: LibraryFilters
+  sort: LibrarySort
 }
 
 export type GameSearchCriteria = {
   query: string
   platform: string | 'all'
-  view: LibraryView
   filters?: LibraryFilters
+  sort: LibrarySort
 }
 
 export type ArtworkSearchCriteria = {
   query: string
   form: ArtworkForm | 'all'
-  view: LibraryView
   filters?: LibraryFilters
+  sort: LibrarySort
 }
 
-/** Colonnes réellement filtrables par médium (jalon 0.4.20). */
-const SERIES_FILTER_COLUMNS: LibraryFilterColumns = {
+/** Colonnes réellement filtrables et triables par médium (jalons 0.4.20 et 0.4.23). */
+const SERIES_QUERY_COLUMNS: LibraryQueryColumns = {
   rating: true,
   year: false,
   personalDateColumn: 'started_at',
   specificTextColumn: null,
   locationColumn: null,
   exhibitionColumn: null,
+  progressColumn: 'progress_updated_at',
 }
 
-const BOOK_FILTER_COLUMNS: LibraryFilterColumns = {
+const BOOK_QUERY_COLUMNS: LibraryQueryColumns = {
   rating: true,
   year: true,
   personalDateColumn: 'started_at',
   specificTextColumn: 'author',
   locationColumn: null,
   exhibitionColumn: null,
+  progressColumn: 'progress_updated_at',
 }
 
-const GAME_FILTER_COLUMNS: LibraryFilterColumns = {
+const GAME_QUERY_COLUMNS: LibraryQueryColumns = {
   rating: true,
   year: true,
   personalDateColumn: 'played_at',
   specificTextColumn: null,
   locationColumn: null,
   exhibitionColumn: null,
+  progressColumn: null,
 }
 
-const ARTWORK_FILTER_COLUMNS: LibraryFilterColumns = {
+const ARTWORK_QUERY_COLUMNS: LibraryQueryColumns = {
   rating: false,
   year: true,
   personalDateColumn: 'discovered_at',
   specificTextColumn: 'artist',
   locationColumn: 'location',
   exhibitionColumn: 'exhibition',
+  progressColumn: null,
 }
 
 export class SqliteMediaRepository {
@@ -428,18 +432,13 @@ export class SqliteMediaRepository {
       clauses.push(`category = $${bindValues.length}`)
     }
 
-    const viewClause = libraryViewWhereClause(criteria.view)
-    if (viewClause) {
-      clauses.push(viewClause)
-    }
-
-    appendLibraryFilterClauses(criteria.filters, SERIES_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
+    appendLibraryFilterClauses(criteria.filters, SERIES_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<SeriesRow[]>(
       `SELECT ${SERIES_COLUMNS}
        FROM series
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY ${libraryViewOrderBy(criteria.view, { progressColumn: 'progress_updated_at' })}`,
+       ORDER BY ${librarySortOrderBy(criteria.sort, SERIES_QUERY_COLUMNS)}`,
       bindValues,
     )
 
@@ -651,18 +650,13 @@ export class SqliteMediaRepository {
       clauses.push(`category = $${bindValues.length}`)
     }
 
-    const viewClause = libraryViewWhereClause(criteria.view)
-    if (viewClause) {
-      clauses.push(viewClause)
-    }
-
-    appendLibraryFilterClauses(criteria.filters, BOOK_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
+    appendLibraryFilterClauses(criteria.filters, BOOK_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<BookRow[]>(
       `SELECT ${BOOK_COLUMNS}
        FROM books
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY ${libraryViewOrderBy(criteria.view, { progressColumn: 'progress_updated_at' })}`,
+       ORDER BY ${librarySortOrderBy(criteria.sort, BOOK_QUERY_COLUMNS)}`,
       bindValues,
     )
     if (rows.length === 0) return []
@@ -797,18 +791,13 @@ export class SqliteMediaRepository {
       clauses.push(`platform = $${bindValues.length} COLLATE NOCASE`)
     }
 
-    const viewClause = libraryViewWhereClause(criteria.view)
-    if (viewClause) {
-      clauses.push(viewClause)
-    }
-
-    appendLibraryFilterClauses(criteria.filters, GAME_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
+    appendLibraryFilterClauses(criteria.filters, GAME_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<GameRow[]>(
       `SELECT ${GAME_COLUMNS}
        FROM games
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY ${libraryViewOrderBy(criteria.view)}`,
+       ORDER BY ${librarySortOrderBy(criteria.sort, GAME_QUERY_COLUMNS)}`,
       bindValues,
     )
 
@@ -985,18 +974,13 @@ export class SqliteMediaRepository {
       clauses.push(`form = $${bindValues.length}`)
     }
 
-    const viewClause = libraryViewWhereClause(criteria.view)
-    if (viewClause) {
-      clauses.push(viewClause)
-    }
-
-    appendLibraryFilterClauses(criteria.filters, ARTWORK_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
+    appendLibraryFilterClauses(criteria.filters, ARTWORK_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<ArtworkRow[]>(
       `SELECT ${ARTWORK_COLUMNS}
        FROM artworks
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY ${libraryViewOrderBy(criteria.view)}`,
+       ORDER BY ${librarySortOrderBy(criteria.sort, ARTWORK_QUERY_COLUMNS)}`,
       bindValues,
     )
 

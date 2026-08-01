@@ -1,62 +1,69 @@
-import type { LibraryView } from '../domain/libraryViews.ts'
+import type { LibrarySort } from '../domain/libraryViews.ts'
 import { normalizeLibraryFilters, type LibraryFilters } from '../domain/libraryFilters.ts'
 
 /**
- * Traduction SQL documentée des vues de bibliothèque (jalon 0.4.19).
- *
- * - Tous : `title COLLATE NOCASE ASC, created_at ASC` — ordre canonique stable ;
- * - Récents : dernière progression métier (`progress_updated_at` pour Séries et
- *   Livres) si elle existe, sinon `updated_at`, décroissant, puis titre ;
- * - Favoris : restriction `is_favorite = 1`, même ordre que Tous ;
- * - Classement : `rating` décroissant, les absences de note après les notes,
- *   puis titre — ordre stable.
- *
- * Les vues sont résolues en colonnes documentées, jamais par tri du tableau
- * React après lecture.
+ * Colonnes réellement utilisables d'un médium pour le filtrage et le tri.
+ * Une colonne absente signifie que le critère n'existe pas pour ce médium :
+ * il n'est ni exposé ni appliqué.
  */
-export function libraryViewOrderBy(view: LibraryView, options: { progressColumn?: string } = {}): string {
-  switch (view) {
-    case 'recent': {
-      const recencyColumn = options.progressColumn
-        ? `COALESCE(${options.progressColumn}, updated_at)`
-        : 'updated_at'
-      return `${recencyColumn} DESC, title COLLATE NOCASE ASC`
-    }
-    case 'ranking':
-      return 'rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC'
-    case 'all':
-    case 'favorites':
-      return 'title COLLATE NOCASE ASC, created_at ASC'
-  }
-}
-
-/** Restriction WHERE ajoutée par la vue, ou null quand la vue ne filtre pas. */
-export function libraryViewWhereClause(view: LibraryView): string | null {
-  return view === 'favorites' ? 'is_favorite = 1' : null
-}
-
-/**
- * Colonnes réellement filtrables d'un médium (jalon 0.4.20). Une colonne
- * absente signifie que le critère n'existe pas pour ce médium : il n'est ni
- * exposé ni appliqué.
- */
-export type LibraryFilterColumns = {
+export type LibraryQueryColumns = {
   rating: boolean
   year: boolean
   personalDateColumn: string | null
   specificTextColumn: string | null
   locationColumn: string | null
   exhibitionColumn: string | null
+  /** Colonne de progression métier (saisons, tomes) alimentant la récence. */
+  progressColumn: string | null
 }
 
 /**
- * Ajoute les critères avancés à une requête en cours de construction. Toutes
+ * Traduction SQL documentée d'un tri de bibliothèque (jalon 0.4.23).
+ *
+ * - Titre : collation insensible à la casse, puis création pour stabilité ;
+ * - Récence : progression métier horodatée si elle existe (saisons, tomes),
+ *   sinon dernière modification ;
+ * - Note : absences de note en fin de liste, quel que soit le sens ;
+ * - Année et date personnelle : absences en fin de liste également ;
+ * - Ajout : horodatage de création.
+ *
+ * Le tri est résolu en colonnes documentées, jamais par tri du tableau React
+ * après lecture.
+ */
+export function librarySortOrderBy(sort: LibrarySort, columns: LibraryQueryColumns): string {
+  const direction = sort.direction === 'desc' ? 'DESC' : 'ASC'
+  const titleTie = 'title COLLATE NOCASE ASC'
+
+  switch (sort.column) {
+    case 'recency': {
+      const recencyColumn = columns.progressColumn
+        ? `COALESCE(${columns.progressColumn}, updated_at)`
+        : 'updated_at'
+      return `${recencyColumn} ${direction}, ${titleTie}`
+    }
+    case 'rating':
+      return `rating IS NULL ASC, rating ${direction}, ${titleTie}`
+    case 'year':
+      return `year IS NULL ASC, year ${direction}, ${titleTie}`
+    case 'personalDate': {
+      const dateColumn = columns.personalDateColumn ?? 'updated_at'
+      return `${dateColumn} IS NULL ASC, ${dateColumn} ${direction}, ${titleTie}`
+    }
+    case 'added':
+      return `created_at ${direction}, ${titleTie}`
+    case 'title':
+      return `title COLLATE NOCASE ${direction}, created_at ASC`
+  }
+}
+
+/**
+ * Ajoute les critères de filtre à une requête en cours de construction. Toutes
  * les valeurs sont liées en paramètres, jamais interpolées ; les jokers LIKE
  * du texte libre sont échappés par l'appelant via escapeLikePattern.
  */
 export function appendLibraryFilterClauses(
   rawFilters: Partial<LibraryFilters> | undefined,
-  columns: LibraryFilterColumns,
+  columns: LibraryQueryColumns,
   clauses: string[],
   bindValues: unknown[],
   escapeLike: (value: string) => string,

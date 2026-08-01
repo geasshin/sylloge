@@ -3,29 +3,38 @@ import { BOOK_CATEGORIES, BOOK_STATUSES } from './book.ts'
 import { FILM_STATUSES } from './film.ts'
 import { GAME_STATUSES } from './game.ts'
 import { normalizeLibraryFilters, type LibraryFilters } from './libraryFilters.ts'
-import { LIBRARY_VIEWS, type LibraryView } from './libraryViews.ts'
+import {
+  LIBRARY_SORT_COLUMNS,
+  RATED_BUILTIN_VIEWS,
+  UNRATED_BUILTIN_VIEWS,
+  type LibrarySort,
+  type LibraryViewDefinition,
+} from './libraryViews.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES } from './series.ts'
 
 /**
- * Vues personnalisées enregistrées (jalon 0.4.21).
+ * Vues personnalisées enregistrées (jalons 0.4.21 puis 0.4.23).
  *
- * Une vue enregistrée capture un couple filtres + tri : la vue active (qui
- * porte l'ordre), le filtre propre au médium (catégorie, plateforme ou forme)
- * et les critères avancés. La recherche textuelle libre reste éphémère et
- * n'est jamais enregistrée. Les vues sont isolées par profil et par médium,
- * et restent locales : elles n'entrent ni dans les snapshots ni dans les
- * exports (décision actée au brief).
+ * Depuis le modèle unifié, une vue enregistrée capture le même préset que les
+ * vues intégrées : { filtres, tri }, plus le filtre propre au médium
+ * (catégorie, plateforme ou forme). La recherche textuelle libre reste
+ * éphémère et n'est jamais enregistrée. Les vues sont isolées par profil et
+ * par médium, et restent locales : elles n'entrent ni dans les snapshots ni
+ * dans les exports (décision actée au brief 0.4.21).
+ *
+ * Les critères écrits au schéma v1 (0.4.21 : { view, mediumFilter, filters })
+ * sont convertis à la lecture en préset v2, sans réécriture en base.
  */
 export const SAVED_VIEW_MEDIA = ['films', 'series', 'books', 'games', 'artworks'] as const
 
 export type SavedViewMedium = (typeof SAVED_VIEW_MEDIA)[number]
 
-export const SAVED_VIEW_SCHEMA_VERSION = 1
+export const SAVED_VIEW_SCHEMA_VERSION = 2
 
 export const SAVED_VIEW_NAME_MAX_LENGTH = 80
 
 export type SavedViewCriteria = {
-  view: LibraryView
+  sort: LibrarySort
   mediumFilter: string
   filters: LibraryFilters
 }
@@ -70,10 +79,10 @@ export function validateSavedViewName(name: string): { ok: true; name: string } 
   return { ok: true, name: trimmed }
 }
 
-/** L'Art n'a pas de note : aucune vue enregistrée ne peut reposer sur le classement. */
+/** L'Art n'a pas de note : aucune vue enregistrée ne peut reposer sur un tri par note. */
 export function assertSavedViewAllowed(medium: SavedViewMedium, criteria: SavedViewCriteria): void {
-  if (medium === 'artworks' && criteria.view === 'ranking') {
-    throw new Error('Une vue Classement n’existe pas pour l’Art, qui n’a pas de note.')
+  if (medium === 'artworks' && criteria.sort.column === 'rating') {
+    throw new Error('Une vue triée par note n’existe pas pour l’Art, qui n’a pas de note.')
   }
 }
 
@@ -93,23 +102,61 @@ function toOptionalDate(value: unknown): string | null {
   return typeof value === 'string' && DATE_PATTERN.test(value) ? value : null
 }
 
+function sanitizeSort(medium: SavedViewMedium, raw: unknown, fallback: LibrarySort): LibrarySort {
+  const source = (raw ?? {}) as Record<string, unknown>
+  const column = LIBRARY_SORT_COLUMNS.includes(source.column as LibrarySort['column'])
+    ? (source.column as LibrarySort['column'])
+    : fallback.column
+  const direction = source.direction === 'asc' ? 'asc' : source.direction === 'desc' ? 'desc' : fallback.direction
+
+  const rated = medium !== 'artworks'
+  const hasYear = medium !== 'series'
+  if ((column === 'rating' && !rated) || (column === 'year' && !hasYear)) {
+    return fallback
+  }
+  return { column, direction }
+}
+
 /**
- * Ramène un critère lu (JSON persisté, schéma éventuellement ancien ou
+ * Conversion du schéma v1 (0.4.21) : { view, mediumFilter, filters } où view
+ * était une clé intégrée. Le préset intégré correspondant fournit le tri et
+ * les filtres de base, fusionnés avec les filtres persistés.
+ */
+function fromV1Criteria(medium: SavedViewMedium, raw: Record<string, unknown>): Record<string, unknown> {
+  const builtin = [...RATED_BUILTIN_VIEWS, ...UNRATED_BUILTIN_VIEWS].find(
+    (view) => view.id === raw.view,
+  )
+  const fallback: LibraryViewDefinition = medium === 'artworks'
+    ? UNRATED_BUILTIN_VIEWS[0]
+    : RATED_BUILTIN_VIEWS[0]
+  const preset = builtin ?? fallback
+  const rawFilters = (raw.filters ?? {}) as Record<string, unknown>
+  return {
+    sort: preset.sort,
+    mediumFilter: raw.mediumFilter,
+    filters: {
+      ...preset.filters,
+      ...rawFilters,
+      // En v1, la vue Favoris portait la restriction : elle survit à la conversion.
+      favoritesOnly: preset.filters.favoritesOnly || rawFilters.favoritesOnly === true,
+    },
+  }
+}
+
+/**
+ * Ramène un critère lu (JSON persisté, schéma v1 ou v2, éventuellement
  * incomplet) dans le contrat courant du médium. Aucune donnée invalide ne
- * survit : statut inconnu, note hors borne ou critère sans colonne retombent
- * sur les valeurs neutres. C'est ce qui permet à une vue enregistrée de
- * rester applicable après une évolution du schéma.
+ * survit : statut inconnu, note hors borne, tri interdit ou critère sans
+ * colonne retombent sur les valeurs neutres. C'est ce qui permet à une vue
+ * enregistrée de rester applicable après une évolution du schéma.
  */
 export function sanitizeSavedViewCriteria(medium: SavedViewMedium, raw: unknown): SavedViewCriteria {
-  const source = (raw ?? {}) as Record<string, unknown>
-  const rawFilters = (source.filters ?? {}) as Record<string, unknown>
-
-  let view: LibraryView = LIBRARY_VIEWS.includes(source.view as LibraryView)
-    ? (source.view as LibraryView)
-    : 'all'
-  if (medium === 'artworks' && view === 'ranking') {
-    view = 'all'
+  let source = (raw ?? {}) as Record<string, unknown>
+  if ('view' in source && !('sort' in source)) {
+    source = fromV1Criteria(medium, source)
   }
+  const rawFilters = (source.filters ?? {}) as Record<string, unknown>
+  const fallbackSort: LibrarySort = { column: 'title', direction: 'asc' }
 
   const statuses = MEDIUM_STATUSES[medium]
   const rawStatus = toOptionalString(rawFilters.status)
@@ -135,13 +182,13 @@ export function sanitizeSavedViewCriteria(medium: SavedViewMedium, raw: unknown)
     exhibition: medium === 'artworks' ? toOptionalString(rawFilters.exhibition) : '',
   })
 
-  return { view, mediumFilter, filters }
+  return { sort: sanitizeSort(medium, source.sort, fallbackSort), mediumFilter, filters }
 }
 
-/** Sérialisation du schéma v1 : un document JSON borné, jamais de SQL. */
+/** Sérialisation du schéma v2 : un document JSON borné, jamais de SQL. */
 export function serializeSavedViewCriteria(criteria: SavedViewCriteria): string {
   return JSON.stringify({
-    view: criteria.view,
+    sort: criteria.sort,
     mediumFilter: criteria.mediumFilter,
     filters: criteria.filters,
   })

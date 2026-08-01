@@ -370,6 +370,44 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 - Nommer, rappeler, renommer et supprimer un couple filtres + tri, isolé par profil et médium.
 - Décider avant migration si ces vues appartiennent seulement à SQLite locale, aux snapshots ou à l'export complet.
 
+### `0.4.23` — Modèle unifié des vues
+
+**Redéfinition actée avec Aurélien le 1er août 2026.** Une vue est un seul concept : un préset **filtres + tri**. Les vues intégrées (Tous, Récents, Favoris, Classement) et les vues enregistrées relèvent du même modèle ; les filtres et le tri choisis à la volée s'appliquent par-dessus la vue active (dans Favoris, un filtre « avant 2019 » agit à l'intérieur des favoris). Le tri devient explicite (colonne + direction) au lieu d'être implicite dans la vue.
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Le modèle unifié est en place : présets intégrés et enregistrés partagent la même structure, le tri est borné par médium (titre, récence, note, année, date personnelle, ajout — jamais de note pour l'Art ni d'année pour les Séries) et résolu en colonnes SQL documentées. La migration 13 retire la colonne `view` de `saved_views` en préservant les données ; les critères écrits au schéma v1 (`0.4.21`) sont convertis à la lecture, la restriction Favoris comprise. L'interface de la rangée unifiée et les popovers Filtre/Tri arrivent au jalon `0.4.24`.
+
+- Unifier vues intégrées et enregistrées dans un modèle préset { filtres, tri } ; migrer les vues enregistrées au nouveau schéma de critères.
+- Définir un modèle de tri borné (titre, récence, note, année, date personnelle, ajout) avec colonnes disponibles par médium ; l'Art n'a jamais de tri par note.
+
+### `0.4.24` — Rangée de vues unifiée et popovers Filtre / Tri
+
+- Présenter vues intégrées et vues enregistrées dans une même rangée, avec débordement discret quand la ligne est pleine (inspiration Notion), sans pousser les boutons hors de l'écran.
+- Deux icônes en bout de ligne, Filtre et Tri, ouvrant chacune un popover sobre ; « Enregistrer comme vue » capture le combo effectif dans la rangée.
+- Supprimer le panneau de filtres et la barre de vues enregistrées introduits en `0.4.20`–`0.4.21`.
+
+### `0.4.25` — Création assistée directe, même structure partout
+
+- Un clic sur un résultat de recherche fournisseur ouvre directement le formulaire prérempli, sans écran intermédiaire de confirmation, pour toutes les bibliothèques disposant d'un fournisseur.
+- Conserver une issue de retour propre vers la recherche et la saisie manuelle toujours possible.
+
+### `0.4.26` — Séries assistées TMDB
+
+- Réutiliser la clé TMDB embarquée, le client et le cache pour la recherche TV : suggestions temporisées, préremplissage éditable, données personnelles séparées, même parcours que Films.
+
+### `0.4.27` — Livres assistés Open Library
+
+- Recherche Open Library sans clé, `User-Agent` identifié et cache respectueux : titre, auteur, année, couverture ; le résumé n'est prérempli que lorsqu'il existe. Même parcours que Films.
+
+### `0.4.28` — Jeux assistés RAWG
+
+- Clé RAWG fournie par Aurélien, embarquée hors dépôt selon le modèle TMDB ; recherche, préremplissage (titre, développeur, plateforme, année, cover) et attribution « Données : RAWG » exigée par leurs conditions.
+- Si les conditions RAWG ou la garde de la clé ne sont pas satisfaites, le jalon s'arrête et les Jeux restent manuels pour `0.5.0`.
+
+### `0.4.29` — Import / Export à deux boutons et Sauvegarde Sylloge
+
+- Un seul bouton Importer et un seul bouton Exporter par bibliothèque ; Exporter ouvre un dialogue listant les formats disponibles.
+- L'export global des cinq collections devient la **Sauvegarde Sylloge** (JSON complet, réimportable pour restauration), nommée comme telle dans les Paramètres.
+
 ### `0.4.22` — Reprise complète de la recette et corrections de clôture
 
 - Rejouer la recette native consolidée sur les cinq médiums et mettre à jour sa checklist.

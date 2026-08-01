@@ -1570,26 +1570,30 @@ const completeExport = createLibraryExport({
   }
   const repository = new SqliteFilmsRepository(async () => database)
 
-  const searched = await repository.searchFilms('default', { query: '  Chihiro  ', view: 'all' })
+  const searched = await repository.searchFilms('default', { query: '  Chihiro  ', sort: { column: 'title', direction: 'asc' } })
   assert.equal(searched[0].id, filmRow.id, 'La recherche doit convertir les résultats SQLite')
   assert.match(calls[0].query, /title COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger le titre dans SQLite')
   assert.match(calls[0].query, /original_title COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger le titre original dans SQLite')
   assert.match(calls[0].query, /director COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger la réalisation dans SQLite')
   assert.deepEqual(calls[0].bindValues, ['default', '%Chihiro%'], 'Le texte recherché doit être normalisé et paramétré')
 
-  await repository.searchFilms('default', { query: '100%_film', view: 'favorites' })
+  await repository.searchFilms('default', {
+    query: '100%_film',
+    sort: { column: 'title', direction: 'asc' },
+    filters: { status: 'all', favoritesOnly: true, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  })
   assert.deepEqual(calls[1].bindValues, ['default', '%100\\%\\_film%'], 'Les jokers LIKE doivent être échappés et le filtre paramétré')
-  assert.match(calls[1].query, /is_favorite = 1/, 'La vue favoris doit être exécutée dans SQLite')
+  assert.match(calls[1].query, /is_favorite = 1/, 'Le filtre favoris doit être exécuté dans SQLite')
 
-  await repository.searchFilms('default', { query: '', view: 'recent' })
-  assert.match(calls[2].query, /ORDER BY updated_at DESC, title COLLATE NOCASE ASC/, 'La vue récente doit trier par dernière modification dans SQLite')
+  await repository.searchFilms('default', { query: '', sort: { column: 'recency', direction: 'desc' } })
+  assert.match(calls[2].query, /ORDER BY updated_at DESC, title COLLATE NOCASE ASC/, 'Le tri récent doit suivre la dernière modification dans SQLite')
 
-  await repository.searchFilms('default', { query: '', view: 'ranking' })
-  assert.match(calls[3].query, /ORDER BY rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC/, 'Le classement doit trier par note décroissante, absences en fin')
+  await repository.searchFilms('default', { query: '', sort: { column: 'rating', direction: 'desc' } })
+  assert.match(calls[3].query, /ORDER BY rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC/, 'Le tri par note doit être décroissant, absences en fin')
 
-  await repository.searchFilms('default', { query: '', view: 'all' })
-  assert.doesNotMatch(calls[4].query, /is_favorite = 1/, 'La vue tous ne doit ajouter aucune restriction')
-  assert.match(calls[4].query, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'La vue tous doit conserver l’ordre canonique par titre')
+  await repository.searchFilms('default', { query: '', sort: { column: 'title', direction: 'asc' } })
+  assert.doesNotMatch(calls[4].query, /is_favorite = 1/, 'Une recherche sans filtre ne doit ajouter aucune restriction')
+  assert.match(calls[4].query, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'Le tri par titre doit conserver l’ordre canonique')
 
   const detail = await repository.getFilm('default', 'film-test')
   assert.equal(detail?.id, 'film-test', 'La fiche doit être relue depuis SQLite')
@@ -2512,7 +2516,7 @@ assert.match(mainSource043, /icon\('series'\)\} Séries/, 'La sidebar doit propo
 assert.match(mainSource043, /SERIES_CATEGORY_FILTERS/, 'La bibliothèque Séries doit offrir les vues globale, télé et animation')
 assert.match(mainSource043, /searchSeries/, 'La recherche Séries doit reposer sur le repository')
 assert.match(mediaRepositorySource, /searchSeries/, 'Le repository doit exposer la recherche Séries')
-assert.match(mediaRepositorySource, /libraryViewOrderBy\(criteria\.view, \{ progressColumn: 'progress_updated_at' \}\)/, 'La vue récente Séries doit reposer sur l’horodatage interne de progression')
+assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_QUERY_COLUMNS\)/, 'Le tri Séries doit reposer sur les colonnes documentées du médium')
 
 {
   const {
@@ -2578,20 +2582,20 @@ assert.match(mediaRepositorySource, /libraryViewOrderBy\(criteria\.view, \{ prog
   }
   const repository = new SqliteMediaRepository(async () => database)
 
-  await repository.searchSeries('default', { query: '', category: 'all', view: 'all' })
+  await repository.searchSeries('default', { query: '', category: 'all', sort: { column: 'title', direction: 'asc' } })
   const globalQuery = calls.at(-1).query
-  assert.ok(!globalQuery.includes('category = $'), 'La vue globale ne doit pas filtrer par catégorie')
-  assert.match(globalQuery, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'La vue tous doit trier par titre')
+  assert.ok(!globalQuery.includes('category = $'), 'La recherche globale ne doit pas filtrer par catégorie')
+  assert.match(globalQuery, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'Le tri par titre doit être canonique')
 
-  await repository.searchSeries('default', { query: '', category: 'all', view: 'recent' })
-  assert.match(calls.at(-1).query, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue récente doit trier par progression interne')
+  await repository.searchSeries('default', { query: '', category: 'all', sort: { column: 'recency', direction: 'desc' } })
+  assert.match(calls.at(-1).query, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'Le tri récent doit suivre la progression interne')
 
-  await repository.searchSeries('default', { query: '', category: 'animation', view: 'all' })
+  await repository.searchSeries('default', { query: '', category: 'animation', sort: { column: 'title', direction: 'asc' } })
   const animationQuery = calls.at(-1)
-  assert.match(animationQuery.query, /category = \$\d+/, 'La vue animation doit filtrer la catégorie')
+  assert.match(animationQuery.query, /category = \$\d+/, 'Le filtre animation doit filtrer la catégorie')
   assert.deepEqual(animationQuery.bindValues, ['default', 'animation'], 'Le filtre animation doit lier la catégorie demandée')
 
-  await repository.searchSeries('default', { query: 'lupin', category: 'série télé', view: 'all' })
+  await repository.searchSeries('default', { query: 'lupin', category: 'série télé', sort: { column: 'title', direction: 'asc' } })
   const searchCall = calls.at(-1)
   assert.match(searchCall.query, /showrunner COLLATE NOCASE LIKE/, 'La recherche doit couvrir le showrunner')
   assert.match(searchCall.query, /casting COLLATE NOCASE LIKE/, 'La recherche doit couvrir le casting')
@@ -2784,7 +2788,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
       throw new Error('Aucune écriture attendue pendant la recherche Livres')
     },
   }))
-  const searched = await repository.searchBooks('default', { query: '  Élodie  ', category: 'livre', view: 'recent' })
+  const searched = await repository.searchBooks('default', { query: '  Élodie  ', category: 'livre', sort: { column: 'recency', direction: 'desc' } })
   assert.equal(searched[0].quotes[0].body, 'Vers préservé', 'La recherche doit restituer les citations de la fiche trouvée')
   assert.match(calls[0].query, /author COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir l’auteur')
   assert.match(calls[0].query, /summary COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir le résumé')
@@ -3271,8 +3275,8 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     },
     async execute() { throw new Error('Aucune écriture attendue pendant la recherche') },
   }))
-  await repository.searchGames('default', { query: '  Éclair  ', platform: 'Steam Deck', view: 'all' })
-  await repository.searchArtworks('default', { query: '  Montréal  ', form: 'photographie', view: 'all' })
+  await repository.searchGames('default', { query: '  Éclair  ', platform: 'Steam Deck', sort: { column: 'title', direction: 'asc' } })
+  await repository.searchArtworks('default', { query: '  Montréal  ', form: 'photographie', sort: { column: 'title', direction: 'asc' } })
   assert.match(calls[0].query, /developer COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir le studio')
   assert.match(calls[0].query, /platform COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir la plateforme')
   assert.deepEqual(calls[0].bindValues, ['default', '%Éclair%', 'Steam Deck'], 'Le filtre de plateforme doit être paramétré')
@@ -3343,32 +3347,53 @@ assert.match(tmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche TMDB doit 
 assert.match(tmdbSearchFlowSource, /spellCheck=\{false\}/, 'La recherche TMDB doit désactiver la correction orthographique')
 assert.match(mainSource047, /autoCorrect="off"[\s\S]*spellCheck=\{false\}/, 'La recherche locale Films doit désactiver les corrections automatiques')
 
-// Jalon 0.4.19 — vues intégrées Tous / Récents / Favoris / Classement, tris SQL documentés.
+// Jalons 0.4.19 puis 0.4.23 — vues intégrées et modèle unifié : préset { filtres, tri }.
 const libraryViewQuerySource = readFileSync(new URL('../src/data/libraryViewQuery.ts', import.meta.url), 'utf8')
 const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
 
 {
-  const { LIBRARY_VIEWS, RATED_LIBRARY_VIEWS, UNRATED_LIBRARY_VIEWS } = await import('../src/domain/libraryViews.ts')
-  const { libraryViewOrderBy, libraryViewWhereClause } = await import('../src/data/libraryViewQuery.ts')
+  const { RATED_BUILTIN_VIEWS, UNRATED_BUILTIN_VIEWS, resolveLibraryQuery, sortColumnsForMedium } = await import('../src/domain/libraryViews.ts')
+  const { librarySortOrderBy } = await import('../src/data/libraryViewQuery.ts')
+  const { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters } = await import('../src/domain/libraryFilters.ts')
 
-  assert.deepEqual([...LIBRARY_VIEWS], ['all', 'recent', 'favorites', 'ranking'], 'Le vocabulaire des vues doit être borné à quatre entrées')
-  assert.deepEqual([...RATED_LIBRARY_VIEWS], [...LIBRARY_VIEWS], 'Les médiums notés doivent proposer les quatre vues')
-  assert.ok(!UNRATED_LIBRARY_VIEWS.includes('ranking'), 'L’Art ne doit jamais proposer de classement par note')
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites', 'ranking'], 'Les médiums notés doivent proposer les quatre vues intégrées')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites'], 'L’Art ne doit jamais proposer de classement par note')
+  assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les quatre vues de base sont des présets intégrés du même modèle')
 
-  assert.equal(libraryViewOrderBy('all'), 'title COLLATE NOCASE ASC, created_at ASC', 'Tous doit conserver l’ordre canonique par titre')
-  assert.equal(libraryViewOrderBy('recent'), 'updated_at DESC, title COLLATE NOCASE ASC', 'Récents sans progression doit suivre la dernière modification')
+  const favorites = RATED_BUILTIN_VIEWS.find((view) => view.id === 'favorites')
+  assert.equal(favorites.filters.favoritesOnly, true, 'La vue Favoris est un préset filtré sur les coups de cœur')
+  assert.deepEqual(favorites.sort, { column: 'title', direction: 'asc' }, 'La vue Favoris trie par titre')
+  assert.deepEqual(RATED_BUILTIN_VIEWS.find((view) => view.id === 'ranking').sort, { column: 'rating', direction: 'desc' }, 'La vue Classement trie par note décroissante')
+
+  assert.equal(librarySortOrderBy({ column: 'title', direction: 'asc' }, { progressColumn: null }), 'title COLLATE NOCASE ASC, created_at ASC', 'Le tri par titre doit être canonique')
+  assert.equal(librarySortOrderBy({ column: 'title', direction: 'desc' }, { progressColumn: null }), 'title COLLATE NOCASE DESC, created_at ASC', 'Le tri par titre doit accepter le sens décroissant')
+  assert.equal(librarySortOrderBy({ column: 'recency', direction: 'desc' }, { progressColumn: null }), 'updated_at DESC, title COLLATE NOCASE ASC', 'La récence sans progression suit la dernière modification')
   assert.equal(
-    libraryViewOrderBy('recent', { progressColumn: 'progress_updated_at' }),
+    librarySortOrderBy({ column: 'recency', direction: 'desc' }, { progressColumn: 'progress_updated_at' }),
     'COALESCE(progress_updated_at, updated_at) DESC, title COLLATE NOCASE ASC',
-    'Récents doit privilégier la progression métier horodatée quand elle existe',
+    'La récence privilégie la progression métier horodatée quand elle existe',
   )
-  assert.equal(libraryViewOrderBy('ranking'), 'rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC', 'Classement doit trier par note décroissante, absences de note en fin')
-  assert.equal(libraryViewWhereClause('favorites'), 'is_favorite = 1', 'Favoris doit filtrer les coups de cœur dans SQLite')
-  assert.equal(libraryViewWhereClause('all'), null, 'Tous ne doit ajouter aucune restriction')
+  assert.equal(librarySortOrderBy({ column: 'rating', direction: 'desc' }, { progressColumn: null }), 'rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC', 'Le tri par note est décroissant, absences en fin')
+  assert.equal(librarySortOrderBy({ column: 'year', direction: 'asc' }, { progressColumn: null }), 'year IS NULL ASC, year ASC, title COLLATE NOCASE ASC', 'Le tri par année place les absences en fin')
+  assert.equal(librarySortOrderBy({ column: 'personalDate', direction: 'desc' }, { progressColumn: null, personalDateColumn: 'watched_at' }), 'watched_at IS NULL ASC, watched_at DESC, title COLLATE NOCASE ASC', 'Le tri par date personnelle vise la colonne du médium')
+  assert.equal(librarySortOrderBy({ column: 'added', direction: 'desc' }, { progressColumn: null }), 'created_at DESC, title COLLATE NOCASE ASC', 'Le tri par ajout suit la création')
+
+  assert.deepEqual(sortColumnsForMedium({ rating: true, year: true }), ['title', 'recency', 'rating', 'year', 'personalDate', 'added'], 'Un médium noté avec année expose toutes les colonnes de tri')
+  assert.ok(!sortColumnsForMedium({ rating: false, year: true }).includes('rating'), 'L’Art n’expose jamais un tri par note')
+  assert.ok(!sortColumnsForMedium({ rating: true, year: false }).includes('year'), 'Les Séries n’exposent pas de tri par année')
+
+  const merged = mergeLibraryFilters(favorites.filters, { ...EMPTY_LIBRARY_FILTERS, year: 2018 })
+  assert.equal(merged.favoritesOnly, true, 'Un filtre à la volée ne peut pas annuler le filtre de la vue Favoris')
+  assert.equal(merged.year, 2018, 'Le filtre à la volée s’ajoute à celui de la vue active')
+
+  const resolved = resolveLibraryQuery(favorites, { ...EMPTY_LIBRARY_FILTERS, year: 2018 }, { column: 'year', direction: 'desc' })
+  assert.equal(resolved.filters.favoritesOnly && resolved.filters.year === 2018, true, 'La requête effective combine vue et filtres à la volée')
+  assert.deepEqual(resolved.sort, { column: 'year', direction: 'desc' }, 'Un tri explicite remplace celui du préset')
+  assert.deepEqual(resolveLibraryQuery(favorites, EMPTY_LIBRARY_FILTERS, null).sort, favorites.sort, 'Sans tri explicite, le tri du préset s’applique')
 }
 
 assert.equal((mainSource0419.match(/<LibraryViewTabs/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager la même rangée de vues')
-assert.match(mainSource0419, /views=\{UNRATED_LIBRARY_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
+assert.match(mainSource0419, /views=\{UNRATED_BUILTIN_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
 assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
 assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
 
@@ -3470,31 +3495,32 @@ const libraryFilterPanelSource = readFileSync(new URL('../src/components/Library
 
   await filmsRepository.searchFilms('default', {
     query: 'chihiro',
-    view: 'ranking',
+    sort: { column: 'rating', direction: 'desc' },
     filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
   })
   const filmCall = calls.at(-1)
   assert.deepEqual(filmCall.bindValues, ['default', '%chihiro%', 'terminé', 4], 'Texte, statut et note doivent se combiner dans une seule requête liée')
-  assert.match(filmCall.query, /ORDER BY rating IS NULL ASC, rating DESC/, 'La vue active doit conserver son tri pendant le filtrage')
+  assert.match(filmCall.query, /ORDER BY rating IS NULL ASC, rating DESC/, 'Le tri actif doit se conserver pendant le filtrage')
 
   await mediaRepository.searchArtworks('default', {
     query: '',
     form: 'peinture',
-    view: 'favorites',
-    filters: { status: 'all', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: 'Orsay', exhibition: '' },
+    sort: { column: 'title', direction: 'asc' },
+    filters: { status: 'all', favoritesOnly: true, minRating: null, year: null, personalDateFrom: null, specificText: '', location: 'Orsay', exhibition: '' },
   })
   const artworkCall = calls.at(-1)
   assert.deepEqual(artworkCall.bindValues, ['default', 'peinture', '%Orsay%'], 'Forme, favoris et lieu doivent se combiner pour l’Art')
-  assert.match(artworkCall.query, /is_favorite = 1/, 'La vue favoris doit rester active pendant le filtrage Art')
+  assert.match(artworkCall.query, /is_favorite = 1/, 'Le filtre favoris doit rester actif pendant le filtrage Art')
 }
 
 assert.equal((mainSource0419.match(/<LibraryFilterPanel/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager le panneau de filtres')
 assert.match(libraryFilterPanelSource, /Réinitialiser/, 'Le panneau doit proposer une remise à zéro explicite')
 assert.match(libraryFilterPanelSource, /aria-label="Critères actifs"/, 'Les critères actifs doivent être affichés et accessibles')
-assert.match(mainSource0419, /EMPTY_LIBRARY_FILTERS \}\)/, 'Réinitialiser doit ramener à un état clairement défini')
+assert.match(mainSource0419, /EMPTY_LIBRARY_FILTERS, sortOverride: null \}\)/, 'Réinitialiser doit ramener à un état clairement défini')
 
-// Jalon 0.4.21 — vues personnalisées enregistrées, locales et isolées.
+// Jalons 0.4.21 puis 0.4.23 — vues personnalisées enregistrées, locales et isolées, modèle unifié.
 const savedViewsMigrationSource = readFileSync(new URL('../src-tauri/migrations/0012_create_saved_views.sql', import.meta.url), 'utf8')
+const savedViewsMigration13Source = readFileSync(new URL('../src-tauri/migrations/0013_saved_views_unified_criteria.sql', import.meta.url), 'utf8')
 const rustDatabaseSource = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
 const savedViewsBarSource = readFileSync(new URL('../src/components/SavedViewsBar.tsx', import.meta.url), 'utf8')
 const libraryDocumentSource0421 = readFileSync(new URL('../src/domain/libraryDocument.ts', import.meta.url), 'utf8')
@@ -3502,8 +3528,11 @@ const rustPortabilitySource0421 = readFileSync(new URL('../src-tauri/src/portabi
 
 assert.match(savedViewsMigrationSource, /UNIQUE \(profile_id, medium, name\)/, 'Le nom d’une vue doit être unique par profil et médium')
 assert.match(savedViewsMigrationSource, /schema_version INTEGER/, 'Le schéma des critères doit être versionné')
-assert.doesNotMatch(savedViewsMigrationSource, /CHECK \(view IN \('all', 'recent', 'favorites'\)\)/, 'La contrainte SQL ne doit pas exclure ranking : la règle Art vit dans le domaine')
+assert.match(savedViewsMigration13Source, /DROP TABLE saved_views/, 'La migration 13 doit supprimer l’ancienne table pour retirer la colonne view')
+assert.match(savedViewsMigration13Source, /SELECT id, profile_id, medium, name, criteria_json/, 'La migration 13 doit préserver les vues déjà enregistrées')
+assert.doesNotMatch(savedViewsMigration13Source, /INSERT INTO saved_views_new \([^)]*view/, 'La migration 13 ne doit pas conserver la colonne view')
 assert.match(rustDatabaseSource, /0012_create_saved_views\.sql/, 'La migration 12 doit être enregistrée')
+assert.match(rustDatabaseSource, /0013_saved_views_unified_criteria\.sql/, 'La migration 13 doit être enregistrée')
 assert.doesNotMatch(libraryDocumentSource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans le document d’export (décision : local uniquement)')
 assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans les snapshots ni la portabilité native')
 
@@ -3522,17 +3551,17 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
   assert.deepEqual(normalized, { ok: true, name: 'Mes films 2026' }, 'Le nom doit être nettoyé et borné')
 
   assert.throws(
-    () => assertSavedViewAllowed('artworks', { view: 'ranking', mediumFilter: 'all', filters: { status: 'all', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' } }),
-    /Classement/,
-    'Une vue Classement ne doit jamais être enregistrée pour l’Art',
+    () => assertSavedViewAllowed('artworks', { sort: { column: 'rating', direction: 'desc' }, mediumFilter: 'all', filters: { status: 'all', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' } }),
+    /note/,
+    'Une vue triée par note ne doit jamais être enregistrée pour l’Art',
   )
 
   const drifted = sanitizeSavedViewCriteria('books', {
-    view: 'inexistante',
+    sort: { column: 'inexistante', direction: 'sideways' },
     mediumFilter: 'poche',
     filters: { status: 'relu', favoritesOnly: true, minRating: 99, year: 2020.5, personalDateFrom: 'hier', specificText: 42 },
   })
-  assert.equal(drifted.view, 'all', 'Une vue inconnue après évolution du schéma doit retomber sur Tous')
+  assert.deepEqual(drifted.sort, { column: 'title', direction: 'asc' }, 'Un tri inconnu après évolution du schéma doit retomber sur le titre')
   assert.equal(drifted.mediumFilter, 'all', 'Une catégorie Livre inconnue doit retomber sur le filtre neutre')
   assert.equal(drifted.filters.status, 'all', 'Un statut inconnu doit retomber sur le filtre neutre')
   assert.equal(drifted.filters.minRating, null, 'Une note hors borne doit être abandonnée')
@@ -3541,21 +3570,30 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
   assert.equal(drifted.filters.specificText, '', 'Un texte non chaîne doit être abandonné')
   assert.equal(drifted.filters.favoritesOnly, true, 'Les critères valides doivent survivre à la réparation')
 
-  const artRanking = sanitizeSavedViewCriteria('artworks', { view: 'ranking', mediumFilter: 'all', filters: {} })
-  assert.equal(artRanking.view, 'all', 'Une vue Classement persistée pour l’Art doit être réparée à la lecture')
+  const artRanking = sanitizeSavedViewCriteria('artworks', { sort: { column: 'rating', direction: 'desc' }, mediumFilter: 'all', filters: {} })
+  assert.deepEqual(artRanking.sort, { column: 'title', direction: 'asc' }, 'Un tri par note persisté pour l’Art doit être réparé à la lecture')
 
   const corrupted = deserializeSavedViewCriteria('films', '{pas du json')
-  assert.equal(corrupted.view, 'all', 'Un JSON corrompu doit retomber sur le critère neutre')
+  assert.deepEqual(corrupted.sort, { column: 'title', direction: 'asc' }, 'Un JSON corrompu doit retomber sur le critère neutre')
 
-  const gameView = sanitizeSavedViewCriteria('games', { view: 'favorites', mediumFilter: 'Steam Deck', filters: {} })
+  const gameView = sanitizeSavedViewCriteria('games', { sort: { column: 'recency', direction: 'desc' }, mediumFilter: 'Steam Deck', filters: {} })
   assert.equal(gameView.mediumFilter, 'Steam Deck', 'La plateforme Jeu saisie librement doit être conservée')
 
+  const v1Legacy = sanitizeSavedViewCriteria('films', {
+    view: 'favorites',
+    mediumFilter: 'all',
+    filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  })
+  assert.equal(v1Legacy.filters.favoritesOnly, true, 'Un critère v1 Favoris doit être converti en préset filtré')
+  assert.deepEqual(v1Legacy.sort, { column: 'title', direction: 'asc' }, 'Un critère v1 Favoris hérite du tri du préset intégré')
+  assert.equal(v1Legacy.filters.minRating, 4, 'Un critère v1 conserve ses filtres valides lors de la conversion')
+
   const roundTrip = deserializeSavedViewCriteria('series', serializeSavedViewCriteria({
-    view: 'recent',
+    sort: { column: 'recency', direction: 'desc' },
     mediumFilter: 'animation',
     filters: { status: 'en cours', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: '2026-02-01', specificText: '', location: '', exhibition: '' },
   }))
-  assert.equal(roundTrip.view, 'recent', 'Le tri de la vue doit survivre à la sérialisation')
+  assert.deepEqual(roundTrip.sort, { column: 'recency', direction: 'desc' }, 'Le tri de la vue doit survivre à la sérialisation')
   assert.equal(roundTrip.mediumFilter, 'animation', 'Le filtre de catégorie doit survivre à la sérialisation')
   assert.equal(roundTrip.filters.minRating, 4, 'Les critères avancés doivent survivre à la sérialisation')
 }
@@ -3577,7 +3615,7 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
         }
         rows.push({
           id: bindValues[0], profile_id: bindValues[1], medium: bindValues[2], name: bindValues[3],
-          criteria_json: bindValues[5], created_at: bindValues[7], updated_at: bindValues[8],
+          criteria_json: bindValues[4], created_at: bindValues[6], updated_at: bindValues[7],
         })
         return { rowsAffected: 1 }
       }
@@ -3604,14 +3642,14 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
   let idCounter = 0
   const repository = new SqliteSavedViewsRepository(async () => database, () => `vue-${++idCounter}`, () => '2026-08-01T10:00:00.000Z')
   const criteria = {
-    view: 'ranking',
+    sort: { column: 'rating', direction: 'desc' },
     mediumFilter: 'all',
     filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
   }
 
   const created = await repository.create('profil-a', 'films', '  Mes préférés  ', criteria)
   assert.equal(created.name, 'Mes préférés', 'Le nom doit être nettoyé avant écriture')
-  assert.match(calls.at(-1)?.query ?? rows[0].criteria_json, /ranking/, 'Le critère doit être persisté')
+  assert.match(rows[0].criteria_json, /"column":"rating"/, 'Le critère doit être persisté')
   assert.ok(!rows[0].criteria_json.includes('WHERE'), 'Aucune chaîne SQL ne doit être persistée dans les critères')
 
   await repository.create('profil-b', 'films', 'Mes préférés', criteria)
@@ -3630,7 +3668,7 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
   )
 
   const artView = await repository.create('profil-a', 'artworks', 'Rétrospective', { ...criteria, mediumFilter: 'peinture' })
-  assert.equal(artView.criteria.view, 'all', 'Une vue Classement demandée pour l’Art doit être réparée avant écriture')
+  assert.deepEqual(artView.criteria.sort, { column: 'title', direction: 'asc' }, 'Un tri par note demandé pour l’Art doit être réparé avant écriture')
   assert.equal(artView.criteria.filters.minRating, null, 'Le critère de note doit être absent pour l’Art')
 
   const filmsViewsA = await repository.list('profil-a', 'films')
@@ -3640,7 +3678,7 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
 
   rows[0].criteria_json = '{corrompu'
   const repaired = await repository.list('profil-a', 'films')
-  assert.equal(repaired[0].criteria.view, 'all', 'Un critère corrompu en base doit retomber sur le critère neutre sans casser la liste')
+  assert.deepEqual(repaired[0].criteria.sort, { column: 'title', direction: 'asc' }, 'Un critère corrompu en base doit retomber sur le critère neutre sans casser la liste')
 
   await repository.rename('profil-a', created.id, 'Soirées cinéma')
   assert.equal(rows.find((row) => row.id === created.id).name, 'Soirées cinéma', 'Le renommage doit mettre à jour le nom')
@@ -3663,4 +3701,4 @@ assert.equal((mainSource0419.match(/<SavedViewsBar/g) ?? []).length, 5, 'Les cin
 assert.match(savedViewsBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
 assert.match(savedViewsBarSource, /Enregistrer la vue/, 'La barre doit permettre de nommer la vue courante')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité.')
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture.')

@@ -92,9 +92,9 @@ export class SqliteSavedViewsRepository {
     try {
       const result = await database.execute(
         `INSERT INTO saved_views (
-           id, profile_id, medium, name, view, criteria_json, schema_version, created_at, updated_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [id, profileId, medium, name.name, criteria.view, serializeSavedViewCriteria(criteria), SAVED_VIEW_SCHEMA_VERSION, now, now],
+           id, profile_id, medium, name, criteria_json, schema_version, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, profileId, medium, name.name, serializeSavedViewCriteria(criteria), SAVED_VIEW_SCHEMA_VERSION, now, now],
       )
       if (result.rowsAffected !== 1) {
         throw new Error('La création de la vue enregistrée n’a modifié aucune ligne SQLite.')

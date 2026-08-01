@@ -1,12 +1,12 @@
 import { FILM_STATUSES, normalizeFilm, type Film, type FilmStatus } from '../domain/film.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
-import type { LibraryView } from '../domain/libraryViews.ts'
+import type { LibrarySort } from '../domain/libraryViews.ts'
 import type { LibraryFilters } from '../domain/libraryFilters.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
 import type { Profile } from '../domain/profile.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
-import { appendLibraryFilterClauses, libraryViewOrderBy, libraryViewWhereClause, type LibraryFilterColumns } from './libraryViewQuery.ts'
+import { appendLibraryFilterClauses, librarySortOrderBy, type LibraryQueryColumns } from './libraryViewQuery.ts'
 import {
   importLibraryAtomically,
   type ImportLibraryResult,
@@ -55,18 +55,19 @@ type ProfileSummaryRow = ProfileRow & {
 
 export type FilmSearchCriteria = {
   query: string
-  view: LibraryView
   filters?: LibraryFilters
+  sort: LibrarySort
 }
 
-/** Colonnes Films réellement filtrables (jalon 0.4.20). */
-const FILM_FILTER_COLUMNS: LibraryFilterColumns = {
+/** Colonnes Films réellement filtrables et triables (jalons 0.4.20 et 0.4.23). */
+const FILM_QUERY_COLUMNS: LibraryQueryColumns = {
   rating: true,
   year: true,
   personalDateColumn: 'watched_at',
   specificTextColumn: 'director',
   locationColumn: null,
   exhibitionColumn: null,
+  progressColumn: null,
 }
 
 export type SqliteQueryResult = {
@@ -291,12 +292,7 @@ export class SqliteFilmsRepository {
       )`)
     }
 
-    const viewClause = libraryViewWhereClause(criteria.view)
-    if (viewClause) {
-      clauses.push(viewClause)
-    }
-
-    appendLibraryFilterClauses(criteria.filters, FILM_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
+    appendLibraryFilterClauses(criteria.filters, FILM_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<FilmRow[]>(
       `SELECT
@@ -319,7 +315,7 @@ export class SqliteFilmsRepository {
          updated_at
        FROM films
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY ${libraryViewOrderBy(criteria.view)}`,
+       ORDER BY ${librarySortOrderBy(criteria.sort, FILM_QUERY_COLUMNS)}`,
       bindValues,
     )
 
