@@ -2,10 +2,11 @@ import { FILM_STATUSES, normalizeFilm, type Film, type FilmStatus } from '../dom
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import type { LibraryView } from '../domain/libraryViews.ts'
+import type { LibraryFilters } from '../domain/libraryFilters.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
 import type { Profile } from '../domain/profile.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
-import { libraryViewOrderBy, libraryViewWhereClause } from './libraryViewQuery.ts'
+import { appendLibraryFilterClauses, libraryViewOrderBy, libraryViewWhereClause, type LibraryFilterColumns } from './libraryViewQuery.ts'
 import {
   importLibraryAtomically,
   type ImportLibraryResult,
@@ -55,6 +56,17 @@ type ProfileSummaryRow = ProfileRow & {
 export type FilmSearchCriteria = {
   query: string
   view: LibraryView
+  filters?: LibraryFilters
+}
+
+/** Colonnes Films réellement filtrables (jalon 0.4.20). */
+const FILM_FILTER_COLUMNS: LibraryFilterColumns = {
+  rating: true,
+  year: true,
+  personalDateColumn: 'watched_at',
+  specificTextColumn: 'director',
+  locationColumn: null,
+  exhibitionColumn: null,
 }
 
 export type SqliteQueryResult = {
@@ -283,6 +295,8 @@ export class SqliteFilmsRepository {
     if (viewClause) {
       clauses.push(viewClause)
     }
+
+    appendLibraryFilterClauses(criteria.filters, FILM_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<FilmRow[]>(
       `SELECT

@@ -358,6 +358,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.20` — Filtres avancés et tri combinable
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques partagent un panneau de filtres borné par médium : statut, favori, note minimale (jamais l'Art), année quand la colonne existe, date personnelle, et texte spécifique (réalisation, auteur, artiste, lieu, exposition). Les critères se combinent avec la recherche textuelle et la vue active, qui porte l'ordre de tri — aucun second sélecteur de tri redondant n'est introduit. Les paramètres SQL sont tous liés ; les critères actifs sont récapitulés en puces retirables, avec une action Réinitialiser ramenant à un état défini. Les critères survivent à l'aller-retour vers une fiche, l'état restant porté par le contexte de la bibliothèque.
+
 - Combiner recherche textuelle, critères communs, critères propres au médium et ordre de tri.
 - Afficher les critères actifs, le nombre de résultats et une remise à zéro explicite.
 

@@ -3372,4 +3372,125 @@ assert.match(mainSource0419, /views=\{UNRATED_LIBRARY_VIEWS\}/, 'La bibliothèqu
 assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
 assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note.')
+// Jalon 0.4.20 — filtres avancés combinables avec la recherche et la vue active.
+const libraryFilterPanelSource = readFileSync(new URL('../src/components/LibraryFilterPanel.tsx', import.meta.url), 'utf8')
+
+{
+  const {
+    EMPTY_LIBRARY_FILTERS,
+    clearFilterChip,
+    countActiveFilters,
+    describeActiveFilters,
+  } = await import('../src/domain/libraryFilters.ts')
+  const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
+  const escapeLike = (value) => value.replace(/[\\%_]/g, (match) => `\\${match}`)
+
+  assert.equal(countActiveFilters(EMPTY_LIBRARY_FILTERS), 0, 'Aucun critère ne doit être actif à l’état initial')
+
+  const combined = {
+    status: 'terminé',
+    favoritesOnly: true,
+    minRating: 4,
+    year: 2001,
+    personalDateFrom: '2026-01-01',
+    specificText: 'Miyazaki',
+    location: '',
+    exhibition: '',
+  }
+  assert.equal(countActiveFilters(combined), 6, 'Chaque critère renseigné doit compter')
+
+  const chips = describeActiveFilters(combined, {
+    statusLabel: (status) => `libellé ${status}`,
+    personalDateLabel: 'Visionnage',
+    specificTextLabel: 'Réalisation',
+  })
+  assert.equal(chips.length, 6, 'Chaque critère actif doit produire une puce')
+  assert.ok(chips.some((chip) => chip.label === 'Note ≥ 4'), 'La note minimale doit être lisible dans les puces')
+
+  const cleared = clearFilterChip(combined, 'minRating')
+  assert.equal(cleared.minRating, null, 'Retirer une puce ne doit effacer que son critère')
+  assert.equal(cleared.status, 'terminé', 'Retirer une puce doit préserver les autres critères')
+
+  const clauses = []
+  const bindValues = []
+  appendLibraryFilterClauses(combined, {
+    rating: true,
+    year: true,
+    personalDateColumn: 'watched_at',
+    specificTextColumn: 'director',
+    locationColumn: null,
+    exhibitionColumn: null,
+  }, clauses, bindValues, escapeLike)
+  assert.deepEqual(bindValues, ['terminé', 4, 2001, '2026-01-01', '%Miyazaki%'], 'Tous les critères doivent être liés en paramètres')
+  assert.ok(clauses.every((clause) => !clause.includes('Miyazaki') && !clause.includes('2001')), 'Aucune valeur ne doit être interpolée dans le SQL')
+  assert.ok(clauses.some((clause) => clause.startsWith('rating >=')), 'La note minimale doit filtrer la colonne rating')
+  assert.ok(clauses.some((clause) => clause.startsWith('watched_at >=')), 'La date personnelle doit filtrer la colonne dédiée')
+
+  const seriesClauses = []
+  const seriesBinds = []
+  appendLibraryFilterClauses({ year: 1999, minRating: null, status: 'all', favoritesOnly: false, personalDateFrom: null, specificText: '', location: '', exhibition: '' }, {
+    rating: true,
+    year: false,
+    personalDateColumn: 'started_at',
+    specificTextColumn: null,
+    locationColumn: null,
+    exhibitionColumn: null,
+  }, seriesClauses, seriesBinds, escapeLike)
+  assert.equal(seriesBinds.length, 0, 'Un médium sans colonne année ne doit jamais appliquer ce critère')
+
+  const artClauses = []
+  const artBinds = []
+  appendLibraryFilterClauses({ ...EMPTY_LIBRARY_FILTERS, minRating: 5, location: 'Orsay', exhibition: 'Impres_sion' }, {
+    rating: false,
+    year: true,
+    personalDateColumn: 'discovered_at',
+    specificTextColumn: 'artist',
+    locationColumn: 'location',
+    exhibitionColumn: 'exhibition',
+  }, artClauses, artBinds, escapeLike)
+  assert.ok(!artClauses.some((clause) => clause.startsWith('rating')), 'L’Art ne doit jamais filtrer par note')
+  assert.deepEqual(artBinds, ['%Orsay%', '%Impres\\_sion%'], 'Les jokers LIKE des critères texte doivent être échappés')
+}
+
+{
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      return []
+    },
+    async execute() {
+      throw new Error('Aucune écriture attendue pendant la recherche filtrée')
+    },
+  }
+  const { SqliteFilmsRepository } = await import('../src/data/filmsRepository.ts')
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const filmsRepository = new SqliteFilmsRepository(async () => database)
+  const mediaRepository = new SqliteMediaRepository(async () => database)
+
+  await filmsRepository.searchFilms('default', {
+    query: 'chihiro',
+    view: 'ranking',
+    filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  })
+  const filmCall = calls.at(-1)
+  assert.deepEqual(filmCall.bindValues, ['default', '%chihiro%', 'terminé', 4], 'Texte, statut et note doivent se combiner dans une seule requête liée')
+  assert.match(filmCall.query, /ORDER BY rating IS NULL ASC, rating DESC/, 'La vue active doit conserver son tri pendant le filtrage')
+
+  await mediaRepository.searchArtworks('default', {
+    query: '',
+    form: 'peinture',
+    view: 'favorites',
+    filters: { status: 'all', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: 'Orsay', exhibition: '' },
+  })
+  const artworkCall = calls.at(-1)
+  assert.deepEqual(artworkCall.bindValues, ['default', 'peinture', '%Orsay%'], 'Forme, favoris et lieu doivent se combiner pour l’Art')
+  assert.match(artworkCall.query, /is_favorite = 1/, 'La vue favoris doit rester active pendant le filtrage Art')
+}
+
+assert.equal((mainSource0419.match(/<LibraryFilterPanel/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager le panneau de filtres')
+assert.match(libraryFilterPanelSource, /Réinitialiser/, 'Le panneau doit proposer une remise à zéro explicite')
+assert.match(libraryFilterPanelSource, /aria-label="Critères actifs"/, 'Les critères actifs doivent être affichés et accessibles')
+assert.match(mainSource0419, /EMPTY_LIBRARY_FILTERS \}\)/, 'Réinitialiser doit ramener à un état clairement défini')
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite.')

@@ -29,11 +29,13 @@ import {
   type SeriesSearchCriteria,
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
+import { LibraryFilterPanel, type LibraryFilterPanelConfig } from './components/LibraryFilterPanel.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { associateFilmWithTmdb, getFilmTmdbCache } from './data/tmdbService.ts'
 import {
   FILM_STATUS_LABELS,
+  FILM_STATUSES,
   type Film,
 } from './domain/film.ts'
 import type { FilmFormValues, FilmWriteInput } from './domain/filmForm.ts'
@@ -45,8 +47,15 @@ import {
   type LibraryView,
 } from './domain/libraryViews.ts'
 import {
+  EMPTY_LIBRARY_FILTERS,
+  hasActiveFilters,
+  normalizeLibraryFilters,
+  type LibraryFilters,
+} from './domain/libraryFilters.ts'
+import {
   SERIES_CATEGORY_LABELS,
   SERIES_STATUS_LABELS,
+  SERIES_STATUSES,
   type Series,
   type SeriesCategory,
 } from './domain/series.ts'
@@ -54,6 +63,7 @@ import type { SeriesWriteInput } from './domain/seriesForm.ts'
 import {
   BOOK_CATEGORY_LABELS,
   BOOK_STATUS_LABELS,
+  BOOK_STATUSES,
   type Book,
   type BookCategory,
 } from './domain/book.ts'
@@ -62,6 +72,7 @@ import {
   buildGamePlatformFilters,
   buildGamePlatformSuggestions,
   GAME_STATUS_LABELS,
+  GAME_STATUSES,
   type Game,
 } from './domain/game.ts'
 import type { GameWriteInput } from './domain/gameForm.ts'
@@ -69,6 +80,7 @@ import {
   ARTWORK_FORMS,
   ARTWORK_FORM_LABELS,
   ARTWORK_STATUS_LABELS,
+  ARTWORK_STATUSES,
   type Artwork,
 } from './domain/artwork.ts'
 import type { ArtworkWriteInput } from './domain/artworkForm.ts'
@@ -584,6 +596,7 @@ function LibraryViewTabs({ views, current, ariaLabel, onChange }: LibraryViewTab
 type LibraryContext = {
   query: string
   view: LibraryView
+  filters?: LibraryFilters
 }
 
 type SearchState =
@@ -612,7 +625,7 @@ function FilmsLibrary({
   onOpen,
   onLibraryChanged,
 }: FilmsLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.view === 'all'
+  const isUnfiltered = context.query.trim() === '' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
   const resultCount = searchState.status === 'ready' ? searchState.films.length : null
 
   return (
@@ -664,6 +677,13 @@ function FilmsLibrary({
             />
           </div>
 
+          <LibraryFilterPanel
+            filters={context.filters}
+            config={FILM_FILTER_PANEL_CONFIG}
+            idPrefix="films-filters"
+            onChange={(filters) => onContextChange({ ...context, filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'film affiché' : 'films affichés'}</p>
@@ -685,7 +705,7 @@ function FilmsLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', view: 'all' })}
+                onClick={() => onContextChange({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}
               >
                 Afficher tous les films
               </button>
@@ -711,6 +731,56 @@ type LibraryState =
 
 type SeriesCategoryFilter = SeriesCategory | 'all'
 type BookCategoryFilter = BookCategory | 'all'
+
+const FILM_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+  statusOptions: FILM_STATUSES.map((status) => ({ value: status, label: FILM_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: true,
+  personalDateLabel: 'Visionnage',
+  specificTextField: { label: 'Réalisation', placeholder: 'Nom du réalisateur ou de la réalisatrice' },
+  showLocation: false,
+  showExhibition: false,
+}
+
+const SERIES_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+  statusOptions: SERIES_STATUSES.map((status) => ({ value: status, label: SERIES_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: false,
+  personalDateLabel: 'Début de visionnage',
+  specificTextField: null,
+  showLocation: false,
+  showExhibition: false,
+}
+
+const BOOK_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+  statusOptions: BOOK_STATUSES.map((status) => ({ value: status, label: BOOK_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: true,
+  personalDateLabel: 'Début de lecture',
+  specificTextField: { label: 'Auteur', placeholder: 'Nom de l’auteur ou de l’autrice' },
+  showLocation: false,
+  showExhibition: false,
+}
+
+const GAME_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+  statusOptions: GAME_STATUSES.map((status) => ({ value: status, label: GAME_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: true,
+  personalDateLabel: 'Jeu',
+  specificTextField: null,
+  showLocation: false,
+  showExhibition: false,
+}
+
+const ARTWORK_FILTER_PANEL_CONFIG: LibraryFilterPanelConfig = {
+  statusOptions: ARTWORK_STATUSES.map((status) => ({ value: status, label: ARTWORK_STATUS_LABELS[status] })),
+  showRating: false,
+  showYear: true,
+  personalDateLabel: 'Découverte',
+  specificTextField: { label: 'Artiste', placeholder: 'Nom de l’artiste' },
+  showLocation: true,
+  showExhibition: true,
+}
 
 const SERIES_CATEGORY_FILTERS: Array<{ id: SeriesCategoryFilter; label: string }> = [
   { id: 'all', label: 'Toutes' },
@@ -778,7 +848,7 @@ function SeriesLibrary({
   profileId,
   onLibraryChanged,
 }: SeriesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view === 'all'
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
   const resultCount = searchState.status === 'ready' ? searchState.series.length : null
 
   return (
@@ -844,6 +914,13 @@ function SeriesLibrary({
             </div>
           </div>
 
+          <LibraryFilterPanel
+            filters={context.filters}
+            config={SERIES_FILTER_PANEL_CONFIG}
+            idPrefix="series-filters"
+            onChange={(filters) => onContextChange({ ...context, filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'série affichée' : 'séries affichées'}</p>
@@ -865,7 +942,7 @@ function SeriesLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: 'all', view: 'all' })}
+                onClick={() => onContextChange({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}
               >
                 Afficher toutes les séries
               </button>
@@ -961,7 +1038,7 @@ function GamesLibrary({
   profileId,
   onLibraryChanged,
 }: GamesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view === 'all'
+  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
   const resultCount = searchState.status === 'ready' ? searchState.games.length : null
   const platforms = buildGamePlatformFilters(collection)
 
@@ -1028,6 +1105,13 @@ function GamesLibrary({
             </div>
           </div>
 
+          <LibraryFilterPanel
+            filters={context.filters}
+            config={GAME_FILTER_PANEL_CONFIG}
+            idPrefix="games-filters"
+            onChange={(filters) => onContextChange({ ...context, filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'jeu affiché' : 'jeux affichés'}</p>
@@ -1046,7 +1130,7 @@ function GamesLibrary({
             <div className="results-state empty-results">
               <h2>Aucun jeu ne correspond.</h2>
               <p>Modifiez la recherche ou revenez à tous les jeux.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: 'all' })}>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}>
                 Afficher tous les jeux
               </button>
             </div>
@@ -1115,7 +1199,7 @@ function ArtworksLibrary({
   profileId,
   onLibraryChanged,
 }: ArtworksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view === 'all'
+  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
   const resultCount = searchState.status === 'ready' ? searchState.artworks.length : null
 
   return (
@@ -1181,6 +1265,13 @@ function ArtworksLibrary({
             </div>
           </div>
 
+          <LibraryFilterPanel
+            filters={context.filters}
+            config={ARTWORK_FILTER_PANEL_CONFIG}
+            idPrefix="artworks-filters"
+            onChange={(filters) => onContextChange({ ...context, filters })}
+          />
+
           <div className="collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'œuvre affichée' : 'œuvres affichées'}</p>
@@ -1199,7 +1290,7 @@ function ArtworksLibrary({
             <div className="results-state empty-results">
               <h2>Aucune œuvre ne correspond.</h2>
               <p>Modifiez la recherche ou revenez à toutes les œuvres.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: 'all' })}>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}>
                 Afficher toutes les œuvres
               </button>
             </div>
@@ -1246,7 +1337,7 @@ function BooksLibrary({
   profileId,
   onLibraryChanged,
 }: BooksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view === 'all'
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view === 'all' && !hasActiveFilters(normalizeLibraryFilters(context.filters))
   const resultCount = searchState.status === 'ready' ? searchState.books.length : null
 
   return (
@@ -1312,6 +1403,13 @@ function BooksLibrary({
             </div>
           </div>
 
+          <LibraryFilterPanel
+            filters={context.filters}
+            config={BOOK_FILTER_PANEL_CONFIG}
+            idPrefix="books-filters"
+            onChange={(filters) => onContextChange({ ...context, filters })}
+          />
+
           <div className="collection-meta books-collection-meta" aria-live="polite">
             {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
               <p>{resultCount} {resultCount === 1 ? 'livre affiché' : 'livres affichés'}</p>
@@ -1333,7 +1431,7 @@ function BooksLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: 'all', view: 'all' })}
+                onClick={() => onContextChange({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })}
               >
                 Afficher tous les livres
               </button>
@@ -1461,22 +1559,22 @@ function App() {
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
-  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: 'all' })
+  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
   const [seriesCollection, setSeriesCollection] = useState<Series[]>([])
   const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
-  const [seriesContext, setSeriesContext] = useState<SeriesSearchCriteria>({ query: '', category: 'all', view: 'all' })
+  const [seriesContext, setSeriesContext] = useState<SeriesSearchCriteria>({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [bookCollection, setBookCollection] = useState<Book[]>([])
   const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
-  const [bookContext, setBookContext] = useState<BookSearchCriteria>({ query: '', category: 'all', view: 'all' })
+  const [bookContext, setBookContext] = useState<BookSearchCriteria>({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [gameCollection, setGameCollection] = useState<Game[]>([])
   const [gameSearchState, setGameSearchState] = useState<GameSearchState>({ status: 'loading' })
-  const [gameContext, setGameContext] = useState<GameSearchCriteria>({ query: '', platform: 'all', view: 'all' })
+  const [gameContext, setGameContext] = useState<GameSearchCriteria>({ query: '', platform: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
   const [gameSearchAttempt, setGameSearchAttempt] = useState(0)
   const [artworkCollection, setArtworkCollection] = useState<Artwork[]>([])
   const [artworkSearchState, setArtworkSearchState] = useState<ArtworkSearchState>({ status: 'loading' })
-  const [artworkContext, setArtworkContext] = useState<ArtworkSearchCriteria>({ query: '', form: 'all', view: 'all' })
+  const [artworkContext, setArtworkContext] = useState<ArtworkSearchCriteria>({ query: '', form: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
   const [artworkSearchAttempt, setArtworkSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
@@ -1919,15 +2017,15 @@ function App() {
         profiles={profiles}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
-          setLibraryContext({ query: '', view: 'all' })
-          setSeriesContext({ query: '', category: 'all', view: 'all' })
-          setBookContext({ query: '', category: 'all', view: 'all' })
-          setGameContext({ query: '', platform: 'all', view: 'all' })
-          setArtworkContext({ query: '', form: 'all', view: 'all' })
+          setLibraryContext({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+          setSeriesContext({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+          setBookContext({ query: '', category: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+          setGameContext({ query: '', platform: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
+          setArtworkContext({ query: '', form: 'all', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
           setLibraryState({ status: 'ready', library: selectedLibrary })
         }}
         onImported={(importedLibrary) => {
-          setLibraryContext({ query: '', view: 'all' })
+          setLibraryContext({ query: '', view: 'all', filters: EMPTY_LIBRARY_FILTERS })
           setLibraryState({ status: 'ready', library: importedLibrary })
           requestAutomaticBackup(importedLibrary)
           profilesRepository.list().then(setProfiles, (error: unknown) => {

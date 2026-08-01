@@ -3,9 +3,10 @@ import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, type Book, type BookCate
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
 import type { LibraryView } from '../domain/libraryViews.ts'
+import type { LibraryFilters } from '../domain/libraryFilters.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
 import type { DatabaseLoader, IdFactory, NowFactory } from './filmsRepository.ts'
-import { libraryViewOrderBy, libraryViewWhereClause } from './libraryViewQuery.ts'
+import { appendLibraryFilterClauses, libraryViewOrderBy, libraryViewWhereClause, type LibraryFilterColumns } from './libraryViewQuery.ts'
 import {
   createBookAtomically,
   deleteBookAtomically,
@@ -308,24 +309,65 @@ export type SeriesSearchCriteria = {
   query: string
   category: SeriesCategory | 'all'
   view: LibraryView
+  filters?: LibraryFilters
 }
 
 export type BookSearchCriteria = {
   query: string
   category: BookCategory | 'all'
   view: LibraryView
+  filters?: LibraryFilters
 }
 
 export type GameSearchCriteria = {
   query: string
   platform: string | 'all'
   view: LibraryView
+  filters?: LibraryFilters
 }
 
 export type ArtworkSearchCriteria = {
   query: string
   form: ArtworkForm | 'all'
   view: LibraryView
+  filters?: LibraryFilters
+}
+
+/** Colonnes réellement filtrables par médium (jalon 0.4.20). */
+const SERIES_FILTER_COLUMNS: LibraryFilterColumns = {
+  rating: true,
+  year: false,
+  personalDateColumn: 'started_at',
+  specificTextColumn: null,
+  locationColumn: null,
+  exhibitionColumn: null,
+}
+
+const BOOK_FILTER_COLUMNS: LibraryFilterColumns = {
+  rating: true,
+  year: true,
+  personalDateColumn: 'started_at',
+  specificTextColumn: 'author',
+  locationColumn: null,
+  exhibitionColumn: null,
+}
+
+const GAME_FILTER_COLUMNS: LibraryFilterColumns = {
+  rating: true,
+  year: true,
+  personalDateColumn: 'played_at',
+  specificTextColumn: null,
+  locationColumn: null,
+  exhibitionColumn: null,
+}
+
+const ARTWORK_FILTER_COLUMNS: LibraryFilterColumns = {
+  rating: false,
+  year: true,
+  personalDateColumn: 'discovered_at',
+  specificTextColumn: 'artist',
+  locationColumn: 'location',
+  exhibitionColumn: 'exhibition',
 }
 
 export class SqliteMediaRepository {
@@ -390,6 +432,8 @@ export class SqliteMediaRepository {
     if (viewClause) {
       clauses.push(viewClause)
     }
+
+    appendLibraryFilterClauses(criteria.filters, SERIES_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<SeriesRow[]>(
       `SELECT ${SERIES_COLUMNS}
@@ -612,6 +656,8 @@ export class SqliteMediaRepository {
       clauses.push(viewClause)
     }
 
+    appendLibraryFilterClauses(criteria.filters, BOOK_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
+
     const rows = await database.select<BookRow[]>(
       `SELECT ${BOOK_COLUMNS}
        FROM books
@@ -755,6 +801,8 @@ export class SqliteMediaRepository {
     if (viewClause) {
       clauses.push(viewClause)
     }
+
+    appendLibraryFilterClauses(criteria.filters, GAME_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<GameRow[]>(
       `SELECT ${GAME_COLUMNS}
@@ -941,6 +989,8 @@ export class SqliteMediaRepository {
     if (viewClause) {
       clauses.push(viewClause)
     }
+
+    appendLibraryFilterClauses(criteria.filters, ARTWORK_FILTER_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<ArtworkRow[]>(
       `SELECT ${ARTWORK_COLUMNS}
