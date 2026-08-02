@@ -4,9 +4,10 @@ type PosterProps = {
   title: string
   src: string | null
   className?: string
+  label?: 'Affiche' | 'Couverture' | 'Visuel'
 }
 
-export function Poster({ title, src, className = '' }: PosterProps) {
+export function Poster({ title, src, className = '', label = 'Affiche' }: PosterProps) {
   const [missing, setMissing] = useState(false)
 
   useEffect(() => {
@@ -18,12 +19,12 @@ export function Poster({ title, src, className = '' }: PosterProps) {
   return (
     <div className={`poster ${className}`.trim()}>
       {showFallback ? (
-        <div className="poster-fallback" role="img" aria-label={`Affiche indisponible pour ${title}`}>
-          <span>Sans affiche</span>
+        <div className="poster-fallback" role="img" aria-label={`${label} indisponible pour ${title}`}>
+          <span>Sans {label.toLocaleLowerCase('fr')}</span>
           <b>{title}</b>
         </div>
       ) : (
-        <img src={src} alt={`Affiche du film « ${title} »`} onError={() => setMissing(true)} />
+        <img src={src} alt={`${label} de « ${title} »`} onError={() => setMissing(true)} />
       )}
     </div>
   )

@@ -58,5 +58,29 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0009_add_selected_poster_url.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 10,
+            description: "create_cultural_media",
+            sql: include_str!("../migrations/0010_create_cultural_media.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 11,
+            description: "nullable_current_profile",
+            sql: include_str!("../migrations/0011_nullable_current_profile.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 12,
+            description: "create_saved_views",
+            sql: include_str!("../migrations/0012_create_saved_views.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 13,
+            description: "saved_views_unified_criteria",
+            sql: include_str!("../migrations/0013_saved_views_unified_criteria.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

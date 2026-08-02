@@ -1,0 +1,62 @@
+export const SERIES_CATEGORIES = ['série télé', 'animation'] as const
+
+export type SeriesCategory = (typeof SERIES_CATEGORIES)[number]
+
+export const SERIES_CATEGORY_LABELS: Record<SeriesCategory, string> = {
+  'série télé': 'Série télé',
+  animation: 'Animation',
+}
+
+export const SERIES_STATUSES = ['à voir', 'en cours', 'abandonnée', 'vue'] as const
+
+export type SeriesStatus = (typeof SERIES_STATUSES)[number]
+
+export const SERIES_STATUS_LABELS: Record<SeriesStatus, string> = {
+  'à voir': 'À voir',
+  'en cours': 'En cours',
+  abandonnée: 'Abandonnée',
+  vue: 'Vue',
+}
+
+export type Series = {
+  id: string
+  profileId: string
+  title: string
+  showrunner: string | null
+  casting: string | null
+  summary: string | null
+  category: SeriesCategory
+  status: SeriesStatus
+  rating: number | null
+  isFavorite: boolean
+  seasonsSeen: number | null
+  seasonsTotal: number | null
+  progressUpdatedAt: string | null
+  startedAt: string | null
+  posterUrl: string | null
+  personalNote: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/**
+ * Les formats d'import peuvent contenir des chaînes facultatives vides. La
+ * donnée locale canonique les représente par null. Cette fonction ne retire
+ * aucun caractère d'une chaîne non vide.
+ */
+export function normalizeSeries(series: Series): Series {
+  return {
+    ...series,
+    showrunner: emptyOptionalTextToNull(series.showrunner),
+    casting: emptyOptionalTextToNull(series.casting),
+    summary: emptyOptionalTextToNull(series.summary),
+    progressUpdatedAt: emptyOptionalTextToNull(series.progressUpdatedAt),
+    startedAt: emptyOptionalTextToNull(series.startedAt),
+    posterUrl: emptyOptionalTextToNull(series.posterUrl),
+    personalNote: emptyOptionalTextToNull(series.personalNote),
+  }
+}
+
+function emptyOptionalTextToNull(value: string | null): string | null {
+  return value === '' ? null : value
+}

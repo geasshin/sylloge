@@ -1,11 +1,17 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import {
   searchTmdbFilms,
   type TmdbSearchCandidate,
 } from '../data/tmdbService.ts'
+import type { Film } from '../domain/film.ts'
 import { Poster } from './Poster.tsx'
 
 type TmdbSearchFlowProps = {
+  film?: Film | null
+  /** Candidat en cours de traitement : la liste se fige pendant la préparation. */
+  pendingCandidateId?: number | null
+  /** Échec de la sélection directe, annoncé sans quitter la recherche. */
+  selectionError?: string | null
   onSelectCandidate: (candidate: TmdbSearchCandidate) => void
   onManual: () => void
   onCancel: () => void
@@ -17,41 +23,78 @@ type SearchState =
   | { status: 'results'; candidates: TmdbSearchCandidate[] }
   | { status: 'error'; message: string }
 
-export function TmdbSearchFlow({ onSelectCandidate, onManual, onCancel }: TmdbSearchFlowProps) {
-  const [query, setQuery] = useState('')
+export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel }: TmdbSearchFlowProps) {
+  const [query, setQuery] = useState(() => film?.title ?? '')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
 
-  const handleSearch = async (event: FormEvent) => {
-    event.preventDefault()
+  useEffect(() => {
+    let cancelled = false
     const trimmed = query.trim()
-    if (trimmed.length === 0) return
+
+    if (trimmed.length === 0) {
+      setSearchState({ status: 'idle' })
+      return () => {
+        cancelled = true
+      }
+    }
 
     setSearchState({ status: 'searching' })
-    try {
-      const candidates = await searchTmdbFilms(trimmed)
-      setSearchState({ status: 'results', candidates })
-    } catch (error) {
-      console.error('La recherche TMDB a échoué.', error)
-      setSearchState({
-        status: 'error',
-        message: 'La recherche a échoué. Vérifiez votre clé TMDB dans les paramètres puis réessayez.',
-      })
+    const timeout = window.setTimeout(() => {
+      searchTmdbFilms(trimmed).then(
+        (candidates) => {
+          if (!cancelled) setSearchState({ status: 'results', candidates })
+        },
+        (error: unknown) => {
+          console.error('La recherche TMDB a échoué.', error)
+          if (!cancelled) {
+            // Le backend décrit la cause réelle (réseau, panne du fournisseur,
+            // erreur HTTP) : on l'affiche telle quelle au lieu de deviner.
+            const providerMessage = typeof error === 'string' && error.trim().length > 0 ? error : null
+            setSearchState({
+              status: 'error',
+              message: providerMessage ?? 'La recherche a échoué. Vérifiez votre connexion puis réessayez.',
+            })
+          }
+        },
+      )
+    }, 320)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
     }
-  }
+  }, [query])
 
   return (
     <main className="main editor-main" aria-label="Recherche TMDB">
       <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+        <button className="back-button" type="button" onClick={onCancel}>
+          {film ? '← Retour à la fiche' : '← Annuler'}
+        </button>
       </header>
 
       <div className="editor-heading">
         <p className="eyebrow">Film</p>
-        <h1 className="display-title">Enrichissement assisté</h1>
-        <p>Recherchez un film dans TMDB, choisissez la bonne correspondance, puis confirmez avant tout enregistrement.</p>
+        <h1 className="display-title">{film ? 'Modifier l’association' : 'Rechercher un film'}</h1>
+        <p>
+          {film
+            ? `Recherchez une autre correspondance TMDB pour « ${film.title} ».`
+            : 'Recherchez un film dans TMDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.'}
+        </p>
       </div>
 
-      <form className="tmdb-search-form" onSubmit={handleSearch}>
+      {film && (
+        <section className="tmdb-film-context" aria-labelledby="tmdb-film-context-title">
+          <Poster title={film.title} src={film.posterUrl} className="tmdb-film-context-poster" />
+          <div className="tmdb-film-context-info">
+            <p className="card-kicker">Fiche actuelle</p>
+            <h2 id="tmdb-film-context-title">{film.title}</h2>
+            <p>Cette fiche reste le contexte de l’association. Ses données personnelles ne seront pas modifiées ici.</p>
+          </div>
+        </section>
+      )}
+
+      <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
           <label htmlFor="tmdb-search-query">Titre du film</label>
           <input
@@ -61,19 +104,18 @@ export function TmdbSearchFlow({ onSelectCandidate, onManual, onCancel }: TmdbSe
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Rechercher dans TMDB…"
             autoFocus
-            disabled={searchState.status === 'searching'}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-busy={searchState.status === 'searching'}
           />
+          <p className="field-help">
+            {searchState.status === 'searching' ? 'Recherche dans TMDB…' : 'Les suggestions se mettent à jour pendant la saisie.'}
+          </p>
         </div>
         <div className="form-actions">
-          <button
-            className="primary-button"
-            type="submit"
-            disabled={searchState.status === 'searching' || query.trim().length === 0}
-          >
-            {searchState.status === 'searching' ? 'Recherche…' : 'Rechercher'}
-          </button>
           <button className="secondary-button" type="button" onClick={onManual}>
-            Passer à la saisie manuelle
+            {film ? 'Retour à la fiche' : 'Saisir manuellement'}
           </button>
         </div>
       </form>
@@ -82,6 +124,16 @@ export function TmdbSearchFlow({ onSelectCandidate, onManual, onCancel }: TmdbSe
         <div className="results-state error-state" role="alert">
           <h2>La recherche a échoué.</h2>
           <p>{searchState.message}</p>
+        </div>
+      )}
+
+      {pendingCandidateId !== null && (
+        <div className="results-state" role="status">Préparation de la fiche…</div>
+      )}
+
+      {selectionError !== null && pendingCandidateId === null && (
+        <div className="results-state error-state" role="alert">
+          <p>{selectionError}</p>
         </div>
       )}
 
@@ -101,6 +153,8 @@ export function TmdbSearchFlow({ onSelectCandidate, onManual, onCancel }: TmdbSe
                   key={candidate.tmdbId}
                   className="tmdb-candidate-card"
                   type="button"
+                  disabled={pendingCandidateId !== null}
+                  aria-busy={pendingCandidateId === candidate.tmdbId}
                   onClick={() => onSelectCandidate(candidate)}
                 >
                   <Poster

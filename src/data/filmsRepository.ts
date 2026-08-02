@@ -1,9 +1,12 @@
-import { FILM_STATUSES, normalizeFilm, type Film, type FilmFilter, type FilmStatus } from '../domain/film.ts'
+import { FILM_STATUSES, normalizeFilm, type Film, type FilmStatus } from '../domain/film.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
+import type { LibrarySort } from '../domain/libraryViews.ts'
+import type { LibraryFilters } from '../domain/libraryFilters.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
 import type { Profile } from '../domain/profile.ts'
 import { DEFAULT_PROFILE_ID, loadSyllogeDatabase } from './database.ts'
+import { appendLibraryFilterClauses, librarySortOrderBy, type LibraryQueryColumns } from './libraryViewQuery.ts'
 import {
   importLibraryAtomically,
   type ImportLibraryResult,
@@ -52,7 +55,19 @@ type ProfileSummaryRow = ProfileRow & {
 
 export type FilmSearchCriteria = {
   query: string
-  filter: FilmFilter
+  filters?: LibraryFilters
+  sort: LibrarySort
+}
+
+/** Colonnes Films réellement filtrables et triables (jalons 0.4.20 et 0.4.23). */
+const FILM_QUERY_COLUMNS: LibraryQueryColumns = {
+  rating: true,
+  year: true,
+  personalDateColumn: 'watched_at',
+  specificTextColumn: 'director',
+  locationColumn: null,
+  exhibitionColumn: null,
+  progressColumn: null,
 }
 
 export type SqliteQueryResult = {
@@ -277,15 +292,7 @@ export class SqliteFilmsRepository {
       )`)
     }
 
-    if (criteria.filter === 'to-discover') {
-      bindValues.push('à découvrir')
-      clauses.push(`status = $${bindValues.length}`)
-    } else if (criteria.filter === 'completed') {
-      bindValues.push('terminé')
-      clauses.push(`status = $${bindValues.length}`)
-    } else if (criteria.filter === 'favorites') {
-      clauses.push('is_favorite = 1')
-    }
+    appendLibraryFilterClauses(criteria.filters, FILM_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<FilmRow[]>(
       `SELECT
@@ -308,7 +315,7 @@ export class SqliteFilmsRepository {
          updated_at
        FROM films
        WHERE ${clauses.join('\n         AND ')}
-       ORDER BY title COLLATE NOCASE ASC, created_at ASC`,
+       ORDER BY ${librarySortOrderBy(criteria.sort, FILM_QUERY_COLUMNS)}`,
       bindValues,
     )
 

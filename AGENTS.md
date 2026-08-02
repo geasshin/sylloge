@@ -1,6 +1,6 @@
 # Sylloge — instructions pour les agents de code
 
-Sylloge est une bibliothèque culturelle personnelle **local-first**. La version actuelle est `0.1.0` ; le prochain lot est `0.1.1`, une stabilisation native Films, pas une extension fonctionnelle.
+Sylloge est une bibliothèque culturelle personnelle **local-first**. La dernière release publique est `0.4.0` ; le train actif prépare `0.5.0`, l’extension culturelle aux cinq médiums définis dans la roadmap.
 
 ## Références à lire avant toute modification
 

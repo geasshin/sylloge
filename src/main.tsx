@@ -1,28 +1,104 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ArtworkDetail } from './components/ArtworkDetail.tsx'
+import { ArtworkForm } from './components/ArtworkForm.tsx'
 import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
+import { BookDetail } from './components/BookDetail.tsx'
+import { BookForm } from './components/BookForm.tsx'
+import { GameDetail } from './components/GameDetail.tsx'
+import { GameForm } from './components/GameForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
+import { SeriesDetail } from './components/SeriesDetail.tsx'
+import { SeriesForm } from './components/SeriesForm.tsx'
+import { SeriesTmdbSearchFlow } from './components/SeriesTmdbSearchFlow.tsx'
+import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlow.tsx'
+import { GameRawgSearchFlow } from './components/GameRawgSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
-import { TmdbAssociationConfirm } from './components/TmdbAssociationConfirm.tsx'
+import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
-import { filmsRepository, type FilmLibrary, type ProfileSummary } from './data/filmsRepository.ts'
-import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
-import { getFilmTmdbCache } from './data/tmdbService.ts'
+import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
+import { profilesRepository, type ProfileSummary } from './data/profilesRepository.ts'
 import {
-  FILM_FILTER_LABELS,
-  FILM_FILTERS,
+  mediaRepository,
+  type ArtworkSearchCriteria,
+  type BookSearchCriteria,
+  type GameSearchCriteria,
+  type SeriesSearchCriteria,
+} from './data/mediaRepository.ts'
+import { LibraryImportButton } from './components/LibraryImportButton.tsx'
+import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
+
+import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
+import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries } from './data/tmdbService.ts'
+import { previewOpenLibraryBook, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
+import { previewRawgGame, type RawgGameCandidate } from './data/rawgService.ts'
+import {
   FILM_STATUS_LABELS,
+  FILM_STATUSES,
   type Film,
-  type FilmFilter,
 } from './domain/film.ts'
-import type { FilmWriteInput } from './domain/filmForm.ts'
+import type { FilmFormValues, FilmWriteInput } from './domain/filmForm.ts'
+import type { FilmMetadataProvenance } from './domain/filmMetadataAssistance.ts'
+import {
+  filmMetadataResultToFormInitialValues,
+  tmdbPresentationToFilmMetadataResult,
+} from './domain/filmMetadataAssistance.ts'
+import {
+  RATED_BUILTIN_VIEWS,
+  UNRATED_BUILTIN_VIEWS,
+  resolveLibraryQuery,
+  type LibrarySort,
+  type LibraryViewDefinition,
+} from './domain/libraryViews.ts'
+import {
+  EMPTY_LIBRARY_FILTERS,
+  hasActiveFilters,
+  type LibraryFilters,
+} from './domain/libraryFilters.ts'
+import {
+  SERIES_CATEGORIES,
+  SERIES_CATEGORY_LABELS,
+  SERIES_STATUS_LABELS,
+  SERIES_STATUSES,
+  type Series,
+  type SeriesCategory,
+} from './domain/series.ts'
+import type { SeriesFormValues, SeriesWriteInput } from './domain/seriesForm.ts'
+import { seriesPresentationToInitialValues } from './domain/seriesMetadataAssistance.ts'
+import {
+  BOOK_CATEGORIES,
+  BOOK_CATEGORY_LABELS,
+  BOOK_STATUS_LABELS,
+  BOOK_STATUSES,
+  type Book,
+  type BookCategory,
+} from './domain/book.ts'
+import type { BookFormValues, BookWriteInput } from './domain/bookForm.ts'
+import { bookPresentationToInitialValues } from './domain/bookMetadataAssistance.ts'
+import {
+  buildGamePlatformFilters,
+  buildGamePlatformSuggestions,
+  GAME_STATUS_LABELS,
+  GAME_STATUSES,
+  type Game,
+} from './domain/game.ts'
+import type { GameFormValues, GameWriteInput } from './domain/gameForm.ts'
+import { gamePresentationToInitialValues } from './domain/gameMetadataAssistance.ts'
+import {
+  ARTWORK_FORMS,
+  ARTWORK_FORM_LABELS,
+  ARTWORK_STATUS_LABELS,
+  ARTWORK_STATUSES,
+  type Artwork,
+} from './domain/artwork.ts'
+import type { ArtworkWriteInput } from './domain/artworkForm.ts'
 import './styles.css'
 
-type IconName = 'film' | 'home' | 'search' | 'settings'
+type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'search' | 'series' | 'settings'
 type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
@@ -37,10 +113,18 @@ const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
 
 type SidebarProps = {
   count: number | null
+  seriesCount: number | null
+  bookCount: number | null
+  gameCount: number | null
+  artworkCount: number | null
   currentProfileName: string | null
-  activeItem: 'home' | 'library' | 'settings'
+  activeItem: 'artworks' | 'books' | 'games' | 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
+  onSeries: () => void
+  onBooks: () => void
+  onGames: () => void
+  onArtworks: () => void
   onSettings: () => void
   settingsSection: SettingsSection
   onSettingsSection: (section: SettingsSection) => void
@@ -49,10 +133,18 @@ type SidebarProps = {
 
 function Sidebar({
   count,
+  seriesCount,
+  bookCount,
+  gameCount,
+  artworkCount,
   currentProfileName,
   activeItem,
   onHome,
   onLibrary,
+  onSeries,
+  onBooks,
+  onGames,
+  onArtworks,
   onSettings,
   settingsSection,
   onSettingsSection,
@@ -100,6 +192,42 @@ function Sidebar({
           >
             {icon('film')} Films
             {count !== null && <span className="nav-count">{count}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'series' ? 'active' : ''}`}
+            type="button"
+            onClick={onSeries}
+            aria-current={activeItem === 'series' ? 'page' : undefined}
+          >
+            {icon('series')} Séries
+            {seriesCount !== null && <span className="nav-count">{seriesCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'books' ? 'active' : ''}`}
+            type="button"
+            onClick={onBooks}
+            aria-current={activeItem === 'books' ? 'page' : undefined}
+          >
+            {icon('book')} Livres
+            {bookCount !== null && <span className="nav-count">{bookCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'games' ? 'active' : ''}`}
+            type="button"
+            onClick={onGames}
+            aria-current={activeItem === 'games' ? 'page' : undefined}
+          >
+            {icon('game')} Jeux
+            {gameCount !== null && <span className="nav-count">{gameCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'artworks' ? 'active' : ''}`}
+            type="button"
+            onClick={onArtworks}
+            aria-current={activeItem === 'artworks' ? 'page' : undefined}
+          >
+            {icon('art')} Art
+            {artworkCount !== null && <span className="nav-count">{artworkCount}</span>}
           </button>
         </nav>
       )}
@@ -164,6 +292,67 @@ function LoadingState() {
   )
 }
 
+type OnboardingProps = {
+  onProfileReady: () => void
+}
+
+/** Écran de premier lancement : créer un profil ou importer une bibliothèque. */
+function Onboarding({ onProfileReady }: OnboardingProps) {
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const createProfile = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await profilesRepository.create(trimmed)
+      onProfileReady()
+    } catch (cause) {
+      console.error('Impossible de créer le profil de premier lancement.', cause)
+      setError(cause instanceof Error ? cause.message : 'Le profil n’a pas pu être créé.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <main className="main onboarding-main" aria-label="Premier lancement">
+      <div className="onboarding-content">
+        <p className="eyebrow">Bienvenue</p>
+        <h1 className="display-title">Sylloge</h1>
+        <p className="onboarding-intro">
+          Votre bibliothèque culturelle personnelle, locale et durable. Commencez par créer un profil :
+          il regroupera vos cinq collections (Films, Séries, Livres, Jeux et Art) sur cet appareil.
+        </p>
+        <form className="onboarding-form" onSubmit={createProfile}>
+          <label>
+            <span>Nom du profil</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Par exemple votre prénom"
+              maxLength={60}
+              autoFocus
+            />
+          </label>
+          <button className="primary-button" type="submit" disabled={busy || !name.trim()}>
+            {busy ? 'Création…' : 'Créer mon profil'}
+          </button>
+        </form>
+        {error && <p className="inline-report error" role="alert">{error}</p>}
+        <p className="onboarding-hint">
+          Vous pourrez ensuite importer une bibliothèque existante depuis les Paramètres, ou ajouter vos œuvres à la main.
+        </p>
+      </div>
+    </main>
+  )
+}
+
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="library-state error-state" role="alert">
@@ -183,41 +372,6 @@ function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
       <p>Ajoutez un premier film, avec un titre seulement si vous le souhaitez.</p>
       <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un film</button>
     </div>
-  )
-}
-
-type FilmCreationChoiceProps = {
-  onManual: () => void
-  onAssisted: () => void
-  onCancel: () => void
-}
-
-function FilmCreationChoice({ onManual, onAssisted, onCancel }: FilmCreationChoiceProps) {
-  return (
-    <main className="main editor-main" aria-label="Ajouter un film">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
-
-      <div className="editor-heading creation-heading">
-        <p className="eyebrow">Film</p>
-        <h1 className="display-title">Ajouter un film</h1>
-        <p>Choisissez un parcours. Aucune fiche n’est créée avant la validation finale du formulaire.</p>
-      </div>
-
-      <div className="film-creation-choices" role="group" aria-label="Choisir un parcours de création">
-        <button className="film-creation-choice" type="button" onClick={onManual}>
-          <span className="card-kicker">Hors ligne</span>
-          <b>Saisie manuelle</b>
-          <span>Renseignez librement les informations du film, même sans aucune source externe.</span>
-        </button>
-        <button className="film-creation-choice" type="button" onClick={onAssisted}>
-          <span className="card-kicker">Métadonnées</span>
-          <b>Enrichissement assisté</b>
-          <span>Prépare une future recherche et un préremplissage, toujours modifiables avant l’enregistrement.</span>
-        </button>
-      </div>
-    </main>
   )
 }
 
@@ -427,7 +581,41 @@ function Home({ library, onOpen }: HomeProps) {
 
 type LibraryContext = {
   query: string
-  filter: FilmFilter
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+}
+
+type SeriesLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  category: SeriesCategory | 'all'
+}
+
+type BookLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  category: BookCategory | 'all'
+}
+
+type GameLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  platform: string
+}
+
+type ArtworkLibraryContext = {
+  query: string
+  view: LibraryViewDefinition
+  extraFilters: LibraryFilters
+  sortOverride: LibrarySort | null
+  form: ArtworkSearchCriteria['form']
 }
 
 type SearchState =
@@ -443,6 +631,7 @@ type FilmsLibraryProps = {
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (film: Film) => void
+  onLibraryChanged: () => void
 }
 
 function FilmsLibrary({
@@ -453,9 +642,10 @@ function FilmsLibrary({
   onRetrySearch,
   onCreate,
   onOpen,
+  onLibraryChanged,
 }: FilmsLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.filter === 'all'
-  const resultCount = searchState.status === 'ready' ? searchState.films.length : null
+  const isUnfiltered = context.query.trim() === '' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
@@ -464,7 +654,19 @@ function FilmsLibrary({
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Films</h1>
         </div>
-        <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
+        <div className="library-header-actions">
+          <LibraryImportButton
+            kind="films"
+            buttonLabel="Importer"
+            mediumLabel="film"
+            profileId={library.profile.id}
+            profileName={library.profile.name}
+            existing={library.films}
+            onDone={onLibraryChanged}
+          />
+          <LibraryExportFlow kind="films" profileId={library.profile.id} />
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
+        </div>
       </header>
 
       {library.films.length === 0 && isUnfiltered ? (
@@ -480,27 +682,27 @@ function FilmsLibrary({
                 value={context.query}
                 placeholder="Titre, titre original ou réalisation"
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </label>
-            <div className="filters" role="group" aria-label="Filtrer les films">
-              {FILM_FILTERS.map((filter) => (
-                <button
-                  className={`filter ${context.filter === filter ? 'active' : ''}`}
-                  type="button"
-                  aria-pressed={context.filter === filter}
-                  key={filter}
-                  onClick={() => onContextChange({ ...context, filter })}
-                >
-                  {FILM_FILTER_LABELS[filter]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="collection-meta" aria-live="polite">
-            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
-              <p>{resultCount} {resultCount === 1 ? 'film affiché' : 'films affichés'}</p>
-            )}
+            <LibraryViewBar
+              profileId={library.profile.id}
+              medium="films"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={FILM_FILTER_PANEL_CONFIG}
+              mediumFilterValue="all"
+              onMediumFilterChange={() => {}}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
+            />
           </div>
 
           {searchState.status === 'loading' ? (
@@ -518,7 +720,7 @@ function FilmsLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', filter: 'all' })}
+                onClick={() => onContextChange({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher tous les films
               </button>
@@ -539,22 +741,718 @@ function FilmsLibrary({
 type LibraryState =
   | { status: 'loading' }
   | { status: 'ready'; library: FilmLibrary }
+  | { status: 'no-profile' }
   | { status: 'error' }
+
+
+const FILM_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: null,
+  statusOptions: FILM_STATUSES.map((status) => ({ value: status, label: FILM_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: true,
+  personalDateLabel: 'Visionnage',
+  specificTextField: { label: 'Réalisation', placeholder: 'Nom du réalisateur ou de la réalisatrice' },
+  showLocation: false,
+  showExhibition: false,
+}
+
+const SERIES_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: {
+    label: 'Catégorie',
+    options: [
+      { value: 'all', label: 'Toutes' },
+      ...SERIES_CATEGORIES.map((category) => ({ value: category as string, label: SERIES_CATEGORY_LABELS[category] })),
+    ],
+  },
+  statusOptions: SERIES_STATUSES.map((status) => ({ value: status, label: SERIES_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: false,
+  personalDateLabel: 'Début de visionnage',
+  specificTextField: null,
+  showLocation: false,
+  showExhibition: false,
+}
+
+const BOOK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: {
+    label: 'Catégorie',
+    options: [
+      { value: 'all', label: 'Tous' },
+      ...BOOK_CATEGORIES.map((category) => ({ value: category as string, label: BOOK_CATEGORY_LABELS[category] })),
+    ],
+  },
+  statusOptions: BOOK_STATUSES.map((status) => ({ value: status, label: BOOK_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: true,
+  personalDateLabel: 'Début de lecture',
+  specificTextField: { label: 'Auteur', placeholder: 'Nom de l’auteur ou de l’autrice' },
+  showLocation: false,
+  showExhibition: false,
+}
+
+const GAME_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: null,
+  statusOptions: GAME_STATUSES.map((status) => ({ value: status, label: GAME_STATUS_LABELS[status] })),
+  showRating: true,
+  showYear: true,
+  personalDateLabel: 'Jeu',
+  specificTextField: null,
+  showLocation: false,
+  showExhibition: false,
+}
+
+const ARTWORK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  mediumFilter: {
+    label: 'Forme',
+    options: [
+      { value: 'all', label: 'Toutes' },
+      ...ARTWORK_FORMS.map((form) => ({ value: form as string, label: ARTWORK_FORM_LABELS[form] })),
+    ],
+  },
+  statusOptions: ARTWORK_STATUSES.map((status) => ({ value: status, label: ARTWORK_STATUS_LABELS[status] })),
+  showRating: false,
+  showYear: true,
+  personalDateLabel: 'Découverte',
+  specificTextField: { label: 'Artiste', placeholder: 'Nom de l’artiste' },
+  showLocation: true,
+  showExhibition: true,
+}
+
+function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) {
+  const progress = series.seasonsSeen !== null && series.seasonsTotal !== null
+    ? `${series.seasonsSeen} / ${series.seasonsTotal} saisons`
+    : null
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${series.title}`}>
+      <Poster title={series.title} src={series.posterUrl} />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{series.title}</b>
+          {series.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {series.showrunner && <small>{series.showrunner}</small>}
+        <span className={`status-line ${series.status === 'à voir' ? 'to-discover' : ''}`}>
+          {SERIES_STATUS_LABELS[series.status]}
+          {progress ? ` · ${progress}` : ''}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+type SeriesLibraryProps = {
+  profileName: string
+  collection: Series[]
+  context: SeriesLibraryContext
+  searchState: SeriesSearchState
+  onContextChange: (context: SeriesLibraryContext) => void
+  onRetrySearch: () => void
+  onCreate: () => void
+  onOpen: (series: Series) => void
+  profileId: string
+  onLibraryChanged: () => void
+}
+
+type SeriesSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; series: Series[] }
+  | { status: 'error' }
+
+function SeriesLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+  profileId,
+  onLibraryChanged,
+}: SeriesLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Séries</h1>
+        </div>
+        <div className="library-header-actions">
+          <LibraryImportButton
+            kind="series"
+            buttonLabel="Importer"
+            mediumLabel="série"
+            profileId={profileId}
+            profileName={profileName}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <LibraryExportFlow kind="series" profileId={profileId} />
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
+        </div>
+      </header>
+      {collection.length === 0 && isUnfiltered ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Séries est vide.</h2>
+          <p>Ajoutez une première série, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une série</button>
+        </div>
+      ) : (
+        <>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, showrunner ou casting"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <LibraryViewBar
+              profileId={profileId}
+              medium="series"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={SERIES_FILTER_PANEL_CONFIG}
+              mediumFilterValue={context.category}
+              onMediumFilterChange={(category) => onContextChange({ ...context, category: category as SeriesCategory | 'all' })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: false }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
+            />
+          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos séries restent enregistrées. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.series.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucune série ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à toutes les séries.</p>
+              <button
+                className="state-action"
+                type="button"
+                onClick={() => onContextChange({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+              >
+                Afficher toutes les séries
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+              {searchState.series.map((series) => (
+                <SeriesCard series={series} key={series.id} onOpen={() => onOpen(series)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </main>
+  )
+}
+
+function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
+  const attribution = [BOOK_CATEGORY_LABELS[book.category], book.author, book.year]
+    .filter((value) => value !== null)
+    .join(' · ')
+  const progress = book.volumesRead !== null && book.volumesTotal !== null
+    ? `${book.volumesRead} / ${book.volumesTotal} tomes`
+    : null
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${book.title}`}>
+      <Poster title={book.title} src={book.coverUrl} label="Couverture" />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{book.title}</b>
+          {book.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {attribution && <small>{attribution}</small>}
+        <span className={`status-line ${book.status === 'à lire' ? 'to-discover' : ''}`}>
+          {BOOK_STATUS_LABELS[book.status]}
+          {progress ? ` · ${progress}` : ''}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
+  const attribution = [game.platform, game.developer, game.year]
+    .filter((value) => value !== null)
+    .join(' · ')
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${game.title}`}>
+      <Poster title={game.title} src={game.coverUrl} label="Couverture" />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{game.title}</b>
+          {game.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {attribution && <small>{attribution}</small>}
+        <span className={`status-line ${game.status === 'à jouer' ? 'to-discover' : ''}`}>
+          {GAME_STATUS_LABELS[game.status]}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+type GamesLibraryProps = {
+  profileName: string
+  collection: Game[]
+  context: GameLibraryContext
+  searchState: GameSearchState
+  onContextChange: (context: GameLibraryContext) => void
+  onRetrySearch: () => void
+  onCreate: () => void
+  onOpen: (game: Game) => void
+  profileId: string
+  onLibraryChanged: () => void
+}
+
+type GameSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; games: Game[] }
+  | { status: 'error' }
+
+function GamesLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+  profileId,
+  onLibraryChanged,
+}: GamesLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const platforms = buildGamePlatformFilters(collection)
+
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Jeux</h1>
+        </div>
+        <div className="library-header-actions">
+          <LibraryImportButton
+            kind="games"
+            buttonLabel="Importer"
+            mediumLabel="jeu"
+            profileId={profileId}
+            profileName={profileName}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <LibraryExportFlow kind="games" profileId={profileId} />
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
+        </div>
+      </header>
+      {collection.length === 0 && isUnfiltered ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Jeux est vide.</h2>
+          <p>Ajoutez un premier jeu, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un jeu</button>
+        </div>
+      ) : (
+        <>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, studio ou plateforme"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <LibraryViewBar
+              profileId={profileId}
+              medium="games"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={{
+                ...GAME_FILTER_PANEL_CONFIG,
+                mediumFilter: {
+                  label: 'Plateforme',
+                  options: [{ value: 'all', label: 'Toutes' }, ...platforms.map((platform) => ({ value: platform, label: platform }))],
+                },
+              }}
+              mediumFilterValue={context.platform}
+              onMediumFilterChange={(platform) => onContextChange({ ...context, platform })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
+            />
+          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos jeux restent enregistrés. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.games.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucun jeu ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à tous les jeux.</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
+                Afficher tous les jeux
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+            {searchState.games.map((game) => (
+              <GameCard game={game} key={game.id} onOpen={() => onOpen(game)} />
+            ))}
+            </div>
+          )}
+        </>
+      )}
+    </main>
+  )
+}
+
+function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void }) {
+  const attribution = [ARTWORK_FORM_LABELS[artwork.form], artwork.artist, artwork.year]
+    .filter((value) => value !== null)
+    .join(' · ')
+
+  return (
+    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${artwork.title}`}>
+      <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" />
+      <span className="film-card-info">
+        <span className="film-card-top">
+          <b>{artwork.title}</b>
+          {artwork.isFavorite && <i aria-label="Favori">♥</i>}
+        </span>
+        {attribution && <small>{attribution}</small>}
+        <span className={`status-line ${artwork.status === 'à découvrir' ? 'to-discover' : ''}`}>
+          {ARTWORK_STATUS_LABELS[artwork.status]}
+        </span>
+      </span>
+    </button>
+  )
+}
+
+type ArtworksLibraryProps = {
+  profileName: string
+  collection: Artwork[]
+  context: ArtworkLibraryContext
+  searchState: ArtworkSearchState
+  onContextChange: (context: ArtworkLibraryContext) => void
+  onRetrySearch: () => void
+  onCreate: () => void
+  onOpen: (artwork: Artwork) => void
+  profileId: string
+  onLibraryChanged: () => void
+}
+
+type ArtworkSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; artworks: Artwork[] }
+  | { status: 'error' }
+
+function ArtworksLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+  profileId,
+  onLibraryChanged,
+}: ArtworksLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Art</h1>
+        </div>
+        <div className="library-header-actions">
+          <LibraryImportButton
+            kind="artworks"
+            buttonLabel="Importer"
+            mediumLabel="œuvre"
+            profileId={profileId}
+            profileName={profileName}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <LibraryExportFlow kind="artworks" profileId={profileId} />
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
+        </div>
+      </header>
+      {collection.length === 0 && isUnfiltered ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Art est vide.</h2>
+          <p>Ajoutez une première œuvre, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une œuvre</button>
+        </div>
+      ) : (
+        <>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, artiste, lieu ou exposition</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, artiste, lieu ou exposition"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <LibraryViewBar
+              profileId={profileId}
+              medium="artworks"
+              builtinViews={UNRATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={ARTWORK_FILTER_PANEL_CONFIG}
+              mediumFilterValue={context.form}
+              onMediumFilterChange={(form) => onContextChange({ ...context, form: form as ArtworkSearchCriteria['form'] })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: false, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
+            />
+          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos œuvres restent enregistrées. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.artworks.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucune œuvre ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à toutes les œuvres.</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
+                Afficher toutes les œuvres
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+            {searchState.artworks.map((artwork) => (
+              <ArtworkCard artwork={artwork} key={artwork.id} onOpen={() => onOpen(artwork)} />
+            ))}
+            </div>
+          )}
+        </>
+      )}
+    </main>
+  )
+}
+
+type BooksLibraryProps = {
+  profileName: string
+  collection: Book[]
+  context: BookLibraryContext
+  searchState: BookSearchState
+  onContextChange: (context: BookLibraryContext) => void
+  onRetrySearch: () => void
+  onCreate: () => void
+  onOpen: (book: Book) => void
+  profileId: string
+  onLibraryChanged: () => void
+}
+
+type BookSearchState =
+  | { status: 'loading' }
+  | { status: 'ready'; books: Book[] }
+  | { status: 'error' }
+
+function BooksLibrary({
+  profileName,
+  collection,
+  context,
+  searchState,
+  onContextChange,
+  onRetrySearch,
+  onCreate,
+  onOpen,
+  profileId,
+  onLibraryChanged,
+}: BooksLibraryProps) {
+  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+
+  return (
+    <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
+      <header className="library-header">
+        <div>
+          <p className="eyebrow">Collection personnelle</p>
+          <h1 className="display-title">Livres</h1>
+        </div>
+        <div className="library-header-actions">
+          <LibraryImportButton
+            kind="books"
+            buttonLabel="Importer"
+            mediumLabel="livre"
+            profileId={profileId}
+            profileName={profileName}
+            existing={collection}
+            onDone={onLibraryChanged}
+          />
+          <LibraryExportFlow kind="books" profileId={profileId} />
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
+        </div>
+      </header>
+      {collection.length === 0 && isUnfiltered ? (
+        <div className="library-state empty-library">
+          <p className="state-kicker">Collection personnelle</p>
+          <h2>Votre bibliothèque Livres est vide.</h2>
+          <p>Ajoutez un premier livre, manga ou comics, avec un titre seulement si vous le souhaitez.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un livre</button>
+        </div>
+      ) : (
+        <>
+          <div className="library-tools">
+            <label className="search">
+              {icon('search')}
+              <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
+              <input
+                type="search"
+                value={context.query}
+                placeholder="Titre, auteur ou résumé"
+                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+              />
+            </label>
+            <LibraryViewBar
+              profileId={profileId}
+              medium="books"
+              builtinViews={RATED_BUILTIN_VIEWS}
+              activeView={context.view}
+              onViewChange={(view) => onContextChange({ ...context, view })}
+              filterConfig={BOOK_FILTER_PANEL_CONFIG}
+              mediumFilterValue={context.category}
+              onMediumFilterChange={(category) => onContextChange({ ...context, category: category as BookCategory | 'all' })}
+              extraFilters={context.extraFilters}
+              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+              sortCapabilities={{ rating: true, year: true }}
+              sortOverride={context.sortOverride}
+              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
+            />
+          </div>
+
+          {searchState.status === 'loading' ? (
+            <div className="results-state" role="status">Recherche dans SQLite…</div>
+          ) : searchState.status === 'error' ? (
+            <div className="results-state error-state" role="alert">
+              <h2>La recherche locale a échoué.</h2>
+              <p>Vos livres restent enregistrés. Réessayez pour relire les résultats depuis SQLite.</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+            </div>
+          ) : searchState.books.length === 0 ? (
+            <div className="results-state empty-results">
+              <h2>Aucun livre ne correspond.</h2>
+              <p>Modifiez la recherche ou revenez à tous les livres.</p>
+              <button
+                className="state-action"
+                type="button"
+                onClick={() => onContextChange({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+              >
+                Afficher tous les livres
+              </button>
+            </div>
+          ) : (
+            <div className="film-grid" aria-busy="false">
+              {searchState.books.map((book) => (
+                <BookCard book={book} key={book.id} onOpen={() => onOpen(book)} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </main>
+  )
+}
 
 type View =
   | { name: 'home' }
   | { name: 'library' }
+  | { name: 'series' }
   | { name: 'settings' }
-  | { name: 'create-choice' }
-  | { name: 'create' }
+  | { name: 'create'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
   | { name: 'tmdb-search' }
-  | { name: 'tmdb-confirm'; candidate: TmdbSearchCandidate }
   | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
+  | { name: 'series-create'; initialValues?: SeriesFormValues }
+  | { name: 'series-tmdb-search' }
+  | { name: 'series-detail'; seriesId: string }
+  | { name: 'series-edit'; seriesId: string }
+  | { name: 'books' }
+  | { name: 'book-create'; initialValues?: BookFormValues }
+  | { name: 'book-ol-search' }
+  | { name: 'book-detail'; bookId: string }
+  | { name: 'book-edit'; bookId: string }
+  | { name: 'games' }
+  | { name: 'game-create'; initialValues?: GameFormValues }
+  | { name: 'game-rawg-search' }
+  | { name: 'game-detail'; gameId: string }
+  | { name: 'game-edit'; gameId: string }
+  | { name: 'artworks' }
+  | { name: 'artwork-create' }
+  | { name: 'artwork-detail'; artworkId: string }
+  | { name: 'artwork-edit'; artworkId: string }
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+}
+
+function sortBooks(books: Book[]): Book[] {
+  return [...books].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+}
+
+function sortGames(games: Game[]): Game[] {
+  return [...games].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+}
+
+function sortArtworks(artworks: Artwork[]): Artwork[] {
+  return [...artworks].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
 }
 
 type SqliteFilmDetailProps = {
@@ -565,9 +1463,10 @@ type SqliteFilmDetailProps = {
   onEdit: () => void
   onDelete: () => Promise<void>
   onAssociateTmdb: () => void
+  tmdbNotice?: string | null
 }
 
-function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete, onAssociateTmdb }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, tmdbNotice }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -593,7 +1492,7 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
   }, [attempt, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} tmdbNotice={tmdbNotice} />
   }
 
   return (
@@ -623,7 +1522,23 @@ function App() {
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
-  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', filter: 'all' })
+  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [seriesCollection, setSeriesCollection] = useState<Series[]>([])
+  const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
+  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
+  const [bookCollection, setBookCollection] = useState<Book[]>([])
+  const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
+  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
+  const [gameCollection, setGameCollection] = useState<Game[]>([])
+  const [gameSearchState, setGameSearchState] = useState<GameSearchState>({ status: 'loading' })
+  const [gameContext, setGameContext] = useState<GameLibraryContext>({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [gameSearchAttempt, setGameSearchAttempt] = useState(0)
+  const [artworkCollection, setArtworkCollection] = useState<Artwork[]>([])
+  const [artworkSearchState, setArtworkSearchState] = useState<ArtworkSearchState>({ status: 'loading' })
+  const [artworkContext, setArtworkContext] = useState<ArtworkLibraryContext>({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [artworkSearchAttempt, setArtworkSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -631,6 +1546,9 @@ function App() {
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
+  const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
+  const [bookSelection, setBookSelection] = useState<{ pendingKey: string | null; error: string | null }>({ pendingKey: null, error: null })
+  const [tmdbNotice, setTmdbNotice] = useState<{ filmId: string; message: string } | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
 
@@ -638,15 +1556,34 @@ function App() {
     let cancelled = false
     setLibraryState({ status: 'loading' })
 
-    Promise.all([filmsRepository.loadCurrentLibrary(), filmsRepository.listProfiles()]).then(
-      ([library, availableProfiles]) => {
-        if (!cancelled) {
-          setLibraryState({ status: 'ready', library })
-          setProfiles(availableProfiles)
+    profilesRepository.list().then(
+      async (availableProfiles) => {
+        if (cancelled) return
+        setProfiles(availableProfiles)
+
+        if (availableProfiles.length === 0) {
+          setLibraryState({ status: 'no-profile' })
+          return
+        }
+
+        try {
+          const library = await filmsRepository.loadCurrentLibrary()
+          if (!cancelled) setLibraryState({ status: 'ready', library })
+        } catch (error) {
+          // Aucun profil courant valide : ouvrir le premier profil disponible.
+          console.warn('Aucun profil courant valide, ouverture du premier profil.', error)
+          try {
+            await profilesRepository.open(availableProfiles[0].id)
+            const library = await filmsRepository.loadCurrentLibrary()
+            if (!cancelled) setLibraryState({ status: 'ready', library })
+          } catch (secondError) {
+            console.error('Impossible de charger la bibliothèque Films depuis SQLite.', secondError)
+            if (!cancelled) setLibraryState({ status: 'error' })
+          }
         }
       },
       (error: unknown) => {
-        console.error('Impossible de charger la bibliothèque Films depuis SQLite.', error)
+        console.error('Impossible de charger les profils depuis SQLite.', error)
         if (!cancelled) setLibraryState({ status: 'error' })
       },
     )
@@ -655,6 +1592,166 @@ function App() {
       cancelled = true
     }
   }, [loadAttempt])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listSeries(libraryState.library.profile.id).then(
+      (series) => { if (!cancelled) setSeriesCollection(series) },
+      (error: unknown) => {
+        console.error('Impossible de charger les séries depuis SQLite.', error)
+        if (!cancelled) setSeriesCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listBooks(libraryState.library.profile.id).then(
+      (books) => { if (!cancelled) setBookCollection(books) },
+      (error: unknown) => {
+        console.error('Impossible de charger les livres depuis SQLite.', error)
+        if (!cancelled) setBookCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listGames(libraryState.library.profile.id).then(
+      (games) => { if (!cancelled) setGameCollection(sortGames(games)) },
+      (error: unknown) => {
+        console.error('Impossible de charger les jeux depuis SQLite.', error)
+        if (!cancelled) setGameCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    mediaRepository.listArtworks(libraryState.library.profile.id).then(
+      (artworks) => { if (!cancelled) setArtworkCollection(sortArtworks(artworks)) },
+      (error: unknown) => {
+        console.error('Impossible de charger les œuvres depuis SQLite.', error)
+        if (!cancelled) setArtworkCollection([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setGameSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      const resolved = resolveLibraryQuery(gameContext.view, gameContext.extraFilters, gameContext.sortOverride)
+      mediaRepository.searchGames(libraryState.library.profile.id, { query: gameContext.query, platform: gameContext.platform, filters: resolved.filters, sort: resolved.sort }).then(
+        (games) => {
+          if (!cancelled) setGameSearchState({ status: 'ready', games })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les jeux dans SQLite.', error)
+          if (!cancelled) setGameSearchState({ status: 'error' })
+        },
+      )
+    }, gameContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [gameContext, gameSearchAttempt, libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setArtworkSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      const resolved = resolveLibraryQuery(artworkContext.view, artworkContext.extraFilters, artworkContext.sortOverride)
+      mediaRepository.searchArtworks(libraryState.library.profile.id, { query: artworkContext.query, form: artworkContext.form, filters: resolved.filters, sort: resolved.sort }).then(
+        (artworks) => {
+          if (!cancelled) setArtworkSearchState({ status: 'ready', artworks })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les œuvres dans SQLite.', error)
+          if (!cancelled) setArtworkSearchState({ status: 'error' })
+        },
+      )
+    }, artworkContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [artworkContext, artworkSearchAttempt, libraryState])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setSeriesSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      const resolved = resolveLibraryQuery(seriesContext.view, seriesContext.extraFilters, seriesContext.sortOverride)
+      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: seriesContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+        (series) => {
+          if (!cancelled) setSeriesSearchState({ status: 'ready', series })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les séries dans SQLite.', error)
+          if (!cancelled) setSeriesSearchState({ status: 'error' })
+        },
+      )
+    }, seriesContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [seriesContext, libraryState, seriesSearchAttempt])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setBookSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      const resolved = resolveLibraryQuery(bookContext.view, bookContext.extraFilters, bookContext.sortOverride)
+      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: bookContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+        (books) => {
+          if (!cancelled) setBookSearchState({ status: 'ready', books })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les livres dans SQLite.', error)
+          if (!cancelled) setBookSearchState({ status: 'error' })
+        },
+      )
+    }, bookContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [bookContext, libraryState, bookSearchAttempt])
 
   useEffect(() => {
     let cancelled = false
@@ -684,7 +1781,8 @@ function App() {
     let cancelled = false
     setSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
-      filmsRepository.searchFilms(libraryState.library.profile.id, libraryContext).then(
+      const resolved = resolveLibraryQuery(libraryContext.view, libraryContext.extraFilters, libraryContext.sortOverride)
+      filmsRepository.searchFilms(libraryState.library.profile.id, { query: libraryContext.query, filters: resolved.filters, sort: resolved.sort }).then(
         (films) => {
           if (!cancelled) setSearchState({ status: 'ready', films })
         },
@@ -749,7 +1847,93 @@ function App() {
   }
 
   const count = libraryState.status === 'ready' ? libraryState.library.films.length : null
+  const seriesCount = libraryState.status === 'ready' ? seriesCollection.length : null
+  const bookCount = libraryState.status === 'ready' ? bookCollection.length : null
+  const gameCount = libraryState.status === 'ready' ? gameCollection.length : null
+  const artworkCount = libraryState.status === 'ready' ? artworkCollection.length : null
   let content
+
+  // Jalon 0.4.25 : un clic sur un résultat TMDB agit directement, sans écran
+  // intermédiaire — préremplissage du formulaire en création, association
+  // immédiate à une fiche existante.
+  const selectTmdbCandidate = async (candidate: TmdbSearchCandidate) => {
+    const film = associatingFilm
+    setCandidateSelection({ pendingId: candidate.tmdbId, error: null })
+    try {
+      if (film) {
+        await associateFilmWithTmdb(film.id, candidate.tmdbId)
+        setAssociatingFilm(null)
+        setCandidateSelection({ pendingId: null, error: null })
+        setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
+        return
+      }
+      const presentation = await previewTmdbFilm(candidate.tmdbId)
+      const initialValues = filmMetadataResultToFormInitialValues(
+        tmdbPresentationToFilmMetadataResult(presentation),
+      )
+      setCandidateSelection({ pendingId: null, error: null })
+      setView({
+        name: 'create',
+        initialValues: initialValues.values,
+        provenance: initialValues.provenance ?? null,
+      })
+    } catch (error) {
+      console.error('La sélection TMDB a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
+
+  // Même parcours direct pour les Livres via Open Library (jalon 0.4.27),
+  // sans clé ni compte.
+  const selectOpenLibraryBookCandidate = async (candidate: OpenLibraryBookCandidate) => {
+    setBookSelection({ pendingKey: candidate.workKey, error: null })
+    try {
+      const presentation = await previewOpenLibraryBook(candidate)
+      setBookSelection({ pendingKey: null, error: null })
+      setView({ name: 'book-create', initialValues: bookPresentationToInitialValues(presentation) })
+    } catch (error) {
+      console.error('La sélection Open Library a échoué.', error)
+      setBookSelection({
+        pendingKey: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
+
+  // Même parcours direct pour les Jeux via RAWG (jalon 0.4.28), clé
+  // embarquée côté backend, jamais exposée au frontend.
+  const selectRawgGameCandidate = async (candidate: RawgGameCandidate) => {
+    setCandidateSelection({ pendingId: candidate.gameId, error: null })
+    try {
+      const presentation = await previewRawgGame(candidate)
+      setCandidateSelection({ pendingId: null, error: null })
+      setView({ name: 'game-create', initialValues: gamePresentationToInitialValues(presentation) })
+    } catch (error) {
+      console.error('La sélection RAWG a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
+
+  const selectTmdbSeriesCandidate = async (candidate: TmdbSearchCandidate) => {
+    setCandidateSelection({ pendingId: candidate.tmdbId, error: null })
+    try {
+      const presentation = await previewTmdbSeries(candidate.tmdbId)
+      setCandidateSelection({ pendingId: null, error: null })
+      setView({ name: 'series-create', initialValues: seriesPresentationToInitialValues(presentation) })
+    } catch (error) {
+      console.error('La sélection TMDB Séries a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
 
   if (libraryState.status === 'loading') {
     content = (
@@ -769,6 +1953,8 @@ function App() {
         <ErrorState onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
       </main>
     )
+  } else if (libraryState.status === 'no-profile') {
+    content = <Onboarding onProfileReady={() => setLoadAttempt((attempt) => attempt + 1)} />
   } else if (view.name === 'home') {
     content = (
       <Home
@@ -776,40 +1962,15 @@ function App() {
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'home' })}
       />
     )
-  } else if (view.name === 'create-choice') {
-    content = (
-      <FilmCreationChoice
-        onManual={() => setView({ name: 'create' })}
-        onAssisted={() => setView({ name: 'tmdb-search' })}
-        onCancel={returnToLibrary}
-      />
-    )
   } else if (view.name === 'tmdb-search') {
     content = (
       <TmdbSearchFlow
-        onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
+        film={associatingFilm}
+        pendingCandidateId={candidateSelection.pendingId}
+        selectionError={candidateSelection.error}
+        onSelectCandidate={selectTmdbCandidate}
         onManual={() => setView({ name: 'create' })}
         onCancel={returnToLibrary}
-      />
-    )
-  } else if (view.name === 'tmdb-confirm') {
-    content = (
-      <TmdbAssociationConfirm
-        film={associatingFilm}
-        candidate={view.candidate}
-        onConfirm={() => {
-          setAssociatingFilm(null)
-          if (associatingFilm) {
-            setView({ name: 'detail', filmId: associatingFilm.id, returnTo: 'library' })
-          } else {
-            setView({ name: 'create' })
-          }
-        }}
-        onBack={() => setView({ name: 'tmdb-search' })}
-        onCancel={() => {
-          setAssociatingFilm(null)
-          returnToLibrary()
-        }}
       />
     )
   } else if (view.name === 'tmdb-associate') {
@@ -832,9 +1993,18 @@ function App() {
     } else {
       content = (
         <TmdbSearchFlow
-          onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
-          onManual={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
-          onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+          film={film}
+          pendingCandidateId={candidateSelection.pendingId}
+          selectionError={candidateSelection.error}
+          onSelectCandidate={selectTmdbCandidate}
+          onManual={() => {
+            setAssociatingFilm(null)
+            setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
+          }}
+          onCancel={() => {
+            setAssociatingFilm(null)
+            setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
+          }}
         />
       )
     }
@@ -842,6 +2012,8 @@ function App() {
     const { library } = libraryState
     content = (
       <FilmForm
+        initialValues={view.initialValues}
+        provenance={view.provenance}
         onCancel={returnToLibrary}
         onSave={async (input, provenance) => {
           const film = await filmsRepository.createFilm(library.profile.id, input, provenance)
@@ -851,6 +2023,18 @@ function App() {
             library: updatedLibrary,
           })
           requestAutomaticBackup(updatedLibrary)
+          setTmdbNotice(null)
+          if (provenance) {
+            try {
+              await associateFilmWithTmdb(film.id, Number(provenance.providerId))
+            } catch (error) {
+              console.error('Le film a été créé mais son association TMDB a échoué.', error)
+              setTmdbNotice({
+                filmId: film.id,
+                message: 'Le film a bien été créé, mais TMDB n’a pas pu être associé. La fiche reste intacte ; tu peux relancer l’association depuis cette page.',
+              })
+            }
+          }
           setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
           window.scrollTo({ top: 0 })
         }}
@@ -865,14 +2049,18 @@ function App() {
         profiles={profiles}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
-          setLibraryContext({ query: '', filter: 'all' })
+          setLibraryContext({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setSeriesContext({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setBookContext({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setGameContext({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setArtworkContext({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: selectedLibrary })
         }}
         onImported={(importedLibrary) => {
-          setLibraryContext({ query: '', filter: 'all' })
+          setLibraryContext({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: importedLibrary })
           requestAutomaticBackup(importedLibrary)
-          filmsRepository.listProfiles().then(setProfiles, (error: unknown) => {
+          profilesRepository.list().then(setProfiles, (error: unknown) => {
             console.error('Impossible de rafraîchir la liste des profils.', error)
           })
         }}
@@ -880,6 +2068,17 @@ function App() {
         availableUpdate={availableUpdate}
         onUpdateAvailable={setAvailableUpdate}
         onUpdateHandled={() => setAvailableUpdate(null)}
+        onProfilesChanged={() => {
+          profilesRepository.list().then(setProfiles, (error: unknown) => {
+            console.error('Impossible de rafraîchir la liste des profils.', error)
+          })
+        }}
+        onProfileDeleted={(deletedProfileId) => {
+          if (deletedProfileId === libraryState.library.profile.id) {
+            setLoadAttempt((attempt) => attempt + 1)
+          }
+        }}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   } else if (view.name === 'detail') {
@@ -894,10 +2093,12 @@ function App() {
         onAssociateTmdb={() => {
           const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
           if (film) {
+            setTmdbNotice(null)
             setAssociatingFilm(film)
             setView({ name: 'tmdb-associate', filmId: view.filmId })
           }
         }}
+        tmdbNotice={tmdbNotice?.filmId === view.filmId ? tmdbNotice.message : null}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
           const updatedLibrary: FilmLibrary = {
@@ -955,6 +2156,446 @@ function App() {
         />
       )
     }
+  } else if (view.name === 'series') {
+    content = (
+      <SeriesLibrary
+        profileName={libraryState.library.profile.name}
+        collection={seriesCollection}
+        context={seriesContext}
+        searchState={seriesSearchState}
+        onContextChange={setSeriesContext}
+        onRetrySearch={() => setSeriesSearchAttempt((attempt) => attempt + 1)}
+        onCreate={() => leaveLibrary({ name: 'series-tmdb-search' })}
+        onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    )
+  } else if (view.name === 'series-tmdb-search') {
+    content = (
+      <SeriesTmdbSearchFlow
+        pendingCandidateId={candidateSelection.pendingId}
+        selectionError={candidateSelection.error}
+        onSelectCandidate={selectTmdbSeriesCandidate}
+        onManual={() => setView({ name: 'series-create' })}
+        onCancel={returnToLibrary}
+      />
+    )
+  } else if (view.name === 'series-create') {
+    const { library } = libraryState
+    content = (
+      <SeriesForm
+        initialValues={view.initialValues}
+        onCancel={returnToLibrary}
+        onSave={async (input: SeriesWriteInput) => {
+          const series = await mediaRepository.createSeries(library.profile.id, input)
+          setSeriesCollection((current) => [...current, series])
+          requestAutomaticBackup(library)
+          setView({ name: 'series-detail', seriesId: series.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'series-detail') {
+    const { library } = libraryState
+    const series = seriesCollection.find((entry) => entry.id === view.seriesId)
+    if (!series) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'series' })}>
+              ← Retour aux séries
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette série ne peut pas être ouverte.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <SeriesDetail
+          series={series}
+          onBack={() => setView({ name: 'series' })}
+          backLabel="← Retour aux séries"
+          onEdit={() => setView({ name: 'series-edit', seriesId: view.seriesId })}
+          onDelete={async () => {
+            await mediaRepository.deleteSeries(library.profile.id, view.seriesId)
+            setSeriesCollection((current) => current.filter((entry) => entry.id !== view.seriesId))
+            requestAutomaticBackup(library)
+            setView({ name: 'series' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'series-edit') {
+    const { library } = libraryState
+    const series = seriesCollection.find((entry) => entry.id === view.seriesId)
+    if (!series) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'series' })}>
+              ← Retour aux séries
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette série ne peut pas être modifiée.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <SeriesForm
+          series={series}
+          onCancel={() => setView({ name: 'series-detail', seriesId: view.seriesId })}
+          onSave={async (input: SeriesWriteInput) => {
+            const updatedAt = await mediaRepository.updateSeries(library.profile.id, view.seriesId, input)
+            const refreshed = await mediaRepository.getSeries(library.profile.id, view.seriesId)
+            setSeriesCollection((current) => current.map((entry) => entry.id === view.seriesId
+              ? (refreshed ?? { ...entry, ...input, updatedAt })
+              : entry))
+            requestAutomaticBackup(library)
+            setView({ name: 'series-detail', seriesId: view.seriesId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'books') {
+    content = (
+      <BooksLibrary
+        profileName={libraryState.library.profile.name}
+        collection={bookCollection}
+        context={bookContext}
+        searchState={bookSearchState}
+        onContextChange={setBookContext}
+        onRetrySearch={() => setBookSearchAttempt((attempt) => attempt + 1)}
+        onCreate={() => leaveLibrary({ name: 'book-ol-search' })}
+        onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    )
+  } else if (view.name === 'book-ol-search') {
+    content = (
+      <BookOpenLibrarySearchFlow
+        pendingCandidateKey={bookSelection.pendingKey}
+        selectionError={bookSelection.error}
+        onSelectCandidate={selectOpenLibraryBookCandidate}
+        onManual={() => setView({ name: 'book-create' })}
+        onCancel={returnToLibrary}
+      />
+    )
+  } else if (view.name === 'book-create') {
+    const { library } = libraryState
+    content = (
+      <BookForm
+        initialValues={view.initialValues}
+        onCancel={() => setView({ name: 'books' })}
+        onSave={async (input: BookWriteInput) => {
+          const { quotes, ...bookInput } = input
+          const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
+          setBookCollection((current) => sortBooks([...current, book]))
+          setBookSearchAttempt((attempt) => attempt + 1)
+          requestAutomaticBackup(library)
+          setView({ name: 'book-detail', bookId: book.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'book-detail') {
+    const { library } = libraryState
+    const book = bookCollection.find((entry) => entry.id === view.bookId)
+    if (!book) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'books' })}>
+              ← Retour aux livres
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce livre ne peut pas être ouvert.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <BookDetail
+          book={book}
+          onBack={() => setView({ name: 'books' })}
+          onEdit={() => setView({ name: 'book-edit', bookId: view.bookId })}
+          onDelete={async () => {
+            await mediaRepository.deleteBook(library.profile.id, view.bookId)
+            setBookCollection((current) => current.filter((entry) => entry.id !== view.bookId))
+            setBookSearchAttempt((attempt) => attempt + 1)
+            requestAutomaticBackup(library)
+            setView({ name: 'books' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'book-edit') {
+    const { library } = libraryState
+    const book = bookCollection.find((entry) => entry.id === view.bookId)
+    if (!book) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'books' })}>
+              ← Retour aux livres
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce livre ne peut pas être modifié.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <BookForm
+          book={book}
+          onCancel={() => setView({ name: 'book-detail', bookId: view.bookId })}
+          onSave={async (input: BookWriteInput) => {
+            const { quotes, ...bookInput } = input
+            await mediaRepository.updateBook(library.profile.id, view.bookId, bookInput, quotes)
+            const refreshed = await mediaRepository.getBook(library.profile.id, view.bookId)
+            if (!refreshed) {
+              throw new Error('Le livre enregistré ne peut pas être relu depuis SQLite.')
+            }
+            setBookCollection((current) => sortBooks(current.map((entry) => (
+              entry.id === view.bookId ? refreshed : entry
+            ))))
+            setBookSearchAttempt((attempt) => attempt + 1)
+            requestAutomaticBackup(library)
+            setView({ name: 'book-detail', bookId: view.bookId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'games') {
+    content = (
+      <GamesLibrary
+        profileName={libraryState.library.profile.name}
+        collection={gameCollection}
+        context={gameContext}
+        searchState={gameSearchState}
+        onContextChange={setGameContext}
+        onRetrySearch={() => setGameSearchAttempt((attempt) => attempt + 1)}
+        onCreate={() => leaveLibrary({ name: 'game-rawg-search' })}
+        onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    )
+  } else if (view.name === 'game-rawg-search') {
+    content = (
+      <GameRawgSearchFlow
+        pendingCandidateId={candidateSelection.pendingId}
+        selectionError={candidateSelection.error}
+        onSelectCandidate={selectRawgGameCandidate}
+        onManual={() => setView({ name: 'game-create' })}
+        onCancel={returnToLibrary}
+      />
+    )
+  } else if (view.name === 'game-create') {
+    const { library } = libraryState
+    content = (
+      <GameForm
+        initialValues={view.initialValues}
+        platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
+        onCancel={() => setView({ name: 'games' })}
+        onSave={async (input: GameWriteInput) => {
+          const game = await mediaRepository.createGame(library.profile.id, input)
+          setGameCollection((current) => sortGames([...current, game]))
+          setGameSearchAttempt((attempt) => attempt + 1)
+          requestAutomaticBackup(library)
+          setView({ name: 'game-detail', gameId: game.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'game-detail') {
+    const { library } = libraryState
+    const game = gameCollection.find((entry) => entry.id === view.gameId)
+    if (!game) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'games' })}>
+              ← Retour aux jeux
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce jeu ne peut pas être ouvert.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <GameDetail
+          game={game}
+          onBack={() => setView({ name: 'games' })}
+          onEdit={() => setView({ name: 'game-edit', gameId: view.gameId })}
+          onDelete={async () => {
+            await mediaRepository.deleteGame(library.profile.id, view.gameId)
+            setGameCollection((current) => current.filter((entry) => entry.id !== view.gameId))
+            setGameSearchAttempt((attempt) => attempt + 1)
+            requestAutomaticBackup(library)
+            setView({ name: 'games' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'game-edit') {
+    const { library } = libraryState
+    const game = gameCollection.find((entry) => entry.id === view.gameId)
+    if (!game) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'games' })}>
+              ← Retour aux jeux
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Ce jeu ne peut pas être modifié.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <GameForm
+          game={game}
+          platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
+          onCancel={() => setView({ name: 'game-detail', gameId: view.gameId })}
+          onSave={async (input: GameWriteInput) => {
+            await mediaRepository.updateGame(library.profile.id, view.gameId, input)
+            const refreshed = await mediaRepository.getGame(library.profile.id, view.gameId)
+            if (!refreshed) {
+              throw new Error('Le jeu enregistré ne peut pas être relu depuis SQLite.')
+            }
+            setGameCollection((current) => sortGames(current.map((entry) => (
+              entry.id === view.gameId ? refreshed : entry
+            ))))
+            setGameSearchAttempt((attempt) => attempt + 1)
+            requestAutomaticBackup(library)
+            setView({ name: 'game-detail', gameId: view.gameId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'artworks') {
+    content = (
+      <ArtworksLibrary
+        profileName={libraryState.library.profile.name}
+        collection={artworkCollection}
+        context={artworkContext}
+        searchState={artworkSearchState}
+        onContextChange={setArtworkContext}
+        onRetrySearch={() => setArtworkSearchAttempt((attempt) => attempt + 1)}
+        onCreate={() => leaveLibrary({ name: 'artwork-create' })}
+        onOpen={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
+        profileId={libraryState.library.profile.id}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    )
+  } else if (view.name === 'artwork-create') {
+    const { library } = libraryState
+    content = (
+      <ArtworkForm
+        onCancel={() => setView({ name: 'artworks' })}
+        onSave={async (input: ArtworkWriteInput) => {
+          const artwork = await mediaRepository.createArtwork(library.profile.id, input)
+          setArtworkCollection((current) => sortArtworks([...current, artwork]))
+          setArtworkSearchAttempt((attempt) => attempt + 1)
+          requestAutomaticBackup(library)
+          setView({ name: 'artwork-detail', artworkId: artwork.id })
+          window.scrollTo({ top: 0 })
+        }}
+      />
+    )
+  } else if (view.name === 'artwork-detail') {
+    const { library } = libraryState
+    const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
+    if (!artwork) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'artworks' })}>
+              ← Retour à l’Art
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette œuvre ne peut pas être ouverte.</h2>
+            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <ArtworkDetail
+          artwork={artwork}
+          onBack={() => setView({ name: 'artworks' })}
+          onEdit={() => setView({ name: 'artwork-edit', artworkId: view.artworkId })}
+          onDelete={async () => {
+            await mediaRepository.deleteArtwork(library.profile.id, view.artworkId)
+            setArtworkCollection((current) => current.filter((entry) => entry.id !== view.artworkId))
+            setArtworkSearchAttempt((attempt) => attempt + 1)
+            requestAutomaticBackup(library)
+            setView({ name: 'artworks' })
+          }}
+        />
+      )
+    }
+  } else if (view.name === 'artwork-edit') {
+    const { library } = libraryState
+    const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
+    if (!artwork) {
+      content = (
+        <main className="main detail-page-main">
+          <header className="page-action-bar">
+            <button className="back-button" type="button" onClick={() => setView({ name: 'artworks' })}>
+              ← Retour à l’Art
+            </button>
+          </header>
+          <div className="library-state error-state" role="alert">
+            <h2>Cette œuvre ne peut pas être modifiée.</h2>
+            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
+          </div>
+        </main>
+      )
+    } else {
+      content = (
+        <ArtworkForm
+          artwork={artwork}
+          onCancel={() => setView({ name: 'artwork-detail', artworkId: view.artworkId })}
+          onSave={async (input: ArtworkWriteInput) => {
+            await mediaRepository.updateArtwork(library.profile.id, view.artworkId, input)
+            const refreshed = await mediaRepository.getArtwork(library.profile.id, view.artworkId)
+            if (!refreshed) {
+              throw new Error('L’œuvre enregistrée ne peut pas être relue depuis SQLite.')
+            }
+            setArtworkCollection((current) => sortArtworks(current.map((entry) => (
+              entry.id === view.artworkId ? refreshed : entry
+            ))))
+            setArtworkSearchAttempt((attempt) => attempt + 1)
+            requestAutomaticBackup(library)
+            setView({ name: 'artwork-detail', artworkId: view.artworkId })
+            window.scrollTo({ top: 0 })
+          }}
+        />
+      )
+    }
   } else {
     content = (
       <FilmsLibrary
@@ -963,8 +2604,12 @@ function App() {
         searchState={searchState}
         onContextChange={setLibraryContext}
         onRetrySearch={() => setSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'create-choice' })}
+        onCreate={() => {
+          setAssociatingFilm(null)
+          leaveLibrary({ name: 'tmdb-search' })
+        }}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })}
+        onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
   }
@@ -973,10 +2618,32 @@ function App() {
     <div className="app">
       <Sidebar
         count={count}
+        seriesCount={seriesCount}
+        bookCount={bookCount}
+        gameCount={gameCount}
+        artworkCount={artworkCount}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
-        activeItem={libraryState.status !== 'ready' || view.name === 'home' ? 'home' : view.name === 'settings' ? 'settings' : 'library'}
+        activeItem={
+          libraryState.status !== 'ready' || view.name === 'home'
+            ? 'home'
+            : view.name === 'settings'
+              ? 'settings'
+              : view.name === 'series' || view.name === 'series-create' || view.name === 'series-tmdb-search' || view.name === 'series-detail' || view.name === 'series-edit'
+                ? 'series'
+                : view.name === 'books' || view.name === 'book-create' || view.name === 'book-ol-search' || view.name === 'book-detail' || view.name === 'book-edit'
+                  ? 'books'
+                  : view.name === 'games' || view.name === 'game-create' || view.name === 'game-rawg-search' || view.name === 'game-detail' || view.name === 'game-edit'
+                    ? 'games'
+                    : view.name === 'artworks' || view.name === 'artwork-create' || view.name === 'artwork-detail' || view.name === 'artwork-edit'
+                      ? 'artworks'
+                      : 'library'
+        }
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
+        onSeries={() => leaveLibrary({ name: 'series' })}
+        onBooks={() => leaveLibrary({ name: 'books' })}
+        onGames={() => leaveLibrary({ name: 'games' })}
+        onArtworks={() => leaveLibrary({ name: 'artworks' })}
         onSettings={() => showSettingsSection('profiles')}
         settingsSection={settingsSection}
         onSettingsSection={showSettingsSection}

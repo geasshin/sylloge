@@ -47,6 +47,22 @@ pub struct TmdbSearchCandidateDto {
     pub poster_url: Option<String>,
 }
 
+/// Présentation TV bornée pour le préremplissage Séries (jalon 0.4.26) :
+/// recherche et préremplissage uniquement, sans cache ni association persistée.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TmdbSeriesPresentationDto {
+    pub tmdb_id: i64,
+    pub title: String,
+    pub original_title: Option<String>,
+    pub first_air_year: Option<i32>,
+    pub synopsis: Option<String>,
+    pub showrunners: Vec<String>,
+    pub cast: Vec<String>,
+    pub seasons_total: Option<u32>,
+    pub poster_url: Option<String>,
+}
+
 #[allow(async_fn_in_trait)]
 pub trait TmdbClient: Send + Sync {
     async fn search_films(
@@ -62,6 +78,20 @@ pub trait TmdbClient: Send + Sync {
         tmdb_id: i64,
         language: &str,
     ) -> Result<TmdbFilmPresentationDto, TmdbError>;
+
+    async fn search_series(
+        &self,
+        secret: &SecretValue,
+        query: &str,
+        language: &str,
+    ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError>;
+
+    async fn fetch_series_presentation(
+        &self,
+        secret: &SecretValue,
+        tmdb_id: i64,
+        language: &str,
+    ) -> Result<TmdbSeriesPresentationDto, TmdbError>;
 }
 
 // --- Réponses API TMDB (désérialisation interne) ---
@@ -120,6 +150,49 @@ struct TmdbImagesResponse {
 #[derive(Debug, Deserialize)]
 struct TmdbImageEntry {
     file_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbTvSearchResponse {
+    results: Vec<TmdbTvSearchResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbTvSearchResult {
+    id: i64,
+    name: Option<String>,
+    original_name: Option<String>,
+    first_air_date: Option<String>,
+    overview: Option<String>,
+    poster_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbTvDetailsResponse {
+    id: i64,
+    name: Option<String>,
+    original_name: Option<String>,
+    first_air_date: Option<String>,
+    overview: Option<String>,
+    poster_path: Option<String>,
+    number_of_seasons: Option<u32>,
+    created_by: Vec<TmdbCreatedByEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbCreatedByEntry {
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbAggregateCreditsResponse {
+    cast: Vec<TmdbAggregateCastEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbAggregateCastEntry {
+    name: Option<String>,
+    order: Option<i32>,
 }
 
 // --- Client HTTP réel ---
@@ -326,6 +399,123 @@ impl TmdbClient for ReqwestTmdbClient {
             cast,
         })
     }
+
+    async fn search_series(
+        &self,
+        secret: &SecretValue,
+        query: &str,
+        language: &str,
+    ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError> {
+        let language = if language.is_empty() {
+            DEFAULT_LANGUAGE
+        } else {
+            language
+        };
+
+        let response: TmdbTvSearchResponse = self
+            .get(
+                secret,
+                "/search/tv",
+                &[
+                    ("query", query),
+                    ("language", language),
+                    ("include_adult", "false"),
+                ],
+            )
+            .await?;
+
+        let candidates = response
+            .results
+            .into_iter()
+            .take(MAX_SEARCH_RESULTS)
+            .map(|result| {
+                let release_year = result
+                    .first_air_date
+                    .as_deref()
+                    .and_then(|date| date.split('-').next())
+                    .and_then(|year| year.parse().ok());
+
+                TmdbSearchCandidateDto {
+                    tmdb_id: result.id,
+                    title: result.name.unwrap_or_default(),
+                    original_title: result.original_name,
+                    release_year,
+                    synopsis: result.overview,
+                    poster_url: result
+                        .poster_path
+                        .as_deref()
+                        .map(|path| Self::image_url(path, "w500")),
+                }
+            })
+            .collect();
+
+        Ok(candidates)
+    }
+
+    async fn fetch_series_presentation(
+        &self,
+        secret: &SecretValue,
+        tmdb_id: i64,
+        language: &str,
+    ) -> Result<TmdbSeriesPresentationDto, TmdbError> {
+        let language = if language.is_empty() {
+            DEFAULT_LANGUAGE
+        } else {
+            language
+        };
+
+        let details: TmdbTvDetailsResponse = self
+            .get(secret, &format!("/tv/{tmdb_id}"), &[("language", language)])
+            .await?;
+
+        let credits: TmdbAggregateCreditsResponse = self
+            .get(
+                secret,
+                &format!("/tv/{tmdb_id}/aggregate_credits"),
+                &[("language", language)],
+            )
+            .await?;
+
+        let showrunners: Vec<String> = details
+            .created_by
+            .iter()
+            .filter_map(|creator| creator.name.clone())
+            .take(MAX_DIRECTORS)
+            .collect();
+
+        let mut cast_entries: Vec<&TmdbAggregateCastEntry> = credits
+            .cast
+            .iter()
+            .filter(|member| member.name.is_some())
+            .collect();
+        cast_entries.sort_by_key(|member| member.order.unwrap_or(i32::MAX));
+        let cast: Vec<String> = cast_entries
+            .into_iter()
+            .take(MAX_CAST_MEMBERS)
+            .map(|member| member.name.clone().unwrap_or_default())
+            .collect();
+
+        let first_air_year = details
+            .first_air_date
+            .as_deref()
+            .and_then(|date| date.split('-').next())
+            .and_then(|year| year.parse().ok());
+
+        Ok(TmdbSeriesPresentationDto {
+            tmdb_id: details.id,
+            title: details.name.unwrap_or_default(),
+            original_title: details.original_name,
+            first_air_year,
+            synopsis: details.overview,
+            showrunners,
+            cast,
+            seasons_total: details.number_of_seasons,
+            poster_url: details
+                .poster_path
+                .as_deref()
+                .map(|path| Self::image_url(path, "w500")),
+        })
+    }
 }
 
 // --- Validation ---
@@ -380,6 +570,47 @@ pub fn validate_presentation(presentation: &TmdbFilmPresentationDto) -> Result<(
         validate_optional_text(member.character.as_deref(), 500, "personnage incorrect")?;
         validate_optional_https_url(member.portrait_url.as_deref())?;
     }
+
+    Ok(())
+}
+
+/// Validation bornée de la présentation TV (jalon 0.4.26), sans écriture ni cache.
+pub fn validate_series_presentation(
+    presentation: &TmdbSeriesPresentationDto,
+) -> Result<(), TmdbError> {
+    if presentation.tmdb_id <= 0 {
+        return Err(TmdbError::InvalidCache("identifiant fournisseur incorrect"));
+    }
+    validate_required_text(&presentation.title, 500, "titre incorrect")?;
+    validate_optional_text(
+        presentation.original_title.as_deref(),
+        500,
+        "titre original incorrect",
+    )?;
+    validate_optional_text(
+        presentation.synopsis.as_deref(),
+        10_000,
+        "synopsis incorrect",
+    )?;
+
+    if presentation.showrunners.len() > MAX_DIRECTORS {
+        return Err(TmdbError::InvalidCache("trop de showrunners"));
+    }
+    for showrunner in &presentation.showrunners {
+        validate_required_text(showrunner, 500, "showrunner incorrect")?;
+    }
+
+    if presentation.cast.len() > MAX_CAST_MEMBERS {
+        return Err(TmdbError::InvalidCache("casting trop long"));
+    }
+    for member in &presentation.cast {
+        validate_required_text(member, 500, "nom de casting incorrect")?;
+    }
+
+    if presentation.seasons_total.is_some_and(|total| total > 500) {
+        return Err(TmdbError::InvalidCache("nombre de saisons incorrect"));
+    }
+    validate_optional_https_url(presentation.poster_url.as_deref())?;
 
     Ok(())
 }
@@ -475,6 +706,41 @@ mod tests {
                 cast: Vec::new(),
             })
         }
+
+        async fn search_series(
+            &self,
+            _secret: &SecretValue,
+            query: &str,
+            _language: &str,
+        ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError> {
+            Ok(vec![TmdbSearchCandidateDto {
+                tmdb_id: 43,
+                title: query.to_string(),
+                original_title: None,
+                release_year: Some(2026),
+                synopsis: None,
+                poster_url: None,
+            }])
+        }
+
+        async fn fetch_series_presentation(
+            &self,
+            _secret: &SecretValue,
+            tmdb_id: i64,
+            _language: &str,
+        ) -> Result<TmdbSeriesPresentationDto, TmdbError> {
+            Ok(TmdbSeriesPresentationDto {
+                tmdb_id,
+                title: "Série factice".to_string(),
+                original_title: None,
+                first_air_year: Some(2026),
+                synopsis: Some("Une intrigue factice.".to_string()),
+                showrunners: vec!["Showrunner Factice".to_string()],
+                cast: vec!["Acteur Factice".to_string()],
+                seasons_total: Some(3),
+                poster_url: None,
+            })
+        }
     }
 
     #[test]
@@ -495,6 +761,27 @@ mod tests {
                 .await
                 .expect("présentation factice");
             validate_presentation(&presentation).expect("DTO factice borné");
+        });
+    }
+
+    #[test]
+    fn series_fake_client_returns_bounded_presentation() {
+        tauri::async_runtime::block_on(async {
+            let client = FakeTmdbClient;
+            let secret = SecretValue::new("fake-token-for-series".to_string());
+
+            let candidates = client
+                .search_series(&secret, "Série de test", "fr-FR")
+                .await
+                .expect("recherche séries factice");
+            assert_eq!(candidates.len(), 1);
+
+            let presentation = client
+                .fetch_series_presentation(&secret, candidates[0].tmdb_id, "fr-FR")
+                .await
+                .expect("présentation séries factice");
+            validate_series_presentation(&presentation).expect("DTO séries factice borné");
+            assert_eq!(presentation.seasons_total, Some(3));
         });
     }
 

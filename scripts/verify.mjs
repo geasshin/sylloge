@@ -20,11 +20,25 @@ import {
   serializeLibraryExport,
   validateLibraryImport,
 } from '../src/domain/libraryTransfer.ts'
+import { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument } from '../src/domain/libraryDocument.ts'
+import {
+  parseArtworksCollectionJson,
+  parseBooksCollectionJson,
+  parseFilmsCollectionJson,
+  parseGamesCollectionJson,
+  parseSeriesCollectionJson,
+} from '../src/domain/collectionJsonImport.ts'
 import {
   filmsCsvExportFileName,
   serializeFilmsCsvExport,
   SYLLOGE_FILMS_CSV_HEADER,
 } from '../src/domain/csvFilmExport.ts'
+import { createCollectionCsvExport } from '../src/domain/collectionCsvTransfer.ts'
+import {
+  prepareCollectionCsvImport,
+  previewCollectionCsvImport,
+  setCollectionCsvSourceDestination,
+} from '../src/domain/collectionCsvImport.ts'
 import {
   NOTION_MARKDOWN_NOTES_SOURCE,
   conciseFilmImportReportSource,
@@ -295,16 +309,21 @@ const completeExport = createLibraryExport({
 {
   const automaticSnapshots = []
   const manualSnapshots = []
+  const clearedProfiles = []
   let automaticCallCount = 0
   const service = new BackupService({
     async getBackupSettings() {
       return {
         backupDirectory: '/dossier-de-test',
         lastAutomaticSnapshotDay: null,
+        directoryAvailable: true,
       }
     },
     async pickBackupDirectory() {
       return null
+    },
+    async clearBackupSettings(profileId) {
+      clearedProfiles.push(profileId)
     },
     async saveManualBackupSnapshot(profileId, contents) {
       manualSnapshots.push({ profileId, contents })
@@ -317,25 +336,34 @@ const completeExport = createLibraryExport({
         ? { outcome: 'saved', fileName: 'sylloge-films-v1-default-auto.json' }
         : { outcome: 'alreadySaved', fileName: null }
     },
-  }, () => new Date(2026, 6, 17, 12, 0, 0))
+  }, () => new Date(2026, 6, 17, 12, 0, 0), async () => ({
+    profile: completeExport.profile,
+    films: completeExport.films,
+    series: [],
+    books: [],
+    games: [],
+    artworks: [],
+  }))
   const library = { profile: completeExport.profile, films: completeExport.films }
 
   const automaticNotice = await service.tryAutomaticSnapshot(library)
   assert.equal(automaticNotice?.kind, 'success', 'Le premier snapshot automatique doit être annoncé après une mutation réussie')
   assert.equal(automaticSnapshots[0].automaticDay, '2026-07-17', 'Le service doit demander le jour local au moment du snapshot')
-  const automaticPreview = validateLibraryImport(automaticSnapshots[0].contents)
-  assert.equal(automaticPreview.document?.format, 'sylloge-films', 'Le snapshot automatique doit réutiliser le format JSON v1')
-  assert.equal(automaticPreview.validFilmCount, 1, 'Le snapshot automatique doit être réimportable par le validateur existant')
+  const automaticPreview = validateLibraryDocument(automaticSnapshots[0].contents)
+  assert.equal(automaticPreview.document?.format, 'sylloge-library', 'Le snapshot automatique doit utiliser le format JSON v2 (jalon 0.4.4)')
+  assert.equal(automaticPreview.counts.films, 1, 'Le snapshot automatique doit contenir le film du profil')
 
   const secondAutomaticNotice = await service.tryAutomaticSnapshot(library)
   assert.equal(secondAutomaticNotice, null, 'Un résultat natif déjà sauvegardé ne doit pas annoncer un second snapshot automatique')
   const manualNotice = await service.saveManualSnapshot(library)
   assert.equal(manualNotice.kind, 'success', 'Le snapshot manuel doit rester disponible après le snapshot automatique')
   assert.equal(manualSnapshots.length, 1, 'La sauvegarde manuelle doit appeler sa commande native dédiée')
+  await service.clearSettings(library.profile.id)
+  assert.deepEqual(clearedProfiles, ['default'], 'Désactiver les snapshots doit oublier le réglage du profil courant')
   assert.equal(
-    validateLibraryImport(manualSnapshots[0].contents).validFilmCount,
+    validateLibraryDocument(manualSnapshots[0].contents).counts.films,
     1,
-    'Le snapshot manuel doit rester compatible avec l’import JSON existant',
+    'Le snapshot manuel doit rester compatible avec l’import global v2',
   )
 }
 
@@ -499,6 +527,172 @@ const completeExport = createLibraryExport({
     ['Catalogue local', 'source-ete-42'],
     'La fixture Sylloge doit conserver une provenance complète comme paire atomique',
   )
+}
+
+{
+  const multiMediumLibrary = {
+    profile: completeExport.profile,
+    films: [completeTransferFilm],
+    series: [{
+      id: 'series-1', profileId: 'default', title: '+Série, « test »', showrunner: 'Créatrice', casting: 'A, B',
+      summary: 'Une ligne\nDeuxième ligne', category: 'animation', status: 'en cours', rating: 4.5,
+      isFavorite: true, seasonsSeen: 2, seasonsTotal: 3, progressUpdatedAt: '2026-07-18T10:00:00.000Z',
+      startedAt: '2026-07-17', posterUrl: null, personalNote: 'Note série',
+      createdAt: '2026-07-17T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+    }],
+    books: [{
+      id: 'book-1', profileId: 'default', title: 'Livre « test »', author: 'Autrice', year: 2025,
+      summary: null, category: 'manga', status: 'en cours', rating: 4, isFavorite: false,
+      volumesRead: 3, volumesTotal: 5, progressUpdatedAt: '2026-07-18T10:00:00.000Z',
+      startedAt: '2026-07-16', coverUrl: null, personalNote: 'Avis, avec virgule',
+      createdAt: '2026-07-16T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+      quotes: [
+        { id: 'quote-2', bookId: 'book-1', body: 'Seconde citation', position: 2, createdAt: '2026-07-18T10:00:00.000Z' },
+        { id: 'quote-1', bookId: 'book-1', body: '=Première citation\navec retour', position: 1, createdAt: '2026-07-17T10:00:00.000Z' },
+      ],
+    }],
+    games: [{
+      id: 'game-1', profileId: 'default', title: 'Jeu test', developer: 'Studio', platform: 'PC', year: 2024,
+      status: 'joué', rating: 5, isFavorite: true, playedAt: '2026-07-15', coverUrl: null,
+      personalNote: '@Note de jeu', createdAt: '2026-07-15T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+    }],
+    artworks: [{
+      id: 'art-1', profileId: 'default', title: 'Œuvre test', artist: 'Artiste', year: 2020,
+      form: 'photographie', location: 'Paris', exhibition: 'Exposition', status: 'découverte',
+      isFavorite: true, discoveredAt: '2026-07-14', imageUrl: null, personalNote: 'Texte « libre »',
+      createdAt: '2026-07-14T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
+    }],
+  }
+  const exportedAt = '2026-07-18T12:00:00.000Z'
+  const expectedFormats = {
+    films: 'sylloge-films-csv', series: 'sylloge-series-csv', books: 'sylloge-books-csv',
+    games: 'sylloge-games-csv', artworks: 'sylloge-artworks-csv',
+  }
+
+  for (const kind of ['films', 'series', 'books', 'games', 'artworks']) {
+    const exported = createCollectionCsvExport(multiMediumLibrary, kind, exportedAt)
+    const parsed = parseCsv(exported.contents)
+    assert.deepEqual(parsed.errors, [], `Le CSV ${kind} doit être syntaxiquement lisible`)
+    assert.equal(parsed.rows.length, 1, `Le CSV ${kind} doit contenir une ligne de collection`)
+    assert.equal(parsed.rows[0].cells[0], expectedFormats[kind], `Le CSV ${kind} doit avoir son format versionné`)
+    assert.equal(parsed.rows[0].cells[1], '1', `Le CSV ${kind} doit annoncer sa version`)
+    assert.equal(new TextEncoder().encode(exported.contents)[0], 'f'.charCodeAt(0), `Le CSV ${kind} reste UTF-8 sans BOM`)
+    assert.match(exported.contents, /\r\n$/u, `Le CSV ${kind} doit finir avec CRLF`)
+  }
+
+  const series = createCollectionCsvExport(multiMediumLibrary, 'series', exportedAt)
+  const parsedSeries = parseCsv(series.contents)
+  assert.equal(parsedSeries.headers.includes('series_seasons_seen'), true, 'Le CSV Séries doit séparer saisons vues et total')
+  assert.equal(parsedSeries.rows[0].cells[9], "'+Série, « test »", 'Les titres Série commençant par + doivent être neutralisés pour les tableurs')
+  assert.equal(series.fileName, 'sylloge-series-2026-07-18.csv', 'Le nom Série doit être déterministe')
+
+  const books = createCollectionCsvExport(multiMediumLibrary, 'books', exportedAt)
+  const parsedBooks = parseCsv(books.contents)
+  const quotesIndex = parsedBooks.headers.indexOf('book_quotes_json')
+  assert.deepEqual(
+    JSON.parse(parsedBooks.rows[0].cells[quotesIndex]),
+    ['=Première citation\navec retour', 'Seconde citation'],
+    'Le CSV Livres doit conserver les citations dans leur ordre, avec leurs retours à la ligne',
+  )
+
+  const games = createCollectionCsvExport(multiMediumLibrary, 'games', exportedAt)
+  const parsedGames = parseCsv(games.contents)
+  assert.equal(parsedGames.rows[0].cells[18], "'@Note de jeu", 'Les notes Jeu à risque doivent être neutralisées pour les tableurs')
+  assert.equal(parsedGames.headers.includes('game_platform'), true, 'La plateforme libre doit rester une colonne Jeu dédiée')
+
+  const artworks = createCollectionCsvExport(multiMediumLibrary, 'artworks', exportedAt)
+  const parsedArtworks = parseCsv(artworks.contents)
+  assert.equal(parsedArtworks.headers.includes('artwork_rating'), false, 'Le CSV Art ne doit pas inventer de note')
+  assert.equal(parsedArtworks.headers.includes('artwork_location'), true, 'Le CSV Art doit conserver le lieu libre')
+
+  const emptyGames = createCollectionCsvExport({ ...multiMediumLibrary, games: [] }, 'games', exportedAt)
+  const parsedEmptyGames = parseCsv(emptyGames.contents)
+  assert.equal(parsedEmptyGames.rows.length, 1, 'Une collection CSV vide doit conserver sa ligne de profil')
+  assert.ok(parsedEmptyGames.rows[0].cells.slice(7).every((cell) => cell === ''), 'Une collection CSV vide ne doit inventer aucune fiche')
+
+  for (const kind of ['series', 'books', 'games', 'artworks']) {
+    const exported = createCollectionCsvExport(multiMediumLibrary, kind, exportedAt)
+    const session = prepareCollectionCsvImport(kind, exported.contents)
+    const preview = previewCollectionCsvImport(session, session.initialMapping, exportedAt)
+    assert.equal(preview.errors.length, 0, `Le CSV Sylloge ${kind} doit être réimportable sans erreur`)
+    assert.equal(preview.items?.length, 1, `Le CSV Sylloge ${kind} doit reconstituer sa fiche`)
+  }
+
+  const reimportedSeries = previewCollectionCsvImport(
+    prepareCollectionCsvImport('series', series.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    {
+      title: reimportedSeries?.title,
+      category: reimportedSeries?.category,
+      status: reimportedSeries?.status,
+      seasonsSeen: reimportedSeries?.seasonsSeen,
+      seasonsTotal: reimportedSeries?.seasonsTotal,
+      progressUpdatedAt: reimportedSeries?.progressUpdatedAt,
+      personalNote: reimportedSeries?.personalNote,
+    },
+    {
+      title: multiMediumLibrary.series[0].title,
+      category: multiMediumLibrary.series[0].category,
+      status: multiMediumLibrary.series[0].status,
+      seasonsSeen: multiMediumLibrary.series[0].seasonsSeen,
+      seasonsTotal: multiMediumLibrary.series[0].seasonsTotal,
+      progressUpdatedAt: multiMediumLibrary.series[0].progressUpdatedAt,
+      personalNote: multiMediumLibrary.series[0].personalNote,
+    },
+    'La réimportation Série doit préserver les champs CSV représentables',
+  )
+  const reimportedBook = previewCollectionCsvImport(
+    prepareCollectionCsvImport('books', books.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    reimportedBook?.quotes.map((quote) => quote.body),
+    ['=Première citation\navec retour', 'Seconde citation'],
+    'La réimportation Livre doit restaurer les citations CSV dans leur ordre',
+  )
+  const reimportedGame = previewCollectionCsvImport(
+    prepareCollectionCsvImport('games', games.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    [reimportedGame?.platform, reimportedGame?.rating, reimportedGame?.personalNote],
+    ['PC', 5, '@Note de jeu'],
+    'La réimportation Jeu doit préserver la plateforme libre et les données personnelles',
+  )
+  const reimportedArtwork = previewCollectionCsvImport(
+    prepareCollectionCsvImport('artworks', artworks.contents),
+    {},
+    exportedAt,
+  ).items?.[0]
+  assert.deepEqual(
+    [reimportedArtwork?.form, reimportedArtwork?.location, reimportedArtwork?.exhibition, reimportedArtwork?.personalNote],
+    ['photographie', 'Paris', 'Exposition', 'Texte « libre »'],
+    'La réimportation Art doit préserver les champs libres sans inventer de note',
+  )
+
+  const externalSeries = prepareCollectionCsvImport('series', 'Nom,État,Préféré\nSérie externe,Vue,oui\n')
+  let externalMapping = externalSeries.initialMapping
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Nom', 'title')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'État', 'status')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Préféré', 'isFavorite')
+  const externalPreview = previewCollectionCsvImport(externalSeries, externalMapping, exportedAt)
+  assert.deepEqual(
+    [externalPreview.items?.[0]?.title, externalPreview.items?.[0]?.status, externalPreview.items?.[0]?.isFavorite],
+    ['Série externe', 'vue', true],
+    'Un CSV externe avec des en-têtes différents doit passer par un mapping explicite',
+  )
+
+  const invalidGames = prepareCollectionCsvImport('games', 'Nom,Statut\nJeu valide,Joué\n,En cours\n')
+  const invalidMapping = setCollectionCsvSourceDestination(invalidGames.initialMapping, 'Nom', 'title')
+  const invalidPreview = previewCollectionCsvImport(invalidGames, invalidMapping, exportedAt)
+  assert.equal(invalidPreview.items, null, 'Une seule ligne CSV invalide doit bloquer l’import entier avant écriture')
+  assert.equal(invalidPreview.validItemCount, 1, 'L’aperçu peut compter les lignes convertibles sans autoriser une écriture partielle')
+  assert.ok(invalidPreview.errors.some((error) => /titre est obligatoire/i.test(error.message)), 'La ligne CSV invalide doit signaler son titre manquant')
 }
 
 {
@@ -1376,27 +1570,30 @@ const completeExport = createLibraryExport({
   }
   const repository = new SqliteFilmsRepository(async () => database)
 
-  const searched = await repository.searchFilms('default', { query: '  Chihiro  ', filter: 'all' })
+  const searched = await repository.searchFilms('default', { query: '  Chihiro  ', sort: { column: 'title', direction: 'asc' } })
   assert.equal(searched[0].id, filmRow.id, 'La recherche doit convertir les résultats SQLite')
   assert.match(calls[0].query, /title COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger le titre dans SQLite')
   assert.match(calls[0].query, /original_title COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger le titre original dans SQLite')
   assert.match(calls[0].query, /director COLLATE NOCASE LIKE \$2/, 'La recherche doit interroger la réalisation dans SQLite')
   assert.deepEqual(calls[0].bindValues, ['default', '%Chihiro%'], 'Le texte recherché doit être normalisé et paramétré')
 
-  await repository.searchFilms('default', { query: '100%_film', filter: 'to-discover' })
-  assert.deepEqual(calls[1].bindValues, ['default', '%100\\%\\_film%', 'à découvrir'], 'Les jokers LIKE doivent être échappés et le filtre paramétré')
-  assert.match(calls[1].query, /status = \$3/, 'Le filtre à découvrir doit être exécuté dans SQLite')
+  await repository.searchFilms('default', {
+    query: '100%_film',
+    sort: { column: 'title', direction: 'asc' },
+    filters: { status: 'all', favoritesOnly: true, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  })
+  assert.deepEqual(calls[1].bindValues, ['default', '%100\\%\\_film%'], 'Les jokers LIKE doivent être échappés et le filtre paramétré')
+  assert.match(calls[1].query, /is_favorite = 1/, 'Le filtre favoris doit être exécuté dans SQLite')
 
-  await repository.searchFilms('default', { query: '', filter: 'completed' })
-  assert.deepEqual(calls[2].bindValues, ['default', 'terminé'], 'Le filtre terminés doit être paramétré dans SQLite')
-  assert.match(calls[2].query, /status = \$2/, 'Le filtre terminés doit être exécuté dans SQLite')
+  await repository.searchFilms('default', { query: '', sort: { column: 'recency', direction: 'desc' } })
+  assert.match(calls[2].query, /ORDER BY updated_at DESC, title COLLATE NOCASE ASC/, 'Le tri récent doit suivre la dernière modification dans SQLite')
 
-  await repository.searchFilms('default', { query: '', filter: 'favorites' })
-  assert.deepEqual(calls[3].bindValues, ['default'], 'Le filtre favoris doit rester limité au profil courant')
-  assert.match(calls[3].query, /is_favorite = 1/, 'Le filtre favoris doit être exécuté dans SQLite')
+  await repository.searchFilms('default', { query: '', sort: { column: 'rating', direction: 'desc' } })
+  assert.match(calls[3].query, /ORDER BY rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC/, 'Le tri par note doit être décroissant, absences en fin')
 
-  await repository.searchFilms('default', { query: '', filter: 'all' })
-  assert.doesNotMatch(calls[4].query, /status =|is_favorite = 1/, 'Le filtre tous ne doit ajouter aucune restriction')
+  await repository.searchFilms('default', { query: '', sort: { column: 'title', direction: 'asc' } })
+  assert.doesNotMatch(calls[4].query, /is_favorite = 1/, 'Une recherche sans filtre ne doit ajouter aucune restriction')
+  assert.match(calls[4].query, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'Le tri par titre doit conserver l’ordre canonique')
 
   const detail = await repository.getFilm('default', 'film-test')
   assert.equal(detail?.id, 'film-test', 'La fiche doit être relue depuis SQLite')
@@ -1692,12 +1889,16 @@ const posterSource = readFileSync(new URL('../src/components/Poster.tsx', import
 const formSource = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
 const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', import.meta.url), 'utf8')
 const portabilitySource = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
+const accessibleDialogSource = readFileSync(new URL('../src/components/AccessibleDialog.tsx', import.meta.url), 'utf8')
+const libraryExportFlowSource = readFileSync(new URL('../src/components/LibraryExportFlow.tsx', import.meta.url), 'utf8')
 const transferSource = readFileSync(new URL('../src/domain/libraryTransfer.ts', import.meta.url), 'utf8')
 const csvTransferSource = readFileSync(new URL('../src/domain/csvFilmExport.ts', import.meta.url), 'utf8')
 const csvImportSource = readFileSync(new URL('../src/domain/filmCsvImport.ts', import.meta.url), 'utf8')
 const backupServiceSource = readFileSync(new URL('../src/data/backupService.ts', import.meta.url), 'utf8')
 const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePortability.ts', import.meta.url), 'utf8')
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
+const libraryImportButtonSource = readFileSync(new URL('../src/components/LibraryImportButton.tsx', import.meta.url), 'utf8')
+const filmCsvImportFlowSource = readFileSync(new URL('../src/components/FilmCsvImportFlow.tsx', import.meta.url), 'utf8')
 // Le code de production de portability.rs s'arrête avant `mod tests` : les tests
 // d'intégration manipulent volontairement le cache TMDB pour prouver son exclusion,
 // ils ne doivent donc pas être soumis à la garde d'exclusion des sources portables.
@@ -1715,6 +1916,7 @@ const normalizationMigration = readFileSync(new URL('../src-tauri/migrations/000
 const tmdbCacheMigration = readFileSync(new URL('../src-tauri/migrations/0008_create_film_tmdb_cache.sql', import.meta.url), 'utf8')
 const tmdbCacheMigration9 = readFileSync(new URL('../src-tauri/migrations/0009_add_selected_poster_url.sql', import.meta.url), 'utf8')
 const tmdbServiceSource = readFileSync(new URL('../src/data/tmdbService.ts', import.meta.url), 'utf8')
+const tmdbSearchFlowSource = readFileSync(new URL('../src/components/TmdbSearchFlow.tsx', import.meta.url), 'utf8')
 const posterDialogSource = readFileSync(new URL('../src/components/TmdbPosterDialog.tsx', import.meta.url), 'utf8')
 const databaseMigrationSource = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
 const defaultProfileMigration = readFileSync(new URL('../src-tauri/migrations/0002_create_default_profile.sql', import.meta.url), 'utf8')
@@ -1723,6 +1925,7 @@ const backupSettingsMigration = readFileSync(new URL('../src-tauri/migrations/00
 const backupSnapshotsMigration = readFileSync(new URL('../src-tauri/migrations/0005_create_backup_snapshots.sql', import.meta.url), 'utf8')
 const capabilitySource = readFileSync(new URL('../src-tauri/capabilities/default.json', import.meta.url), 'utf8')
 const stylesSource = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+const importContainersContractSource = readFileSync(new URL('../docs/CONTRAT_CONTENEURS_IMPORT_V1.md', import.meta.url), 'utf8')
 
 assert.doesNotMatch(mainSource, /\bSELECT\b|\bINSERT INTO films\b|\bUPDATE films\b|\bDELETE FROM films\b/i, 'Les composants React ne doivent contenir aucun SQL brut')
 assert.match(mainSource, /createFilm/, 'La vue doit relier la création au dépôt SQLite')
@@ -1733,20 +1936,40 @@ assert.match(mainSource, /getFilm/, 'La fiche doit être relue depuis SQLite')
 assert.match(mainSource, /libraryContext/, 'Le contexte de recherche et de filtre doit rester porté par la bibliothèque')
 assert.match(mainSource, /libraryScrollPosition/, 'La position de consultation doit être restaurée au retour')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
-assert.match(posterSource, /alt={`Affiche du film/, 'Une affiche chargée doit conserver un texte alternatif pertinent')
+assert.match(posterSource, /alt={`\$\{label\} de/, 'Un visuel chargé doit conserver un texte alternatif pertinent pour son médium')
 assert.match(stylesSource, /\.film-card-info b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre d’une carte doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.poster-fallback b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre du fallback d’affiche doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.reading-section p \{[^}]*overflow-wrap: anywhere;/s, 'Le texte personnel de détail doit pouvoir couper une suite de caractères sans espace')
+assert.match(stylesSource, /\.profile-card > \.primary-button \{[^}]*margin-top:/s, 'Le bouton de création de profil doit rester séparé de la dernière ligne')
+assert.match(stylesSource, /\.search input:focus \{[^}]*outline: none;/s, 'Le champ de recherche doit déléguer son focus visuel au conteneur')
+assert.match(stylesSource, /\.search:has\(input:focus-visible\)/, 'Le conteneur de recherche doit conserver un indicateur de focus clavier sobre')
+assert.match(portabilitySource, /Oublier ce dossier/, 'Les réglages doivent permettre de désactiver le dossier de snapshots')
+assert.match(portabilitySource, /directoryAvailable/, 'Un dossier supprimé hors de l’application doit être signalé')
+assert.match(nativePortabilityBridgeSource, /invoke\('clear_backup_settings'/, 'Le frontend doit appeler la commande native de désactivation des snapshots')
+assert.match(nativePortabilitySource, /pub async fn clear_backup_settings/, 'Le backend doit exposer la désactivation des snapshots')
+assert.match(tauriLibrarySource, /portability::clear_backup_settings/, 'La commande de désactivation des snapshots doit être enregistrée dans Tauri')
 assert.match(formSource, /Aperçu de l’affiche/, 'Le formulaire doit afficher un aperçu de poster_url')
 assert.match(formSource, /<Poster title={previewTitle} src={previewUrl}/, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
 assert.match(formSource, /Utiliser aujourd’hui/, 'Le statut terminé doit proposer la date du jour sans la saisir automatiquement')
 assert.match(formSource, /onCancel/, 'Le formulaire doit permettre une annulation avant toute écriture')
 assert.match(formSource, /initialValues/, 'Le formulaire doit accepter des valeurs initiales éditables')
 assert.match(formSource, /onSave\(result\.data, provenance\)/, 'Le formulaire doit transmettre la provenance interne seulement à la validation finale')
-assert.match(mainSource, /Saisie manuelle/, 'L’ajout de Film doit proposer la saisie manuelle')
-assert.match(mainSource, /Enrichissement assisté/, 'L’ajout de Film doit proposer l’enrichissement assisté')
+assert.match(tmdbSearchFlowSource, /Saisir manuellement/, 'La recherche TMDB doit proposer une issue vers la saisie manuelle')
+assert.match(tmdbSearchFlowSource, /Rechercher un film/, 'L’ajout de Film doit ouvrir la recherche TMDB directe')
 assert.match(mainSource, /TmdbSearchFlow/, 'Le parcours assisté doit utiliser le flux de recherche TMDB')
-assert.match(mainSource, /TmdbAssociationConfirm/, 'Le parcours assisté doit confirmer l\'association avant écriture')
+// Jalon 0.4.25 : sélection directe, sans écran de confirmation intermédiaire.
+assert.doesNotMatch(mainSource, /tmdb-confirm|TmdbAssociationConfirm/, 'Aucun écran de confirmation ne doit se placer entre le résultat et le formulaire')
+assert.match(mainSource, /previewTmdbFilm\(candidate\.tmdbId\)/, 'Le clic sur un résultat doit préremplir directement le formulaire')
+assert.match(mainSource, /await associateFilmWithTmdb\(film\.id, candidate\.tmdbId\)/, 'Le clic sur un résultat doit associer directement une fiche existante')
+assert.match(mainSource, /pendingId: null,\s*error: 'La sélection a échoué/, 'Un échec de sélection doit être annoncé sans quitter la recherche')
+assert.match(tmdbServiceSource, /previewTmdbFilm/, 'Le frontend doit pouvoir prévisualiser une présentation TMDB sans film local')
+assert.match(tmdbModuleSource, /pub async fn preview_tmdb_film/, 'Le backend doit exposer la prévisualisation TMDB sans film_id')
+assert.match(tauriLibrarySource, /tmdb::preview_tmdb_film/, 'La commande de prévisualisation TMDB doit être enregistrée')
+assert.match(metadataAssistanceSource, /tmdbPresentationToFilmMetadataResult/, 'La présentation TMDB doit être mappée vers les champs éditoriaux locaux')
+assert.match(mainSource, /initialValues=\{view\.initialValues\}/, 'Le formulaire doit recevoir les valeurs détaillées choisies dans TMDB')
+assert.match(mainSource, /associateFilmWithTmdb\(film\.id, Number\(provenance\.providerId\)\)/, 'La création assistée doit associer le cache après la création locale')
+assert.match(mainSource, /Le film a bien été créé, mais TMDB n’a pas pu être associé/, 'Un échec TMDB après création doit être explicite et récupérable')
+assert.match(detailSource, /tmdbNotice/, 'La fiche doit afficher l’échec d’association sans perdre la fiche locale')
 assert.doesNotMatch(metadataAssistanceSource, /\bfetch\s*\(/, 'Le contrat de métadonnées ne doit lancer aucune requête réseau')
 assert.doesNotMatch(metadataAssistanceSource, /filmsRepository|createFilm|INSERT INTO films/, 'Une sélection ou un abandon ne doit écrire aucune donnée SQLite')
 assert.doesNotMatch(metadataAssistanceSource, /providerName: 'Source de test'/, 'Les doubles de test ne doivent pas devenir du contenu de production')
@@ -1778,47 +2001,68 @@ assert.match(csvTransferSource, /sylloge-films-csv/, 'Le CSV doit annoncer son f
 assert.match(csvImportSource, /ImportableFilmField/, 'Le mapping CSV doit rester limité aux champs Films V1 explicitement stockables')
 assert.match(csvImportSource, /L’échelle des notes est ambiguë/, 'Une note sans échelle doit être bloquée au lieu d’être supposée')
 assert.match(csvImportSource, /Markdown/, 'Les notes Notion doivent être associées de manière visible et déterministe')
-assert.match(portabilitySource, /Créer le nouveau profil et importer/, 'La confirmation d’import doit nommer explicitement la création du profil')
-assert.match(portabilitySource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
-assert.match(portabilitySource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
+assert.match(libraryImportButtonSource, /Formats acceptés/, 'Le bouton Importer doit ouvrir une explication avant le sélecteur natif')
+assert.match(libraryImportButtonSource, /JSON[\s\S]*CSV[\s\S]*ZIP compatible/, 'L’assistant Films doit annoncer les trois formats réellement acceptés')
+assert.match(libraryImportButtonSource, /setOpen\(true\)/, 'Le premier clic doit ouvrir le dialogue d’import')
+assert.doesNotMatch(libraryImportButtonSource, /setOpen\(true\)[^}]*pickAndPrepare/s, 'Le premier clic ne doit pas ouvrir immédiatement le sélecteur de fichiers')
+assert.match(libraryImportButtonSource, /writingRef\.current/, 'Un double déclenchement ne doit jamais lancer deux écritures concurrentes')
+assert.match(filmCsvImportFlowSource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
+assert.match(filmCsvImportFlowSource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
+assert.doesNotMatch(filmCsvImportFlowSource, /Nouveau profil|Créer le nouveau profil/, 'L’import CSV ou Notion ne doit plus créer de profil')
 assert.match(portabilitySource, /Importer et exporter/, 'Les Paramètres doivent regrouper imports et exports dans un hub dédié')
-assert.match(portabilitySource, /transferDialog/, 'Le hub doit ouvrir son assistant dans un dialogue dédié')
-assert.match(portabilitySource, /role="dialog"/, 'Les assistants de portabilité doivent être des dialogues accessibles')
-assert.match(portabilitySource, /Détecté dans votre fichier/, 'Le mapping doit présenter les colonnes dans le sens source vers destination')
-assert.match(portabilitySource, /Importer dans Sylloge/, 'Le mapping doit nommer explicitement la destination Sylloge')
-assert.match(portabilitySource, /Seules vos données de suivi sont importées/, 'Le mapping doit expliquer le périmètre personnel de l’import')
-assert.match(portabilitySource, /Métadonnée récupérée plus tard, non importée/, 'Les sources metadata doivent être clairement exclues dans le mapping')
-assert.match(portabilitySource, /Fonctionnalité future, non importée/, 'Les sources de fonctionnalités futures doivent être clairement exclues dans le mapping')
-assert.doesNotMatch(portabilitySource, /champs Films reconnus/, 'Le sélecteur Notion ne doit jamais afficher un compteur de champs reconnus')
-assert.match(portabilitySource, /Pages Notion « Notes »/, 'Les pages Notes Notion doivent apparaître comme une source texte distincte')
-assert.match(portabilitySource, /Évaluation/, 'La destination numérique doit être distinguée de Note personnelle')
-assert.match(portabilitySource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
-assert.match(portabilitySource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
-assert.match(portabilitySource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
-assert.match(portabilitySource, /Sauvegarde Sylloge JSON/, 'L’export doit proposer une sauvegarde complète Sylloge')
-assert.match(portabilitySource, /Tableau Films CSV/, 'L’export doit proposer un tableau Films explicite pour tableur')
+assert.match(accessibleDialogSource, /role="dialog"/, 'Les assistants de portabilité doivent être des dialogues accessibles')
+assert.match(filmCsvImportFlowSource, /Détecté dans votre fichier/, 'Le mapping doit présenter les colonnes dans le sens source vers destination')
+assert.match(filmCsvImportFlowSource, /Importer dans Sylloge/, 'Le mapping doit nommer explicitement la destination Sylloge')
+assert.match(filmCsvImportFlowSource, /Seules vos données de suivi sont importées/, 'Le mapping doit expliquer le périmètre personnel de l’import')
+assert.match(filmCsvImportFlowSource, /Métadonnée récupérée plus tard, non importée/, 'Les sources metadata doivent être clairement exclues dans le mapping')
+assert.match(filmCsvImportFlowSource, /Fonctionnalité future, non importée/, 'Les sources de fonctionnalités futures doivent être clairement exclues dans le mapping')
+assert.doesNotMatch(filmCsvImportFlowSource, /champs Films reconnus/, 'Le sélecteur Notion ne doit jamais afficher un compteur de champs reconnus')
+assert.match(filmCsvImportFlowSource, /Pages de notes associées/, 'Les pages de notes historiques doivent apparaître comme une source texte distincte')
+assert.match(filmCsvImportFlowSource, /Évaluation/, 'La destination numérique doit être distinguée de Note personnelle')
+assert.match(accessibleDialogSource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
+assert.match(accessibleDialogSource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
+assert.match(accessibleDialogSource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
+assert.match(portabilitySource, /Sauvegarde Sylloge/, 'L’export global doit être nommé Sauvegarde Sylloge dans les Paramètres')
+assert.match(portabilitySource, /fullLibrary/, 'Le hub de portabilité doit charger les cinq collections pour ses actions par médium')
+// Jalon 0.4.29 : un seul bouton Exporter par médium, dialogue de formats JSON/CSV.
+assert.match(mainSource, /LibraryExportFlow kind="films"/, 'La bibliothèque Films doit utiliser le flux d’export unifié')
+assert.match(mainSource, /LibraryExportFlow kind="series"/, 'La bibliothèque Séries doit utiliser le flux d’export unifié')
+assert.match(mainSource, /LibraryExportFlow kind="books"/, 'La bibliothèque Livres doit utiliser le flux d’export unifié')
+assert.match(mainSource, /LibraryExportFlow kind="games"/, 'La bibliothèque Jeux doit utiliser le flux d’export unifié')
+assert.match(mainSource, /LibraryExportFlow kind="artworks"/, 'La bibliothèque Art doit utiliser le flux d’export unifié')
+assert.match(portabilitySource, /LibraryExportFlow/, 'Le hub de portabilité doit réutiliser le même flux d’export unifié')
+assert.doesNotMatch(mainSource, /LibraryExportButton|LibraryCsvExportButton/, 'Les anciens boutons d’export séparés doivent avoir disparu')
+assert.match(libraryExportFlowSource, /createLibraryDocument/, 'L’export JSON par médium doit produire le document versionné commun')
+assert.match(libraryExportFlowSource, /saveExportCsv/, 'L’export CSV par médium doit appeler le service CSV natif')
+assert.match(libraryExportFlowSource, /JSON Sylloge/, 'Le dialogue doit proposer le format JSON Sylloge')
+assert.match(libraryExportFlowSource, /<AccessibleDialog/, 'Le choix du format doit passer par le dialogue accessible')
+assert.match(libraryExportFlowSource, /runExport/, 'Aucune écriture ne doit avoir lieu avant le choix explicite du format')
 assert.doesNotMatch(mainSource, /scrollIntoView\(\{ block: 'start' \}\)/, 'Les entrées de la sidebar Paramètres ne doivent plus faire défiler des ancres')
 assert.match(mainSource, /SETTINGS_NAVIGATION/, 'La sidebar doit disposer de sa navigation locale de réglages')
 assert.match(mainSource, /Importer et exporter/, 'La navigation locale doit inclure le hub Importer et exporter')
 assert.match(mainSource, /Retour à la bibliothèque/, 'Les Paramètres doivent toujours proposer un retour explicite à la bibliothèque')
 assert.match(mainSource, /section={settingsSection}/, 'La navigation interne doit afficher la rubrique demandée sans conserver les autres pages')
-assert.match(portabilitySource, /const \[activeImport, setActiveImport\] = useState<ActiveImport \| null>\(null\)/, 'Les confirmations JSON et CSV ou Notion doivent partager un état d’import actif')
-assert.match(portabilitySource, /if \(activeImportRef\.current !== null\) return false/, 'Un second clic de confirmation doit être refusé immédiatement pendant un import actif')
-assert.match(portabilitySource, /disabled=\{choosingImport \|\| disabled\}/, 'Le sélecteur JSON doit être désactivé pendant tout import actif')
-assert.match(portabilitySource, /disabled=\{choosingFilmsImport \|\| disabled\}/, 'Le sélecteur CSV ou Notion doit être désactivé pendant tout import actif')
-assert.match(portabilitySource, /disabled=\{disabled\}/, 'La confirmation JSON doit être désactivée pendant l’import opposé')
-assert.match(portabilitySource, /disabled=\{disabled \|\| !valid\}/, 'La confirmation CSV ou Notion doit être désactivée pendant l’import opposé')
 assert.match(nativePortabilityBridgeSource, /invoke\('save_export_csv'/, 'Le frontend doit appeler le pont Tauri CSV dédié')
-assert.match(nativePortabilityBridgeSource, /invoke\('pick_import_films_csv_or_notion'/, 'Le frontend doit appeler le pont Tauri CSV ou Notion dédié')
+assert.match(nativePortabilityBridgeSource, /invoke\('pick_import_any'/, 'Le frontend doit appeler le sélecteur unifié JSON, CSV ou ZIP')
 assert.match(tauriLibrarySource, /portability::save_export_csv/, 'La commande Tauri CSV doit être enregistrée')
-assert.match(tauriLibrarySource, /portability::pick_import_films_csv_or_notion/, 'La commande Tauri d’import CSV ou Notion doit être enregistrée')
+assert.match(tauriLibrarySource, /portability::pick_import_any/, 'La commande Tauri d’import unifié doit être enregistrée')
+assert.match(nativePortabilitySource, /\["json", "csv", "zip"\]/, 'Le sélecteur unifié doit accepter JSON, CSV et ZIP')
 assert.match(nativePortabilitySource, /pub async fn save_export_csv/, 'Le pont natif doit exposer une sauvegarde CSV')
 assert.match(nativePortabilitySource, /"Export CSV Sylloge"/, 'Le dialogue natif CSV doit filtrer explicitement le format CSV')
-assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_ENTRIES/, 'Le lecteur ZIP Notion doit limiter le nombre d’entrées')
-assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_PATH_DEPTH/, 'Le lecteur ZIP Notion doit limiter la profondeur des dossiers')
-assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_NESTING_DEPTH/, 'Le lecteur ZIP Notion doit limiter la profondeur des archives imbriquées')
-assert.match(nativePortabilitySource, /MAX_NOTION_ZIP_UNCOMPRESSED_BYTES/, 'Le lecteur ZIP Notion doit limiter la taille décompressée')
-assert.match(nativePortabilitySource, /extract_notion_zip/, 'Le ZIP Notion doit être lu en mémoire sans extraction durable')
+assert.match(nativePortabilitySource, /MAX_ZIP_CONTAINER_ENTRIES/, 'Le lecteur ZIP doit limiter le nombre d’entrées')
+assert.match(nativePortabilitySource, /MAX_ZIP_PATH_COMPONENTS/, 'Le lecteur ZIP doit limiter les segments de chemin')
+assert.match(nativePortabilitySource, /MAX_ZIP_NESTING_DEPTH/, 'Le lecteur ZIP doit limiter la profondeur des archives imbriquées')
+assert.match(nativePortabilitySource, /MAX_ZIP_UNCOMPRESSED_BYTES/, 'Le lecteur ZIP doit limiter la taille décompressée')
+assert.match(nativePortabilitySource, /MAX_ZIP_ENTRY_BYTES/, 'Le lecteur ZIP doit limiter chaque entrée pertinente')
+assert.match(nativePortabilitySource, /file\.encrypted\(\)/, 'Le lecteur ZIP doit refuser explicitement les entrées chiffrées')
+assert.match(nativePortabilitySource, /file\.is_symlink\(\)/, 'Le lecteur ZIP doit refuser les liens symboliques')
+assert.match(nativePortabilitySource, /Component::ParentDir/, 'Le lecteur ZIP doit refuser toute traversée de répertoire')
+assert.match(nativePortabilitySource, /has_windows_volume_prefix/, 'Le lecteur ZIP doit refuser les préfixes de volume Windows quel que soit l’OS hôte')
+assert.match(nativePortabilitySource, /notion_zip_reader_rejects_unsafe_encrypted_and_symbolic_link_entries/, 'Un test natif doit couvrir les chemins non sûrs, le chiffrement et les liens symboliques')
+assert.match(nativePortabilitySource, /extract_notion_zip/, 'Le ZIP Film historique doit être lu en mémoire sans extraction durable')
+assert.match(importContainersContractSource, /16 Mio[\s\S]*32 Mio[\s\S]*512/, 'Le contrat de conteneur doit documenter les limites de taille, décompression et entrées')
+assert.match(importContainersContractSource, /Remplacer \/ Fusionner/, 'Le contrat doit conserver le pipeline d’import atomique existant')
+assert.match(importContainersContractSource, /jalon `0\.4\.18`/, 'Le contrat doit réserver le sélecteur de dossier au jalon suivant')
 assert.match(nativePortabilitySource, /\.begin\(\)/, 'L’import doit démarrer une transaction SQLite atomique côté Rust')
 assert.match(nativePortabilitySource, /\.commit\(\)/, 'L’import doit valider explicitement la transaction SQLite')
 assert.match(nativePortabilitySource, /write_snapshot_atomically/, 'Les snapshots doivent passer par une écriture atomique native')
@@ -1880,4 +2124,1720 @@ assert.match(capabilitySource, /sql:allow-load/, 'Tauri doit autoriser le charge
 assert.match(capabilitySource, /sql:allow-select/, 'Tauri doit autoriser les lectures SQLite')
 assert.match(capabilitySource, /sql:allow-execute/, 'Tauri doit autoriser les écritures SQLite')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné, import bloqué avant écriture si invalide, nouveau profil et transaction atomique.')
+// Jalon 0.4.2 — socle multi-médiums : migration, document v2, repository et import atomique.
+const mediaMigration10 = readFileSync(new URL('../src-tauri/migrations/0010_create_cultural_media.sql', import.meta.url), 'utf8')
+const libraryDocumentSource = readFileSync(new URL('../src/domain/libraryDocument.ts', import.meta.url), 'utf8')
+const mediaRepositorySource = readFileSync(new URL('../src/data/mediaRepository.ts', import.meta.url), 'utf8')
+const libraryRepositorySource = readFileSync(new URL('../src/data/libraryRepository.ts', import.meta.url), 'utf8')
+
+assert.match(databaseMigrationSource, /0010_create_cultural_media\.sql/, 'La migration 10 doit être enregistrée dans database.rs')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS series/, 'La migration 10 doit créer la table series')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS books/, 'La migration 10 doit créer la table books')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS book_quotes/, 'La migration 10 doit créer la table book_quotes')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS games/, 'La migration 10 doit créer la table games')
+assert.match(mediaMigration10, /CREATE TABLE IF NOT EXISTS artworks/, 'La migration 10 doit créer la table artworks')
+assert.match(mediaMigration10, /'série télé', 'animation'/, 'La catégorie Série doit distinguer série télé et animation')
+assert.match(mediaMigration10, /'livre', 'manga', 'comics'/, 'La catégorie Livre doit distinguer livre, manga et comics')
+assert.match(mediaMigration10, /'à jouer', 'en cours', 'joué', 'abandonné', 'regardé'/, 'Les statuts Jeu doivent inclure regardé (let’s play)')
+assert.doesNotMatch(mediaMigration10.match(/CREATE TABLE IF NOT EXISTS artworks \(([\s\S]*?)\n\);/)?.[1] ?? '', /rating/, 'La table artworks ne doit pas porter de note')
+assert.match(mediaMigration10, /progress_updated_at/, 'Séries et Livres doivent porter l’horodatage interne de progression')
+assert.match(mediaMigration10, /ON DELETE CASCADE/, 'Les citations doivent suivre la suppression de leur livre')
+assert.match(nativePortabilitySource, /import_library_document_atomically/, 'Le pont natif doit exposer l’import atomique du document v2')
+assert.match(nativePortabilitySource, /import_library_document_into_empty_profile/, 'Le pont natif doit exposer la restauration globale dans le profil courant vide')
+assert.match(nativePortabilitySource, /L’import global est réservé à un profil vide/, 'Le backend doit revérifier atomiquement que le profil courant est vide')
+assert.match(nativePortabilitySource, /INSERT INTO series/, 'L’import v2 doit écrire les séries')
+assert.match(nativePortabilitySource, /INSERT INTO book_quotes/, 'L’import v2 doit écrire les citations')
+assert.match(nativePortabilitySource, /INSERT INTO games/, 'L’import v2 doit écrire les jeux')
+assert.match(nativePortabilitySource, /INSERT INTO artworks/, 'L’import v2 doit écrire les œuvres')
+assert.match(tauriLibrarySource, /portability::import_library_document_atomically/, 'La commande Tauri d’import v2 doit être enregistrée')
+assert.match(tauriLibrarySource, /portability::import_library_document_into_empty_profile/, 'La commande Tauri de restauration dans le profil courant doit être enregistrée')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_library_document_atomically'/, 'Le frontend doit appeler le pont Tauri d’import v2')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_library_document_into_empty_profile'/, 'Le frontend doit appeler le pont d’import global dans le profil courant vide')
+assert.match(libraryDocumentSource, /'sylloge-library'/, 'Le format v2 doit être explicitement nommé sylloge-library')
+assert.match(mediaRepositorySource, /resolveProgressTimestamp/, 'Le repository doit gérer l’horodatage interne de progression')
+assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le document v2 ne doit jamais exposer le cache TMDB')
+
+{
+  const {
+    createLibraryDocument,
+    serializeLibraryDocument,
+    validateLibraryDocument,
+  } = await import('../src/domain/libraryDocument.ts')
+
+  const library = {
+    profile: {
+      id: 'profile-v2',
+      name: 'Bibliothèque complète',
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    },
+    films: [{
+      id: 'film-v2',
+      profileId: 'profile-v2',
+      title: 'Film v2',
+      originalTitle: null,
+      year: 2024,
+      status: 'terminé',
+      isFavorite: true,
+      rating: 4.5,
+      watchedAt: '2026-07-01',
+      personalNote: null,
+      director: 'Réalisatrice',
+      summary: null,
+      providerName: null,
+      providerId: null,
+      posterUrl: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+    series: [{
+      id: 'series-v2',
+      profileId: 'profile-v2',
+      title: 'Série v2',
+      showrunner: 'Showrunner',
+      casting: 'Casting',
+      summary: null,
+      category: 'animation',
+      status: 'en cours',
+      rating: 4,
+      isFavorite: false,
+      seasonsSeen: 3,
+      seasonsTotal: 8,
+      progressUpdatedAt: '2026-07-19T09:00:00.000Z',
+      startedAt: '2024-05-01',
+      posterUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+    books: [{
+      id: 'book-v2',
+      profileId: 'profile-v2',
+      title: 'Manga v2',
+      author: 'Mangaka',
+      year: 2020,
+      summary: null,
+      category: 'manga',
+      status: 'en cours',
+      rating: null,
+      isFavorite: true,
+      volumesRead: 10,
+      volumesTotal: 30,
+      progressUpdatedAt: '2026-07-19T09:00:00.000Z',
+      startedAt: '2023-01-01',
+      coverUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+      quotes: [{
+        id: 'quote-v2',
+        bookId: 'book-v2',
+        body: 'Citation mémorable',
+        position: 0,
+        createdAt: '2026-07-19T10:00:00.000Z',
+      }],
+    }],
+    games: [{
+      id: 'game-v2',
+      profileId: 'profile-v2',
+      title: 'Jeu v2',
+      developer: 'Studio',
+      platform: 'Dreamcast',
+      year: 2001,
+      status: 'regardé',
+      rating: 3.5,
+      isFavorite: false,
+      playedAt: '2026-02-01',
+      coverUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+    artworks: [{
+      id: 'artwork-v2',
+      profileId: 'profile-v2',
+      title: 'Œuvre v2',
+      artist: 'Artiste',
+      year: 1889,
+      form: 'peinture',
+      location: 'Musée d’Orsay',
+      exhibition: null,
+      status: 'découverte',
+      isFavorite: true,
+      discoveredAt: '2026-06-15',
+      imageUrl: null,
+      personalNote: 'Vu en famille',
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    }],
+  }
+
+  const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
+  assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format v2')
+  assert.equal(document.version, 2, 'Le document doit porter la version 2')
+
+  const serialized = serializeLibraryDocument(document)
+  const preview = validateLibraryDocument(serialized)
+  assert.equal(preview.errors.length, 0, `Un aller-retour v2 doit être valide : ${JSON.stringify(preview.errors)}`)
+  assert.deepEqual(preview.counts, { films: 1, series: 1, books: 1, games: 1, artworks: 1 }, 'Les compteurs doivent refléter chaque collection')
+  assert.equal(preview.document?.series[0]?.category, 'animation', 'La catégorie Série doit survivre à l’aller-retour')
+  assert.equal(preview.document?.books[0]?.quotes[0]?.body, 'Citation mémorable', 'Les citations doivent survivre à l’aller-retour')
+  assert.equal(preview.document?.games[0]?.platform, 'Dreamcast', 'La plateforme libre doit survivre à l’aller-retour')
+  assert.equal(parseFilmsCollectionJson(serialized).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit accepter un document v2')
+  assert.equal(parseSeriesCollectionJson(serialized).items?.[0]?.title, 'Série v2', 'L’import unitaire Séries doit accepter un document v2')
+  assert.equal(parseBooksCollectionJson(serialized).items?.[0]?.quotes[0]?.body, 'Citation mémorable', 'L’import unitaire Livres doit conserver les citations du document v2')
+
+  const v1Document = JSON.stringify({
+    format: 'sylloge-films',
+    version: 1,
+    exportedAt: '2026-07-19T12:00:00.000Z',
+    profile: library.profile,
+    films: library.films,
+  })
+  const v1Preview = validateLibraryDocument(v1Document)
+  assert.equal(v1Preview.document, null, 'Un document v1 doit être refusé par le validateur v2')
+  assert.equal(parseFilmsCollectionJson(v1Document).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit rester compatible avec un JSON Films v1')
+  assert.equal(parseSeriesCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Séries')
+  assert.equal(parseBooksCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Livres')
+
+  const invalidSeries = JSON.parse(serialized)
+  invalidSeries.series[0].seasonsSeen = 12
+  const invalidPreview = validateLibraryDocument(JSON.stringify(invalidSeries))
+  assert.equal(invalidPreview.document, null, 'Une progression incohérente doit bloquer le document')
+  assert.ok(invalidPreview.errors.some((error) => error.path.includes('seasonsSeen')), 'L’erreur doit cibler la progression invalide')
+
+  const duplicateId = JSON.parse(serialized)
+  duplicateId.games[0].id = duplicateId.films[0].id
+  const duplicatePreview = validateLibraryDocument(JSON.stringify(duplicateId))
+  assert.equal(duplicatePreview.document, null, 'Un identifiant partagé entre médiums doit bloquer le document')
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+
+  const seriesRow = {
+    id: 'series-1',
+    profile_id: 'default',
+    title: 'Série stockée',
+    showrunner: null,
+    casting: null,
+    summary: null,
+    category: 'série télé',
+    status: 'en cours',
+    rating: null,
+    is_favorite: 0,
+    seasons_seen: 2,
+    seasons_total: 5,
+    progress_updated_at: '2026-07-18T10:00:00.000Z',
+    started_at: '2024-01-01',
+    poster_url: null,
+    personal_note: null,
+    created_at: '2026-07-18T10:00:00.000Z',
+    updated_at: '2026-07-18T10:00:00.000Z',
+  }
+
+  const database = {
+    series: [seriesRow],
+    books: [],
+    quotes: [],
+    async select(query, bindValues) {
+      if (query.includes('FROM series')) {
+        if (query.includes('WHERE id = $1')) return this.series.filter((row) => row.id === bindValues[0])
+        return [...this.series]
+      }
+      if (query.includes('FROM book_quotes')) return [...this.quotes]
+      if (query.includes('FROM books')) return [...this.books]
+      throw new Error(`Requête inattendue dans la vérification : ${query}`)
+    },
+    async execute(query, bindValues) {
+      if (query.includes('UPDATE series')) {
+        const updatedAt = bindValues[14]
+        const progressUpdatedAt = bindValues[10]
+        const row = this.series.find((value) => value.id === bindValues[15])
+        if (!row) return { rowsAffected: 0 }
+        row.seasons_seen = bindValues[8]
+        row.progress_updated_at = progressUpdatedAt
+        row.updated_at = updatedAt
+        return { rowsAffected: 1 }
+      }
+      throw new Error(`Écriture inattendue dans la vérification : ${query}`)
+    },
+  }
+
+  let clock = 0
+  const repository = new SqliteMediaRepository(
+    async () => database,
+    () => `generated-${clock}`,
+    () => `2026-07-19T12:00:0${clock}.000Z`,
+  )
+
+  const loaded = await repository.getSeries('default', 'series-1')
+  assert.equal(loaded?.category, 'série télé', 'Le repository doit mapper la catégorie Série')
+  assert.equal(loaded?.progressUpdatedAt, '2026-07-18T10:00:00.000Z', 'L’horodatage de progression doit être lu')
+
+  clock = 1
+  await repository.updateSeries('default', 'series-1', {
+    title: loaded.title,
+    showrunner: loaded.showrunner,
+    casting: loaded.casting,
+    summary: loaded.summary,
+    category: loaded.category,
+    status: loaded.status,
+    rating: loaded.rating,
+    isFavorite: loaded.isFavorite,
+    seasonsSeen: 2,
+    seasonsTotal: loaded.seasonsTotal,
+    startedAt: loaded.startedAt,
+    posterUrl: loaded.posterUrl,
+    personalNote: loaded.personalNote,
+  })
+  assert.equal(database.series[0].progress_updated_at, '2026-07-18T10:00:00.000Z', 'Une modification sans progression ne doit pas rafraîchir l’horodatage interne')
+
+  clock = 2
+  await repository.updateSeries('default', 'series-1', {
+    title: loaded.title,
+    showrunner: loaded.showrunner,
+    casting: loaded.casting,
+    summary: loaded.summary,
+    category: loaded.category,
+    status: loaded.status,
+    rating: loaded.rating,
+    isFavorite: loaded.isFavorite,
+    seasonsSeen: 3,
+    seasonsTotal: loaded.seasonsTotal,
+    startedAt: loaded.startedAt,
+    posterUrl: loaded.posterUrl,
+    personalNote: loaded.personalNote,
+  })
+  assert.equal(database.series[0].progress_updated_at, '2026-07-19T12:00:02.000Z', 'Une saison supplémentaire doit rafraîchir l’horodatage interne de progression')
+}
+
+{
+  const { SqliteLibraryRepository } = await import('../src/data/libraryRepository.ts')
+
+  const document = {
+    format: 'sylloge-library',
+    version: 2,
+    exportedAt: '2026-07-19T12:00:00.000Z',
+    profile: {
+      id: 'legacy-profile',
+      name: 'Import complet',
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+    },
+    films: [],
+    series: [],
+    books: [{
+      id: 'legacy-book',
+      profileId: 'legacy-profile',
+      title: 'Livre importé',
+      author: null,
+      year: null,
+      summary: null,
+      category: 'livre',
+      status: 'lu',
+      rating: 5,
+      isFavorite: true,
+      volumesRead: null,
+      volumesTotal: null,
+      progressUpdatedAt: null,
+      startedAt: '2025-03-01',
+      coverUrl: null,
+      personalNote: null,
+      createdAt: '2026-07-19T10:00:00.000Z',
+      updatedAt: '2026-07-19T10:00:00.000Z',
+      quotes: [
+        { id: 'legacy-quote-1', bookId: 'legacy-book', body: 'Première citation', position: 0, createdAt: '2026-07-19T10:00:00.000Z' },
+        { id: 'legacy-quote-2', bookId: 'legacy-book', body: 'Seconde citation', position: 1, createdAt: '2026-07-19T10:00:00.000Z' },
+      ],
+    }],
+    games: [],
+    artworks: [],
+  }
+
+  let capturedPayload = null
+  let idSequence = 0
+  const repository = new SqliteLibraryRepository(
+    async () => {
+      throw new Error('Aucune lecture attendue avant le rechargement final')
+    },
+    () => `fresh-${idSequence++}`,
+    () => '2026-07-19T12:30:00.000Z',
+    async (payload) => {
+      capturedPayload = payload
+      return {
+        profileId: payload.profile.id,
+        filmCount: payload.films.length,
+        seriesCount: payload.series.length,
+        bookCount: payload.books.length,
+        gameCount: payload.games.length,
+        artworkCount: payload.artworks.length,
+      }
+    },
+  )
+
+  repository.loadLibrary = async (profileId) => {
+    assert.equal(profileId, capturedPayload.profile.id, 'Le rechargement doit cibler le nouveau profil')
+    return {
+      profile: capturedPayload.profile,
+      films: capturedPayload.films,
+      series: capturedPayload.series,
+      books: capturedPayload.books,
+      games: capturedPayload.games,
+      artworks: capturedPayload.artworks,
+    }
+  }
+
+  const imported = await repository.importLibraryDocument(document)
+  assert.notEqual(capturedPayload.profile.id, 'legacy-profile', 'L’import doit créer un profil neuf')
+  assert.equal(capturedPayload.books[0].profileId, capturedPayload.profile.id, 'Chaque élément doit cibler le nouveau profil')
+  assert.notEqual(capturedPayload.books[0].id, 'legacy-book', 'Les identifiants doivent être régénérés')
+  assert.equal(capturedPayload.books[0].quotes.length, 2, 'Les citations doivent être importées avec leur livre')
+  for (const quote of capturedPayload.books[0].quotes) {
+    assert.equal(quote.bookId, capturedPayload.books[0].id, 'Chaque citation doit être rattachée au livre régénéré')
+    assert.notEqual(quote.id.startsWith('legacy-'), true, 'Les identifiants de citation doivent être régénérés')
+  }
+  assert.equal(imported.books[0].title, 'Livre importé', 'L’import doit recharger la bibliothèque créée')
+}
+
+assert.match(libraryRepositorySource, /importLibraryDocumentAtomically/, 'Le repository de bibliothèque doit passer par l’import atomique natif')
+assert.match(libraryRepositorySource, /createId\(\)/, 'L’import v2 doit régénérer les identifiants dans le nouveau profil')
+
+// Jalon 0.4.3 — Séries : saisie manuelle, compteur de saisons et bascule Vue ↔ En cours.
+const seriesFormDomainSource = readFileSync(new URL('../src/domain/seriesForm.ts', import.meta.url), 'utf8')
+const seriesFormSource = readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8')
+const seriesDetailSource = readFileSync(new URL('../src/components/SeriesDetail.tsx', import.meta.url), 'utf8')
+const stepperSource = readFileSync(new URL('../src/components/Stepper.tsx', import.meta.url), 'utf8')
+const mainSource043 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+assert.match(seriesFormDomainSource, /resolveSeriesStatusForTotalChange/, 'La bascule Vue → En cours à nouvelle saison doit vivre dans le domaine')
+assert.match(seriesFormDomainSource, /values\.status === 'vue' && seasonsTotal !== null/, 'Marquer « vue » doit aligner les saisons vues sur le total')
+assert.match(seriesFormSource, /resolveSeriesStatusForTotalChange/, 'Le formulaire doit appliquer la bascule à la modification du total')
+assert.match(seriesFormSource, /next\.seasonsSeen = current\.seasonsTotal/, 'Marquer « vue » doit préremplir les saisons vues')
+assert.match(seriesFormSource, /<Stepper/, 'Le compteur de saisons doit utiliser les boutons +/−, pas un champ numérique brut')
+assert.match(stepperSource, /aria-label=\{`Ajouter 1 à \$\{label\}`\}/, 'Le bouton + doit rester accessible')
+assert.match(stepperSource, /aria-label=\{`Retirer 1 à \$\{label\}`\}/, 'Le bouton − doit rester accessible')
+assert.match(seriesDetailSource, /saison/, 'La fiche doit afficher l’avancement en saisons')
+assert.match(mainSource043, /icon\('series'\)\} Séries/, 'La sidebar doit proposer l’entrée Séries')
+assert.match(mainSource043, /label: 'Catégorie'/, 'La bibliothèque Séries doit offrir le filtre par catégorie')
+assert.match(mainSource043, /searchSeries/, 'La recherche Séries doit reposer sur le repository')
+assert.match(mediaRepositorySource, /searchSeries/, 'Le repository doit exposer la recherche Séries')
+assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_QUERY_COLUMNS\)/, 'Le tri Séries doit reposer sur les colonnes documentées du médium')
+
+{
+  const {
+    EMPTY_SERIES_FORM,
+    resolveSeriesStatusForTotalChange,
+    validateSeriesForm,
+  } = await import('../src/domain/seriesForm.ts')
+
+  const base = { ...EMPTY_SERIES_FORM, title: 'Série de test' }
+
+  const minimal = validateSeriesForm(base)
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer une série')
+
+  const noTitle = validateSeriesForm({ ...base, title: '   ' })
+  assert.equal(noTitle.success, false, 'Le titre reste obligatoire')
+
+  const markedSeen = validateSeriesForm({ ...base, status: 'vue', seasonsTotal: '8' })
+  assert.equal(markedSeen.success, true)
+  assert.equal(markedSeen.data.seasonsSeen, 8, 'Marquer « vue » doit aligner les saisons vues sur le total')
+
+  const seenWithoutTotal = validateSeriesForm({ ...base, status: 'vue', seasonsSeen: '3' })
+  assert.equal(seenWithoutTotal.success, false, 'Marquer « vue » sans total connu doit être expliqué')
+
+  const overflow = validateSeriesForm({ ...base, status: 'en cours', seasonsSeen: '9', seasonsTotal: '8' })
+  assert.equal(overflow.success, false, 'Les saisons vues ne peuvent pas dépasser le total')
+  assert.ok(overflow.errors.seasonsSeen, 'L’erreur doit cibler les saisons vues')
+
+  assert.equal(
+    resolveSeriesStatusForTotalChange('vue', 8, 8),
+    'vue',
+    'Une série à jour reste vue',
+  )
+  assert.equal(
+    resolveSeriesStatusForTotalChange('vue', 8, 9),
+    'en cours',
+    'Une nouvelle saison fait repasser une série vue en cours',
+  )
+  assert.equal(
+    resolveSeriesStatusForTotalChange('en cours', 3, 9),
+    'en cours',
+    'Une série en cours ne change pas de statut à nouvelle saison',
+  )
+
+  const badRating = validateSeriesForm({ ...base, rating: '4.3' })
+  assert.equal(badRating.success, false, 'La note doit rester par demi-points')
+
+  const badPoster = validateSeriesForm({ ...base, posterUrl: 'ftp://affiche.jpg' })
+  assert.equal(badPoster.success, false, 'L’affiche doit rester une URL http(s)')
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      return []
+    },
+    async execute() {
+      throw new Error('Aucune écriture attendue pendant la recherche')
+    },
+  }
+  const repository = new SqliteMediaRepository(async () => database)
+
+  await repository.searchSeries('default', { query: '', category: 'all', sort: { column: 'title', direction: 'asc' } })
+  const globalQuery = calls.at(-1).query
+  assert.ok(!globalQuery.includes('category = $'), 'La recherche globale ne doit pas filtrer par catégorie')
+  assert.match(globalQuery, /ORDER BY title COLLATE NOCASE ASC, created_at ASC/, 'Le tri par titre doit être canonique')
+
+  await repository.searchSeries('default', { query: '', category: 'all', sort: { column: 'recency', direction: 'desc' } })
+  assert.match(calls.at(-1).query, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'Le tri récent doit suivre la progression interne')
+
+  await repository.searchSeries('default', { query: '', category: 'animation', sort: { column: 'title', direction: 'asc' } })
+  const animationQuery = calls.at(-1)
+  assert.match(animationQuery.query, /category = \$\d+/, 'Le filtre animation doit filtrer la catégorie')
+  assert.deepEqual(animationQuery.bindValues, ['default', 'animation'], 'Le filtre animation doit lier la catégorie demandée')
+
+  await repository.searchSeries('default', { query: 'lupin', category: 'série télé', sort: { column: 'title', direction: 'asc' } })
+  const searchCall = calls.at(-1)
+  assert.match(searchCall.query, /showrunner COLLATE NOCASE LIKE/, 'La recherche doit couvrir le showrunner')
+  assert.match(searchCall.query, /casting COLLATE NOCASE LIKE/, 'La recherche doit couvrir le casting')
+  assert.deepEqual(searchCall.bindValues, ['default', '%lupin%', 'série télé'], 'La recherche doit lier requête et catégorie')
+}
+
+// Jalon 0.4.5 — Livres : saisie manuelle, tomes et citations personnelles.
+const bookFormDomainSource = readFileSync(new URL('../src/domain/bookForm.ts', import.meta.url), 'utf8')
+const bookFormSource = readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8')
+const bookDetailSource = readFileSync(new URL('../src/components/BookDetail.tsx', import.meta.url), 'utf8')
+const mainSource045 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+const nativeBooksSource = readFileSync(new URL('../src/data/nativeBooks.ts', import.meta.url), 'utf8')
+const rustBooksSource = readFileSync(new URL('../src-tauri/src/books.rs', import.meta.url), 'utf8')
+
+assert.match(bookFormDomainSource, /resolveBookStatusForTotalChange/, 'La bascule Lu → En cours à nouveau tome doit vivre dans le domaine')
+assert.match(bookFormSource, /<Stepper/, 'Le compteur de tomes Manga et Comics doit utiliser les boutons +/−')
+assert.match(bookFormSource, /Ajouter une citation/, 'Le formulaire doit permettre plusieurs citations personnelles')
+assert.match(bookDetailSource, /<details className="quotes-section"/, 'La fiche doit afficher les citations dans un espace escamotable')
+assert.match(mainSource045, /icon\('book'\)\} Livres/, 'La sidebar doit proposer l’entrée Livres')
+assert.match(mainSource045, /mediaRepository\.listBooks/, 'La collection Livres doit être relue depuis SQLite')
+assert.match(nativeBooksSource, /create_book_atomically/, 'La création Livre et ses citations doit passer par une commande native atomique')
+assert.match(nativeBooksSource, /update_book_atomically/, 'La modification Livre et ses citations doit passer par une commande native atomique')
+assert.match(nativeBooksSource, /delete_book_atomically/, 'La suppression Livre et ses citations doit passer par une commande native atomique')
+assert.match(rustBooksSource, /pool\s*\.begin\(\)/, 'Les écritures Livres doivent ouvrir une transaction SQLite native')
+assert.match(rustBooksSource, /create_book_and_quotes_is_atomic/, 'Une preuve Rust doit couvrir le rollback de création')
+assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Rust doit couvrir le rollback de modification')
+
+{
+  const {
+    EMPTY_BOOK_FORM,
+    resolveBookStatusForTotalChange,
+    validateBookForm,
+  } = await import('../src/domain/bookForm.ts')
+
+  const base = { ...EMPTY_BOOK_FORM, title: 'Livre de test' }
+  const minimal = validateBookForm(base)
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer un livre')
+
+  const noTitle = validateBookForm({ ...base, title: '   ' })
+  assert.equal(noTitle.success, false, 'Le titre reste obligatoire')
+
+  const completedManga = validateBookForm({
+    ...base,
+    category: 'manga',
+    status: 'lu',
+    volumesTotal: '12',
+  })
+  assert.equal(completedManga.success, true)
+  assert.equal(completedManga.data.volumesRead, 12, 'Marquer un manga « lu » doit aligner les tomes lus sur le total')
+
+  const overflow = validateBookForm({
+    ...base,
+    category: 'comics',
+    status: 'en cours',
+    volumesRead: '13',
+    volumesTotal: '12',
+  })
+  assert.equal(overflow.success, false, 'Les tomes lus ne peuvent pas dépasser le total')
+  assert.ok(overflow.errors.volumesRead, 'L’erreur doit cibler les tomes lus')
+
+  const simpleBook = validateBookForm({
+    ...base,
+    category: 'livre',
+    volumesRead: '2',
+    volumesTotal: '3',
+  })
+  assert.equal(simpleBook.success, true)
+  assert.equal(simpleBook.data.volumesRead, null, 'Un livre simple ne doit pas persister un compteur de tomes masqué')
+  assert.equal(simpleBook.data.volumesTotal, null, 'Un livre simple ne doit pas persister un total de tomes masqué')
+
+  assert.equal(resolveBookStatusForTotalChange('lu', 12, 13), 'en cours', 'Un nouveau tome fait repasser une œuvre lue en cours')
+  assert.equal(resolveBookStatusForTotalChange('lu', 12, 12), 'lu', 'Une œuvre à jour reste lue')
+
+  const quotes = validateBookForm({
+    ...base,
+    quotes: ['  Première citation  ', '   ', 'Seconde citation'],
+  })
+  assert.equal(quotes.success, true)
+  assert.deepEqual(quotes.data.quotes, ['Première citation', 'Seconde citation'], 'Les citations doivent être ordonnées, nettoyées et les lignes vides ignorées')
+
+  const badRating = validateBookForm({ ...base, rating: '4.3' })
+  assert.equal(badRating.success, false, 'La note doit rester par demi-points')
+
+  const badCover = validateBookForm({ ...base, coverUrl: 'file:///couverture.jpg' })
+  assert.equal(badCover.success, false, 'La couverture doit rester une URL http(s)')
+}
+
+// Jalon 0.4.6 — Livres : recherche, vues et portabilité dédiée.
+{
+  const { planBookMerge, resolveBookMerge } = await import('../src/domain/importMerge.ts')
+  const timestamp = '2026-07-22T10:00:00.000Z'
+  const existingBook = {
+    id: 'book-local',
+    profileId: 'default',
+    title: "L'Étranger",
+    author: null,
+    year: null,
+    summary: null,
+    category: 'livre',
+    status: 'lu',
+    rating: 5,
+    isFavorite: true,
+    volumesRead: null,
+    volumesTotal: null,
+    progressUpdatedAt: null,
+    startedAt: '2026-07-01',
+    coverUrl: null,
+    personalNote: 'Avis personnel très long — ligne 1.\nLigne 2 conservée avec ses accents.',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    quotes: [{ id: 'quote-local', bookId: 'book-local', body: 'Citation locale préférée.', position: 0, createdAt: timestamp }],
+  }
+  const importedBook = {
+    ...existingBook,
+    id: 'book-imported',
+    profileId: 'source-profile',
+    title: "l'etranger",
+    author: 'Albert Camus',
+    year: 1942,
+    summary: 'Résumé éditorial — caractères préservés.',
+    status: 'à lire',
+    rating: null,
+    isFavorite: false,
+    startedAt: null,
+    coverUrl: 'https://example.invalid/couverture-étranger.jpg',
+    personalNote: null,
+    quotes: [{ id: 'quote-imported', bookId: 'book-imported', body: 'Citation importée.', position: 0, createdAt: timestamp }],
+  }
+
+  const plan = planBookMerge([existingBook], [importedBook])
+  assert.equal(plan.duplicates.length, 1, 'La fusion Livres doit détecter les doublons sans tenir compte de la casse ni des accents')
+  const keepExisting = resolveBookMerge([], plan, new Map([["l'etranger", 'keep-existing']]), timestamp).updates[0]
+  assert.equal(keepExisting.author, 'Albert Camus', 'L’import doit compléter un auteur local vide')
+  assert.equal(keepExisting.summary, importedBook.summary, 'L’import doit compléter un résumé local vide sans altérer ses caractères')
+  assert.equal(keepExisting.rating, 5, 'La note personnelle locale doit rester prioritaire')
+  assert.equal(keepExisting.personalNote, existingBook.personalNote, 'L’avis long local doit rester prioritaire')
+  assert.deepEqual(keepExisting.quotes, existingBook.quotes, 'Les citations locales doivent rester prioritaires si la fiche locale est conservée')
+
+  const keepImported = resolveBookMerge([], plan, new Map([["l'etranger", 'keep-imported']]), timestamp).updates[0]
+  assert.equal(keepImported.id, 'book-local', 'Conserver la fiche importée doit préserver l’identité SQLite locale')
+  assert.equal(keepImported.quotes[0].bookId, 'book-local', 'Les citations importées doivent être rattachées à l’identité locale conservée')
+
+  const dedicatedDocument = createLibraryDocument({
+    profile: {
+      id: 'default',
+      name: 'Profil Livres',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    films: [],
+    series: [],
+    books: [existingBook],
+    games: [],
+    artworks: [],
+  }, timestamp)
+  const dedicatedPreview = validateLibraryDocument(serializeLibraryDocument(dedicatedDocument))
+  assert.deepEqual(dedicatedPreview.document?.books[0], existingBook, 'L’export JSON Livre dédié doit préserver accents, retours à la ligne, avis et citations')
+
+  const calls = []
+  const bookRow = {
+    id: 'book-search',
+    profile_id: 'default',
+    title: 'Poésie à Montréal',
+    author: 'Élodie Test',
+    year: 2026,
+    summary: 'Résumé local',
+    category: 'livre',
+    status: 'lu',
+    rating: 4.5,
+    is_favorite: 1,
+    volumes_read: null,
+    volumes_total: null,
+    progress_updated_at: timestamp,
+    started_at: '2026-07-01',
+    cover_url: null,
+    personal_note: 'Note longue',
+    created_at: timestamp,
+    updated_at: timestamp,
+  }
+  const repository = new (await import('../src/data/mediaRepository.ts')).SqliteMediaRepository(async () => ({
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      if (query.includes('FROM book_quotes')) {
+        return [{ id: 'quote-search', book_id: 'book-search', body: 'Vers préservé', position: 0, created_at: timestamp }]
+      }
+      if (query.includes('FROM books')) return [bookRow]
+      throw new Error(`Requête inattendue : ${query}`)
+    },
+    async execute() {
+      throw new Error('Aucune écriture attendue pendant la recherche Livres')
+    },
+  }))
+  const searched = await repository.searchBooks('default', { query: '  Élodie  ', category: 'livre', sort: { column: 'recency', direction: 'desc' } })
+  assert.equal(searched[0].quotes[0].body, 'Vers préservé', 'La recherche doit restituer les citations de la fiche trouvée')
+  assert.match(calls[0].query, /author COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir l’auteur')
+  assert.match(calls[0].query, /summary COLLATE NOCASE LIKE/, 'La recherche Livres doit couvrir le résumé')
+  assert.match(calls[0].query, /COALESCE\(progress_updated_at, updated_at\) DESC/, 'La vue Livres récente doit suivre la progression interne')
+  assert.deepEqual(calls[0].bindValues, ['default', '%Élodie%', 'livre'], 'La recherche et la catégorie doivent être paramétrées')
+
+  const snapshots = []
+  const backup = new BackupService({
+    async getBackupSettings() { return null },
+    async pickBackupDirectory() { return null },
+    async clearBackupSettings() {},
+    async saveManualBackupSnapshot() { throw new Error('Snapshot manuel non attendu') },
+    async saveAutomaticBackupSnapshot(profileId, contents, automaticDay) {
+      snapshots.push({ profileId, contents, automaticDay })
+      return { outcome: 'saved', fileName: 'snapshot-livres.json' }
+    },
+  }, () => new Date(2026, 6, 22, 12, 0, 0), async () => ({
+    profile: dedicatedDocument.profile,
+    films: [],
+    series: [],
+    books: [existingBook],
+    games: [],
+    artworks: [],
+  }))
+  await backup.tryAutomaticSnapshot({ profile: dedicatedDocument.profile, films: [] })
+  assert.deepEqual(
+    validateLibraryDocument(snapshots[0].contents).document?.books[0],
+    existingBook,
+    'Le snapshot global doit inclure fidèlement les Livres et leurs citations',
+  )
+}
+
+assert.match(mainSource045, /BOOK_CATEGORIES\.map/, 'La bibliothèque Livres doit offrir le filtre Livre, Manga et Comics')
+assert.match(mainSource045, /searchBooks/, 'La recherche Livres doit reposer sur le repository SQLite')
+assert.match(mainSource045, /kind="books"/, 'La bibliothèque Livres doit proposer son import unitaire')
+assert.match(mainSource045, /LibraryExportFlow kind="books"/, 'La bibliothèque Livres doit proposer son export dédié')
+assert.match(mediaRepositorySource, /async searchBooks/, 'Le repository doit exposer la recherche Livres')
+assert.match(libraryImportButtonSource, /parseBooksCollectionJson/, 'L’assistant Livres doit valider le document JSON v2 avant écriture')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_books_into_profile'/, 'Le frontend doit appeler le pont Tauri d’import Livres')
+assert.match(nativePortabilitySource, /pub async fn import_books_into_profile/, 'Le backend doit exposer l’import Livres atomique')
+assert.match(nativePortabilitySource, /books_collection_import_is_atomic_with_quotes/, 'Une preuve Rust doit couvrir le rollback d’un import Livres avec citations')
+assert.match(tauriLibrarySource, /portability::import_books_into_profile/, 'La commande Tauri d’import Livres doit être enregistrée')
+assert.match(posterSource, /label = 'Affiche'/, 'Le fallback visuel doit accepter un libellé propre au médium')
+assert.match(mainSource045, /label="Couverture"/, 'Les cartes Livres doivent annoncer une couverture, pas une affiche de film')
+
+// Jalon 0.4.7 — Jeux : verticale bornée, plateforme libre et CRUD local.
+const gameDomainSource = readFileSync(new URL('../src/domain/game.ts', import.meta.url), 'utf8')
+const gameFormSource = readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8')
+const gameDetailSource = readFileSync(new URL('../src/components/GameDetail.tsx', import.meta.url), 'utf8')
+const mainSource047 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+assert.match(mainSource047, /icon\('game'\)\} Jeux/, 'La sidebar doit proposer l’entrée Jeux')
+assert.match(mainSource047, /mediaRepository\.listGames/, 'La collection Jeux doit être relue depuis SQLite')
+assert.match(mainSource047, /mediaRepository\.createGame/, 'La création Jeu doit écrire dans le repository SQLite')
+assert.match(mainSource047, /mediaRepository\.updateGame/, 'La modification Jeu doit écrire dans le repository SQLite')
+assert.match(mainSource047, /mediaRepository\.deleteGame/, 'La suppression Jeu doit écrire dans le repository SQLite')
+assert.match(gameDomainSource, /DEFAULT_GAME_PLATFORMS/, 'Le domaine doit proposer un socle sobre de plateformes')
+assert.match(gameFormSource, /list="game-platform-suggestions"/, 'La plateforme doit rester une saisie libre enrichie de suggestions')
+assert.match(gameDetailSource, /GAME_STATUS_LABELS/, 'La fiche Jeu doit afficher les statuts propres à la verticale')
+assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formulaire Jeux ne doit introduire aucun tracker de temps ou de sessions')
+
+{
+  const { EMPTY_GAME_FORM, validateGameForm } = await import('../src/domain/gameForm.ts')
+  const { buildGamePlatformFilters, buildGamePlatformSuggestions } = await import('../src/domain/game.ts')
+
+  const minimal = validateGameForm({ ...EMPTY_GAME_FORM, title: '  Jeu minimal  ' })
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer un jeu')
+  assert.deepEqual(minimal.data, {
+    title: 'Jeu minimal',
+    developer: null,
+    platform: null,
+    year: null,
+    status: 'à jouer',
+    rating: null,
+    isFavorite: false,
+    playedAt: null,
+    coverUrl: null,
+    personalNote: null,
+  }, 'Les champs Jeu facultatifs vides doivent rester null sans donnée inventée')
+
+  const complete = validateGameForm({
+    ...EMPTY_GAME_FORM,
+    title: 'Jeu complet',
+    developer: '  Studio local  ',
+    platform: '  Steam Deck  ',
+    year: '2026',
+    status: 'regardé',
+    rating: '4.5',
+    isFavorite: true,
+    playedAt: '2026-07-22',
+    coverUrl: 'https://example.invalid/jeu.jpg',
+    personalNote: '  Avis personnel  ',
+  })
+  assert.equal(complete.success, true, 'Tous les champs Jeu contractuels valides doivent être acceptés')
+  assert.equal(complete.data.platform, 'Steam Deck', 'La plateforme libre doit être normalisée sans être remplacée')
+  assert.equal(complete.data.status, 'regardé', 'Le statut Regardé doit couvrir les jeux suivis en vidéo')
+
+  for (const values of [
+    { title: '   ' },
+    { title: 'Statut', status: 'inconnu' },
+    { title: 'Année', year: '0' },
+    { title: 'Note', rating: '4.3' },
+    { title: 'Date', playedAt: '2026-02-30' },
+    { title: 'Couverture', coverUrl: 'file:///jeu.jpg' },
+  ]) {
+    assert.equal(
+      validateGameForm({ ...EMPTY_GAME_FORM, ...values }).success,
+      false,
+      `Le formulaire Jeu doit refuser la saisie invalide ${JSON.stringify(values)}`,
+    )
+  }
+
+  const suggestions = buildGamePlatformSuggestions([
+    { platform: 'Steam Deck' },
+    { platform: ' pc ' },
+  ])
+  assert.ok(suggestions.includes('PC'), 'PC doit faire partie des suggestions initiales')
+  assert.ok(suggestions.includes('Steam Deck'), 'Une plateforme libre déjà enregistrée doit devenir une suggestion')
+  assert.equal(suggestions.filter((platform) => platform.toLocaleLowerCase('fr') === 'pc').length, 1, 'Les suggestions doivent éviter les doublons de casse')
+  assert.deepEqual(
+    buildGamePlatformFilters([{ platform: 'Steam Deck' }, { platform: 'steam deck' }, { platform: null }]),
+    ['Steam Deck'],
+    'Les filtres doivent proposer seulement les plateformes réellement présentes, sans doublon de casse',
+  )
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const timestamp = '2026-07-22T14:00:00.000Z'
+  const gameRow = {
+    id: 'game-local',
+    profile_id: 'default',
+    title: 'Jeu SQLite',
+    developer: 'Studio local',
+    platform: 'PC',
+    year: 2026,
+    status: 'en cours',
+    rating: 4.5,
+    is_favorite: 1,
+    played_at: '2026-07-22',
+    cover_url: null,
+    personal_note: 'Avis local',
+    created_at: timestamp,
+    updated_at: timestamp,
+  }
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ kind: 'select', query, bindValues })
+      return [gameRow]
+    },
+    async execute(query, bindValues) {
+      calls.push({ kind: 'execute', query, bindValues })
+      return { rowsAffected: 1 }
+    },
+  }
+  const repository = new SqliteMediaRepository(
+    async () => database,
+    () => 'game-created',
+    () => timestamp,
+  )
+
+  const listed = await repository.listGames('default')
+  assert.equal(listed[0].platform, 'PC', 'La collection Jeux doit convertir les colonnes SQLite sans perte')
+  assert.deepEqual(calls.at(-1).bindValues, ['default'], 'La collection Jeux doit rester limitée au profil courant')
+
+  const input = {
+    title: 'Jeu créé',
+    developer: null,
+    platform: 'Steam Deck',
+    year: 2026,
+    status: 'joué',
+    rating: 5,
+    isFavorite: true,
+    playedAt: '2026-07-22',
+    coverUrl: null,
+    personalNote: 'Terminé localement',
+  }
+  const created = await repository.createGame('default', input)
+  assert.equal(created.id, 'game-created', 'La création Jeu doit générer une identité locale')
+  const insert = calls.at(-1)
+  assert.match(insert.query, /INSERT INTO games/, 'La création doit cibler la table games')
+  assert.equal(insert.bindValues[1], 'default', 'La création doit cibler le profil courant')
+  assert.equal(insert.bindValues[4], 'Steam Deck', 'La plateforme libre doit être persistée telle que validée')
+
+  const updatedAt = await repository.updateGame('default', 'game-local', { ...input, status: 'abandonné' })
+  assert.equal(updatedAt, timestamp, 'La modification doit restituer son horodatage local')
+  const update = calls.at(-1)
+  assert.match(update.query, /WHERE id = \$12 AND profile_id = \$13/, 'La modification doit cibler le jeu et son profil')
+  assert.deepEqual(update.bindValues.slice(-2), ['game-local', 'default'], 'La modification doit rester isolée au profil courant')
+
+  await repository.deleteGame('default', 'game-local')
+  const deletion = calls.at(-1)
+  assert.match(deletion.query, /DELETE FROM games/, 'La suppression doit cibler la table games')
+  assert.deepEqual(deletion.bindValues, ['game-local', 'default'], 'La suppression doit cibler le jeu et son profil')
+}
+
+// Jalon 0.4.8 — Art : verticale sans note, contexte libre et CRUD local.
+const artworkDomainSource = readFileSync(new URL('../src/domain/artwork.ts', import.meta.url), 'utf8')
+const artworkFormSource = readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8')
+const artworkDetailSource = readFileSync(new URL('../src/components/ArtworkDetail.tsx', import.meta.url), 'utf8')
+const mainSource048 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+assert.match(mainSource048, /icon\('art'\)\} Art/, 'La sidebar doit proposer l’entrée Art')
+assert.match(mainSource048, /mediaRepository\.listArtworks/, 'La collection Art doit être relue depuis SQLite')
+assert.match(mainSource048, /mediaRepository\.createArtwork/, 'La création d’œuvre doit écrire dans le repository SQLite')
+assert.match(mainSource048, /mediaRepository\.updateArtwork/, 'La modification d’œuvre doit écrire dans le repository SQLite')
+assert.match(mainSource048, /mediaRepository\.deleteArtwork/, 'La suppression d’œuvre doit écrire dans le repository SQLite')
+assert.match(artworkDomainSource, /ARTWORK_FORMS/, 'Le domaine doit borner les formes d’art décidées')
+assert.match(artworkFormSource, /artwork-location/, 'Le formulaire doit accepter un lieu libre facultatif')
+assert.match(artworkFormSource, /artwork-exhibition/, 'Le formulaire doit accepter une exposition libre facultative')
+assert.match(artworkDetailSource, /ARTWORK_FORM_LABELS/, 'La fiche doit afficher la forme propre à l’œuvre')
+assert.doesNotMatch(artworkFormSource, /\brating\b/, 'Le formulaire Art ne doit proposer aucune note chiffrée')
+assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit afficher aucune note chiffrée')
+
+{
+  const { EMPTY_ARTWORK_FORM, validateArtworkForm } = await import('../src/domain/artworkForm.ts')
+
+  const minimal = validateArtworkForm({ ...EMPTY_ARTWORK_FORM, title: '  Œuvre minimale  ' })
+  assert.equal(minimal.success, true, 'Un titre seul doit suffire à enregistrer une œuvre')
+  assert.deepEqual(minimal.data, {
+    title: 'Œuvre minimale',
+    artist: null,
+    year: null,
+    form: 'autre',
+    location: null,
+    exhibition: null,
+    status: 'à découvrir',
+    isFavorite: false,
+    discoveredAt: null,
+    imageUrl: null,
+    personalNote: null,
+  }, 'Les champs Art facultatifs vides doivent rester null sans donnée inventée')
+
+  const complete = validateArtworkForm({
+    ...EMPTY_ARTWORK_FORM,
+    title: 'Photographie complète',
+    artist: '  Artiste locale  ',
+    year: '2026',
+    form: 'photographie',
+    location: '  Galerie municipale  ',
+    exhibition: '  Lumières d’été  ',
+    status: 'découverte',
+    isFavorite: true,
+    discoveredAt: '2026-07-22',
+    imageUrl: 'https://example.invalid/oeuvre.jpg',
+    personalNote: '  Avis personnel  ',
+  })
+  assert.equal(complete.success, true, 'Tous les champs Art contractuels valides doivent être acceptés')
+  assert.equal(complete.data.form, 'photographie', 'La forme sélectionnée doit être conservée')
+  assert.equal(complete.data.location, 'Galerie municipale', 'Le lieu libre doit être normalisé sans relation inventée')
+  assert.equal(complete.data.exhibition, 'Lumières d’été', 'L’exposition libre doit être normalisée sans relation inventée')
+
+  for (const values of [
+    { title: '   ' },
+    { title: 'Forme', form: 'installation' },
+    { title: 'Statut', status: 'en cours' },
+    { title: 'Année', year: '0' },
+    { title: 'Date', discoveredAt: '2026-02-30' },
+    { title: 'Visuel', imageUrl: 'file:///oeuvre.jpg' },
+  ]) {
+    assert.equal(
+      validateArtworkForm({ ...EMPTY_ARTWORK_FORM, ...values }).success,
+      false,
+      `Le formulaire Art doit refuser la saisie invalide ${JSON.stringify(values)}`,
+    )
+  }
+}
+
+{
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const timestamp = '2026-07-22T15:00:00.000Z'
+  const artworkRow = {
+    id: 'artwork-local',
+    profile_id: 'default',
+    title: 'Œuvre SQLite',
+    artist: 'Artiste locale',
+    year: 2026,
+    form: 'performance',
+    location: 'Lieu local',
+    exhibition: 'Exposition locale',
+    status: 'découverte',
+    is_favorite: 1,
+    discovered_at: '2026-07-22',
+    image_url: null,
+    personal_note: 'Avis local',
+    created_at: timestamp,
+    updated_at: timestamp,
+  }
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ kind: 'select', query, bindValues })
+      return [artworkRow]
+    },
+    async execute(query, bindValues) {
+      calls.push({ kind: 'execute', query, bindValues })
+      return { rowsAffected: 1 }
+    },
+  }
+  const repository = new SqliteMediaRepository(
+    async () => database,
+    () => 'artwork-created',
+    () => timestamp,
+  )
+
+  const listed = await repository.listArtworks('default')
+  assert.equal(listed[0].form, 'performance', 'La collection Art doit convertir les colonnes SQLite sans perte')
+  assert.deepEqual(calls.at(-1).bindValues, ['default'], 'La collection Art doit rester limitée au profil courant')
+
+  const input = {
+    title: 'Œuvre créée',
+    artist: 'Artiste',
+    year: 2026,
+    form: 'poésie',
+    location: 'Bibliothèque',
+    exhibition: null,
+    status: 'découverte',
+    isFavorite: true,
+    discoveredAt: '2026-07-22',
+    imageUrl: null,
+    personalNote: 'Découverte localement',
+  }
+  const created = await repository.createArtwork('default', input)
+  assert.equal(created.id, 'artwork-created', 'La création Art doit générer une identité locale')
+  const insert = calls.at(-1)
+  assert.match(insert.query, /INSERT INTO artworks/, 'La création doit cibler la table artworks')
+  assert.equal(insert.bindValues[1], 'default', 'La création doit cibler le profil courant')
+  assert.equal(insert.bindValues[5], 'poésie', 'La forme d’art doit être persistée telle que validée')
+
+  const updatedAt = await repository.updateArtwork('default', 'artwork-local', { ...input, status: 'à découvrir' })
+  assert.equal(updatedAt, timestamp, 'La modification doit restituer son horodatage local')
+  const update = calls.at(-1)
+  assert.match(update.query, /WHERE id = \$13 AND profile_id = \$14/, 'La modification doit cibler l’œuvre et son profil')
+  assert.deepEqual(update.bindValues.slice(-2), ['artwork-local', 'default'], 'La modification doit rester isolée au profil courant')
+
+  await repository.deleteArtwork('default', 'artwork-local')
+  const deletion = calls.at(-1)
+  assert.match(deletion.query, /DELETE FROM artworks/, 'La suppression doit cibler la table artworks')
+  assert.deepEqual(deletion.bindValues, ['artwork-local', 'default'], 'La suppression doit cibler l’œuvre et son profil')
+}
+
+// Jalon 0.4.9 — cohérence Jeux/Art : recherche, filtres, portabilité et snapshots.
+{
+  const timestamp = '2026-07-22T16:00:00.000Z'
+  const profile = {
+    id: 'default',
+    name: 'Profil mixte',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  const existingGame = {
+    id: 'game-local',
+    profileId: 'default',
+    title: 'Café Racer',
+    developer: null,
+    platform: null,
+    year: null,
+    status: 'joué',
+    rating: 5,
+    isFavorite: true,
+    playedAt: '2026-07-22',
+    coverUrl: null,
+    personalNote: 'Avis local\npréservé.',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  const importedGame = {
+    ...existingGame,
+    id: 'game-imported',
+    profileId: 'source',
+    title: 'cafe racer',
+    developer: 'Studio Éclair',
+    platform: 'Steam Deck',
+    year: 2026,
+    status: 'à jouer',
+    rating: null,
+    isFavorite: false,
+    playedAt: null,
+    personalNote: null,
+  }
+  const existingArtwork = {
+    id: 'artwork-local',
+    profileId: 'default',
+    title: 'Été bleu',
+    artist: null,
+    year: null,
+    form: 'photographie',
+    location: null,
+    exhibition: null,
+    status: 'découverte',
+    isFavorite: true,
+    discoveredAt: '2026-07-22',
+    imageUrl: null,
+    personalNote: 'Souvenir personnel\nmultiligne.',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+  const importedArtwork = {
+    ...existingArtwork,
+    id: 'artwork-imported',
+    profileId: 'source',
+    title: 'ete bleu',
+    artist: 'Anaïs Lumière',
+    year: 2025,
+    form: 'peinture',
+    location: 'Montréal',
+    exhibition: 'Lumières d’été',
+    status: 'à découvrir',
+    isFavorite: false,
+    discoveredAt: null,
+    personalNote: null,
+  }
+
+  const {
+    planArtworkMerge,
+    planGameMerge,
+    resolveArtworkMerge,
+    resolveGameMerge,
+  } = await import('../src/domain/importMerge.ts')
+  const gamePlan = planGameMerge([existingGame], [importedGame])
+  const artworkPlan = planArtworkMerge([existingArtwork], [importedArtwork])
+  assert.equal(gamePlan.duplicates.length, 1, 'La fusion Jeux doit détecter un titre sans tenir compte des accents')
+  assert.equal(artworkPlan.duplicates.length, 1, 'La fusion Art doit détecter un titre sans tenir compte des accents')
+  const mergedGame = resolveGameMerge([], gamePlan, new Map([['cafe racer', 'keep-existing']]), timestamp).updates[0]
+  const mergedArtwork = resolveArtworkMerge([], artworkPlan, new Map([['ete bleu', 'keep-existing']]), timestamp).updates[0]
+  assert.equal(mergedGame.platform, 'Steam Deck', 'La fusion Jeux doit compléter une plateforme locale vide')
+  assert.equal(mergedGame.rating, 5, 'La fusion Jeux doit préserver la note personnelle locale')
+  assert.equal(mergedGame.personalNote, existingGame.personalNote, 'La fusion Jeux doit préserver l’avis local')
+  assert.equal(mergedArtwork.artist, 'Anaïs Lumière', 'La fusion Art doit compléter un artiste local vide')
+  assert.equal(mergedArtwork.location, 'Montréal', 'La fusion Art doit compléter un lieu local vide')
+  assert.equal(mergedArtwork.personalNote, existingArtwork.personalNote, 'La fusion Art doit préserver l’avis local')
+
+  const dedicatedDocument = createLibraryDocument({
+    profile,
+    films: [],
+    series: [],
+    books: [],
+    games: [existingGame],
+    artworks: [existingArtwork],
+  }, timestamp)
+  const serialized = serializeLibraryDocument(dedicatedDocument)
+  assert.deepEqual(parseGamesCollectionJson(serialized).items?.[0], existingGame, 'L’import Jeux dédié doit préserver les caractères et notes longues')
+  assert.deepEqual(parseArtworksCollectionJson(serialized).items?.[0], existingArtwork, 'L’import Art dédié doit préserver les caractères et notes longues')
+
+  const calls = []
+  const repository = new (await import('../src/data/mediaRepository.ts')).SqliteMediaRepository(async () => ({
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      if (query.includes('FROM games')) return [{
+        id: existingGame.id,
+        profile_id: existingGame.profileId,
+        title: existingGame.title,
+        developer: existingGame.developer,
+        platform: 'Steam Deck',
+        year: existingGame.year,
+        status: existingGame.status,
+        rating: existingGame.rating,
+        is_favorite: 1,
+        played_at: existingGame.playedAt,
+        cover_url: existingGame.coverUrl,
+        personal_note: existingGame.personalNote,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }]
+      if (query.includes('FROM artworks')) return [{
+        id: existingArtwork.id,
+        profile_id: existingArtwork.profileId,
+        title: existingArtwork.title,
+        artist: 'Anaïs Lumière',
+        year: existingArtwork.year,
+        form: existingArtwork.form,
+        location: 'Montréal',
+        exhibition: existingArtwork.exhibition,
+        status: existingArtwork.status,
+        is_favorite: 1,
+        discovered_at: existingArtwork.discoveredAt,
+        image_url: existingArtwork.imageUrl,
+        personal_note: existingArtwork.personalNote,
+        created_at: timestamp,
+        updated_at: timestamp,
+      }]
+      throw new Error(`Requête inattendue : ${query}`)
+    },
+    async execute() { throw new Error('Aucune écriture attendue pendant la recherche') },
+  }))
+  await repository.searchGames('default', { query: '  Éclair  ', platform: 'Steam Deck', sort: { column: 'title', direction: 'asc' } })
+  await repository.searchArtworks('default', { query: '  Montréal  ', form: 'photographie', sort: { column: 'title', direction: 'asc' } })
+  assert.match(calls[0].query, /developer COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir le studio')
+  assert.match(calls[0].query, /platform COLLATE NOCASE LIKE/, 'La recherche Jeux doit couvrir la plateforme')
+  assert.deepEqual(calls[0].bindValues, ['default', '%Éclair%', 'Steam Deck'], 'Le filtre de plateforme doit être paramétré')
+  assert.match(calls[1].query, /location COLLATE NOCASE LIKE/, 'La recherche Art doit couvrir le lieu')
+  assert.match(calls[1].query, /exhibition COLLATE NOCASE LIKE/, 'La recherche Art doit couvrir l’exposition')
+  assert.deepEqual(calls[1].bindValues, ['default', '%Montréal%', 'photographie'], 'Le filtre de forme doit être paramétré')
+
+  const snapshots = []
+  const backup = new BackupService({
+    async getBackupSettings() { return null },
+    async pickBackupDirectory() { return null },
+    async clearBackupSettings() {},
+    async saveManualBackupSnapshot() { throw new Error('Snapshot manuel non attendu') },
+    async saveAutomaticBackupSnapshot(profileId, contents, automaticDay) {
+      snapshots.push({ profileId, contents, automaticDay })
+      return { outcome: 'saved', fileName: 'snapshot-mixte.json' }
+    },
+  }, () => new Date(2026, 6, 22, 16, 0, 0), async () => ({
+    profile,
+    films: [],
+    series: [],
+    books: [],
+    games: [existingGame],
+    artworks: [existingArtwork],
+  }))
+  await backup.tryAutomaticSnapshot({ profile, films: [] })
+  const snapshotDocument = validateLibraryDocument(snapshots[0].contents).document
+  assert.deepEqual(snapshotDocument?.games[0], existingGame, 'Le snapshot global doit inclure fidèlement les Jeux')
+  assert.deepEqual(snapshotDocument?.artworks[0], existingArtwork, 'Le snapshot global doit inclure fidèlement l’Art')
+}
+
+// Jalon 0.4.11 — résolveur de doublons praticable à grande échelle.
+{
+  const { countModifiedDuplicateResolutions, filterDuplicatesByTitle } = await import('../src/domain/importMerge.ts')
+  const duplicates = Array.from({ length: 401 }, (_, index) => ({
+    normalizedTitle: `film qa ${index + 1}`,
+  }))
+  const resolutions = new Map([
+    ['film qa 17', 'keep-imported'],
+    ['film qa 319', 'keep-imported'],
+  ])
+
+  assert.equal(filterDuplicatesByTitle(duplicates, 'Film QA 400').length, 1, 'La recherche locale doit filtrer une liste de 401 doublons par titre')
+  assert.equal(filterDuplicatesByTitle(duplicates, 'film qa').length, 401, 'Une recherche commune doit conserver tous les doublons correspondants')
+  assert.equal(filterDuplicatesByTitle(duplicates, '').length, 401, 'Effacer la recherche doit restaurer toute la liste sans modifier son ordre')
+  assert.equal(countModifiedDuplicateResolutions(duplicates, resolutions), 2, 'Les décisions prises sur des doublons masqués restent comptées')
+  assert.equal(resolutions.get('film qa 17'), 'keep-imported', 'Le choix d’un doublon doit survivre à un filtrage ultérieur')
+}
+
+assert.match(mainSource047, /searchGames/, 'La bibliothèque Jeux doit rechercher dans SQLite')
+assert.match(mainSource047, /kind="games"/, 'La bibliothèque Jeux doit proposer son import unitaire')
+assert.match(mainSource047, /LibraryExportFlow kind="games"/, 'La bibliothèque Jeux doit proposer son export dédié')
+assert.match(mainSource048, /searchArtworks/, 'La bibliothèque Art doit rechercher dans SQLite')
+assert.match(mainSource048, /kind="artworks"/, 'La bibliothèque Art doit proposer son import unitaire')
+assert.match(mainSource048, /LibraryExportFlow kind="artworks"/, 'La bibliothèque Art doit proposer son export dédié')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_games_into_profile'/, 'Le frontend doit appeler le pont Tauri d’import Jeux')
+assert.match(nativePortabilityBridgeSource, /invoke\('import_artworks_into_profile'/, 'Le frontend doit appeler le pont Tauri d’import Art')
+assert.match(nativePortabilitySource, /games_and_artworks_collection_imports_are_atomic/, 'Une preuve Rust doit couvrir le rollback des imports Jeux et Art')
+assert.match(tauriLibrarySource, /portability::import_games_into_profile/, 'La commande Tauri Jeux doit être enregistrée')
+assert.match(tauriLibrarySource, /portability::import_artworks_into_profile/, 'La commande Tauri Art doit être enregistrée')
+
+assert.doesNotMatch(mainSource047, /create-choice|FilmCreationChoice/, 'La création Film ne doit plus passer par un écran de choix intermédiaire')
+assert.match(mainSource047, /onCreate=\{\(\) => \{[\s\S]*setAssociatingFilm\(null\)[\s\S]*leaveLibrary\(\{ name: 'tmdb-search' \}\)/, 'Ajouter un film doit ouvrir directement la recherche TMDB sans conserver un ancien contexte')
+assert.match(tmdbSearchFlowSource, /setTimeout\(\(\) =>/, 'La recherche TMDB doit être temporisée pendant la saisie')
+assert.match(tmdbSearchFlowSource, /useState\(\(\) => film\?\.title \?\? ''\)/, 'Une association existante doit préremplir la recherche avec son titre')
+assert.match(tmdbSearchFlowSource, /className="tmdb-film-context"/, 'La recherche TMDB doit conserver la fiche existante comme contexte visuel')
+assert.match(tmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche TMDB doit désactiver l’autocorrection')
+assert.match(tmdbSearchFlowSource, /spellCheck=\{false\}/, 'La recherche TMDB doit désactiver la correction orthographique')
+assert.match(mainSource047, /autoCorrect="off"[\s\S]*spellCheck=\{false\}/, 'La recherche locale Films doit désactiver les corrections automatiques')
+
+// Jalons 0.4.19 puis 0.4.23 — vues intégrées et modèle unifié : préset { filtres, tri }.
+const libraryViewQuerySource = readFileSync(new URL('../src/data/libraryViewQuery.ts', import.meta.url), 'utf8')
+const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+{
+  const { RATED_BUILTIN_VIEWS, UNRATED_BUILTIN_VIEWS, resolveLibraryQuery, sortColumnsForMedium } = await import('../src/domain/libraryViews.ts')
+  const { librarySortOrderBy } = await import('../src/data/libraryViewQuery.ts')
+  const { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters } = await import('../src/domain/libraryFilters.ts')
+
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites', 'ranking'], 'Les médiums notés doivent proposer les quatre vues intégrées')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites'], 'L’Art ne doit jamais proposer de classement par note')
+  assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les quatre vues de base sont des présets intégrés du même modèle')
+
+  const favorites = RATED_BUILTIN_VIEWS.find((view) => view.id === 'favorites')
+  assert.equal(favorites.filters.favoritesOnly, true, 'La vue Favoris est un préset filtré sur les coups de cœur')
+  assert.deepEqual(favorites.sort, { column: 'title', direction: 'asc' }, 'La vue Favoris trie par titre')
+  assert.deepEqual(RATED_BUILTIN_VIEWS.find((view) => view.id === 'ranking').sort, { column: 'rating', direction: 'desc' }, 'La vue Classement trie par note décroissante')
+
+  assert.equal(librarySortOrderBy({ column: 'title', direction: 'asc' }, { progressColumn: null }), 'title COLLATE NOCASE ASC, created_at ASC', 'Le tri par titre doit être canonique')
+  assert.equal(librarySortOrderBy({ column: 'title', direction: 'desc' }, { progressColumn: null }), 'title COLLATE NOCASE DESC, created_at ASC', 'Le tri par titre doit accepter le sens décroissant')
+  assert.equal(librarySortOrderBy({ column: 'recency', direction: 'desc' }, { progressColumn: null }), 'updated_at DESC, title COLLATE NOCASE ASC', 'La récence sans progression suit la dernière modification')
+  assert.equal(
+    librarySortOrderBy({ column: 'recency', direction: 'desc' }, { progressColumn: 'progress_updated_at' }),
+    'COALESCE(progress_updated_at, updated_at) DESC, title COLLATE NOCASE ASC',
+    'La récence privilégie la progression métier horodatée quand elle existe',
+  )
+  assert.equal(librarySortOrderBy({ column: 'rating', direction: 'desc' }, { progressColumn: null }), 'rating IS NULL ASC, rating DESC, title COLLATE NOCASE ASC', 'Le tri par note est décroissant, absences en fin')
+  assert.equal(librarySortOrderBy({ column: 'year', direction: 'asc' }, { progressColumn: null }), 'year IS NULL ASC, year ASC, title COLLATE NOCASE ASC', 'Le tri par année place les absences en fin')
+  assert.equal(librarySortOrderBy({ column: 'personalDate', direction: 'desc' }, { progressColumn: null, personalDateColumn: 'watched_at' }), 'watched_at IS NULL ASC, watched_at DESC, title COLLATE NOCASE ASC', 'Le tri par date personnelle vise la colonne du médium')
+  assert.equal(librarySortOrderBy({ column: 'added', direction: 'desc' }, { progressColumn: null }), 'created_at DESC, title COLLATE NOCASE ASC', 'Le tri par ajout suit la création')
+
+  assert.deepEqual(sortColumnsForMedium({ rating: true, year: true }), ['title', 'recency', 'rating', 'year', 'personalDate', 'added'], 'Un médium noté avec année expose toutes les colonnes de tri')
+  assert.ok(!sortColumnsForMedium({ rating: false, year: true }).includes('rating'), 'L’Art n’expose jamais un tri par note')
+  assert.ok(!sortColumnsForMedium({ rating: true, year: false }).includes('year'), 'Les Séries n’exposent pas de tri par année')
+
+  const merged = mergeLibraryFilters(favorites.filters, { ...EMPTY_LIBRARY_FILTERS, year: 2018 })
+  assert.equal(merged.favoritesOnly, true, 'Un filtre à la volée ne peut pas annuler le filtre de la vue Favoris')
+  assert.equal(merged.year, 2018, 'Le filtre à la volée s’ajoute à celui de la vue active')
+
+  const resolved = resolveLibraryQuery(favorites, { ...EMPTY_LIBRARY_FILTERS, year: 2018 }, { column: 'year', direction: 'desc' })
+  assert.equal(resolved.filters.favoritesOnly && resolved.filters.year === 2018, true, 'La requête effective combine vue et filtres à la volée')
+  assert.deepEqual(resolved.sort, { column: 'year', direction: 'desc' }, 'Un tri explicite remplace celui du préset')
+  assert.deepEqual(resolveLibraryQuery(favorites, EMPTY_LIBRARY_FILTERS, null).sort, favorites.sort, 'Sans tri explicite, le tri du préset s’applique')
+}
+
+assert.equal((mainSource0419.match(/<LibraryViewBar/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager la même rangée de vues unifiée')
+assert.match(mainSource0419, /builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
+assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
+assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
+
+// Jalon 0.4.20 — filtres avancés combinables ; jalon 0.4.24 — popovers Filtre/Tri de la rangée unifiée.
+const libraryViewBarSource = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
+
+{
+  const {
+    EMPTY_LIBRARY_FILTERS,
+    clearFilterChip,
+    countActiveFilters,
+    describeActiveFilters,
+  } = await import('../src/domain/libraryFilters.ts')
+  const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
+  const escapeLike = (value) => value.replace(/[\\%_]/g, (match) => `\\${match}`)
+
+  assert.equal(countActiveFilters(EMPTY_LIBRARY_FILTERS), 0, 'Aucun critère ne doit être actif à l’état initial')
+
+  const combined = {
+    status: 'terminé',
+    favoritesOnly: true,
+    minRating: 4,
+    year: 2001,
+    personalDateFrom: '2026-01-01',
+    specificText: 'Miyazaki',
+    location: '',
+    exhibition: '',
+  }
+  assert.equal(countActiveFilters(combined), 6, 'Chaque critère renseigné doit compter')
+
+  const chips = describeActiveFilters(combined, {
+    statusLabel: (status) => `libellé ${status}`,
+    personalDateLabel: 'Visionnage',
+    specificTextLabel: 'Réalisation',
+  })
+  assert.equal(chips.length, 6, 'Chaque critère actif doit produire une puce')
+  assert.ok(chips.some((chip) => chip.label === 'Note ≥ 4'), 'La note minimale doit être lisible dans les puces')
+
+  const cleared = clearFilterChip(combined, 'minRating')
+  assert.equal(cleared.minRating, null, 'Retirer une puce ne doit effacer que son critère')
+  assert.equal(cleared.status, 'terminé', 'Retirer une puce doit préserver les autres critères')
+
+  const clauses = []
+  const bindValues = []
+  appendLibraryFilterClauses(combined, {
+    rating: true,
+    year: true,
+    personalDateColumn: 'watched_at',
+    specificTextColumn: 'director',
+    locationColumn: null,
+    exhibitionColumn: null,
+  }, clauses, bindValues, escapeLike)
+  assert.deepEqual(bindValues, ['terminé', 4, 2001, '2026-01-01', '%Miyazaki%'], 'Tous les critères doivent être liés en paramètres')
+  assert.ok(clauses.every((clause) => !clause.includes('Miyazaki') && !clause.includes('2001')), 'Aucune valeur ne doit être interpolée dans le SQL')
+  assert.ok(clauses.some((clause) => clause.startsWith('rating >=')), 'La note minimale doit filtrer la colonne rating')
+  assert.ok(clauses.some((clause) => clause.startsWith('watched_at >=')), 'La date personnelle doit filtrer la colonne dédiée')
+
+  const seriesClauses = []
+  const seriesBinds = []
+  appendLibraryFilterClauses({ year: 1999, minRating: null, status: 'all', favoritesOnly: false, personalDateFrom: null, specificText: '', location: '', exhibition: '' }, {
+    rating: true,
+    year: false,
+    personalDateColumn: 'started_at',
+    specificTextColumn: null,
+    locationColumn: null,
+    exhibitionColumn: null,
+  }, seriesClauses, seriesBinds, escapeLike)
+  assert.equal(seriesBinds.length, 0, 'Un médium sans colonne année ne doit jamais appliquer ce critère')
+
+  const artClauses = []
+  const artBinds = []
+  appendLibraryFilterClauses({ ...EMPTY_LIBRARY_FILTERS, minRating: 5, location: 'Orsay', exhibition: 'Impres_sion' }, {
+    rating: false,
+    year: true,
+    personalDateColumn: 'discovered_at',
+    specificTextColumn: 'artist',
+    locationColumn: 'location',
+    exhibitionColumn: 'exhibition',
+  }, artClauses, artBinds, escapeLike)
+  assert.ok(!artClauses.some((clause) => clause.startsWith('rating')), 'L’Art ne doit jamais filtrer par note')
+  assert.deepEqual(artBinds, ['%Orsay%', '%Impres\\_sion%'], 'Les jokers LIKE des critères texte doivent être échappés')
+}
+
+{
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      return []
+    },
+    async execute() {
+      throw new Error('Aucune écriture attendue pendant la recherche filtrée')
+    },
+  }
+  const { SqliteFilmsRepository } = await import('../src/data/filmsRepository.ts')
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const filmsRepository = new SqliteFilmsRepository(async () => database)
+  const mediaRepository = new SqliteMediaRepository(async () => database)
+
+  await filmsRepository.searchFilms('default', {
+    query: 'chihiro',
+    sort: { column: 'rating', direction: 'desc' },
+    filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  })
+  const filmCall = calls.at(-1)
+  assert.deepEqual(filmCall.bindValues, ['default', '%chihiro%', 'terminé', 4], 'Texte, statut et note doivent se combiner dans une seule requête liée')
+  assert.match(filmCall.query, /ORDER BY rating IS NULL ASC, rating DESC/, 'Le tri actif doit se conserver pendant le filtrage')
+
+  await mediaRepository.searchArtworks('default', {
+    query: '',
+    form: 'peinture',
+    sort: { column: 'title', direction: 'asc' },
+    filters: { status: 'all', favoritesOnly: true, minRating: null, year: null, personalDateFrom: null, specificText: '', location: 'Orsay', exhibition: '' },
+  })
+  const artworkCall = calls.at(-1)
+  assert.deepEqual(artworkCall.bindValues, ['default', 'peinture', '%Orsay%'], 'Forme, favoris et lieu doivent se combiner pour l’Art')
+  assert.match(artworkCall.query, /is_favorite = 1/, 'Le filtre favoris doit rester actif pendant le filtrage Art')
+}
+
+assert.match(libraryViewBarSource, /Réinitialiser/, 'Le popover Filtre doit proposer une remise à zéro explicite')
+assert.match(libraryViewBarSource, /aria-label="Filtres"/, 'Le popover Filtre doit rester accessible')
+assert.match(libraryViewBarSource, /aria-label="Tri"/, 'Le popover Tri doit rester accessible')
+assert.match(libraryViewBarSource, /view-bar-badge/, 'Les critères actifs doivent être comptés sur l’icône Filtre')
+assert.match(libraryViewBarSource, /role="dialog"/, 'Filtre et Tri doivent s’ouvrir dans des popovers, pas des panneaux permanents')
+assert.match(mainSource0419, /EMPTY_LIBRARY_FILTERS, sortOverride: null \}\)/, 'Réinitialiser doit ramener à un état clairement défini')
+
+// Jalons 0.4.21 puis 0.4.23 — vues personnalisées enregistrées, locales et isolées, modèle unifié.
+const savedViewsMigrationSource = readFileSync(new URL('../src-tauri/migrations/0012_create_saved_views.sql', import.meta.url), 'utf8')
+const savedViewsMigration13Source = readFileSync(new URL('../src-tauri/migrations/0013_saved_views_unified_criteria.sql', import.meta.url), 'utf8')
+const rustDatabaseSource = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
+const libraryDocumentSource0421 = readFileSync(new URL('../src/domain/libraryDocument.ts', import.meta.url), 'utf8')
+const rustPortabilitySource0421 = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
+
+assert.match(savedViewsMigrationSource, /UNIQUE \(profile_id, medium, name\)/, 'Le nom d’une vue doit être unique par profil et médium')
+assert.match(savedViewsMigrationSource, /schema_version INTEGER/, 'Le schéma des critères doit être versionné')
+assert.match(savedViewsMigration13Source, /DROP TABLE saved_views/, 'La migration 13 doit supprimer l’ancienne table pour retirer la colonne view')
+assert.match(savedViewsMigration13Source, /SELECT id, profile_id, medium, name, criteria_json/, 'La migration 13 doit préserver les vues déjà enregistrées')
+assert.doesNotMatch(savedViewsMigration13Source, /INSERT INTO saved_views_new \([^)]*view/, 'La migration 13 ne doit pas conserver la colonne view')
+assert.match(rustDatabaseSource, /0012_create_saved_views\.sql/, 'La migration 12 doit être enregistrée')
+assert.match(rustDatabaseSource, /0013_saved_views_unified_criteria\.sql/, 'La migration 13 doit être enregistrée')
+assert.doesNotMatch(libraryDocumentSource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans le document d’export (décision : local uniquement)')
+assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans les snapshots ni la portabilité native')
+
+{
+  const {
+    assertSavedViewAllowed,
+    deserializeSavedViewCriteria,
+    sanitizeSavedViewCriteria,
+    serializeSavedViewCriteria,
+    validateSavedViewName,
+  } = await import('../src/domain/savedViews.ts')
+
+  assert.equal(validateSavedViewName('   ').ok, false, 'Un nom vide doit être refusé')
+  assert.equal(validateSavedViewName('x'.repeat(81)).ok, false, 'Un nom trop long doit être refusé')
+  const normalized = validateSavedViewName('  Mes   films  2026  ')
+  assert.deepEqual(normalized, { ok: true, name: 'Mes films 2026' }, 'Le nom doit être nettoyé et borné')
+
+  assert.throws(
+    () => assertSavedViewAllowed('artworks', { sort: { column: 'rating', direction: 'desc' }, mediumFilter: 'all', filters: { status: 'all', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' } }),
+    /note/,
+    'Une vue triée par note ne doit jamais être enregistrée pour l’Art',
+  )
+
+  const drifted = sanitizeSavedViewCriteria('books', {
+    sort: { column: 'inexistante', direction: 'sideways' },
+    mediumFilter: 'poche',
+    filters: { status: 'relu', favoritesOnly: true, minRating: 99, year: 2020.5, personalDateFrom: 'hier', specificText: 42 },
+  })
+  assert.deepEqual(drifted.sort, { column: 'title', direction: 'asc' }, 'Un tri inconnu après évolution du schéma doit retomber sur le titre')
+  assert.equal(drifted.mediumFilter, 'all', 'Une catégorie Livre inconnue doit retomber sur le filtre neutre')
+  assert.equal(drifted.filters.status, 'all', 'Un statut inconnu doit retomber sur le filtre neutre')
+  assert.equal(drifted.filters.minRating, null, 'Une note hors borne doit être abandonnée')
+  assert.equal(drifted.filters.year, null, 'Une année non entière doit être abandonnée')
+  assert.equal(drifted.filters.personalDateFrom, null, 'Une date invalide doit être abandonnée')
+  assert.equal(drifted.filters.specificText, '', 'Un texte non chaîne doit être abandonné')
+  assert.equal(drifted.filters.favoritesOnly, true, 'Les critères valides doivent survivre à la réparation')
+
+  const artRanking = sanitizeSavedViewCriteria('artworks', { sort: { column: 'rating', direction: 'desc' }, mediumFilter: 'all', filters: {} })
+  assert.deepEqual(artRanking.sort, { column: 'title', direction: 'asc' }, 'Un tri par note persisté pour l’Art doit être réparé à la lecture')
+
+  const corrupted = deserializeSavedViewCriteria('films', '{pas du json')
+  assert.deepEqual(corrupted.sort, { column: 'title', direction: 'asc' }, 'Un JSON corrompu doit retomber sur le critère neutre')
+
+  const gameView = sanitizeSavedViewCriteria('games', { sort: { column: 'recency', direction: 'desc' }, mediumFilter: 'Steam Deck', filters: {} })
+  assert.equal(gameView.mediumFilter, 'Steam Deck', 'La plateforme Jeu saisie librement doit être conservée')
+
+  const v1Legacy = sanitizeSavedViewCriteria('films', {
+    view: 'favorites',
+    mediumFilter: 'all',
+    filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  })
+  assert.equal(v1Legacy.filters.favoritesOnly, true, 'Un critère v1 Favoris doit être converti en préset filtré')
+  assert.deepEqual(v1Legacy.sort, { column: 'title', direction: 'asc' }, 'Un critère v1 Favoris hérite du tri du préset intégré')
+  assert.equal(v1Legacy.filters.minRating, 4, 'Un critère v1 conserve ses filtres valides lors de la conversion')
+
+  const roundTrip = deserializeSavedViewCriteria('series', serializeSavedViewCriteria({
+    sort: { column: 'recency', direction: 'desc' },
+    mediumFilter: 'animation',
+    filters: { status: 'en cours', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: '2026-02-01', specificText: '', location: '', exhibition: '' },
+  }))
+  assert.deepEqual(roundTrip.sort, { column: 'recency', direction: 'desc' }, 'Le tri de la vue doit survivre à la sérialisation')
+  assert.equal(roundTrip.mediumFilter, 'animation', 'Le filtre de catégorie doit survivre à la sérialisation')
+  assert.equal(roundTrip.filters.minRating, 4, 'Les critères avancés doivent survivre à la sérialisation')
+}
+
+{
+  const rows = []
+  const calls = []
+  const database = {
+    async select(query, bindValues) {
+      calls.push({ query, bindValues })
+      return rows
+        .filter((row) => row.profile_id === bindValues[0] && row.medium === bindValues[1])
+        .map((row) => ({ ...row }))
+    },
+    async execute(query, bindValues) {
+      if (query.startsWith('INSERT')) {
+        if (rows.some((row) => row.profile_id === bindValues[1] && row.medium === bindValues[2] && row.name === bindValues[3])) {
+          throw new Error('UNIQUE constraint failed: saved_views.profile_id, saved_views.medium, saved_views.name')
+        }
+        rows.push({
+          id: bindValues[0], profile_id: bindValues[1], medium: bindValues[2], name: bindValues[3],
+          criteria_json: bindValues[4], created_at: bindValues[6], updated_at: bindValues[7],
+        })
+        return { rowsAffected: 1 }
+      }
+      if (query.startsWith('UPDATE')) {
+        const row = rows.find((entry) => entry.id === bindValues[2] && entry.profile_id === bindValues[3])
+        if (!row) return { rowsAffected: 0 }
+        if (rows.some((entry) => entry !== row && entry.profile_id === row.profile_id && entry.medium === row.medium && entry.name === bindValues[0])) {
+          throw new Error('UNIQUE constraint failed: saved_views.profile_id, saved_views.medium, saved_views.name')
+        }
+        row.name = bindValues[0]
+        row.updated_at = bindValues[1]
+        return { rowsAffected: 1 }
+      }
+      if (query.startsWith('DELETE')) {
+        const index = rows.findIndex((entry) => entry.id === bindValues[0] && entry.profile_id === bindValues[1])
+        if (index === -1) return { rowsAffected: 0 }
+        rows.splice(index, 1)
+        return { rowsAffected: 1 }
+      }
+      throw new Error(`Requête inattendue : ${query}`)
+    },
+  }
+  const { SqliteSavedViewsRepository } = await import('../src/data/savedViewsRepository.ts')
+  let idCounter = 0
+  const repository = new SqliteSavedViewsRepository(async () => database, () => `vue-${++idCounter}`, () => '2026-08-01T10:00:00.000Z')
+  const criteria = {
+    sort: { column: 'rating', direction: 'desc' },
+    mediumFilter: 'all',
+    filters: { status: 'terminé', favoritesOnly: false, minRating: 4, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+  }
+
+  const created = await repository.create('profil-a', 'films', '  Mes préférés  ', criteria)
+  assert.equal(created.name, 'Mes préférés', 'Le nom doit être nettoyé avant écriture')
+  assert.match(rows[0].criteria_json, /"column":"rating"/, 'Le critère doit être persisté')
+  assert.ok(!rows[0].criteria_json.includes('WHERE'), 'Aucune chaîne SQL ne doit être persistée dans les critères')
+
+  await repository.create('profil-b', 'films', 'Mes préférés', criteria)
+  assert.equal(rows.length, 2, 'Le même nom doit être possible dans un autre profil')
+
+  await assert.rejects(
+    () => repository.create('profil-a', 'films', 'Mes préférés', criteria),
+    /porte déjà ce nom/,
+    'Un doublon de nom dans le même profil et médium doit produire une erreur explicite',
+  )
+
+  await assert.rejects(
+    () => repository.create('profil-a', 'films', '   ', criteria),
+    /ne peut pas être vide/,
+    'Un nom vide doit être refusé avant écriture',
+  )
+
+  const artView = await repository.create('profil-a', 'artworks', 'Rétrospective', { ...criteria, mediumFilter: 'peinture' })
+  assert.deepEqual(artView.criteria.sort, { column: 'title', direction: 'asc' }, 'Un tri par note demandé pour l’Art doit être réparé avant écriture')
+  assert.equal(artView.criteria.filters.minRating, null, 'Le critère de note doit être absent pour l’Art')
+
+  const filmsViewsA = await repository.list('profil-a', 'films')
+  assert.equal(filmsViewsA.length, 1, 'La liste doit être isolée par profil')
+  assert.match(calls.at(-1).query, /WHERE profile_id = \$1 AND medium = \$2/, 'La liste doit cibler explicitement profil et médium')
+  assert.equal(filmsViewsA[0].criteria.filters.status, 'terminé', 'Le critère relu doit être réparé et fidèle')
+
+  rows[0].criteria_json = '{corrompu'
+  const repaired = await repository.list('profil-a', 'films')
+  assert.deepEqual(repaired[0].criteria.sort, { column: 'title', direction: 'asc' }, 'Un critère corrompu en base doit retomber sur le critère neutre sans casser la liste')
+
+  await repository.rename('profil-a', created.id, 'Soirées cinéma')
+  assert.equal(rows.find((row) => row.id === created.id).name, 'Soirées cinéma', 'Le renommage doit mettre à jour le nom')
+  await assert.rejects(
+    () => repository.rename('profil-a', 'vue-inconnue', 'Test'),
+    /introuvable/,
+    'Renommer une vue d’un autre profil doit échouer explicitement',
+  )
+
+  await repository.remove('profil-a', created.id)
+  assert.equal(rows.filter((row) => row.profile_id === 'profil-a' && row.medium === 'films').length, 0, 'La suppression doit retirer la vue du profil')
+  await assert.rejects(
+    () => repository.remove('profil-a', created.id),
+    /introuvable/,
+    'Supprimer une vue absente du profil doit échouer explicitement',
+  )
+}
+
+assert.match(libraryViewBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
+assert.match(libraryViewBarSource, /Enregistrer comme vue/, 'La rangée doit permettre d’enregistrer le combo courant comme vue')
+assert.match(libraryViewBarSource, /INLINE_SAVED_VIEWS/, 'Le débordement des vues enregistrées doit rester borné dans la rangée')
+
+// Jalon 0.4.26 — Séries assistées TMDB, même parcours direct que Films.
+const seriesMetadataAssistanceSource = readFileSync(new URL('../src/domain/seriesMetadataAssistance.ts', import.meta.url), 'utf8')
+const seriesTmdbSearchFlowSource = readFileSync(new URL('../src/components/SeriesTmdbSearchFlow.tsx', import.meta.url), 'utf8')
+const seriesFormComponentSource = readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8')
+const tmdbClientSource0426 = readFileSync(new URL('../src-tauri/src/tmdb/client.rs', import.meta.url), 'utf8')
+const tauriLibrarySource0426 = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
+
+assert.match(tmdbClientSource0426, /"\/search\/tv"/, 'La recherche Séries doit viser l’endpoint TV de TMDB')
+assert.match(tmdbClientSource0426, /\/tv\/\{tmdb_id\}\/aggregate_credits/, 'La présentation TV doit lire les crédits agrégés')
+assert.match(tmdbClientSource0426, /number_of_seasons/, 'Le total de saisons connu doit être lu depuis TMDB')
+assert.match(tmdbClientSource0426, /validate_series_presentation/, 'La présentation TV doit être validée et bornée')
+assert.match(tmdbClientSource0426, /series_fake_client_returns_bounded_presentation/, 'Une preuve Rust doit couvrir la présentation TV bornée')
+assert.match(tauriLibrarySource0426, /tmdb::search_tmdb_series/, 'La commande de recherche Séries doit être enregistrée')
+assert.match(tauriLibrarySource0426, /tmdb::preview_tmdb_series/, 'La commande de prévisualisation Séries doit être enregistrée')
+assert.match(tmdbServiceSource, /invoke\('search_tmdb_series'/, 'Le frontend doit appeler la recherche Séries')
+assert.match(tmdbServiceSource, /invoke\('preview_tmdb_series'/, 'Le frontend doit appeler la prévisualisation Séries')
+assert.doesNotMatch(seriesMetadataAssistanceSource, /status:|rating:|isFavorite:/, 'Le préremplissage Séries ne doit toucher ni statut, ni note, ni favori')
+assert.match(seriesFormComponentSource, /\.\.\.EMPTY_SERIES_FORM, \.\.\.initialValues/, 'Le formulaire Séries doit accepter des valeurs préremplies')
+assert.match(mainSource047, /series-tmdb-search/, 'L’ajout de Série doit ouvrir la recherche TMDB')
+assert.match(mainSource047, /seriesPresentationToInitialValues/, 'Le clic sur un résultat Séries doit préremplir directement le formulaire')
+assert.match(seriesTmdbSearchFlowSource, /setTimeout\(\(\) =>/, 'La recherche Séries doit être temporisée pendant la saisie')
+assert.match(seriesTmdbSearchFlowSource, /Saisir manuellement/, 'La recherche Séries doit proposer une issue manuelle')
+assert.match(seriesTmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche Séries doit désactiver l’autocorrection')
+
+{
+  const { seriesPresentationToInitialValues } = await import('../src/domain/seriesMetadataAssistance.ts')
+  const initial = seriesPresentationToInitialValues({
+    tmdbId: 1399,
+    title: 'Game of Thrones',
+    originalTitle: 'Game of Thrones',
+    firstAirYear: 2011,
+    synopsis: 'Des intrigues de pouvoir à Westeros.',
+    showrunners: ['David Benioff', 'D. B. Weiss'],
+    cast: ['Emilia Clarke', 'Peter Dinklage'],
+    seasonsTotal: 8,
+    posterUrl: 'https://image.tmdb.org/t/p/w500/got.jpg',
+  })
+  assert.equal(initial.title, 'Game of Thrones', 'Le titre doit être prérempli')
+  assert.equal(initial.showrunner, 'David Benioff, D. B. Weiss', 'Les showrunners doivent être joints lisiblement')
+  assert.equal(initial.casting, 'Emilia Clarke, Peter Dinklage', 'Le casting doit être joint lisiblement')
+  assert.equal(initial.seasonsTotal, '8', 'Le total de saisons connu doit être proposé')
+  assert.equal(initial.posterUrl, 'https://image.tmdb.org/t/p/w500/got.jpg', 'L’affiche doit être préremplie')
+  assert.equal(initial.status, 'à voir', 'Le statut personnel doit rester au neutre')
+  assert.equal(initial.rating, '', 'La note personnelle ne doit jamais être préremplie')
+  assert.equal(initial.seasonsSeen, '', 'Les saisons vues ne doivent jamais être préremplies')
+}
+
+// Jalon 0.4.27 — Livres assistés Open Library, sans clé ni compte.
+const openLibraryServiceSource = readFileSync(new URL('../src/data/openLibraryService.ts', import.meta.url), 'utf8')
+const bookMetadataAssistanceSource = readFileSync(new URL('../src/domain/bookMetadataAssistance.ts', import.meta.url), 'utf8')
+const bookOpenLibraryFlowSource = readFileSync(new URL('../src/components/BookOpenLibrarySearchFlow.tsx', import.meta.url), 'utf8')
+const bookFormComponentSource = readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8')
+const openLibraryRustSource = readFileSync(new URL('../src-tauri/src/openlibrary.rs', import.meta.url), 'utf8')
+
+assert.match(openLibraryRustSource, /https:\/\/openlibrary\.org/, 'Le client Livres doit viser Open Library')
+assert.match(openLibraryRustSource, /user_agent/, 'Le client Livres doit s’identifier par un User-Agent (etiquette Open Library)')
+assert.match(openLibraryRustSource, /lang", "fr/, 'La recherche Livres doit privilégier les éditions francophones')
+assert.match(openLibraryRustSource, /covers\.openlibrary\.org/, 'Les couvertures doivent venir du service dédié')
+assert.doesNotMatch(openLibraryRustSource, /api_key|apikey|Authorization/, 'Open Library ne doit exiger ni clé ni secret')
+assert.match(openLibraryRustSource, /work_key\.starts_with\("\/works\/"\)/, 'La clé d’œuvre doit être bornée avant tout appel de détail')
+assert.match(openLibraryRustSource, /authors_are_bounded_and_joined/, 'Une preuve Rust doit borner et joindre les auteurs')
+assert.match(tauriLibrarySource0426, /openlibrary::search_openlibrary_books/, 'La commande de recherche Livres doit être enregistrée')
+assert.match(tauriLibrarySource0426, /openlibrary::preview_openlibrary_book/, 'La commande de prévisualisation Livres doit être enregistrée')
+assert.match(openLibraryServiceSource, /invoke\('search_openlibrary_books'/, 'Le frontend doit appeler la recherche Livres')
+assert.doesNotMatch(bookMetadataAssistanceSource, /status:|rating:|isFavorite:|volumesRead/, 'Le préremplissage Livres ne doit toucher ni statut, ni note, ni favori, ni tomes lus')
+assert.match(bookFormComponentSource, /\.\.\.EMPTY_BOOK_FORM, \.\.\.initialValues/, 'Le formulaire Livres doit accepter des valeurs préremplies')
+assert.match(mainSource047, /book-ol-search/, 'L’ajout de Livre doit ouvrir la recherche Open Library')
+assert.match(mainSource047, /bookPresentationToInitialValues/, 'Le clic sur un résultat Livres doit préremplir directement le formulaire')
+assert.match(bookOpenLibraryFlowSource, /setTimeout\(\(\) =>/, 'La recherche Livres doit être temporisée pendant la saisie')
+assert.match(bookOpenLibraryFlowSource, /Saisir manuellement/, 'La recherche Livres doit proposer une issue manuelle')
+
+{
+  const { bookPresentationToInitialValues } = await import('../src/domain/bookMetadataAssistance.ts')
+  const initial = bookPresentationToInitialValues({
+    workKey: '/works/OL82563W',
+    title: 'L’Étranger',
+    author: 'Albert Camus',
+    firstPublishYear: 1942,
+    synopsis: 'Meursault assiste à l’enterrement de sa mère.',
+    coverUrl: 'https://covers.openlibrary.org/b/id/12345-L.jpg',
+  })
+  assert.equal(initial.title, 'L’Étranger', 'Le titre doit être prérempli')
+  assert.equal(initial.author, 'Albert Camus', 'L’auteur doit être prérempli')
+  assert.equal(initial.year, '1942', 'L’année doit être préremplie')
+  assert.equal(initial.coverUrl, 'https://covers.openlibrary.org/b/id/12345-L.jpg', 'La couverture doit être préremplie')
+  assert.equal(initial.status, 'à lire', 'Le statut personnel doit rester au neutre')
+  assert.equal(initial.rating, '', 'La note personnelle ne doit jamais être préremplie')
+  assert.deepEqual(initial.quotes, [], 'Les citations personnelles ne doivent jamais être préremplies')
+}
+
+// Jalon 0.4.28 — Jeux assistés RAWG, clé embarquée obfusquée hors dépôt.
+const rawgServiceSource = readFileSync(new URL('../src/data/rawgService.ts', import.meta.url), 'utf8')
+const gameMetadataAssistanceSource = readFileSync(new URL('../src/domain/gameMetadataAssistance.ts', import.meta.url), 'utf8')
+const gameRawgFlowSource = readFileSync(new URL('../src/components/GameRawgSearchFlow.tsx', import.meta.url), 'utf8')
+const gameFormComponentSource = readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8')
+const rawgRustSource = readFileSync(new URL('../src-tauri/src/rawg/mod.rs', import.meta.url), 'utf8')
+const gitignoreSource = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
+
+assert.match(rawgRustSource, /https:\/\/api\.rawg\.io\/api/, 'Le client Jeux doit viser l’API RAWG')
+assert.match(rawgRustSource, /embedded_key::embedded_api_key\(\)/, 'La clé RAWG doit être lue depuis le fichier obfusqué embarqué')
+assert.match(gitignoreSource, /src-tauri\/src\/rawg\/embedded_key\.rs/, 'La clé RAWG obfusquée doit être exclue du dépôt')
+assert.doesNotMatch(rawgRustSource, /println!|eprintln!|dbg!/, 'La clé RAWG ne doit jamais passer par un log')
+assert.match(rawgRustSource, /exclude_additions/, 'La recherche Jeux doit exclure les DLC pour rester lisible')
+assert.match(rawgRustSource, /developers_are_bounded_and_joined/, 'Une preuve Rust doit borner et joindre les développeurs')
+assert.match(tauriLibrarySource0426, /rawg::search_rawg_games/, 'La commande de recherche Jeux doit être enregistrée')
+assert.match(tauriLibrarySource0426, /rawg::preview_rawg_game/, 'La commande de prévisualisation Jeux doit être enregistrée')
+assert.match(rawgServiceSource, /invoke\('search_rawg_games'/, 'Le frontend doit appeler la recherche Jeux')
+assert.doesNotMatch(gameMetadataAssistanceSource, /status:|rating:|isFavorite:|platform/, 'Le préremplissage Jeux ne doit toucher ni statut, ni note, ni favori, ni plateforme')
+assert.match(gameFormComponentSource, /\.\.\.EMPTY_GAME_FORM, \.\.\.initialValues/, 'Le formulaire Jeux doit accepter des valeurs préremplies')
+assert.match(mainSource047, /game-rawg-search/, 'L’ajout de Jeu doit ouvrir la recherche RAWG')
+assert.match(mainSource047, /gamePresentationToInitialValues/, 'Le clic sur un résultat Jeux doit préremplir directement le formulaire')
+assert.match(gameRawgFlowSource, /setTimeout\(\(\) =>/, 'La recherche Jeux doit être temporisée pendant la saisie')
+assert.match(gameRawgFlowSource, /Saisir manuellement/, 'La recherche Jeux doit proposer une issue manuelle')
+assert.match(gameRawgFlowSource, /Données : <a href="https:\/\/rawg\.io"/, 'L’attribution RAWG exigée par leurs conditions doit être visible')
+
+{
+  const { gamePresentationToInitialValues } = await import('../src/domain/gameMetadataAssistance.ts')
+  const initial = gamePresentationToInitialValues({
+    gameId: 3328,
+    title: 'The Witcher 3: Wild Hunt',
+    developer: 'CD Projekt Red',
+    releaseYear: 2015,
+    coverUrl: 'https://media.rawg.io/media/games/witcher3.jpg',
+  })
+  assert.equal(initial.title, 'The Witcher 3: Wild Hunt', 'Le titre doit être prérempli')
+  assert.equal(initial.developer, 'CD Projekt Red', 'Le développeur doit être prérempli')
+  assert.equal(initial.year, '2015', 'L’année doit être préremplie')
+  assert.equal(initial.platform, '', 'La plateforme reste un choix personnel, jamais préremplie')
+  assert.equal(initial.status, 'à jouer', 'Le statut personnel doit rester au neutre')
+  assert.equal(initial.rating, '', 'La note personnelle ne doit jamais être préremplie')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge.')

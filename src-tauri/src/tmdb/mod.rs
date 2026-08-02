@@ -14,7 +14,7 @@ use tauri_plugin_sql::{DbInstances, DbPool};
 use crate::database::DATABASE_URL;
 
 pub use cache::CachedFilmTmdbPresentationDto;
-pub use client::TmdbSearchCandidateDto;
+pub use client::{TmdbFilmPresentationDto, TmdbSearchCandidateDto, TmdbSeriesPresentationDto};
 use secrets::SecretValue;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,6 +93,60 @@ pub async fn search_tmdb_films(
         .search_films(&secret, &query, &language)
         .await
         .map_err(error_message)
+}
+
+/// Récupère une présentation détaillée sans écrire dans SQLite.
+/// Cette commande sert à préremplir une nouvelle fiche avant sa validation.
+#[tauri::command]
+pub async fn preview_tmdb_film(
+    tmdb_id: i64,
+    language: Option<String>,
+) -> Result<TmdbFilmPresentationDto, String> {
+    let secret = get_secret().await?;
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    let language = language.unwrap_or_else(|| "fr-FR".to_string());
+
+    client
+        .fetch_film_presentation(&secret, tmdb_id, &language)
+        .await
+        .map_err(error_message)
+}
+
+/// Recherche TV bornée pour le préremplissage Séries (jalon 0.4.26),
+/// sans cache ni écriture.
+#[tauri::command]
+pub async fn search_tmdb_series(
+    query: String,
+    language: Option<String>,
+) -> Result<Vec<TmdbSearchCandidateDto>, String> {
+    let secret = get_secret().await?;
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    let language = language.unwrap_or_else(|| "fr-FR".to_string());
+
+    client
+        .search_series(&secret, &query, &language)
+        .await
+        .map_err(error_message)
+}
+
+/// Présentation TV détaillée, validée et bornée, pour préremplir une fiche
+/// Série avant sa validation. Aucune écriture dans SQLite.
+#[tauri::command]
+pub async fn preview_tmdb_series(
+    tmdb_id: i64,
+    language: Option<String>,
+) -> Result<TmdbSeriesPresentationDto, String> {
+    let secret = get_secret().await?;
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    let language = language.unwrap_or_else(|| "fr-FR".to_string());
+
+    let presentation = client
+        .fetch_series_presentation(&secret, tmdb_id, &language)
+        .await
+        .map_err(error_message)?;
+    client::validate_series_presentation(&presentation).map_err(error_message)?;
+
+    Ok(presentation)
 }
 
 #[tauri::command]

@@ -14,12 +14,12 @@ use crate::database::DATABASE_URL;
 
 const SNAPSHOT_RETENTION_COUNT: usize = 30;
 const SNAPSHOT_PREFIX: &str = "sylloge-films-v1-";
-const MAX_FILMS_IMPORT_FILE_BYTES: u64 = 16 * 1024 * 1024;
-const MAX_NOTION_ZIP_ENTRIES: usize = 512;
-const MAX_NOTION_ZIP_PATH_DEPTH: usize = 8;
-const MAX_NOTION_ZIP_NESTING_DEPTH: usize = 4;
-const MAX_NOTION_ZIP_UNCOMPRESSED_BYTES: u128 = 32 * 1024 * 1024;
-const MAX_NOTION_ZIP_ENTRY_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_IMPORT_FILE_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_ZIP_CONTAINER_ENTRIES: usize = 512;
+const MAX_ZIP_PATH_COMPONENTS: usize = 8;
+const MAX_ZIP_NESTING_DEPTH: usize = 4;
+const MAX_ZIP_UNCOMPRESSED_BYTES: u128 = 32 * 1024 * 1024;
+const MAX_ZIP_ENTRY_BYTES: u64 = 4 * 1024 * 1024;
 static SNAPSHOT_NONCE: AtomicU64 = AtomicU64::new(0);
 
 pub struct BackupSnapshotLock(Mutex<()>);
@@ -54,6 +54,15 @@ pub struct CsvImportCandidate {
     contents: String,
 }
 
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportContainerCandidate {
+    id: String,
+    name: String,
+    kind: &'static str,
+    contents: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MarkdownPage {
@@ -66,6 +75,7 @@ pub struct MarkdownPage {
 pub struct BackupSettings {
     backup_directory: String,
     last_automatic_snapshot_day: Option<String>,
+    directory_available: bool,
 }
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
@@ -96,6 +106,17 @@ pub struct ImportLibraryPayload {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportLibraryDocumentPayload {
+    profile: ImportProfile,
+    films: Vec<ImportFilm>,
+    series: Vec<ImportSeries>,
+    books: Vec<ImportBook>,
+    games: Vec<ImportGame>,
+    artworks: Vec<ImportArtwork>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ImportProfile {
     id: String,
     name: String,
@@ -105,7 +126,7 @@ struct ImportProfile {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct ImportFilm {
+pub struct ImportFilm {
     id: String,
     profile_id: String,
     title: String,
@@ -125,11 +146,212 @@ struct ImportFilm {
     updated_at: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSeries {
+    id: String,
+    profile_id: String,
+    title: String,
+    showrunner: Option<String>,
+    casting: Option<String>,
+    summary: Option<String>,
+    category: String,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    seasons_seen: Option<i64>,
+    seasons_total: Option<i64>,
+    progress_updated_at: Option<String>,
+    started_at: Option<String>,
+    poster_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportBook {
+    id: String,
+    profile_id: String,
+    title: String,
+    author: Option<String>,
+    year: Option<i64>,
+    summary: Option<String>,
+    category: String,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    volumes_read: Option<i64>,
+    volumes_total: Option<i64>,
+    progress_updated_at: Option<String>,
+    started_at: Option<String>,
+    cover_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+    quotes: Vec<ImportBookQuote>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportBookQuote {
+    id: String,
+    book_id: String,
+    body: String,
+    position: i64,
+    created_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportGame {
+    id: String,
+    profile_id: String,
+    title: String,
+    developer: Option<String>,
+    platform: Option<String>,
+    year: Option<i64>,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    played_at: Option<String>,
+    cover_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportArtwork {
+    id: String,
+    profile_id: String,
+    title: String,
+    artist: Option<String>,
+    year: Option<i64>,
+    form: String,
+    location: Option<String>,
+    exhibition: Option<String>,
+    status: String,
+    is_favorite: bool,
+    discovered_at: Option<String>,
+    image_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportLibraryResult {
     profile_id: String,
     film_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportLibraryDocumentResult {
+    profile_id: String,
+    film_count: usize,
+    series_count: usize,
+    book_count: usize,
+    game_count: usize,
+    artwork_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PickedAnyImportFile {
+    name: String,
+    /// Type détecté côté natif : "json" | "csv" | "notion" (adaptateur Film historique)
+    /// | "container" (ZIP ou dossier à choisir côté interface).
+    kind: String,
+    /// Contenu texte pour JSON/CSV ; None pour un ZIP binaire.
+    contents: Option<String>,
+    /// Pour l’adaptateur ZIP Film historique : candidats CSV et pages Markdown extraits.
+    csv_candidates: Vec<CsvImportCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+    /// Pour un ZIP ou dossier : candidats JSON/CSV relus en mémoire et bornés.
+    container_candidates: Vec<ImportContainerCandidate>,
+}
+
+/// Sélecteur d'import unifié : accepte JSON, CSV et ZIP, puis détecte le type
+/// afin que l'interface réutilise le pipeline d’import approprié.
+#[tauri::command]
+pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFile>, String> {
+    let Some(file_path) = app
+        .dialog()
+        .file()
+        .add_filter("Import Sylloge (JSON, CSV, ZIP)", &["json", "csv", "zip"])
+        .set_title("Choisir un fichier à importer")
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+
+    let path = file_path
+        .into_path()
+        .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("import")
+        .to_string();
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    match extension.as_str() {
+        "json" => {
+            let contents = read_utf8_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?;
+            Ok(Some(PickedAnyImportFile {
+                name,
+                kind: "json".to_string(),
+                contents: Some(contents),
+                csv_candidates: Vec::new(),
+                markdown_pages: Vec::new(),
+                container_candidates: Vec::new(),
+            }))
+        }
+        "csv" => {
+            let contents = read_utf8_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?;
+            Ok(Some(PickedAnyImportFile {
+                csv_candidates: vec![CsvImportCandidate {
+                    id: "csv-0".to_string(),
+                    name: name.clone(),
+                    contents,
+                }],
+                name,
+                kind: "csv".to_string(),
+                contents: None,
+                markdown_pages: Vec::new(),
+                container_candidates: Vec::new(),
+            }))
+        }
+        "zip" => inspect_zip_container(&name, &read_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?)
+            .map(Some),
+        _ => Err("Choisissez un fichier JSON, CSV ou ZIP compatible.".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn pick_import_container(app: AppHandle) -> Result<Option<PickedAnyImportFile>, String> {
+    let Some(folder_path) = app
+        .dialog()
+        .file()
+        .set_title("Choisir un dossier à analyser")
+        .blocking_pick_folder()
+    else {
+        return Ok(None);
+    };
+
+    let path = folder_path
+        .into_path()
+        .map_err(|error| format!("Chemin de dossier illisible : {error}"))?;
+    inspect_directory_container(&path).map(Some)
 }
 
 #[tauri::command]
@@ -165,8 +387,8 @@ pub async fn pick_import_films_csv_or_notion(
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter("CSV ou export Notion", &["csv", "zip"])
-        .set_title("Choisir un CSV Films ou un export Notion")
+        .add_filter("CSV ou ZIP compatible", &["csv", "zip"])
+        .set_title("Choisir un CSV Films ou un ZIP compatible")
         .blocking_pick_file()
     else {
         return Ok(None);
@@ -191,18 +413,15 @@ pub async fn pick_import_films_csv_or_notion(
             csv_candidates: vec![CsvImportCandidate {
                 id: "csv-0".to_string(),
                 name: name.clone(),
-                contents: read_utf8_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?,
+                contents: read_utf8_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?,
             }],
             name,
             kind: "csv",
             markdown_pages: Vec::new(),
         })),
-        "zip" => extract_notion_zip(
-            &name,
-            &read_file_with_limit(&path, MAX_FILMS_IMPORT_FILE_BYTES)?,
-        )
-        .map(Some),
-        _ => Err("Choisissez un fichier CSV ou ZIP Notion.".to_string()),
+        "zip" => extract_notion_zip(&name, &read_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?)
+            .map(Some),
+        _ => Err("Choisissez un fichier CSV ou ZIP compatible.".to_string()),
     }
 }
 
@@ -227,14 +446,17 @@ fn read_utf8_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<String, 
 }
 
 fn extract_notion_zip(name: &str, contents: &[u8]) -> Result<PickedFilmsImportFile, String> {
-    if contents.len() as u64 > MAX_FILMS_IMPORT_FILE_BYTES {
-        return Err("L’archive Notion dépasse la limite sûre de 16 Mio.".to_string());
+    if contents.len() as u64 > MAX_IMPORT_FILE_BYTES {
+        return Err("L’archive ZIP dépasse la limite sûre de 16 Mio.".to_string());
     }
     let mut extraction = NotionZipExtraction::default();
     extraction.read_archive(contents, 0, "")?;
 
     if extraction.csv_files.is_empty() {
-        return Err("L’archive Notion ne contient aucun CSV de table Films.".to_string());
+        return Err(
+            "L’archive ZIP ne contient aucun CSV compatible avec l’import Films historique."
+                .to_string(),
+        );
     }
     Ok(PickedFilmsImportFile {
         name: name.to_string(),
@@ -261,48 +483,85 @@ impl NotionZipExtraction {
         entry_prefix: &str,
     ) -> Result<(), String> {
         let mut archive = zip::ZipArchive::new(Cursor::new(contents))
-            .map_err(|error| format!("L’archive Notion est invalide : {error}"))?;
+            .map_err(|error| format!("L’archive ZIP est invalide : {error}"))?;
 
         for index in 0..archive.len() {
             let mut file = archive.by_index(index).map_err(|error| {
-                format!("Une entrée de l’archive Notion est illisible : {error}")
+                let message = error.to_string();
+                if message.to_ascii_lowercase().contains("password required")
+                    || message.to_ascii_lowercase().contains("encrypt")
+                {
+                    "Les archives ZIP chiffrées ne sont pas prises en charge.".to_string()
+                } else {
+                    format!("Une entrée de l’archive ZIP est illisible : {message}")
+                }
             })?;
+            let raw_name = file.name();
+            let raw_path = Path::new(raw_name);
+            let has_windows_volume_prefix = raw_name
+                .as_bytes()
+                .get(..2)
+                .is_some_and(|prefix| prefix[0].is_ascii_alphabetic() && prefix[1] == b':');
+            if raw_name.contains('\\')
+                || has_windows_volume_prefix
+                || raw_path.components().any(|component| {
+                    matches!(
+                        component,
+                        std::path::Component::ParentDir
+                            | std::path::Component::RootDir
+                            | std::path::Component::Prefix(_)
+                    )
+                })
+            {
+                return Err("L’archive ZIP contient un chemin de fichier non sûr.".to_string());
+            }
             let safe_path = file.enclosed_name().ok_or_else(|| {
-                "L’archive Notion contient un chemin de fichier non sûr.".to_string()
+                "L’archive ZIP contient un chemin de fichier non sûr.".to_string()
             })?;
-            let depth = safe_path.components().count();
-            if depth > MAX_NOTION_ZIP_PATH_DEPTH {
+            let component_count = safe_path.components().count();
+            if component_count > MAX_ZIP_PATH_COMPONENTS {
                 return Err(format!(
-                    "L’archive Notion dépasse la profondeur maximale de {MAX_NOTION_ZIP_PATH_DEPTH} dossiers."
+                    "L’archive ZIP dépasse la limite de {MAX_ZIP_PATH_COMPONENTS} segments de chemin."
                 ));
             }
             self.count_entry()?;
+            if file.encrypted() {
+                return Err("Les archives ZIP chiffrées ne sont pas prises en charge.".to_string());
+            }
+            if file.is_symlink() {
+                return Err(
+                    "L’archive ZIP contient un lien symbolique non pris en charge.".to_string(),
+                );
+            }
             if file.is_dir() {
                 continue;
-            }
-            if file.size() > MAX_NOTION_ZIP_ENTRY_BYTES {
-                return Err(
-                    "Une entrée de l’archive Notion dépasse la limite sûre de 4 Mio.".to_string(),
-                );
             }
 
             let entry_name = safe_path.to_string_lossy().into_owned();
             let lower_name = entry_name.to_ascii_lowercase();
-            if lower_name.ends_with(".zip") && nesting_depth >= MAX_NOTION_ZIP_NESTING_DEPTH {
+            let is_nested_zip = lower_name.ends_with(".zip");
+            let is_legacy_film_payload =
+                lower_name.ends_with(".csv") || lower_name.ends_with(".md");
+            if !is_nested_zip && !is_legacy_film_payload {
+                continue;
+            }
+            if file.size() > MAX_ZIP_ENTRY_BYTES {
+                return Err(
+                    "Une entrée de l’archive ZIP dépasse la limite sûre de 4 Mio.".to_string(),
+                );
+            }
+            if is_nested_zip && nesting_depth >= MAX_ZIP_NESTING_DEPTH {
                 return Err(format!(
-                    "L’archive Notion dépasse la profondeur maximale de {MAX_NOTION_ZIP_NESTING_DEPTH} archives ZIP imbriquées."
+                    "L’archive ZIP dépasse la limite de {MAX_ZIP_NESTING_DEPTH} archives ZIP imbriquées."
                 ));
             }
 
             let entry_contents = read_zip_entry(&mut file)?;
             self.count_decompressed_bytes(entry_contents.len())?;
 
-            if lower_name.ends_with(".zip") {
+            if is_nested_zip {
                 let nested_prefix = format!("{entry_prefix}{entry_name}!/");
                 self.read_archive(&entry_contents, nesting_depth + 1, &nested_prefix)?;
-                continue;
-            }
-            if !lower_name.ends_with(".csv") && !lower_name.ends_with(".md") {
                 continue;
             }
 
@@ -329,9 +588,9 @@ impl NotionZipExtraction {
 
     fn count_entry(&mut self) -> Result<(), String> {
         self.entry_count += 1;
-        if self.entry_count > MAX_NOTION_ZIP_ENTRIES {
+        if self.entry_count > MAX_ZIP_CONTAINER_ENTRIES {
             return Err(format!(
-                "L’archive Notion contient plus de {MAX_NOTION_ZIP_ENTRIES} entrées."
+                "L’archive ZIP contient plus de {MAX_ZIP_CONTAINER_ENTRIES} entrées."
             ));
         }
         Ok(())
@@ -339,23 +598,306 @@ impl NotionZipExtraction {
 
     fn count_decompressed_bytes(&mut self, byte_count: usize) -> Result<(), String> {
         self.decompressed_bytes += byte_count as u128;
-        if self.decompressed_bytes > MAX_NOTION_ZIP_UNCOMPRESSED_BYTES {
+        if self.decompressed_bytes > MAX_ZIP_UNCOMPRESSED_BYTES {
             return Err(
-                "L’archive Notion dépasse la limite de contenu décompressé de 32 Mio.".to_string(),
+                "L’archive ZIP dépasse la limite de contenu décompressé de 32 Mio.".to_string(),
             );
         }
         Ok(())
     }
 }
 
+#[derive(Default)]
+struct ContainerExtraction {
+    entry_count: usize,
+    decompressed_bytes: u128,
+    next_candidate_id: usize,
+    candidates: Vec<ImportContainerCandidate>,
+    markdown_pages: Vec<MarkdownPage>,
+}
+
+impl ContainerExtraction {
+    fn read_zip_archive(
+        &mut self,
+        contents: &[u8],
+        nesting_depth: usize,
+        entry_prefix: &str,
+    ) -> Result<(), String> {
+        let mut archive = zip::ZipArchive::new(Cursor::new(contents))
+            .map_err(|error| format!("L’archive ZIP est invalide : {error}"))?;
+
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index).map_err(zip_entry_error)?;
+            let raw_name = file.name();
+            let safe_path = checked_zip_path(raw_name)?;
+            self.count_entry("L’archive ZIP")?;
+            if file.encrypted() {
+                return Err("Les archives ZIP chiffrées ne sont pas prises en charge.".to_string());
+            }
+            if file.is_symlink() {
+                return Err(
+                    "L’archive ZIP contient un lien symbolique non pris en charge.".to_string(),
+                );
+            }
+            if file.is_dir() {
+                continue;
+            }
+
+            let entry_name = safe_path.to_string_lossy().into_owned();
+            let lower_name = entry_name.to_ascii_lowercase();
+            let is_nested_zip = lower_name.ends_with(".zip");
+            let is_candidate = lower_name.ends_with(".json") || lower_name.ends_with(".csv");
+            let is_legacy_markdown = lower_name.ends_with(".md");
+            if !is_nested_zip && !is_candidate && !is_legacy_markdown {
+                continue;
+            }
+            if file.size() > MAX_ZIP_ENTRY_BYTES {
+                return Err(
+                    "Une entrée de l’archive ZIP dépasse la limite sûre de 4 Mio.".to_string(),
+                );
+            }
+            if is_nested_zip && nesting_depth >= MAX_ZIP_NESTING_DEPTH {
+                return Err(format!(
+                    "L’archive ZIP dépasse la limite de {MAX_ZIP_NESTING_DEPTH} archives ZIP imbriquées."
+                ));
+            }
+
+            let entry_contents = read_zip_entry(&mut file)?;
+            self.count_decompressed_bytes(entry_contents.len(), "L’archive ZIP")?;
+            if is_nested_zip {
+                self.read_zip_archive(
+                    &entry_contents,
+                    nesting_depth + 1,
+                    &format!("{entry_prefix}{entry_name}!/"),
+                )?;
+                continue;
+            }
+
+            let text = String::from_utf8(entry_contents)
+                .map_err(|_| format!("L’entrée « {entry_name} » doit être encodée en UTF-8."))?;
+            let display_name = format!("{entry_prefix}{entry_name}");
+            if is_candidate {
+                self.push_candidate(
+                    display_name,
+                    if lower_name.ends_with(".json") {
+                        "json"
+                    } else {
+                        "csv"
+                    },
+                    text,
+                );
+            } else {
+                self.markdown_pages.push(MarkdownPage {
+                    name: display_name,
+                    contents: text,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    fn read_directory(
+        &mut self,
+        root: &Path,
+        directory: &Path,
+        depth: usize,
+    ) -> Result<(), String> {
+        let mut entries = fs::read_dir(directory)
+            .map_err(|error| format!("Impossible de lire le dossier choisi : {error}"))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| {
+                format!("Impossible de lire une entrée du dossier choisi : {error}")
+            })?;
+        entries.sort_by_key(|entry| entry.file_name());
+
+        for entry in entries {
+            let path = entry.path();
+            let relative = path.strip_prefix(root).map_err(|_| {
+                "Le dossier choisi contient un chemin qui ne peut pas être inspecté.".to_string()
+            })?;
+            let component_count = relative.components().count();
+            if component_count == 0
+                || component_count > MAX_ZIP_PATH_COMPONENTS
+                || depth + 1 != component_count
+            {
+                return Err(format!(
+                    "Le dossier choisi dépasse la limite de {MAX_ZIP_PATH_COMPONENTS} segments de chemin."
+                ));
+            }
+            self.count_entry("Le dossier choisi")?;
+            let metadata = fs::symlink_metadata(&path).map_err(|error| {
+                format!("Impossible de lire une entrée du dossier choisi : {error}")
+            })?;
+            if metadata.file_type().is_symlink() {
+                return Err(
+                    "Le dossier choisi contient un lien symbolique non pris en charge.".to_string(),
+                );
+            }
+            if metadata.is_dir() {
+                self.read_directory(root, &path, depth + 1)?;
+                continue;
+            }
+            if !metadata.is_file() {
+                continue;
+            }
+
+            let display_name = relative.to_string_lossy().replace('\\', "/");
+            let lower_name = display_name.to_ascii_lowercase();
+            let kind = if lower_name.ends_with(".json") {
+                Some("json")
+            } else if lower_name.ends_with(".csv") {
+                Some("csv")
+            } else {
+                None
+            };
+            let Some(kind) = kind else {
+                continue;
+            };
+            if metadata.len() > MAX_IMPORT_FILE_BYTES {
+                return Err(
+                    "Un fichier du dossier choisi dépasse la limite sûre de 16 Mio.".to_string(),
+                );
+            }
+            let bytes = fs::read(&path).map_err(|error| {
+                format!("Impossible de lire un fichier du dossier choisi : {error}")
+            })?;
+            self.count_decompressed_bytes(bytes.len(), "Le dossier choisi")?;
+            let contents = String::from_utf8(bytes)
+                .map_err(|_| format!("Le fichier « {display_name} » doit être encodé en UTF-8."))?;
+            self.push_candidate(display_name, kind, contents);
+        }
+
+        Ok(())
+    }
+
+    fn push_candidate(&mut self, name: String, kind: &'static str, contents: String) {
+        let id = format!("candidate-{}", self.next_candidate_id);
+        self.next_candidate_id += 1;
+        self.candidates.push(ImportContainerCandidate {
+            id,
+            name,
+            kind,
+            contents,
+        });
+    }
+
+    fn count_entry(&mut self, container_label: &str) -> Result<(), String> {
+        self.entry_count += 1;
+        if self.entry_count > MAX_ZIP_CONTAINER_ENTRIES {
+            return Err(format!(
+                "{container_label} contient plus de {MAX_ZIP_CONTAINER_ENTRIES} entrées."
+            ));
+        }
+        Ok(())
+    }
+
+    fn count_decompressed_bytes(
+        &mut self,
+        byte_count: usize,
+        container_label: &str,
+    ) -> Result<(), String> {
+        self.decompressed_bytes += byte_count as u128;
+        if self.decompressed_bytes > MAX_ZIP_UNCOMPRESSED_BYTES {
+            return Err(format!(
+                "{container_label} dépasse la limite de contenu cumulé de 32 Mio."
+            ));
+        }
+        Ok(())
+    }
+
+    fn into_picked(self, name: String) -> Result<PickedAnyImportFile, String> {
+        if self.candidates.is_empty() {
+            return Err(
+                "Le conteneur choisi ne contient aucun fichier JSON ou CSV à importer.".to_string(),
+            );
+        }
+        Ok(PickedAnyImportFile {
+            name,
+            kind: "container".to_string(),
+            contents: None,
+            csv_candidates: Vec::new(),
+            markdown_pages: self.markdown_pages,
+            container_candidates: self.candidates,
+        })
+    }
+}
+
+fn inspect_zip_container(name: &str, contents: &[u8]) -> Result<PickedAnyImportFile, String> {
+    if contents.len() as u64 > MAX_IMPORT_FILE_BYTES {
+        return Err("L’archive ZIP dépasse la limite sûre de 16 Mio.".to_string());
+    }
+    let mut extraction = ContainerExtraction::default();
+    extraction.read_zip_archive(contents, 0, "")?;
+    extraction.into_picked(name.to_string())
+}
+
+fn inspect_directory_container(path: &Path) -> Result<PickedAnyImportFile, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("Impossible de lire le dossier choisi : {error}"))?;
+    if metadata.file_type().is_symlink() {
+        return Err("Le dossier choisi ne peut pas être un lien symbolique.".to_string());
+    }
+    if !metadata.is_dir() {
+        return Err("Le chemin choisi n’est pas un dossier.".to_string());
+    }
+    let mut extraction = ContainerExtraction::default();
+    extraction.read_directory(path, path, 0)?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("dossier-import")
+        .to_string();
+    extraction.into_picked(name)
+}
+
+fn zip_entry_error(error: zip::result::ZipError) -> String {
+    let message = error.to_string();
+    if message.to_ascii_lowercase().contains("password required")
+        || message.to_ascii_lowercase().contains("encrypt")
+    {
+        "Les archives ZIP chiffrées ne sont pas prises en charge.".to_string()
+    } else {
+        format!("Une entrée de l’archive ZIP est illisible : {message}")
+    }
+}
+
+fn checked_zip_path(raw_name: &str) -> Result<PathBuf, String> {
+    let raw_path = Path::new(raw_name);
+    let has_windows_volume_prefix = raw_name
+        .as_bytes()
+        .get(..2)
+        .is_some_and(|prefix| prefix[0].is_ascii_alphabetic() && prefix[1] == b':');
+    if raw_name.contains('\\')
+        || has_windows_volume_prefix
+        || raw_path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err("L’archive ZIP contient un chemin de fichier non sûr.".to_string());
+    }
+    let safe_path = raw_path.to_path_buf();
+    if safe_path.components().count() > MAX_ZIP_PATH_COMPONENTS {
+        return Err(format!(
+            "L’archive ZIP dépasse la limite de {MAX_ZIP_PATH_COMPONENTS} segments de chemin."
+        ));
+    }
+    Ok(safe_path)
+}
+
 fn read_zip_entry(file: &mut zip::read::ZipFile<'_>) -> Result<Vec<u8>, String> {
     let mut contents = Vec::new();
     let bytes_read = file
-        .take(MAX_NOTION_ZIP_ENTRY_BYTES + 1)
+        .take(MAX_ZIP_ENTRY_BYTES + 1)
         .read_to_end(&mut contents)
-        .map_err(|error| format!("Impossible de lire une entrée de l’archive Notion : {error}"))?;
-    if bytes_read as u64 > MAX_NOTION_ZIP_ENTRY_BYTES {
-        return Err("Une entrée de l’archive Notion dépasse la limite sûre de 4 Mio.".to_string());
+        .map_err(|error| format!("Impossible de lire une entrée de l’archive ZIP : {error}"))?;
+    if bytes_read as u64 > MAX_ZIP_ENTRY_BYTES {
+        return Err("Une entrée de l’archive ZIP dépasse la limite sûre de 4 Mio.".to_string());
     }
     Ok(contents)
 }
@@ -474,6 +1016,17 @@ pub async fn pick_backup_directory(
 }
 
 #[tauri::command]
+pub async fn clear_backup_settings(
+    db_instances: State<'_, DbInstances>,
+    backup_snapshot_lock: State<'_, BackupSnapshotLock>,
+    profile_id: String,
+) -> Result<(), String> {
+    let _lock = backup_snapshot_lock.0.lock().await;
+    let pool = sqlite_pool(&db_instances).await?;
+    clear_backup_configuration(&pool, &profile_id).await
+}
+
+#[tauri::command]
 pub async fn save_manual_backup_snapshot(
     db_instances: State<'_, DbInstances>,
     backup_snapshot_lock: State<'_, BackupSnapshotLock>,
@@ -532,7 +1085,43 @@ pub async fn import_library_atomically(
     })
 }
 
-async fn sqlite_pool(db_instances: &DbInstances) -> Result<sqlx::SqlitePool, String> {
+#[tauri::command]
+pub async fn import_library_document_atomically(
+    db_instances: State<'_, DbInstances>,
+    payload: ImportLibraryDocumentPayload,
+) -> Result<ImportLibraryDocumentResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_library_document_import(&pool, &payload, true).await?;
+
+    Ok(ImportLibraryDocumentResult {
+        profile_id: payload.profile.id.clone(),
+        film_count: payload.films.len(),
+        series_count: payload.series.len(),
+        book_count: payload.books.len(),
+        game_count: payload.games.len(),
+        artwork_count: payload.artworks.len(),
+    })
+}
+
+#[tauri::command]
+pub async fn import_library_document_into_empty_profile(
+    db_instances: State<'_, DbInstances>,
+    payload: ImportLibraryDocumentPayload,
+) -> Result<ImportLibraryDocumentResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_library_document_import(&pool, &payload, false).await?;
+
+    Ok(ImportLibraryDocumentResult {
+        profile_id: payload.profile.id.clone(),
+        film_count: payload.films.len(),
+        series_count: payload.series.len(),
+        book_count: payload.books.len(),
+        game_count: payload.games.len(),
+        artwork_count: payload.artworks.len(),
+    })
+}
+
+pub async fn sqlite_pool(db_instances: &DbInstances) -> Result<sqlx::SqlitePool, String> {
     let instances = db_instances.0.read().await;
     let database = instances
         .get(DATABASE_URL)
@@ -579,10 +1168,36 @@ async fn read_backup_settings(
 
     Ok(row.map(
         |(backup_directory, last_automatic_snapshot_day)| BackupSettings {
+            directory_available: validate_backup_directory(Path::new(&backup_directory)).is_ok(),
             backup_directory,
             last_automatic_snapshot_day,
         },
     ))
+}
+
+async fn clear_backup_configuration(
+    pool: &sqlx::SqlitePool,
+    profile_id: &str,
+) -> Result<(), String> {
+    ensure_profile_exists(pool, profile_id).await?;
+    let mut transaction = pool.begin().await.map_err(|error| {
+        format!("Impossible de démarrer la désactivation des snapshots : {error}")
+    })?;
+
+    sqlx::query("DELETE FROM backup_snapshots WHERE profile_id = $1")
+        .bind(profile_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’oublier le registre des snapshots : {error}"))?;
+    sqlx::query("DELETE FROM backup_settings WHERE profile_id = $1")
+        .bind(profile_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible de désactiver les snapshots : {error}"))?;
+
+    transaction.commit().await.map_err(|error| {
+        format!("Impossible de confirmer la désactivation des snapshots : {error}")
+    })
 }
 
 async fn upsert_backup_directory(
@@ -1060,6 +1675,318 @@ async fn write_import(
     Ok(())
 }
 
+async fn write_library_document_import(
+    pool: &sqlx::SqlitePool,
+    payload: &ImportLibraryDocumentPayload,
+    create_profile: bool,
+) -> Result<(), String> {
+    let targets_import_profile = |profile_id: &str| profile_id == payload.profile.id;
+
+    if payload
+        .films
+        .iter()
+        .any(|film| !targets_import_profile(&film.profile_id))
+        || payload
+            .series
+            .iter()
+            .any(|series| !targets_import_profile(&series.profile_id))
+        || payload
+            .books
+            .iter()
+            .any(|book| !targets_import_profile(&book.profile_id))
+        || payload
+            .games
+            .iter()
+            .any(|game| !targets_import_profile(&game.profile_id))
+        || payload
+            .artworks
+            .iter()
+            .any(|artwork| !targets_import_profile(&artwork.profile_id))
+    {
+        return Err("Un élément ne cible pas le profil d’import.".to_string());
+    }
+
+    let book_ids: std::collections::HashSet<&str> =
+        payload.books.iter().map(|book| book.id.as_str()).collect();
+    for book in &payload.books {
+        if book
+            .quotes
+            .iter()
+            .any(|quote| quote.book_id != book.id || !book_ids.contains(quote.book_id.as_str()))
+        {
+            return Err(format!(
+                "Une citation ne correspond pas au livre « {} ».",
+                book.title
+            ));
+        }
+    }
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import SQLite : {error}"))?;
+
+    if create_profile {
+        sqlx::query(
+            "INSERT INTO profiles (id, name, created_at, updated_at) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(&payload.profile.id)
+        .bind(&payload.profile.name)
+        .bind(&payload.profile.created_at)
+        .bind(&payload.profile.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible de créer le nouveau profil : {error}"))?;
+    } else {
+        let profile_exists: i64 =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM profiles WHERE id = $1)")
+                .bind(&payload.profile.id)
+                .fetch_one(&mut *transaction)
+                .await
+                .map_err(|error| format!("Impossible de vérifier le profil courant : {error}"))?;
+        if profile_exists != 1 {
+            return Err("Le profil courant est introuvable.".to_string());
+        }
+
+        let existing_works: i64 = sqlx::query_scalar(
+            "SELECT
+                (SELECT COUNT(*) FROM films WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM series WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM books WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM games WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM artworks WHERE profile_id = $1)",
+        )
+        .bind(&payload.profile.id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!("Impossible de vérifier que le profil courant est vide : {error}")
+        })?;
+        if existing_works != 0 {
+            return Err("L’import global est réservé à un profil vide.".to_string());
+        }
+    }
+
+    for film in &payload.films {
+        let original_title = canonical_optional_text(&film.original_title);
+        let watched_at = canonical_optional_text(&film.watched_at);
+        let personal_note = canonical_optional_text(&film.personal_note);
+        let director = canonical_optional_text(&film.director);
+        let summary = canonical_optional_text(&film.summary);
+        let poster_url = canonical_optional_text(&film.poster_url);
+        let (provider_name, provider_id) =
+            canonical_provenance(&film.provider_name, &film.provider_id);
+
+        sqlx::query(
+            "INSERT INTO films (
+                id, profile_id, title, original_title, year, status, is_favorite, rating,
+                watched_at, personal_note, director, summary, provider_name, provider_id,
+                poster_url, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+             )",
+        )
+        .bind(&film.id)
+        .bind(&film.profile_id)
+        .bind(&film.title)
+        .bind(original_title)
+        .bind(film.year)
+        .bind(&film.status)
+        .bind(if film.is_favorite { 1 } else { 0 })
+        .bind(film.rating)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
+        .bind(&film.created_at)
+        .bind(&film.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le film « {} » : {error}", film.title))?;
+    }
+
+    for series in &payload.series {
+        sqlx::query(
+            "INSERT INTO series (
+                id, profile_id, title, showrunner, casting, summary, category, status, rating,
+                is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
+                poster_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&series.id)
+        .bind(&series.profile_id)
+        .bind(&series.title)
+        .bind(canonical_optional_text(&series.showrunner))
+        .bind(canonical_optional_text(&series.casting))
+        .bind(canonical_optional_text(&series.summary))
+        .bind(&series.category)
+        .bind(&series.status)
+        .bind(series.rating)
+        .bind(if series.is_favorite { 1 } else { 0 })
+        .bind(series.seasons_seen)
+        .bind(series.seasons_total)
+        .bind(canonical_optional_text(&series.progress_updated_at))
+        .bind(canonical_optional_text(&series.started_at))
+        .bind(canonical_optional_text(&series.poster_url))
+        .bind(canonical_optional_text(&series.personal_note))
+        .bind(&series.created_at)
+        .bind(&series.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer la série « {} » : {error}",
+                series.title
+            )
+        })?;
+    }
+
+    for book in &payload.books {
+        sqlx::query(
+            "INSERT INTO books (
+                id, profile_id, title, author, year, summary, category, status, rating,
+                is_favorite, volumes_read, volumes_total, progress_updated_at, started_at,
+                cover_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&book.id)
+        .bind(&book.profile_id)
+        .bind(&book.title)
+        .bind(canonical_optional_text(&book.author))
+        .bind(book.year)
+        .bind(canonical_optional_text(&book.summary))
+        .bind(&book.category)
+        .bind(&book.status)
+        .bind(book.rating)
+        .bind(if book.is_favorite { 1 } else { 0 })
+        .bind(book.volumes_read)
+        .bind(book.volumes_total)
+        .bind(canonical_optional_text(&book.progress_updated_at))
+        .bind(canonical_optional_text(&book.started_at))
+        .bind(canonical_optional_text(&book.cover_url))
+        .bind(canonical_optional_text(&book.personal_note))
+        .bind(&book.created_at)
+        .bind(&book.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer le livre « {} » : {error}",
+                book.title
+            )
+        })?;
+
+        for quote in &book.quotes {
+            sqlx::query(
+                "INSERT INTO book_quotes (id, book_id, body, position, created_at)
+                 VALUES ($1, $2, $3, $4, $5)",
+            )
+            .bind(&quote.id)
+            .bind(&quote.book_id)
+            .bind(&quote.body)
+            .bind(quote.position)
+            .bind(&quote.created_at)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Impossible d’importer une citation du livre « {} » : {error}",
+                    book.title
+                )
+            })?;
+        }
+    }
+
+    for game in &payload.games {
+        sqlx::query(
+            "INSERT INTO games (
+                id, profile_id, title, developer, platform, year, status, rating, is_favorite,
+                played_at, cover_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+             )",
+        )
+        .bind(&game.id)
+        .bind(&game.profile_id)
+        .bind(&game.title)
+        .bind(canonical_optional_text(&game.developer))
+        .bind(canonical_optional_text(&game.platform))
+        .bind(game.year)
+        .bind(&game.status)
+        .bind(game.rating)
+        .bind(if game.is_favorite { 1 } else { 0 })
+        .bind(canonical_optional_text(&game.played_at))
+        .bind(canonical_optional_text(&game.cover_url))
+        .bind(canonical_optional_text(&game.personal_note))
+        .bind(&game.created_at)
+        .bind(&game.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le jeu « {} » : {error}", game.title))?;
+    }
+
+    for artwork in &payload.artworks {
+        sqlx::query(
+            "INSERT INTO artworks (
+                id, profile_id, title, artist, year, form, location, exhibition, status,
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+             )",
+        )
+        .bind(&artwork.id)
+        .bind(&artwork.profile_id)
+        .bind(&artwork.title)
+        .bind(canonical_optional_text(&artwork.artist))
+        .bind(artwork.year)
+        .bind(&artwork.form)
+        .bind(canonical_optional_text(&artwork.location))
+        .bind(canonical_optional_text(&artwork.exhibition))
+        .bind(&artwork.status)
+        .bind(if artwork.is_favorite { 1 } else { 0 })
+        .bind(canonical_optional_text(&artwork.discovered_at))
+        .bind(canonical_optional_text(&artwork.image_url))
+        .bind(canonical_optional_text(&artwork.personal_note))
+        .bind(&artwork.created_at)
+        .bind(&artwork.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer l’œuvre « {} » : {error}",
+                artwork.title
+            )
+        })?;
+    }
+
+    if create_profile {
+        sqlx::query(
+            "UPDATE current_profile
+             SET profile_id = $1, updated_at = $2
+             WHERE singleton = 1",
+        )
+        .bind(&payload.profile.id)
+        .bind(&payload.profile.updated_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’activer le nouveau profil : {error}"))?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import SQLite : {error}"))?;
+
+    Ok(())
+}
+
 fn canonical_optional_text(value: &Option<String>) -> Option<&str> {
     value.as_deref().filter(|value| !value.is_empty())
 }
@@ -1076,6 +2003,797 @@ fn canonical_provenance<'a>(
     } else {
         (None, None)
     }
+}
+
+// ---------------------------------------------------------------------------
+// Jalon 0.4.4 — imports unitaires dans le profil courant (remplacer/fusionner)
+// ---------------------------------------------------------------------------
+
+/// Plan d'écriture d'un import unitaire préparé côté interface : insertions,
+/// mises à jour (fusion ou remplacement d'un doublon) et — en mode
+/// « Remplacer » — vidage préalable de la collection du profil courant.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectionImportPlan<F> {
+    pub profile_id: String,
+    /// Vider la collection du profil avant d'écrire (mode « Remplacer »).
+    pub replace_existing: bool,
+    pub inserts: Vec<F>,
+    pub updates: Vec<F>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectionImportResult {
+    pub inserted: usize,
+    pub updated: usize,
+    pub removed: usize,
+}
+
+#[tauri::command]
+pub async fn import_films_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportFilm>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_films_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_series_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportSeries>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_series_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_books_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportBook>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_books_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_games_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportGame>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_games_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_artworks_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportArtwork>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_artworks_import_plan(&pool, &plan).await
+}
+
+async fn write_films_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportFilm>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|f| f.profile_id.as_str())
+            .chain(plan.updates.iter().map(|f| f.profile_id.as_str())),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Films : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        let result = sqlx::query("DELETE FROM films WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Films : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for film in &plan.updates {
+        upsert_film(&mut transaction, film, true).await?;
+    }
+    for film in &plan.inserts {
+        upsert_film(&mut transaction, film, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Films : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+async fn write_series_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportSeries>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|s| s.profile_id.as_str())
+            .chain(plan.updates.iter().map(|s| s.profile_id.as_str())),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Séries : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        let result = sqlx::query("DELETE FROM series WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Séries : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for series in &plan.updates {
+        upsert_series(&mut transaction, series, true).await?;
+    }
+    for series in &plan.inserts {
+        upsert_series(&mut transaction, series, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Séries : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+async fn write_books_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportBook>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|book| book.profile_id.as_str())
+            .chain(plan.updates.iter().map(|book| book.profile_id.as_str())),
+    )?;
+    for book in plan.inserts.iter().chain(plan.updates.iter()) {
+        validate_import_book_quotes(book)?;
+    }
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Livres : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        let result = sqlx::query("DELETE FROM books WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Livres : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for book in &plan.updates {
+        upsert_book(&mut transaction, book, true).await?;
+    }
+    for book in &plan.inserts {
+        upsert_book(&mut transaction, book, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Livres : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+async fn write_games_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportGame>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|game| game.profile_id.as_str())
+            .chain(plan.updates.iter().map(|game| game.profile_id.as_str())),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Jeux : {error}"))?;
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        removed = sqlx::query("DELETE FROM games WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Jeux : {error}"))?
+            .rows_affected() as usize;
+    }
+
+    for game in &plan.updates {
+        upsert_game(&mut transaction, game, true).await?;
+    }
+    for game in &plan.inserts {
+        upsert_game(&mut transaction, game, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Jeux : {error}"))?;
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+async fn write_artworks_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportArtwork>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|artwork| artwork.profile_id.as_str())
+            .chain(
+                plan.updates
+                    .iter()
+                    .map(|artwork| artwork.profile_id.as_str()),
+            ),
+    )?;
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Art : {error}"))?;
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        removed = sqlx::query("DELETE FROM artworks WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Art : {error}"))?
+            .rows_affected() as usize;
+    }
+
+    for artwork in &plan.updates {
+        upsert_artwork(&mut transaction, artwork, true).await?;
+    }
+    for artwork in &plan.inserts {
+        upsert_artwork(&mut transaction, artwork, false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Art : {error}"))?;
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+fn validate_import_book_quotes(book: &ImportBook) -> Result<(), String> {
+    if book.quotes.iter().any(|quote| quote.book_id != book.id) {
+        return Err(format!(
+            "Une citation ne correspond pas au livre « {} ».",
+            book.title
+        ));
+    }
+    Ok(())
+}
+
+fn validate_plan_profile<'a>(
+    profile_id: &str,
+    mut item_profiles: impl Iterator<Item = &'a str>,
+) -> Result<(), String> {
+    if profile_id.trim().is_empty() {
+        return Err("Le profil cible de l’import est invalide.".to_string());
+    }
+    if item_profiles.any(|id| id != profile_id) {
+        return Err("Un élément de l’import ne cible pas le profil courant.".to_string());
+    }
+    Ok(())
+}
+
+async fn upsert_film(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    film: &ImportFilm,
+    is_update: bool,
+) -> Result<(), String> {
+    let original_title = canonical_optional_text(&film.original_title);
+    let watched_at = canonical_optional_text(&film.watched_at);
+    let personal_note = canonical_optional_text(&film.personal_note);
+    let director = canonical_optional_text(&film.director);
+    let summary = canonical_optional_text(&film.summary);
+    let poster_url = canonical_optional_text(&film.poster_url);
+    let (provider_name, provider_id) = canonical_provenance(&film.provider_name, &film.provider_id);
+
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE films SET
+                title = $3, original_title = $4, year = $5, status = $6, is_favorite = $7,
+                rating = $8, watched_at = $9, personal_note = $10, director = $11, summary = $12,
+                provider_name = $13, provider_id = $14, poster_url = $15, updated_at = $16
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&film.id)
+        .bind(&film.profile_id)
+        .bind(&film.title)
+        .bind(original_title)
+        .bind(film.year)
+        .bind(&film.status)
+        .bind(if film.is_favorite { 1 } else { 0 })
+        .bind(film.rating)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
+        .bind(&film.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour le film « {} » : {error}",
+                film.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO films (
+                id, profile_id, title, original_title, year, status, is_favorite, rating,
+                watched_at, personal_note, director, summary, provider_name, provider_id,
+                poster_url, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+             )",
+        )
+        .bind(&film.id)
+        .bind(&film.profile_id)
+        .bind(&film.title)
+        .bind(original_title)
+        .bind(film.year)
+        .bind(&film.status)
+        .bind(if film.is_favorite { 1 } else { 0 })
+        .bind(film.rating)
+        .bind(watched_at)
+        .bind(personal_note)
+        .bind(director)
+        .bind(summary)
+        .bind(provider_name)
+        .bind(provider_id)
+        .bind(poster_url)
+        .bind(&film.created_at)
+        .bind(&film.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le film « {} » : {error}", film.title))?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture du film « {} » n’a modifié aucune ligne SQLite.",
+            film.title
+        ));
+    }
+
+    Ok(())
+}
+
+async fn upsert_series(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    series: &ImportSeries,
+    is_update: bool,
+) -> Result<(), String> {
+    let showrunner = canonical_optional_text(&series.showrunner);
+    let casting = canonical_optional_text(&series.casting);
+    let summary = canonical_optional_text(&series.summary);
+    let progress_updated_at = canonical_optional_text(&series.progress_updated_at);
+    let started_at = canonical_optional_text(&series.started_at);
+    let poster_url = canonical_optional_text(&series.poster_url);
+    let personal_note = canonical_optional_text(&series.personal_note);
+
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE series SET
+                title = $3, showrunner = $4, casting = $5, summary = $6, category = $7,
+                status = $8, rating = $9, is_favorite = $10, seasons_seen = $11,
+                seasons_total = $12, progress_updated_at = $13, started_at = $14,
+                poster_url = $15, personal_note = $16, updated_at = $17
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&series.id)
+        .bind(&series.profile_id)
+        .bind(&series.title)
+        .bind(showrunner)
+        .bind(casting)
+        .bind(summary)
+        .bind(&series.category)
+        .bind(&series.status)
+        .bind(series.rating)
+        .bind(if series.is_favorite { 1 } else { 0 })
+        .bind(series.seasons_seen)
+        .bind(series.seasons_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(poster_url)
+        .bind(personal_note)
+        .bind(&series.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour la série « {} » : {error}",
+                series.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO series (
+                id, profile_id, title, showrunner, casting, summary, category, status, rating,
+                is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
+                poster_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&series.id)
+        .bind(&series.profile_id)
+        .bind(&series.title)
+        .bind(showrunner)
+        .bind(casting)
+        .bind(summary)
+        .bind(&series.category)
+        .bind(&series.status)
+        .bind(series.rating)
+        .bind(if series.is_favorite { 1 } else { 0 })
+        .bind(series.seasons_seen)
+        .bind(series.seasons_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(poster_url)
+        .bind(personal_note)
+        .bind(&series.created_at)
+        .bind(&series.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer la série « {} » : {error}",
+                series.title
+            )
+        })?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture de la série « {} » n’a modifié aucune ligne SQLite.",
+            series.title
+        ));
+    }
+
+    Ok(())
+}
+
+async fn upsert_book(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    book: &ImportBook,
+    is_update: bool,
+) -> Result<(), String> {
+    let author = canonical_optional_text(&book.author);
+    let summary = canonical_optional_text(&book.summary);
+    let progress_updated_at = canonical_optional_text(&book.progress_updated_at);
+    let started_at = canonical_optional_text(&book.started_at);
+    let cover_url = canonical_optional_text(&book.cover_url);
+    let personal_note = canonical_optional_text(&book.personal_note);
+
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE books SET
+                title = $3, author = $4, year = $5, summary = $6, category = $7,
+                status = $8, rating = $9, is_favorite = $10, volumes_read = $11,
+                volumes_total = $12, progress_updated_at = $13, started_at = $14,
+                cover_url = $15, personal_note = $16, updated_at = $17
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&book.id)
+        .bind(&book.profile_id)
+        .bind(&book.title)
+        .bind(author)
+        .bind(book.year)
+        .bind(summary)
+        .bind(&book.category)
+        .bind(&book.status)
+        .bind(book.rating)
+        .bind(if book.is_favorite { 1 } else { 0 })
+        .bind(book.volumes_read)
+        .bind(book.volumes_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&book.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour le livre « {} » : {error}",
+                book.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO books (
+                id, profile_id, title, author, year, summary, category, status, rating,
+                is_favorite, volumes_read, volumes_total, progress_updated_at, started_at,
+                cover_url, personal_note, created_at, updated_at
+             ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+             )",
+        )
+        .bind(&book.id)
+        .bind(&book.profile_id)
+        .bind(&book.title)
+        .bind(author)
+        .bind(book.year)
+        .bind(summary)
+        .bind(&book.category)
+        .bind(&book.status)
+        .bind(book.rating)
+        .bind(if book.is_favorite { 1 } else { 0 })
+        .bind(book.volumes_read)
+        .bind(book.volumes_total)
+        .bind(progress_updated_at)
+        .bind(started_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&book.created_at)
+        .bind(&book.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer le livre « {} » : {error}",
+                book.title
+            )
+        })?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture du livre « {} » n’a modifié aucune ligne SQLite.",
+            book.title
+        ));
+    }
+
+    if is_update {
+        sqlx::query("DELETE FROM book_quotes WHERE book_id = $1")
+            .bind(&book.id)
+            .execute(&mut **transaction)
+            .await
+            .map_err(|error| {
+                format!(
+                    "Impossible de remplacer les citations du livre « {} » : {error}",
+                    book.title
+                )
+            })?;
+    }
+
+    for quote in &book.quotes {
+        sqlx::query(
+            "INSERT INTO book_quotes (id, book_id, body, position, created_at)
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(&quote.id)
+        .bind(&quote.book_id)
+        .bind(&quote.body)
+        .bind(quote.position)
+        .bind(&quote.created_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer une citation du livre « {} » : {error}",
+                book.title
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+async fn upsert_game(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    game: &ImportGame,
+    is_update: bool,
+) -> Result<(), String> {
+    let developer = canonical_optional_text(&game.developer);
+    let platform = canonical_optional_text(&game.platform);
+    let played_at = canonical_optional_text(&game.played_at);
+    let cover_url = canonical_optional_text(&game.cover_url);
+    let personal_note = canonical_optional_text(&game.personal_note);
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE games SET
+                title = $3, developer = $4, platform = $5, year = $6, status = $7,
+                rating = $8, is_favorite = $9, played_at = $10, cover_url = $11,
+                personal_note = $12, updated_at = $13
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&game.id)
+        .bind(&game.profile_id)
+        .bind(&game.title)
+        .bind(developer)
+        .bind(platform)
+        .bind(game.year)
+        .bind(&game.status)
+        .bind(game.rating)
+        .bind(if game.is_favorite { 1 } else { 0 })
+        .bind(played_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&game.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour le jeu « {} » : {error}",
+                game.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO games (
+                id, profile_id, title, developer, platform, year, status, rating, is_favorite,
+                played_at, cover_url, personal_note, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        )
+        .bind(&game.id)
+        .bind(&game.profile_id)
+        .bind(&game.title)
+        .bind(developer)
+        .bind(platform)
+        .bind(game.year)
+        .bind(&game.status)
+        .bind(game.rating)
+        .bind(if game.is_favorite { 1 } else { 0 })
+        .bind(played_at)
+        .bind(cover_url)
+        .bind(personal_note)
+        .bind(&game.created_at)
+        .bind(&game.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| format!("Impossible d’importer le jeu « {} » : {error}", game.title))?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture du jeu « {} » n’a modifié aucune ligne SQLite.",
+            game.title
+        ));
+    }
+    Ok(())
+}
+
+async fn upsert_artwork(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    artwork: &ImportArtwork,
+    is_update: bool,
+) -> Result<(), String> {
+    let artist = canonical_optional_text(&artwork.artist);
+    let location = canonical_optional_text(&artwork.location);
+    let exhibition = canonical_optional_text(&artwork.exhibition);
+    let discovered_at = canonical_optional_text(&artwork.discovered_at);
+    let image_url = canonical_optional_text(&artwork.image_url);
+    let personal_note = canonical_optional_text(&artwork.personal_note);
+    let result = if is_update {
+        sqlx::query(
+            "UPDATE artworks SET
+                title = $3, artist = $4, year = $5, form = $6, location = $7,
+                exhibition = $8, status = $9, is_favorite = $10, discovered_at = $11,
+                image_url = $12, personal_note = $13, updated_at = $14
+             WHERE id = $1 AND profile_id = $2",
+        )
+        .bind(&artwork.id)
+        .bind(&artwork.profile_id)
+        .bind(&artwork.title)
+        .bind(artist)
+        .bind(artwork.year)
+        .bind(&artwork.form)
+        .bind(location)
+        .bind(exhibition)
+        .bind(&artwork.status)
+        .bind(if artwork.is_favorite { 1 } else { 0 })
+        .bind(discovered_at)
+        .bind(image_url)
+        .bind(personal_note)
+        .bind(&artwork.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de mettre à jour l’œuvre « {} » : {error}",
+                artwork.title
+            )
+        })?
+    } else {
+        sqlx::query(
+            "INSERT INTO artworks (
+                id, profile_id, title, artist, year, form, location, exhibition, status,
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+        )
+        .bind(&artwork.id)
+        .bind(&artwork.profile_id)
+        .bind(&artwork.title)
+        .bind(artist)
+        .bind(artwork.year)
+        .bind(&artwork.form)
+        .bind(location)
+        .bind(exhibition)
+        .bind(&artwork.status)
+        .bind(if artwork.is_favorite { 1 } else { 0 })
+        .bind(discovered_at)
+        .bind(image_url)
+        .bind(personal_note)
+        .bind(&artwork.created_at)
+        .bind(&artwork.updated_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer l’œuvre « {} » : {error}",
+                artwork.title
+            )
+        })?
+    };
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture de l’œuvre « {} » n’a modifié aucune ligne SQLite.",
+            artwork.title
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1177,7 +2895,67 @@ mod tests {
                 .expect("réglage enregistré");
             assert_eq!(settings.backup_directory, directory_text);
             assert_eq!(settings.last_automatic_snapshot_day, None);
+            assert!(settings.directory_available);
 
+            fs::remove_dir_all(&directory).expect("suppression externe du dossier temporaire");
+            let stale_settings = read_backup_settings(&pool, "default")
+                .await
+                .expect("lecture du réglage devenu inaccessible")
+                .expect("le chemin reste mémorisé tant que l’utilisateur ne le désactive pas");
+            assert!(
+                !stale_settings.directory_available,
+                "un dossier supprimé hors de Sylloge ne doit pas rester annoncé comme disponible"
+            );
+        });
+    }
+
+    #[test]
+    fn clearing_backup_configuration_forgets_the_path_but_keeps_existing_files() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            let directory = temporary_directory("clear-setting");
+            configure_backup_directory(&pool, "default", &directory)
+                .await
+                .expect("réglage initial");
+            let file_name = "sylloge-snapshot-existing.json";
+            fs::write(directory.join(file_name), "{}\n").expect("snapshot existant");
+            sqlx::query(
+                "INSERT INTO backup_snapshots (profile_id, file_name, created_at)
+                 VALUES ('default', $1, '2026-07-22T10:00:00.000Z')",
+            )
+            .bind(file_name)
+            .execute(&pool)
+            .await
+            .expect("registre de snapshot");
+
+            clear_backup_configuration(&pool, "default")
+                .await
+                .expect("désactivation des snapshots");
+
+            assert_eq!(
+                read_backup_settings(&pool, "default")
+                    .await
+                    .expect("lecture après désactivation"),
+                None
+            );
+            let registered_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM backup_snapshots WHERE profile_id = 'default'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("comptage du registre");
+            assert_eq!(
+                registered_count, 0,
+                "le registre lié à l’ancien dossier doit être oublié"
+            );
+            assert!(
+                directory.join(file_name).exists(),
+                "désactiver les snapshots ne doit jamais supprimer les fichiers existants"
+            );
+
+            clear_backup_configuration(&pool, "default")
+                .await
+                .expect("désactivation idempotente");
             fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
         });
     }
@@ -1498,6 +3276,28 @@ mod tests {
         notion_zip_bytes(&byte_entries)
     }
 
+    fn mark_first_zip_entry_as_encrypted(mut archive: Vec<u8>) -> Vec<u8> {
+        let mut marked_headers = 0;
+        for index in 0..archive.len().saturating_sub(4) {
+            let flag_offset = match &archive[index..index + 4] {
+                b"PK\x03\x04" => Some(index + 6),
+                b"PK\x01\x02" => Some(index + 8),
+                _ => None,
+            };
+            if let Some(flag_offset) = flag_offset {
+                let flags =
+                    u16::from_le_bytes([archive[flag_offset], archive[flag_offset + 1]]) | 1;
+                archive[flag_offset..flag_offset + 2].copy_from_slice(&flags.to_le_bytes());
+                marked_headers += 1;
+            }
+        }
+        assert_eq!(
+            marked_headers, 2,
+            "la fixture doit contenir une seule entrée ZIP"
+        );
+        archive
+    }
+
     #[test]
     fn notion_zip_reader_reads_nested_csv_and_markdown_in_memory() {
         let archive = notion_zip(&[
@@ -1573,7 +3373,7 @@ mod tests {
 
     #[test]
     fn notion_zip_reader_counts_entries_across_nested_zip_parts() {
-        let entry_names = (0..MAX_NOTION_ZIP_ENTRIES / 2)
+        let entry_names = (0..MAX_ZIP_CONTAINER_ENTRIES / 2)
             .map(|index| format!("pages/{index}.md"))
             .collect::<Vec<_>>();
         let zip_part_entries = entry_names
@@ -1597,7 +3397,7 @@ mod tests {
     #[test]
     fn notion_zip_reader_rejects_excessive_zip_nesting() {
         let mut archive = notion_zip(&[("Films.csv", "Name\nLe Passage\n")]);
-        for _ in 0..=MAX_NOTION_ZIP_NESTING_DEPTH {
+        for _ in 0..=MAX_ZIP_NESTING_DEPTH {
             archive = notion_zip_bytes(&[("Export Notion part.zip", archive.as_slice())]);
         }
 
@@ -1641,6 +3441,117 @@ mod tests {
     }
 
     #[test]
+    fn generic_zip_container_lists_json_and_csv_candidates_without_extraction() {
+        let archive = notion_zip(&[
+            ("exports/films.json", "{\"format\":\"sylloge-library\"}"),
+            ("exports/livres.csv", "title,author\nLe Nom,Autrice\n"),
+            ("assets/cover.png", "fichier étranger ignoré"),
+            (
+                "exports/Films/Le Nom.md",
+                "# Le Nom\n\n### Notes :\n\nNote liée.\n",
+            ),
+        ]);
+
+        let picked = inspect_zip_container("bibliotheque.zip", &archive)
+            .expect("inspection générique du ZIP");
+
+        assert_eq!(picked.kind, "container");
+        assert_eq!(picked.container_candidates.len(), 2);
+        assert_eq!(picked.container_candidates[0].name, "exports/films.json");
+        assert_eq!(picked.container_candidates[0].kind, "json");
+        assert_eq!(picked.container_candidates[1].name, "exports/livres.csv");
+        assert_eq!(picked.container_candidates[1].kind, "csv");
+        assert_eq!(picked.markdown_pages.len(), 1);
+        assert_eq!(
+            picked.markdown_pages[0].name, "exports/Films/Le Nom.md",
+            "les pages Markdown historiques restent disponibles seulement pour le flux Film"
+        );
+    }
+
+    #[test]
+    fn generic_zip_container_keeps_candidates_from_nested_zip_parts() {
+        let nested = notion_zip(&[("exports/art.csv", "title,form\nAube,peinture\n")]);
+        let archive = notion_zip_bytes(&[("partie-1.zip", nested.as_slice())]);
+
+        let picked = inspect_zip_container("bibliotheque.zip", &archive)
+            .expect("inspection du ZIP imbriqué");
+
+        assert_eq!(picked.container_candidates.len(), 1);
+        assert_eq!(
+            picked.container_candidates[0].name,
+            "partie-1.zip!/exports/art.csv"
+        );
+        assert_eq!(
+            picked.container_candidates[0].contents,
+            "title,form\nAube,peinture\n"
+        );
+    }
+
+    #[test]
+    fn generic_container_without_json_or_csv_is_refused_before_import() {
+        let archive = notion_zip(&[("assets/cover.png", "fichier étranger")]);
+
+        let result = inspect_zip_container("sans-donnees.zip", &archive);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("aucun fichier JSON ou CSV")),
+            "un conteneur sans candidat ne doit pas ouvrir de parcours d’import"
+        );
+    }
+
+    #[test]
+    fn directory_container_lists_nested_json_and_csv_candidates() {
+        let directory = temporary_directory("container-directory");
+        let nested = directory.join("exports/2026");
+        fs::create_dir_all(&nested).expect("création du dossier imbriqué");
+        fs::write(
+            nested.join("series.json"),
+            "{\"format\":\"sylloge-library\"}",
+        )
+        .expect("fixture JSON");
+        fs::write(nested.join("games.csv"), "title,platform\nJeu,PC\n").expect("fixture CSV");
+        fs::write(directory.join("ignore.txt"), "fichier étranger").expect("fixture étrangère");
+
+        let picked = inspect_directory_container(&directory).expect("inspection du dossier");
+
+        assert_eq!(picked.kind, "container");
+        assert_eq!(picked.container_candidates.len(), 2);
+        assert_eq!(
+            picked.container_candidates[0].name,
+            "exports/2026/games.csv"
+        );
+        assert_eq!(
+            picked.container_candidates[1].name,
+            "exports/2026/series.json"
+        );
+        fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn directory_container_rejects_symbolic_links_without_following_them() {
+        use std::os::unix::fs::symlink;
+
+        let directory = temporary_directory("container-symlink");
+        let external_file = temporary_directory("container-external").join("films.csv");
+        fs::write(&external_file, "title\nHors périmètre\n").expect("fixture externe");
+        symlink(&external_file, directory.join("films.csv")).expect("lien symbolique de test");
+
+        let result = inspect_directory_container(&directory);
+
+        assert!(
+            matches!(result, Err(message) if message.contains("lien symbolique")),
+            "un dossier ne doit jamais suivre un lien symbolique"
+        );
+        let external_directory = external_file
+            .parent()
+            .expect("dossier externe")
+            .to_path_buf();
+        fs::remove_dir_all(directory).expect("nettoyage du dossier temporaire");
+        fs::remove_dir_all(external_directory).expect("nettoyage de la fixture externe");
+    }
+
+    #[test]
     fn notion_zip_reader_rejects_invalid_and_oversized_archives() {
         let invalid = extract_notion_zip("invalide.zip", b"ce fichier n'est pas une archive ZIP");
         assert!(
@@ -1648,7 +3559,7 @@ mod tests {
             "une archive invalide doit produire une erreur récupérable"
         );
 
-        let oversized = vec![0_u8; MAX_FILMS_IMPORT_FILE_BYTES as usize + 1];
+        let oversized = vec![0_u8; MAX_IMPORT_FILE_BYTES as usize + 1];
         let too_large = extract_notion_zip("trop-grand.zip", &oversized);
         assert!(
             too_large.is_err(),
@@ -1673,6 +3584,58 @@ mod tests {
         assert!(
             result.is_err(),
             "une archive avec trop de niveaux doit être refusée"
+        );
+    }
+
+    #[test]
+    fn notion_zip_reader_rejects_unsafe_encrypted_and_symbolic_link_entries() {
+        let unsafe_path = extract_notion_zip(
+            "chemin-non-sur.zip",
+            &notion_zip(&[("../hors-scope.csv", "Name\nHors scope\n")]),
+        );
+        assert!(
+            matches!(unsafe_path, Err(message) if message.contains("chemin de fichier non sûr")),
+            "une traversée de répertoire doit être refusée avant lecture"
+        );
+        let windows_path = extract_notion_zip(
+            "volume-windows.zip",
+            &notion_zip(&[("C:\\imports\\Films.csv", "Name\nHors scope\n")]),
+        );
+        assert!(
+            matches!(windows_path, Err(message) if message.contains("chemin de fichier non sûr")),
+            "un préfixe de volume Windows doit être refusé avant lecture"
+        );
+
+        let encrypted_error = match extract_notion_zip(
+            "chiffre.zip",
+            &mark_first_zip_entry_as_encrypted(notion_zip(&[("Films.csv", "Name\nChiffré\n")])),
+        ) {
+            Err(error) => error,
+            Ok(_) => panic!("une entrée chiffrée doit être refusée"),
+        };
+        assert!(
+            encrypted_error.contains("chiffrées"),
+            "une entrée ZIP marquée comme chiffrée doit être refusée explicitement : {encrypted_error}"
+        );
+
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            writer
+                .add_symlink(
+                    "Films.csv",
+                    "../hors-scope.csv",
+                    zip::write::SimpleFileOptions::default(),
+                )
+                .expect("lien symbolique ZIP de test");
+            writer
+                .finish()
+                .expect("finalisation du lien symbolique ZIP de test");
+        }
+        let symbolic_link = extract_notion_zip("lien-symbolique.zip", &cursor.into_inner());
+        assert!(
+            matches!(symbolic_link, Err(message) if message.contains("lien symbolique")),
+            "un lien symbolique ZIP doit être refusé sans suivre sa cible"
         );
     }
 
@@ -1985,6 +3948,7 @@ mod tests {
         for migration in [
             include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
             include_str!("../migrations/0009_add_selected_poster_url.sql"),
+            include_str!("../migrations/0010_create_cultural_media.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -2147,6 +4111,588 @@ mod tests {
             assert_eq!(
                 cache_count.0, 0,
                 "l'import d'un export v1 ne doit créer aucune ligne de cache TMDB"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v2_import_writes_all_media_atomically() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-19T10:00:00.000Z".to_string();
+            let payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "profil-complet".to_string(),
+                    name: "Bibliothèque complète".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![ImportFilm {
+                    id: "film-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Film v2".to_string(),
+                    original_title: None,
+                    year: Some(2024),
+                    status: "terminé".to_string(),
+                    is_favorite: false,
+                    rating: Some(4.0),
+                    watched_at: Some("2026-07-01".to_string()),
+                    personal_note: None,
+                    director: None,
+                    summary: None,
+                    provider_name: None,
+                    provider_id: None,
+                    poster_url: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+                series: vec![ImportSeries {
+                    id: "series-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Série v2".to_string(),
+                    showrunner: Some("Showrunner".to_string()),
+                    casting: Some(String::new()),
+                    summary: None,
+                    category: "animation".to_string(),
+                    status: "en cours".to_string(),
+                    rating: Some(4.5),
+                    is_favorite: true,
+                    seasons_seen: Some(3),
+                    seasons_total: Some(8),
+                    progress_updated_at: Some(timestamp.clone()),
+                    started_at: Some("2024-05-01".to_string()),
+                    poster_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+                books: vec![ImportBook {
+                    id: "book-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Manga v2".to_string(),
+                    author: Some("Mangaka".to_string()),
+                    year: Some(2020),
+                    summary: None,
+                    category: "manga".to_string(),
+                    status: "en cours".to_string(),
+                    rating: None,
+                    is_favorite: true,
+                    volumes_read: Some(10),
+                    volumes_total: Some(30),
+                    progress_updated_at: Some(timestamp.clone()),
+                    started_at: Some("2023-01-01".to_string()),
+                    cover_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                    quotes: vec![ImportBookQuote {
+                        id: "quote-v2".to_string(),
+                        book_id: "book-v2".to_string(),
+                        body: "Citation mémorable".to_string(),
+                        position: 0,
+                        created_at: timestamp.clone(),
+                    }],
+                }],
+                games: vec![ImportGame {
+                    id: "game-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Jeu v2".to_string(),
+                    developer: Some("Studio".to_string()),
+                    platform: Some("Dreamcast".to_string()),
+                    year: Some(2001),
+                    status: "regardé".to_string(),
+                    rating: Some(3.5),
+                    is_favorite: false,
+                    played_at: Some("2026-02-01".to_string()),
+                    cover_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+                artworks: vec![ImportArtwork {
+                    id: "artwork-v2".to_string(),
+                    profile_id: "profil-complet".to_string(),
+                    title: "Œuvre v2".to_string(),
+                    artist: Some("Artiste".to_string()),
+                    year: Some(1889),
+                    form: "peinture".to_string(),
+                    location: Some("Musée d’Orsay".to_string()),
+                    exhibition: None,
+                    status: "découverte".to_string(),
+                    is_favorite: true,
+                    discovered_at: Some("2026-06-15".to_string()),
+                    image_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                }],
+            };
+
+            write_library_document_import(&pool, &payload, true)
+                .await
+                .expect("import du document v2 complet");
+
+            let counts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT
+                   (SELECT COUNT(*) FROM films WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM series WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM books WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM book_quotes),
+                   (SELECT COUNT(*) FROM games WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM artworks WHERE profile_id = 'profil-complet')",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("comptes des collections importées");
+            assert_eq!(
+                counts,
+                (1, 1, 1, 1, 1, 1),
+                "l'import v2 doit écrire chaque collection et ses citations"
+            );
+
+            let series_row: (String, String, i64, i64, Option<String>) = sqlx::query_as(
+                "SELECT category, status, seasons_seen, seasons_total, progress_updated_at
+                 FROM series WHERE id = 'series-v2'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la série importée");
+            assert_eq!(
+                series_row.0, "animation",
+                "la catégorie Série doit être conservée"
+            );
+            assert_eq!(series_row.1, "en cours");
+            assert_eq!(series_row.2, 3);
+            assert_eq!(series_row.3, 8);
+            assert_eq!(
+                series_row.4.as_deref(),
+                Some("2026-07-19T10:00:00.000Z"),
+                "l'horodatage interne de progression doit être conservé"
+            );
+
+            let quote_row: (String, i64) =
+                sqlx::query_as("SELECT body, position FROM book_quotes WHERE book_id = 'book-v2'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture de la citation importée");
+            assert_eq!(quote_row, ("Citation mémorable".to_string(), 0));
+
+            let game_row: (String, String) =
+                sqlx::query_as("SELECT platform, status FROM games WHERE id = 'game-v2'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture du jeu importé");
+            assert_eq!(
+                game_row,
+                ("Dreamcast".to_string(), "regardé".to_string()),
+                "la plateforme libre et le statut regardé doivent être conservés"
+            );
+
+            let active_profile: (String,) =
+                sqlx::query_as("SELECT profile_id FROM current_profile WHERE singleton = 1")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("profil actif après import");
+            assert_eq!(
+                active_profile.0, "profil-complet",
+                "l'import v2 doit activer le nouveau profil"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v2_import_targets_only_an_existing_empty_profile() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-20T10:00:00.000Z".to_string();
+            let film = |id: &str, title: &str| ImportFilm {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                original_title: None,
+                year: None,
+                status: "à découvrir".to_string(),
+                is_favorite: false,
+                rating: None,
+                watched_at: None,
+                personal_note: None,
+                director: None,
+                summary: None,
+                provider_name: None,
+                provider_id: None,
+                poster_url: None,
+                created_at: timestamp.clone(),
+                updated_at: timestamp.clone(),
+            };
+            let payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "default".to_string(),
+                    name: "Profil courant".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![film("film-empty-profile", "Premier import")],
+                series: Vec::new(),
+                books: Vec::new(),
+                games: Vec::new(),
+                artworks: Vec::new(),
+            };
+
+            write_library_document_import(&pool, &payload, false)
+                .await
+                .expect("import global dans le profil courant vide");
+
+            let profile_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM profiles")
+                .fetch_one(&pool)
+                .await
+                .expect("compte des profils");
+            let film_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM films WHERE profile_id = 'default'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte des films importés");
+            assert_eq!(profile_count, 1, "l’import ne doit créer aucun profil");
+            assert_eq!(
+                film_count, 1,
+                "le document doit remplir le profil courant vide"
+            );
+
+            let second_payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "default".to_string(),
+                    name: "Profil courant".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: vec![film("film-refused", "Import refusé")],
+                series: Vec::new(),
+                books: Vec::new(),
+                games: Vec::new(),
+                artworks: Vec::new(),
+            };
+            let result = write_library_document_import(&pool, &second_payload, false).await;
+            assert!(
+                result.is_err(),
+                "un profil non vide doit bloquer l’import global"
+            );
+
+            let final_film_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM films WHERE profile_id = 'default'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte final des films");
+            assert_eq!(
+                final_film_count, 1,
+                "un import global refusé ne doit écrire aucune fiche supplémentaire"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v2_import_rejects_quote_from_another_book() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-19T10:00:00.000Z".to_string();
+            let payload = ImportLibraryDocumentPayload {
+                profile: ImportProfile {
+                    id: "profil-invalide".to_string(),
+                    name: "Invalide".to_string(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                },
+                films: Vec::new(),
+                series: Vec::new(),
+                books: vec![ImportBook {
+                    id: "book-a".to_string(),
+                    profile_id: "profil-invalide".to_string(),
+                    title: "Livre A".to_string(),
+                    author: None,
+                    year: None,
+                    summary: None,
+                    category: "livre".to_string(),
+                    status: "lu".to_string(),
+                    rating: None,
+                    is_favorite: false,
+                    volumes_read: None,
+                    volumes_total: None,
+                    progress_updated_at: None,
+                    started_at: None,
+                    cover_url: None,
+                    personal_note: None,
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp.clone(),
+                    quotes: vec![ImportBookQuote {
+                        id: "quote-orpheline".to_string(),
+                        book_id: "book-b".to_string(),
+                        body: "Citation rattachée à un autre livre".to_string(),
+                        position: 0,
+                        created_at: timestamp.clone(),
+                    }],
+                }],
+                games: Vec::new(),
+                artworks: Vec::new(),
+            };
+
+            let result = write_library_document_import(&pool, &payload, true).await;
+            assert!(
+                result.is_err(),
+                "une citation rattachée à un autre livre doit bloquer l'import"
+            );
+
+            let profile_count: (i64,) =
+                sqlx::query_as("SELECT COUNT(*) FROM profiles WHERE id = 'profil-invalide'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte du profil refusé");
+            assert_eq!(
+                profile_count.0, 0,
+                "un import refusé avant écriture ne doit créer aucun profil"
+            );
+        });
+    }
+
+    #[test]
+    fn books_collection_import_is_atomic_with_quotes() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-22T10:00:00.000Z";
+            let book = |id: &str, title: &str, quote_id: &str, quote_body: &str| ImportBook {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                author: Some("Autrice avec accents — Élodie".to_string()),
+                year: Some(2026),
+                summary: Some("Résumé long\nconservé sans transformation.".to_string()),
+                category: "livre".to_string(),
+                status: "lu".to_string(),
+                rating: Some(4.5),
+                is_favorite: true,
+                volumes_read: None,
+                volumes_total: None,
+                progress_updated_at: None,
+                started_at: Some("2026-07-01".to_string()),
+                cover_url: None,
+                personal_note: Some("Avis personnel\nmultiligne.".to_string()),
+                created_at: timestamp.to_string(),
+                updated_at: timestamp.to_string(),
+                quotes: vec![ImportBookQuote {
+                    id: quote_id.to_string(),
+                    book_id: id.to_string(),
+                    body: quote_body.to_string(),
+                    position: 0,
+                    created_at: timestamp.to_string(),
+                }],
+            };
+
+            write_books_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![book(
+                        "book-existing",
+                        "Livre conservé",
+                        "quote-existing",
+                        "Citation conservée",
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("installation de la collection initiale");
+
+            let failing_plan = CollectionImportPlan {
+                profile_id: "default".to_string(),
+                replace_existing: true,
+                inserts: vec![
+                    book("book-new-a", "Nouveau A", "quote-duplicate", "Citation A"),
+                    book("book-new-b", "Nouveau B", "quote-duplicate", "Citation B"),
+                ],
+                updates: Vec::new(),
+            };
+            assert!(
+                write_books_import_plan(&pool, &failing_plan).await.is_err(),
+                "un conflit de citation doit annuler tout le remplacement"
+            );
+
+            let books: Vec<(String, String)> = sqlx::query_as(
+                "SELECT id, title FROM books WHERE profile_id = 'default' ORDER BY id",
+            )
+            .fetch_all(&pool)
+            .await
+            .expect("relecture des livres après rollback");
+            let quotes: Vec<(String, String, String)> =
+                sqlx::query_as("SELECT id, book_id, body FROM book_quotes ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("relecture des citations après rollback");
+            assert_eq!(
+                books,
+                vec![("book-existing".to_string(), "Livre conservé".to_string())],
+                "le livre initial doit survivre au remplacement échoué"
+            );
+            assert_eq!(
+                quotes,
+                vec![(
+                    "quote-existing".to_string(),
+                    "book-existing".to_string(),
+                    "Citation conservée".to_string(),
+                )],
+                "la citation initiale doit survivre au remplacement échoué"
+            );
+        });
+    }
+
+    #[test]
+    fn games_and_artworks_collection_imports_are_atomic() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let timestamp = "2026-07-22T16:00:00.000Z";
+            let game = |id: &str, title: &str, status: &str| ImportGame {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                developer: Some("Studio local".to_string()),
+                platform: Some("Steam Deck".to_string()),
+                year: Some(2026),
+                status: status.to_string(),
+                rating: Some(4.5),
+                is_favorite: true,
+                played_at: Some("2026-07-22".to_string()),
+                cover_url: None,
+                personal_note: Some("Avis local".to_string()),
+                created_at: timestamp.to_string(),
+                updated_at: timestamp.to_string(),
+            };
+            let artwork = |id: &str, title: &str, form: &str| ImportArtwork {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                artist: Some("Artiste locale".to_string()),
+                year: Some(2026),
+                form: form.to_string(),
+                location: Some("Galerie".to_string()),
+                exhibition: Some("Exposition locale".to_string()),
+                status: "découverte".to_string(),
+                is_favorite: true,
+                discovered_at: Some("2026-07-22".to_string()),
+                image_url: None,
+                personal_note: Some("Avis local".to_string()),
+                created_at: timestamp.to_string(),
+                updated_at: timestamp.to_string(),
+            };
+
+            write_games_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![game("game-existing", "Jeu conservé", "joué")],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("installation du jeu initial");
+            write_artworks_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![artwork("artwork-existing", "Œuvre conservée", "poésie")],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("installation de l’œuvre initiale");
+
+            assert!(
+                write_games_import_plan(
+                    &pool,
+                    &CollectionImportPlan {
+                        profile_id: "default".to_string(),
+                        replace_existing: true,
+                        inserts: vec![
+                            game("game-new", "Nouveau jeu", "joué"),
+                            game("game-invalid", "Jeu invalide", "terminé"),
+                        ],
+                        updates: Vec::new(),
+                    },
+                )
+                .await
+                .is_err(),
+                "un statut Jeu invalide doit annuler tout le remplacement"
+            );
+            assert!(
+                write_artworks_import_plan(
+                    &pool,
+                    &CollectionImportPlan {
+                        profile_id: "default".to_string(),
+                        replace_existing: true,
+                        inserts: vec![
+                            artwork("artwork-new", "Nouvelle œuvre", "peinture"),
+                            artwork("artwork-invalid", "Œuvre invalide", "installation"),
+                        ],
+                        updates: Vec::new(),
+                    },
+                )
+                .await
+                .is_err(),
+                "une forme d’Art invalide doit annuler tout le remplacement"
+            );
+
+            let games: Vec<(String,)> =
+                sqlx::query_as("SELECT id FROM games WHERE profile_id = 'default' ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("relecture des jeux après rollback");
+            let artworks: Vec<(String,)> =
+                sqlx::query_as("SELECT id FROM artworks WHERE profile_id = 'default' ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("relecture des œuvres après rollback");
+            assert_eq!(games, vec![("game-existing".to_string(),)]);
+            assert_eq!(artworks, vec![("artwork-existing".to_string(),)]);
+
+            write_games_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: Vec::new(),
+                    updates: vec![game("game-existing", "Jeu enrichi", "en cours")],
+                },
+            )
+            .await
+            .expect("mise à jour fusionnée du jeu");
+            write_artworks_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: Vec::new(),
+                    updates: vec![artwork("artwork-existing", "Œuvre enrichie", "peinture")],
+                },
+            )
+            .await
+            .expect("mise à jour fusionnée de l’œuvre");
+
+            let updated_game: (String, String) =
+                sqlx::query_as("SELECT title, status FROM games WHERE id = 'game-existing'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture du jeu fusionné");
+            let updated_artwork: (String, String) =
+                sqlx::query_as("SELECT title, form FROM artworks WHERE id = 'artwork-existing'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture de l’œuvre fusionnée");
+            assert_eq!(
+                updated_game,
+                ("Jeu enrichi".to_string(), "en cours".to_string())
+            );
+            assert_eq!(
+                updated_artwork,
+                ("Œuvre enrichie".to_string(), "peinture".to_string())
             );
         });
     }

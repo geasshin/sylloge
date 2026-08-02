@@ -43,6 +43,31 @@ export function searchTmdbFilms(query: string, language?: string): Promise<TmdbS
   return invoke('search_tmdb_films', { query, language })
 }
 
+export function previewTmdbFilm(tmdbId: number, language?: string): Promise<TmdbFilmPresentation> {
+  return invoke('preview_tmdb_film', { tmdbId, language })
+}
+
+/** Présentation TV bornée pour le préremplissage Séries (jalon 0.4.26). */
+export type TmdbSeriesPresentation = {
+  tmdbId: number
+  title: string
+  originalTitle: string | null
+  firstAirYear: number | null
+  synopsis: string | null
+  showrunners: string[]
+  cast: string[]
+  seasonsTotal: number | null
+  posterUrl: string | null
+}
+
+export function searchTmdbSeries(query: string, language?: string): Promise<TmdbSearchCandidate[]> {
+  return invoke('search_tmdb_series', { query, language })
+}
+
+export function previewTmdbSeries(tmdbId: number, language?: string): Promise<TmdbSeriesPresentation> {
+  return invoke('preview_tmdb_series', { tmdbId, language })
+}
+
 export function associateFilmWithTmdb(
   filmId: string,
   tmdbId: number,

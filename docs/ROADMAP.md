@@ -1,6 +1,6 @@
 # Sylloge — feuille de route vers la V1 publique
 
-> **Statut :** feuille de route active. Les jalons `0.2.0` et `0.3.0` sont livrés. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le prochain train prépare la release publique `0.4.0`.
+> **Statut :** feuille de route active. Les releases `0.2.0`, `0.3.0` et `0.4.0` sont livrées. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le train actif prépare la release publique `0.5.0`.
 >
 > Les releases publiques sont des hypothèses de séquencement, pas des promesses de calendrier. Elles sont construites par plusieurs jalons d’intégration étroits, chacun validé et commité avant le suivant.
 
@@ -150,12 +150,67 @@ Les cinq médiums sont un contrat produit, pas une option. Les décisions encore
 
 ### `0.4.1` — Contrat public et inventaire des modèles
 
+**État : décisions produit actées avec Aurélien le 19 juillet 2026. Ce contrat est la référence des jalons `0.4.2` à `0.4.9`.**
+
+Objectifs initiaux du jalon :
+
 - Confirmer les cinq médiums de V1 et trancher les décisions de granularité propres à chacun avant toute migration.
 - Écrire les critères d’acceptation de chaque verticale : saisie manuelle, fiche, recherche, statut, import/export, affiches et fallbacks.
 - Distinguer les champs réellement communs des champs spécifiques ; refuser une abstraction générique qui gomme les différences de pratique.
 - Arrêter explicitement les sujets qui ne sont pas de V1, notamment le suivi détaillé d’épisodes, les sessions de jeu ou la granularité d’un catalogue d’exposition.
 
+#### Principes transversaux actés
+
+- Une œuvre = une entrée ; une seule note /5 et un seul avis par œuvre, quelle que soit sa longueur (saisons, tomes). Si la qualité d'une œuvre longue se dégrade, c'est l'utilisateur qui ajuste sa note globale.
+- Coup de cœur sur les cinq médiums ; note /5 sur Films, Séries, Livres et Jeux — **pas de note pour l'Art**.
+- Le statut **Abandonné** est ajouté à tous les médiums, Films compris (migration prévue au jalon `0.4.2`).
+- Le tri « récent » s'appuie sur un horodatage interne de dernière progression (saison ou tome ajouté, avancement modifié), distinct des dates saisies par l'utilisateur ; une saison ou un tome supplémentaire fait remonter l'œuvre dans la vue récente.
+- Les libellés de statut sont adaptés à chaque médium ; aucun libellé unique n'est imposé.
+- L'affiche reste facultative partout, avec le fallback neutre existant.
+
+#### Séries
+
+- Granularité : la série entière, jamais l'épisode ni le détail saison par saison.
+- Statuts : **À voir, En cours, Abandonnée, Vue**. « En cours » couvre le visionnage actif, l'attente d'une nouvelle saison et la mise de côté temporaire ; il n'y a pas de statut « en pause » distinct.
+- Compteur de **saisons vues**, visible dès que la série est commencée (En cours, Abandonnée).
+- Passer à « Vue » renseigne le compteur au total de saisons connu ; si le total augmente ensuite, la série repasse en « En cours ». Saisons vues et total sont saisis manuellement via un compteur dédié (boutons +/−, interaction fluide, pas de champ numérique brut) ; aucune mise à jour automatique par fournisseur n'est prévue dans ce train.
+- Champs : affiche, titre, showrunner, casting, résumé, catégorie (**Série télé / Animation**), note, avis, coup de cœur, date de début de visionnage (début de la saison 1).
+- Vues : globale, Séries télé, Animation ; chacune triable par récent, note et favoris. La présentation exacte relève du train `0.6.0`.
+
+#### Livres
+
+- Catégories : **Livre, Manga, Comics**, avec vues dédiées.
+- Statuts : **À lire, En cours, Abandonné, Lu**.
+- Compteur de **tomes** pour Manga et Comics, même mécanique que les saisons des Séries.
+- Champs : couverture, titre, auteur, année de parution, résumé, note, avis, coup de cœur, date de début de lecture (premier tome ou début de l'ouvrage).
+- **Citations** : liste de citations personnelles par fiche, affichées une par une dans un espace escamotable ; ni tableur ni base imbriquée.
+- Exclus : pagination, édition, traduction, relecture.
+
+#### Jeux
+
+- Statuts : **À jouer, En cours, Joué, Abandonné, Regardé** (let's play, YouTube/Twitch).
+- Champs : cover, titre, développeur, plateforme, année de sortie, note, avis, coup de cœur, date de jeu.
+- **Plateforme** : suggestions initiales sobres (PC et principales consoles récentes ou anciennes) complétées par saisie libre ; toute valeur saisie devient une suggestion pour les fiches suivantes et reste filtrable.
+- Exclus : temps de jeu, sessions, toute mécanique de tracker.
+
+#### Art
+
+- **Pas de note** ; coup de cœur et avis uniquement.
+- Statuts : **À découvrir, Découverte**.
+- Formes : **Peinture, Sculpture, Photographie, Dessin, Poésie, Gravure, Performance, Art conceptuel, Autre**.
+- Champs : visuel facultatif, titre, artiste, année, forme, **lieu** et **exposition** (texte libre facultatif, sans relation modélisée), date de découverte, avis.
+
+#### Exclusions arrêtées pour la V1
+
+- Suivi par épisode, détail saison par saison, pagination et avancement de lecture chiffré.
+- Sessions et temps de jeu, mécaniques de tracker.
+- Catalogue d'expositions ou relations modélisées lieu / exposition.
+- Intégration de fournisseurs de métadonnées pour les nouveaux médiums dans ce train (TMDB reste propre aux Films ; toute extension sera arbitrée séparément).
+- Codes couleur par catégorie et composition précise des vues filtrantes : intentions notées, tranchées au train `0.6.0`.
+
 ### `0.4.2` — Socle de données et compatibilité Films
+
+**État : livré côté code et preuves automatisées, en attente de validation d'Aurélien.** La migration 10 crée les tables `series`, `books`, `book_quotes`, `games` et `artworks` conformément au contrat `0.4.1`. Le format JSON v2 `sylloge-library` étend le v1 de façon additive ; l'import v1 historique reste réimportable sur base migrée à 10 migrations (test d'intégration étendu). L'import v2 est atomique, crée un nouveau profil et régénère tous les identifiants. Aucune interface utilisateur dans ce jalon : les formulaires et vues arrivent avec chaque verticale `0.4.3+`.
 
 - Faire évoluer les fondations SQLite, les types, la recherche, les profils, exports et sauvegardes sans casser les données Films ni les formats déjà publiés.
 - Écrire les migrations et tests de compatibilité avec les bibliothèques `0.1.x–0.4.x` avant de créer une nouvelle verticale.
@@ -163,240 +218,235 @@ Les cinq médiums sont un contrat produit, pas une option. Les décisions encore
 
 ### `0.4.3` — Séries : données et saisie manuelle
 
+**État : livré côté code et preuves automatisées, en attente de validation d'usage d'Aurélien.** La verticale Séries est utilisable de bout en bout : entrée « Séries » dans la sidebar, bibliothèque avec vues globale / série télé / animation, recherche (titre, showrunner, casting), formulaire complet et fiche. Le compteur de saisons utilise des boutons +/− accessibles ; marquer « vue » aligne les saisons vues sur le total, et augmenter le total fait repasser une série vue en cours. La vue est triée par l'horodatage interne de progression. La bascule automatique « Vue ↔ En cours » est décidée : le total est manuel (aucune API série dans ce train), conformément au contrat `0.4.1`.
+
 - Créer le modèle Série, sa migration, ses statuts, son formulaire et sa fiche minimale.
 - Décider explicitement si le suivi par saison/épisode est nécessaire à la V1 ; ne pas le livrer à moitié.
 
-### `0.4.4` — Séries : bibliothèque et portabilité
+### `0.4.4` — Profils et imports/exports par médium
 
-- Étendre recherche, filtres, bibliothèque, export, import, sauvegardes et fallback d’affiche aux Séries.
-- Tester la conservation d’une série lors d’un changement de profil, d’un export/import et d’une restauration.
+**Redéfinition actée avec Aurélien le 20 juillet 2026.** Le périmètre initial (« Séries : bibliothèque et portabilité ») est absorbé par ce jalon, qui corrige un défaut de conception du modèle « un import = un nouveau profil », inadapté au multi-médiums.
+
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** Les profils sont une couche d’identité contenant cinq collections ; les imports n’en créent plus. Films dispose d’un assistant unique JSON / CSV / ZIP Notion avec explication des formats avant le sélecteur, aperçu et mapping avant Remplacer ou Fusionner dans le profil courant. Séries accepte le document Sylloge JSON v2. La restauration globale v1/v2 remplit atomiquement le profil courant uniquement s’il est vide, avec une seconde vérification native dans la transaction. Les tests couvrent la compatibilité JSON Films v1, le document v2, la fusion, la limite de profils et le refus d’une restauration globale dans un profil non vide.
+
+**Abrogation :** l'invariant « un import crée toujours un nouveau profil » disparaît. Les imports écrivent désormais dans le **profil courant**, avec consentement explicite.
+
+- **Profils — couche identité pure.** Un profil = une personne = une base SQLite propre contenant ses cinq collections (Films, Séries, Livres, Jeux, Art). Création et suppression libres dans les Paramètres ; limite interne de cinq profils (non affichée, signalée seulement si atteinte). Tout profil peut être supprimé, y compris le dernier et le profil ouvert : l'application retombe alors sur l'onboarding de premier lancement. Aucun import ne crée de profil.
+- **Import unitaire par médium, depuis chaque bibliothèque.** Un seul bouton Importer apparaît dans chaque verticale effectivement livrée. L’application détecte les formats définis par son contrat : Films accepte JSON Sylloge, CSV et export Notion ZIP (table CSV + pages Markdown) ; Séries accepte actuellement le document Sylloge JSON v2. Les mappings CSV/Notion des prochains médiums seront ajoutés avec leur verticale, jamais inventés à l’avance. L’aperçu, le mapping explicite lorsqu’il existe, la validation et le rapport d’erreurs avant écriture restent obligatoires.
+- **Au moment de valider, choix explicite :** **Remplacer** (vider la collection courante puis installer l'import) ou **Fusionner** (conserver l'existant et ajouter l'import).
+- **Fusion intelligente :** doublons détectés au **titre normalisé** (casse/accents/diacritiques insensibles). Récapitulatif des doublons détectés avant validation ; pour chaque doublon, l'utilisateur choisit individuellement la fiche à conserver (existante ou importée). Pour les fiches conservées des deux côtés et les nouvelles fiches, les données personnelles de l'existant (note, avis, coup de cœur, progression) sont préservées ; l'importé ne comble que les champs vides.
+- **Paramètres → Données et sauvegardes — niveau global.** Export global « format Sylloge » des cinq collections du profil courant, conçu pour une réinstallation complète et fidèle ; variantes d'export lisibles (JSON/CSV). Réglages généraux (dossier de snapshots, rétention). **Import global** réservé à un profil vide ; sur un profil non vide, l'application propose un parcours guidé (créer un profil vierge ou vider le courant), jamais de refus sec.
+- **Portabilité Séries :** export, import, sauvegardes et fallback d'affiche étendus aux Séries ; conservation d'une série au changement de profil, à l'export/import et à la restauration testée.
+- Rétrocompatibilité : un export JSON v1/v2 existant reste importable. Les anciens exports « nouveau profil » s'importent comme un import global sur profil vide.
+
+**Critères d'acceptation :** parcours complets exercés pour Films et Séries (import unitaire remplacer/fusionner, doublons, export unitaire, export/import global, snapshots, suppression de profil jusqu'à l'onboarding) ; tests d'intégration sur la fusion (préservation des données personnelles, champs vides comblés, choix par doublon respecté) et sur la limite de cinq profils.
 
 ### `0.4.5` — Livres : données et saisie manuelle
+
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La verticale Livres est accessible depuis la sidebar avec une collection minimale, la création, la modification, la fiche et la suppression. Livre, Manga et Comics disposent de leurs statuts ; Manga et Comics utilisent un compteur de tomes +/− avec bascule Lu ↔ En cours lorsqu’un nouveau tome apparaît. Les citations personnelles sont ordonnées, modifiables et affichées dans un espace escamotable. La création, la modification et la suppression d’un livre avec ses citations passent par des transactions SQLite natives ; les tests prouvent le rollback sans écriture partielle. Recherche, vues filtrées et portabilité dédiée restent volontairement au jalon `0.4.6`.
 
 - Créer le modèle Livre, sa migration, ses statuts, son formulaire, sa fiche et ses notes personnelles.
 - Décider avant le code si pagination, édition, traduction et relecture sont nécessaires au premier parcours.
 
 ### `0.4.6` — Livres : bibliothèque et portabilité
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La bibliothèque Livres recherche dans le titre, l’auteur et le résumé, propose les vues Tous / Livre / Manga / Comics et trie par progression interne récente. L’import et l’export dédiés utilisent le document Sylloge JSON v2, citations comprises, avec Remplacer ou Fusionner et résolution individuelle des doublons au titre normalisé. La fusion préserve les données personnelles et citations locales lorsque la fiche existante est conservée ; le backend écrit livres et citations dans une transaction unique. Les snapshots globaux incluent fidèlement les Livres. Le fallback visuel annonce désormais explicitement une couverture pour cette verticale.
+
 - Étendre recherche, filtres, bibliothèque, export, import, sauvegardes et fallback de couverture aux Livres.
 - Vérifier la préservation des caractères, notes longues et données éditoriales dans les formats locaux.
 
 ### `0.4.7` — Jeux : verticale bornée
+
+**État : livré côté code et preuves automatisées, en attente de validation d’usage consolidée au jalon `0.4.9`.** La verticale Jeux est accessible depuis la sidebar avec une collection minimale, la création, la modification, la fiche et la suppression. Les statuts À jouer / En cours / Joué / Abandonné / Regardé, la note, le coup de cœur, le studio, l’année, la date et la couverture facultative suivent le contrat `0.4.1`. La plateforme reste une saisie libre : une liste initiale sobre aide la saisie et toute valeur déjà enregistrée devient une suggestion, sans catalogue fermé ni nouvelle table. Aucun temps de jeu, session ou mécanisme de tracker n’est introduit. Recherche, filtres et portabilité dédiée restent volontairement au jalon `0.4.9`.
 
 - Créer un modèle, une saisie manuelle, une fiche et les statuts réellement utiles pour les Jeux.
 - N’ajouter plateforme, temps de jeu ou sessions qu’après décision documentée ; aucune mécanique de tracker ne doit apparaître par défaut.
 
 ### `0.4.8` — Art : verticale bornée
 
+**État : livré côté code et preuves automatisées, en attente de validation d’usage consolidée au jalon `0.4.9`.** La verticale Art est accessible depuis la sidebar avec une collection minimale, la création, la modification, la fiche et la suppression. Les formes Peinture / Sculpture / Photographie / Dessin / Poésie / Gravure / Performance / Art conceptuel / Autre, les statuts À découvrir / Découverte, le coup de cœur, l’artiste, l’année, la date et le visuel facultatif suivent le contrat `0.4.1`. Lieu et exposition restent des textes libres facultatifs, sans relation ni catalogue modélisé. Aucune note n’est introduite. Recherche, filtres et portabilité dédiée restent volontairement au jalon `0.4.9`.
+
 - Créer un modèle, une saisie manuelle et une fiche adaptés aux œuvres d’Art.
 - Ajouter artiste, exposition et lieu seulement lorsque ces relations servent une recherche ou une mémoire personnelle concrète.
 
 ### `0.4.9` — Cohérence multi-médiums
+
+**État : livré côté code et preuves automatisées, mais non validé en usage.** La première recette native d’Aurélien a été interrompue le 22 juillet 2026 après avoir révélé des blocages, des défauts de flux et plusieurs nouvelles décisions produit. Jeux recherche désormais par titre, studio ou plateforme et filtre sur les plateformes réellement présentes ; Art recherche par titre, artiste, lieu ou exposition et filtre par forme. Les deux verticales disposent de l’import et de l’export JSON v2 avec Remplacer ou Fusionner, résolution individuelle des doublons au titre normalisé et transactions SQLite atomiques. Ces preuves ne suffisent pas à fermer le jalon : la stabilisation est répartie dans les jalons `0.4.10+` ci-dessous.
 
 - Étendre aux Jeux et à l’Art les parcours communs validés : recherche, filtres, export, import, sauvegardes et fallbacks visuels.
 - Exercer les bibliothèques mixtes, les contenus incomplets et les migrations depuis une installation Films existante.
 - Réorganiser les réglages de données autour des médiums effectivement disponibles : chaque collection dispose de son import et de son export explicites, sans écran ou destination factice pour un médium absent. Les formats et mappings restent propres à leur type de bibliothèque ; aucun fichier mixte n’est imposé.
 - Décider et tester, après stabilisation du modèle multi-médiums, si une même session d’import peut préparer plusieurs collections d’un nouveau profil. Cette décision ne doit pas être anticipée par cinq colonnes figées dans les réglages Films-only.
 
+### Amendement post-QA du train
+
+La première recette manuelle promeut dans le train actif plusieurs sujets auparavant différés ou limités : création et association TMDB réellement assistées, imports et exports JSON/CSV multi-médiums, détection de ces formats dans des ZIP ou dossiers, architecture claire des données, filtres et tris combinables, puis vues enregistrées. Le plan canonique est [`plans/0.5.0-stabilisation-post-qa.md`](plans/0.5.0-stabilisation-post-qa.md).
+
+Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train vers `0.5.0`, sans tag ni changement de manifeste. Les formes `0.4.9.1` et `0.4.91` ne sont pas retenues : elles rendraient le versionnement ambigu.
+
+### `0.4.10` — Déblocage QA et réglages sûrs
+
+**État : livré côté code et preuves automatisées, en attente de validation visible d’Aurélien.** Le bouton de création de profil est séparé de la liste, le focus des recherches est redessiné sans supprimer le repère clavier, et le dossier de snapshots peut être oublié sans supprimer les fichiers existants. La disponibilité du chemin est vérifiée à la lecture : un dossier supprimé hors de l’application est signalé et ne peut plus recevoir de snapshot manuel. La désactivation est sérialisée avec les écritures de snapshots et oublie atomiquement le réglage et son registre de rétention. L’accès natif aux cinq bibliothèques et le rendu des corrections restent à reprendre dans l’application pendant la prochaine passe QA.
+
+- Reproduire et lever tout blocage réel d’accès aux cinq bibliothèques.
+- Corriger le chevauchement du bouton de création de profil et redessiner le focus de recherche sans supprimer l’accessibilité clavier.
+- Permettre d’oublier ou désactiver le dossier de snapshots et détecter un dossier supprimé hors de l’application.
+
+### `0.4.11` — Résolution de doublons à grande échelle
+
+**État : livré côté code et preuves automatisées, en attente de validation visible d’Aurélien.** Le résolveur affiche désormais une recherche locale, les compteurs total/visible/décisions modifiées et une barre d’actions persistante en haut de l’assistant. Les choix restent conservés lorsqu’une recherche masque temporairement des doublons ; la confirmation est protégée contre la double soumission. Une fixture de 401 doublons couvre le filtrage et la conservation du plan de décisions.
+
+- Ajouter une recherche locale, des compteurs et une barre d’actions persistante au résolveur de doublons.
+- Prouver qu’une fusion d’au moins 400 doublons conserve toutes les décisions et ne déclenche qu’une seule écriture.
+
+### `0.4.12` — Fiabilité de la création et de l’association TMDB
+
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La prévisualisation détaillée TMDB est désormais indépendante d’un `film_id` local et alimente réellement les champs éditoriaux du formulaire (titre, titre original, année, réalisation, résumé, affiche), sans toucher aux données personnelles. La création locale précède l’écriture du cache ; si l’association réseau échoue, la fiche reste créée et intacte, l’erreur est annoncée et l’association peut être relancée depuis le détail. L’association native relit le cache après écriture.
+
+- Corriger le défaut actuel où le candidat TMDB sélectionné ne préremplit pas réellement le formulaire et n’est pas associé après création.
+- Séparer les métadonnées éditoriales TMDB des données personnelles et définir une reprise sûre en cas d’échec réseau.
+- La QA native doit encore exercer une création assistée complète, une association existante, une dissociation, un rafraîchissement et un changement d’affiche.
+
+### `0.4.13` — Parcours Film unifié et recherche TMDB contextuelle
+
+**État : livré côté code et preuves automatisées, en attente de validation d’usage d’Aurélien.** La création Film ouvre directement une recherche TMDB avec suggestions temporisées pendant la saisie et une issue immédiate vers la saisie manuelle, sans écran intermédiaire. Une association depuis une fiche existante reprend son titre, conserve son affiche et son identité visuelle comme contexte, puis revient proprement à la fiche si le parcours est abandonné. Les recherches de titres désactivent autocorrection, capitalisation automatique et correction orthographique.
+
+- Supprimer l’écran intermédiaire « manuel ou assisté » au profit d’une recherche directe avec suggestions temporisées et issue manuelle.
+- Depuis une fiche existante, préremplir la recherche avec son titre et conserver la fiche comme contexte visuel.
+- Désactiver autocorrection et correction orthographique dans les champs de recherche de titres.
+
+### `0.4.14` — Architecture claire des imports, exports et sauvegardes
+
+- Réduire le vocabulaire de l’interface à Importer, Exporter, JSON, CSV et Snapshots ; les précisions de portée apparaissent seulement au moment utile.
+- Faire des Paramètres un hub d’actions réelles et réutiliser les mêmes capacités depuis chaque bibliothèque.
+- Conserver en interne un schéma JSON identifié et versionné pour la rétrocompatibilité.
+
+### `0.4.15` — Contrats et exports CSV des cinq médiums
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques et les Paramètres exposent désormais le même export CSV unitaire. Les formats Séries, Livres, Jeux et Art sont versionnés en v1 ; le contrat Films v1 reste inchangé. Les citations Livres sont représentées par une cellule `book_quotes_json` ordonnée, qui conserve leurs textes mais non leurs identifiants techniques ni horodatages.
+
+- Définir des colonnes propres à Films, Séries, Livres, Jeux et Art, y compris une décision explicite pour les citations de Livres.
+- Exposer les mêmes exports CSV unitaires dans les bibliothèques et les Paramètres.
+
+### `0.4.16` — Imports CSV multi-médiums
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Séries, Livres, Jeux et Art acceptent désormais le CSV direct depuis leur bibliothèque et les Paramètres. Les exports CSV Sylloge v1 se réimportent avec les champs représentables ; un fichier externe passe par un mapping explicite, puis un aperçu bloquant au moindre défaut. Les imports réutilisent Remplacer/Fusionner, la résolution de doublons et les transactions SQLite unitaires existantes.
+
+- Généraliser le pipeline aperçu, mapping, validation, Remplacer/Fusionner et doublons aux quatre médiums non-Films.
+- Refuser toute ligne invalide avant écriture et préserver l’atomicité SQLite.
+
+### `0.4.17` — Contrat d’inspection des ZIP et dossiers
+
+**État : implémenté dans le code et documenté ; validation native visible reportée au sélecteur ZIP/dossier du jalon `0.4.18`.** Le contrat V1 fixe les limites de taille, de profondeur, de volume et de décompression ; l’adaptateur ZIP Film historique refuse désormais explicitement les chemins non sûrs, les archives chiffrées et les liens symboliques. Il n’extrait aucun fichier sur disque. La sélection générique de candidat JSON/CSV et le sélecteur de dossier restent volontairement au jalon suivant.
+
+- Définir une détection bornée et sûre des JSON/CSV compatibles dans un ZIP ou un dossier explicitement choisi.
+- Préserver la lecture Film historique de certaines notes Markdown sans promouvoir Markdown ou Notion comme format public.
+
+### `0.4.18` — Imports depuis ZIP ou dossier
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques peuvent choisir un fichier JSON/CSV, un ZIP ou un dossier local. Un conteneur ne fait que présenter les candidats JSON/CSV détectés, avec leur chemin relatif ; un candidat unique part directement dans le pipeline existant, plusieurs demandent un choix explicite. L’inspection reste en mémoire, bornée, sans extraction, surveillance ni synchronisation ; les pages Markdown restent réservées à l’association déterministe du flux Films historique.
+
+- Présenter les candidats JSON/CSV détectés et envoyer le fichier choisi vers le pipeline d’import correspondant.
+- Ne créer ni extraction persistante, ni surveillance, ni synchronisation du dossier choisi.
+
+### `0.4.19` — Vues intégrées et tris essentiels
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques partagent la même rangée de vues Tous, Récents, Favoris et Classement (absent de l'Art, sans note). Les ordres sont résolus en colonnes SQL documentées : Tous suit le titre, Récents la progression horodatée (saisons, tomes) ou la dernière modification, Classement la note décroissante avec les absences en fin. Les anciens filtres Films par statut disparaissent de la vue principale : les statuts terminaux deviendront des critères du panneau de filtres au jalon `0.4.20`. Les catégories Série/Livre, plateformes Jeux et formes Art restent des filtres propres à leur médium.
+
+- Installer des vues cohérentes Tous, Récents, Favoris et Classement lorsque la note existe.
+- Déplacer les statuts terminaux dans les critères de filtre plutôt que d’imposer une vue « Terminé ».
+
+### `0.4.20` — Filtres avancés et tri combinable
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Les cinq bibliothèques partagent un panneau de filtres borné par médium : statut, favori, note minimale (jamais l'Art), année quand la colonne existe, date personnelle, et texte spécifique (réalisation, auteur, artiste, lieu, exposition). Les critères se combinent avec la recherche textuelle et la vue active, qui porte l'ordre de tri — aucun second sélecteur de tri redondant n'est introduit. Les paramètres SQL sont tous liés ; les critères actifs sont récapitulés en puces retirables, avec une action Réinitialiser ramenant à un état défini. Les critères survivent à l'aller-retour vers une fiche, l'état restant porté par le contexte de la bibliothèque.
+
+- Combiner recherche textuelle, critères communs, critères propres au médium et ordre de tri.
+- Afficher les critères actifs, le nombre de résultats et une remise à zéro explicite.
+
+### `0.4.21` — Vues personnalisées enregistrées
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** **Décision de portabilité actée : les vues enregistrées restent locales à la base SQLite — elles n'entrent ni dans les snapshots ni dans l'export complet de restauration.** La migration 12 crée `saved_views` (nom unique par profil et médium, schéma de critères JSON versionné, jamais de SQL persisté). Chaque bibliothèque peut nommer la vue courante (tri + filtre du médium + critères avancés, sans la recherche textuelle libre), la rappeler, la renommer et la supprimer après confirmation. Les critères relus sont réparés par le domaine : statut ou catégorie inconnus, note hors borne et JSON corrompu retombent sur les valeurs neutres, et l'Art ne peut jamais détenir une vue Classement.
+
+- Nommer, rappeler, renommer et supprimer un couple filtres + tri, isolé par profil et médium.
+- Décider avant migration si ces vues appartiennent seulement à SQLite locale, aux snapshots ou à l'export complet.
+
+### `0.4.23` — Modèle unifié des vues
+
+**Redéfinition actée avec Aurélien le 1er août 2026.** Une vue est un seul concept : un préset **filtres + tri**. Les vues intégrées (Tous, Récents, Favoris, Classement) et les vues enregistrées relèvent du même modèle ; les filtres et le tri choisis à la volée s'appliquent par-dessus la vue active (dans Favoris, un filtre « avant 2019 » agit à l'intérieur des favoris). Le tri devient explicite (colonne + direction) au lieu d'être implicite dans la vue.
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Le modèle unifié est en place : présets intégrés et enregistrés partagent la même structure, le tri est borné par médium (titre, récence, note, année, date personnelle, ajout — jamais de note pour l'Art ni d'année pour les Séries) et résolu en colonnes SQL documentées. La migration 13 retire la colonne `view` de `saved_views` en préservant les données ; les critères écrits au schéma v1 (`0.4.21`) sont convertis à la lecture, la restriction Favoris comprise. L'interface de la rangée unifiée et les popovers Filtre/Tri arrivent au jalon `0.4.24`.
+
+- Unifier vues intégrées et enregistrées dans un modèle préset { filtres, tri } ; migrer les vues enregistrées au nouveau schéma de critères.
+- Définir un modèle de tri borné (titre, récence, note, année, date personnelle, ajout) avec colonnes disponibles par médium ; l'Art n'a jamais de tri par note.
+
+### `0.4.24` — Rangée de vues unifiée et popovers Filtre / Tri
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Chaque bibliothèque n'a plus qu'une seule ligne d'outils : recherche, vues intégrées et vues enregistrées dans la même rangée (débordement borné « +n » au-delà de trois vues personnelles), puis trois icônes — Filtre, Tri, Enregistrer comme vue — ouvrant chacune un popover sobre refermable au clic extérieur ou à Échap. Le filtre propre au médium (catégorie, plateforme, forme) vit dans le popover Filtre ; les critères actifs sont comptés sur l'icône. Le tri explicite remplace celui du préset actif et retombe au tri de la vue sur demande. Le panneau de filtres et la barre de vues enregistrées de `0.4.20`–`0.4.21` sont supprimés ; appliquer une vue enregistrée absorbe les réglages à la volée, changer de vue intégrée les conserve.
+
+- Présenter vues intégrées et vues enregistrées dans une même rangée, avec débordement discret quand la ligne est pleine (inspiration Notion), sans pousser les boutons hors de l'écran.
+- Deux icônes en bout de ligne, Filtre et Tri, ouvrant chacune un popover sobre ; « Enregistrer comme vue » capture le combo effectif dans la rangée.
+- Supprimer le panneau de filtres et la barre de vues enregistrées introduits en `0.4.20`–`0.4.21`.
+
+### `0.4.25` — Création assistée directe, même structure partout
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Un clic sur un résultat TMDB ouvre directement le formulaire prérempli en création, et associe immédiatement une fiche existante en mode association — l'écran de confirmation intermédiaire (Préremplir / Choisir / Annuler) est supprimé. Pendant la préparation, la liste des résultats se fige avec un état « Préparation de la fiche… » ; un échec est annoncé sur place, sans perdre la recherche ni la fiche. La saisie manuelle reste toujours accessible. Ce parcours direct est la structure de référence pour les fournisseurs des autres médiums (`0.4.26` à `0.4.28`).
+
+- Un clic sur un résultat de recherche fournisseur ouvre directement le formulaire prérempli, sans écran intermédiaire de confirmation, pour toutes les bibliothèques disposant d'un fournisseur.
+- Conserver une issue de retour propre vers la recherche et la saisie manuelle toujours possible.
+
+### `0.4.26` — Séries assistées TMDB
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** « Ajouter une série » ouvre la recherche TMDB TV avec suggestions temporisées ; le clic sur un résultat préremplit directement le formulaire (titre, showrunner, casting, résumé, total de saisons connu, affiche), éditable avant validation. Le statut, la note, le coup de cœur et les saisons vues ne sont jamais préremplis. Périmètre délibérément borné : pas de cache ni d'association persistée pour les Séries dans ce train — la clé embarquée et le client existants suffisent, aucune migration.
+
+- Réutiliser la clé TMDB embarquée, le client et le cache pour la recherche TV : suggestions temporisées, préremplissage éditable, données personnelles séparées, même parcours que Films.
+
+### `0.4.27` — Livres assistés Open Library
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** « Ajouter un livre » ouvre la recherche Open Library (sans clé ni compte, `User-Agent` identifié, préférence `lang=fr`) avec suggestions temporisées ; le clic sur un résultat préremplit directement le formulaire (titre, auteur, année, couverture, résumé quand Open Library en a un), éditable avant validation. Catégorie, statut, note, favori, tomes et citations restent des choix personnels jamais préremplis. Les requêtes passent par le backend Rust (timeouts, réponses bornées, clé d'œuvre validée avant l'appel de détail).
+
+- Recherche Open Library sans clé, `User-Agent` identifié et cache respectueux : titre, auteur, année, couverture ; le résumé n'est prérempli que lorsqu'il existe. Même parcours que Films.
+
+### `0.4.28` — Jeux assistés RAWG
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer. La clé RAWG d'Aurélien est embarquée obfusquée dans `embedded_key.rs`, ignoré par Git, et validée par un appel réel (HTTP 200).** « Ajouter un jeu » ouvre la recherche RAWG avec suggestions temporisées ; le clic sur un résultat préremplit directement le formulaire (titre, développeur, année, cover), éditable avant validation. La plateforme, le statut, la note et le favori restent des choix personnels jamais préremplis ; la recherche exclut les DLC. L'attribution « Données : RAWG » avec lien est visible dans le parcours, comme l'exigent leurs conditions du plan gratuit.
+
+- Clé RAWG fournie par Aurélien, embarquée hors dépôt selon le modèle TMDB ; recherche, préremplissage (titre, développeur, plateforme, année, cover) et attribution « Données : RAWG » exigée par leurs conditions.
+- Si les conditions RAWG ou la garde de la clé ne sont pas satisfaites, le jalon s'arrête et les Jeux restent manuels pour `0.5.0`.
+
+### `0.4.29` — Import / Export à deux boutons et Sauvegarde Sylloge
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Chaque bibliothèque n'expose plus que deux actions : **Importer** et **Exporter**. Exporter ouvre un dialogue accessible listant les formats — JSON Sylloge (document versionné réimportable) ou CSV (tableur) — et aucune écriture n'a lieu avant le choix explicite. Dans les Paramètres, l'export global des cinq collections devient la **Sauvegarde Sylloge** : « Exporter la sauvegarde » / « Restaurer une sauvegarde » (JSON complet, restauration atomique dans un profil vide, inchangée). Les cartes par médium du hub réutilisent le même flux unifié ; les anciens boutons Exporter / Exporter CSV séparés sont supprimés.
+
+- Chaque bibliothèque expose exactement deux boutons, Importer et Exporter ; Exporter ouvre un dialogue listant les formats proposés (JSON Sylloge, CSV) avant toute écriture.
+- L'export global des cinq collections devient la Sauvegarde Sylloge (JSON complet, réimportable pour restauration), nommée comme telle dans les Paramètres.
+
+### `0.4.22` — Reprise complète de la recette et corrections de clôture
+
+**Corrections déjà intégrées depuis la recette (commit `fix(recette)`) :** le compteur de résultats entre les deux séparateurs (« 2 films affichés ») est retiré des cinq bibliothèques — un seul séparateur sous la barre d'outils, la collection suit directement. Les parcours assistés affichent désormais le message d'erreur réel du fournisseur au lieu d'un « vérifiez votre connexion » systématique : la panne RAWG constatée en recette (HTTP 522 sur tout le service, site inclus) n'était pas un défaut de l'app, mais le message induisait en erreur. User-Agent des clients Open Library et RAWG passés en ASCII par hygiène.
+
+- Reprendre la recette manuelle consolidée de `docs/QA_MANUELLE_0.5.0.md` sur un build natif frais, sur les cinq médiums et sur la machine de référence d'Aurélien.
+- Tout nouveau lot non trivial découvert devient `0.4.23`, puis `0.4.24`, etc. Aucun plafond artificiel n’est fixé avant `0.5.0`.
+
 ### `0.5.0` — Release publique Extension culturelle
+
+La recette native consolidée du train est suivie dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md).
 
 - Revoir, intégrer et valider les cinq verticales du contrat V1 ; ne publier que des médiums complets, documentés et migrables.
 - Vérifier que recherche, filtres, profils, exports, imports, sauvegardes et fallbacks visuels se comportent pour Films, Séries, Livres, Jeux et Art.
+- Ne changer manifestes, tag et artefacts qu’après fermeture de tous les jalons internes et validation humaine de la recette.
 
-## 8. Train `0.6.0` — Front-end définitif et langage visuel de V1
+## 8. Trains suivants — document dédié
 
-**But de la release :** faire de Sylloge une application desktop visuellement cohérente, agréable et pleinement maîtrisée, sans ajouter de capacité produit.
+Les trains `0.6.0` (front-end définitif), `0.7.0` (fiabilité et confidentialité), `0.8.0` (distribution macOS et Windows), `0.9.0` (bêta publique contrôlée), les conditions de sortie de la `1.0.0` et les perspectives V2 / V3 sont décrits dans `docs/plans/roadmap-future.md`. Ce document fait partie de la feuille de route : il est consulté à l'ouverture de chaque nouveau train, et les jalons concernés y sont réintégrés ici au moment où ils deviennent actifs.
 
-### `0.5.1` — Inventaire des surfaces et direction visuelle
-
-- Inventorier les surfaces réellement présentes après `0.4.0` / `0.5.0`, choisir une direction unique et compléter le contrat visuel dans `DESIGN.md`.
-- Produire des écrans de référence natifs pour la bibliothèque, la fiche, le formulaire, les Paramètres, l’onboarding et les états vides / erreur.
-
-### `0.5.2` — Tokens, typographie et iconographie
-
-- Finaliser palette par rôles, hiérarchie typographique, échelles d’espacement, rayons, bordures et règles d’icônes.
-- Vérifier les contrastes, le focus clavier et les états interactifs avant de modifier les écrans entiers.
-
-### `0.5.3` — Fenêtre native et compositions desktop
-
-- Fixer les tailles minimale, de référence et maximale après essai natif ; définir sidebar, bibliothèque, recherche, fiches, formulaires, Paramètres et dialogues dans cette plage.
-- Documenter le comportement en plein écran et les limites explicites du responsive desktop, sans dériver vers une interface mobile improvisée.
-
-### `0.5.4` — Navigation, recherche et collections
-
-- Revoir la sidebar, la navigation entre médias, la recherche et les filtres afin que les collections restent orientées œuvres plutôt que dashboard.
-- Définir les états vides, résultats nuls, chargement local et erreurs de façon sobre et accessible.
-
-### `0.5.5` — Cartes, affiches et bibliothèques
-
-- Unifier les cartes, grilles et listes de tous les médias, sans recadrage destructeur ni faux visuels.
-- Vérifier les titres longs, les métadonnées incomplètes, les posters / couvertures absents et les bibliothèques denses.
-
-### `0.5.6` — Fiches, formulaires et dialogues
-
-- Recomposer les fiches immersives, formulaires, confirmations et retours d’action autour des données réellement disponibles.
-- Valider les libellés, l’ordre de tabulation, les erreurs de formulaire et les actions destructrices.
-
-### `0.5.7` — Système de composants et états accessibles
-
-- Unifier boutons, champs, sélecteurs, filtres, navigation, cartes, panneaux, alertes et confirmations, y compris focus, erreur et état désactivé.
-
-### `0.5.8` — Mouvement utile et QA visuelle
-
-- Appliquer un mouvement sobre compatible `prefers-reduced-motion` et valider au clavier les contenus courts, longs, incomplets et les affiches absentes ou cassées.
-- Capturer les régressions visuelles des écrans de référence avant la clôture du train.
-
-### `0.6.0` — Release publique Design desktop de V1
-
-- Établir le contrat visuel définitif dans `DESIGN.md` : palette par rôles, hiérarchie typographique, échelles d’espacement, rayons, bordures, icônes, états et règles de composition. La direction « Archive calme » reste le socle ; il ne s’agit ni d’un look SaaS ni d’un dashboard.
-- Définir puis implémenter les tailles **minimale**, de référence et **maximale** de la fenêtre native, avec un comportement explicite en plein écran. L’application ne doit plus pouvoir être réduite à une largeur ou hauteur qui rend ses flux inutilisables.
-- Concevoir les compositions desktop dans la plage de tailles retenue : sidebar, page Accueil, bibliothèque, recherche et filtres, fiches, formulaires, Paramètres, onboarding, dialogues et états vides / erreur / chargement. Le responsive ne doit pas dériver vers une interface mobile improvisée.
-- Reprendre les composants communs de manière systématique : boutons, champs, sélecteurs, filtres, navigation, cartes, panneaux, alertes et confirmations ; chaque état normal, survolé, actif, désactivé, focus clavier et erreur doit être défini et cohérent.
-- Donner une identité éditoriale à la page Accueil et aux vues de collection : rythme, densité, surfaces, images et espaces négatifs au service des œuvres, plutôt qu’une accumulation de widgets ou de métriques.
-- Définir un langage de mouvement utile et sobre pour les changements de vue, ouverture de fiche, dialogues et retours d’action ; respecter `prefers-reduced-motion` et ne jamais faire dépendre la compréhension d’une animation.
-- Valider visuellement et au clavier les parcours principaux sur les tailles de fenêtre cibles, avec contenus courts, longs, incomplets et affiches absentes ou cassées.
-
-**Gates avant implémentation :** inventorier toutes les surfaces V1 réellement présentes ; valider une direction visuelle unique et ses écrans de référence ; fixer les valeurs de fenêtre minimale, de référence et maximale après essai natif ; documenter les critères d’acceptation accessibles et les règles de mouvement. Aucun nouveau médium ni flux fonctionnel ne doit être ajouté au prétexte du redesign.
-
-**Exclusions :** thème sombre, données de démonstration inventées, nouveau médium, API, cloud, compte, synchronisation, modification du modèle de données ou des formats d’import/export.
-
-## 9. Train `0.7.0` — Fiabilité, qualité et confidentialité
-
-### `0.6.1` — Migrations, imports et restaurations
-
-- Étendre les tests de migrations, import/export, compatibilité de formats et scénarios de restauration avec des données réelles anonymisées.
-
-### `0.6.2` — Validation, transactions et erreurs récupérables
-
-- Vérifier les contraintes métier à toutes les frontières : formulaire, commandes Tauri, SQLite, import et restauration.
-- Tester l’atomicité des opérations et la qualité des messages d’erreur lorsque l’action est refusée avant écriture.
-
-### `0.6.3` — Régression d’interface et accessibilité
-
-- Mettre en place les scénarios de régression visuelle et clavier sur les parcours principaux de tous les médiums retenus.
-
-### `0.6.4` — Robustesse des sauvegardes et récupération
-
-- Exercer les snapshots portables, l’export, l’import dans un nouveau profil et la récupération après un fichier invalide ou incomplet.
-- Confirmer qu’aucun chemin ne copie ni ne synchronise la SQLite vivante, son WAL ou son SHM.
-
-### `0.6.5` — Performance et bibliothèques réalistes
-
-- Mesurer les parcours de consultation, recherche et import avec des bibliothèques de taille réaliste ; optimiser seulement un goulot réellement observé.
-- Conserver une interface fluide sans introduire de cache, backend ou mécanisme de synchronisation prématuré.
-
-### `0.6.6` — Confidentialité, licences et dépendances
-
-- Auditer journalisation locale, dépendances, permissions Tauri et licences des contenus / fournisseurs externes ; documenter les limites d’usage et de récupération.
-
-### `0.6.7` — Documentation de récupération et support local
-
-- Rédiger et tester les procédures d’usage, de sauvegarde, de restauration, de récupération et de diagnostic sans collecte de données personnelles.
-
-### `0.7.0` — Release publique Fiabilité, qualité et confidentialité
-
-- Tests de migration, import/export, compatibilité de formats et scénarios de restauration.
-- Régression visuelle et d’accessibilité sur les flux principaux.
-- Journalisation locale utile, sans données personnelles envoyées à un tiers.
-- Documentation d’usage, sauvegarde, récupération, limites et politique de confidentialité locale.
-- Audit des dépendances, permissions Tauri et licences des contenus / fournisseurs externes.
-
-## 10. Train `0.8.0` — Distribution macOS et Windows
-
-### `0.7.1` — Builds reproductibles et installation macOS
-
-- Rejouer un build reproductible, l’installation manuelle et la mise à jour sur macOS depuis une version antérieure signée.
-
-### `0.7.2` — Signature macOS et stratégie de confiance
-
-- Évaluer coût, bénéfice et faisabilité d’un Developer ID et de la notarisation ; ne promettre une installation sans alerte qu’après preuve réelle.
-- Documenter l’expérience d’installation réellement disponible tant qu’aucun certificat n’est retenu.
-
-### `0.7.3` — Build et installateur Windows
-
-- Produire et tester les installateurs Windows sur une machine réelle ; chiffrer la stratégie de signature avant engagement.
-
-### `0.7.4` — Mise à jour et migration Windows
-
-- Vérifier le mécanisme de mise à jour, les migrations et la conservation des données locales sur Windows ; ne pas déduire ce comportement de la seule QA macOS.
-
-### `0.7.5` — Support de publication
-
-- Préparer notes de version, documentation d’installation, captures, landing page légère et procédure de support réaliste pour une bêta publique.
-
-### `0.8.0` — Release publique Distribution macOS et Windows
-
-- Build reproductible et test réel sur macOS et Windows.
-- Installateurs appropriés, icônes, nom, version, documentation d’installation et mécanisme de mise à jour à décider.
-- Signature et notarisation macOS ; stratégie de signature Windows à chiffrer avant engagement.
-- Éviter de promettre une installation « sans alerte » sans certificats et validation sur les deux OS.
-- Préparer le dépôt, les notes de version, les captures et une landing page légère.
-
-## 11. Train `0.9.0` — Bêta publique contrôlée
-
-**But de la release :** confronter une application déjà distribuable à des usages réels sans élargir son contrat produit au fil des retours.
-
-### `0.8.1` — Protocole de bêta et parcours de remontée
-
-- Définir les profils de test, les parcours à exercer, les informations à demander et un canal de retour sans tracking intégré à l’application.
-- Préparer des données de test et une procédure de sauvegarde / récupération avant toute installation de bêta.
-
-### `0.8.2` — Triage des retours et reproduction
-
-- Classer chaque retour entre défaut bloquant, régression, amélioration cohérente, demande hors périmètre et besoin de documentation.
-- Ne retenir pour le train que les problèmes reproductibles ou explicitement arbitrés ; le backlog n’est pas une liste de promesses.
-
-### `0.8.3` — Corrections de stabilisation
-
-- Corriger en priorité les pertes de données potentielles, les défauts d’installation / mise à jour, les blocages d’accessibilité et les régressions de parcours principal.
-- Rejouer les scénarios de la bêta après chaque correction sans profiter du train pour ajouter une capacité produit.
-
-### `0.9.0` — Release publique Bêta consolidée
-
-- Publier seulement après fermeture ou documentation explicite des défauts connus, avec notes de version, limites, procédure de sauvegarde et support réaliste.
-- Utiliser cette release comme dernière gate avant `1.0.0`, non comme prétexte à lancer V2 ou mobile.
-
-### `1.0.0` — Première V1 publique
-
-**Conditions de sortie :**
-
-- les cinq médiums Films, Séries, Livres, Jeux et Art sont complets, explicitement assumés et vérifiés ;
-- parcours principaux vérifiés sur macOS et Windows ;
-- migration, export, import et restauration testés avec des données réelles ;
-- esthétique et accessibilité validées sur les surfaces clés ;
-- documentation claire, aucune fausse promesse de synchronisation ;
-- bêta publique contrôlée menée, défauts connus fermés ou explicitement documentés ;
-- distribution et support réalistes sur macOS et Windows ;
-- version taguée, notes de version publiées et landing page cohérente.
-
-## 12. Après la V1 — à ne pas anticiper prématurément
-
-### V2 — synchronisation et modèle économique optionnel
-
-- comptes facultatifs ;
-- synchronisation chiffrée et gestion de conflits ;
-- backend et base synchronisée, éventuellement Supabase après étude des coûts, de la confidentialité et de la portabilité ;
-- web app connectée ;
-- freemium limité à ce qui génère réellement un coût d’infrastructure ou un confort de synchronisation.
-
-Le local-first, l’export et les fonctions personnelles essentielles ne doivent pas être artificiellement dégradés pour forcer une offre payante.
-
-### V3 — applications mobiles natives
-
-- iOS et Android après validation de la V2 ;
-- travail de synchronisation, navigation mobile, stockage local, offline et distribution stores ;
-- ne pas présenter une version mobile comme une simple adaptation de la fenêtre desktop.
-
-## 13. Backlog non priorisé
+## 9. Backlog non priorisé
 
 Les éléments suivants peuvent être utiles, mais n’entrent dans une version que lorsqu’un besoin concret les justifie :
 
 - thème sombre ;
-- tris supplémentaires et vues de collection ;
 - tags, collections éditoriales ou listes personnelles ;
 - localisation anglaise et autres langues ;
 - statistiques personnelles sobres ;
-- importateurs additionnels à partir d’exports réels ;
 - traitement de doublons entre imports ;
 - améliorations de performances pour des bibliothèques très volumineuses.
 

@@ -1,14 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getVersion } from '@tauri-apps/api/app'
 import { backupService, type BackupNotice } from '../data/backupService.ts'
-import {
-  createLibraryExport,
-  exportFileName,
-  serializeLibraryExport,
-  validateLibraryImport,
-  type ImportPreview,
-} from '../domain/libraryTransfer.ts'
-import { filmsCsvExportFileName, serializeFilmsCsvExport } from '../domain/csvFilmExport.ts'
+import { validateLibraryImport, type ImportPreview } from '../domain/libraryTransfer.ts'
 import {
   FILM_IMPORT_FIELD_LABELS,
   IMPORTABLE_FILM_FIELDS,
@@ -29,18 +22,28 @@ import {
   type FilmImportSession,
   type FilmsCsvImportPreview,
 } from '../domain/filmCsvImport.ts'
-import type { FilmLibrary, ProfileSummary } from '../data/filmsRepository.ts'
+import type { FilmLibrary } from '../data/filmsRepository.ts'
 import { filmsRepository } from '../data/filmsRepository.ts'
+import { profilesRepository, type ProfileSummary } from '../data/profilesRepository.ts'
 import { confirmValidatedImport } from '../data/libraryTransferService.ts'
+import { libraryRepository, type CulturalLibrary } from '../data/libraryRepository.ts'
+import {
+  createLibraryDocument,
+  libraryExportFileName,
+  serializeLibraryDocument,
+  validateLibraryDocument,
+} from '../domain/libraryDocument.ts'
 import {
   pickImportJson,
   pickImportFilmsCsvOrNotion,
-  saveExportCsv,
   saveExportJson,
   type BackupSettings,
   type PickedFilmsImportFile,
 } from '../data/nativePortability.ts'
 import { UpdaterSettings } from './UpdaterSettings.tsx'
+import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { LibraryExportFlow } from './LibraryExportFlow.tsx'
+import { LibraryImportButton } from './LibraryImportButton.tsx'
 import type { AvailableUpdate } from '../data/updaterService.ts'
 
 type SelectedImport = {
@@ -80,6 +83,9 @@ type PortabilityProps = {
   availableUpdate: AvailableUpdate | null
   onUpdateAvailable: (update: AvailableUpdate) => void
   onUpdateHandled: () => void
+  onProfilesChanged: () => void
+  onProfileDeleted: (deletedProfileId: string) => void
+  onLibraryChanged: () => void
 }
 
 export function Portability({
@@ -92,6 +98,9 @@ export function Portability({
   availableUpdate,
   onUpdateAvailable,
   onUpdateHandled,
+  onProfilesChanged,
+  onProfileDeleted,
+  onLibraryChanged,
 }: PortabilityProps) {
   const [exportState, setExportState] = useState<'idle' | 'saving'>('idle')
   const [exportMessage, setExportMessage] = useState<string | null>(null)
@@ -113,12 +122,14 @@ export function Portability({
   const [loadingBackupSettings, setLoadingBackupSettings] = useState(true)
   const [choosingBackupDirectory, setChoosingBackupDirectory] = useState(false)
   const [savingBackup, setSavingBackup] = useState(false)
+  const [clearingBackupSettings, setClearingBackupSettings] = useState(false)
   const [backupMessage, setBackupMessage] = useState<BackupNotice | null>(null)
   const [installedVersion, setInstalledVersion] = useState<string | null>(null)
   const [transferDialog, setTransferDialog] = useState<TransferDialog | null>(null)
   const [importKind, setImportKind] = useState<ImportKind>(null)
   const [filmsImportStep, setFilmsImportStep] = useState<FilmsImportStep>('source')
   const [exportKind, setExportKind] = useState<'json' | 'csv' | null>(null)
+  const [fullLibrary, setFullLibrary] = useState<CulturalLibrary | null>(null)
   const importing = activeImport === 'json'
   const importingFilms = activeImport === 'films'
   const importInProgress = activeImport !== null
@@ -167,7 +178,7 @@ export function Portability({
         if (!cancelled) {
           const notice: BackupNotice = {
             kind: 'error',
-            message: 'Le réglage de sauvegarde n’a pas pu être lu. Les films restent disponibles dans SQLite.',
+            message: 'Le réglage de sauvegarde n’a pas pu être lu. Les cinq collections restent disponibles dans SQLite.',
           }
           setBackupSettings(null)
           setBackupMessage(notice)
@@ -183,191 +194,22 @@ export function Portability({
     }
   }, [library.profile.id, onBackupNotice])
 
-  const exportProfile = async () => {
-    setExportState('saving')
-    setExportMessage(null)
-    const document = createLibraryExport(library)
-
-    try {
-      const savedName = await saveExportJson(exportFileName(document.exportedAt), serializeLibraryExport(document))
-      setExportMessage(savedName
-        ? `Export enregistré dans « ${savedName} » avec ${document.films.length} ${document.films.length === 1 ? 'film' : 'films'}.`
-        : 'Export annulé. Aucun fichier n’a été écrit.')
-    } catch (error) {
-      console.error('Impossible d’exporter le profil.', error)
-      setExportMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
-    } finally {
-      setExportState('idle')
+  useEffect(() => {
+    let cancelled = false
+    libraryRepository.loadLibrary(library.profile.id).then(
+      (loaded) => {
+        if (!cancelled) setFullLibrary(loaded)
+      },
+      (error: unknown) => {
+        console.error('Impossible de lire les collections pour les actions de portabilité.', error)
+        if (!cancelled) setFullLibrary(null)
+      },
+    )
+    return () => {
+      cancelled = true
     }
-  }
+  }, [library.profile.id])
 
-  const exportProfileCsv = async () => {
-    setCsvExportState('saving')
-    setCsvExportMessage(null)
-    const document = createLibraryExport(library)
-
-    try {
-      const savedName = await saveExportCsv(
-        filmsCsvExportFileName(document.exportedAt),
-        serializeFilmsCsvExport(document),
-      )
-      setCsvExportMessage(savedName
-        ? `Export CSV enregistré dans « ${savedName} » avec ${document.films.length} ${document.films.length === 1 ? 'film' : 'films'}.`
-        : 'Export CSV annulé. Aucun fichier n’a été écrit.')
-    } catch (error) {
-      console.error('Impossible d’exporter le profil en CSV.', error)
-      setCsvExportMessage('L’export CSV a échoué. La bibliothèque locale n’a pas été modifiée.')
-    } finally {
-      setCsvExportState('idle')
-    }
-  }
-
-  const chooseImport = async () => {
-    if (activeImportRef.current !== null) return
-    setImportKind('json')
-    setChoosingImport(true)
-    setImportError(null)
-    setReport(null)
-
-    try {
-      const picked = await pickImportJson()
-      if (!picked) {
-        setSelectedImport(null)
-        setImportError('Sélection annulée. Aucune donnée n’a été écrite.')
-        return
-      }
-      setSelectedImport({ fileName: picked.name, preview: validateLibraryImport(picked.contents) })
-    } catch (error) {
-      console.error('Impossible de lire le fichier d’import.', error)
-      setSelectedImport(null)
-      setImportError('Le fichier choisi n’a pas pu être lu. Aucune donnée n’a été écrite.')
-    } finally {
-      setChoosingImport(false)
-    }
-  }
-
-  const confirmImport = async () => {
-    if (!selectedImport || !beginImport('json')) return
-
-    setImportError(null)
-    try {
-      const importedLibrary = await confirmValidatedImport(
-        selectedImport.preview,
-        (document) => filmsRepository.importLibrary(document),
-      )
-      onImported(importedLibrary)
-      setReport({
-        fileName: selectedImport.fileName,
-        profileName: importedLibrary.profile.name,
-        filmCount: importedLibrary.films.length,
-      })
-      setSelectedImport(null)
-    } catch (error) {
-      console.error('Impossible d’importer le document validé.', error)
-      setImportError('L’import SQLite a échoué. La transaction a été annulée et aucun profil incomplet n’a été conservé.')
-    } finally {
-      finishImport()
-    }
-  }
-
-  const chooseFilmsImport = async () => {
-    if (activeImportRef.current !== null) return
-    setImportKind('films')
-    setFilmsImportStep('source')
-    setChoosingFilmsImport(true)
-    setFilmsImportError(null)
-    setFilmsImportReport(null)
-
-    try {
-      const source = await pickImportFilmsCsvOrNotion()
-      if (!source) {
-        setSelectedFilmsImport(null)
-        setFilmsImportError('Sélection annulée. Aucune donnée n’a été écrite.')
-        return
-      }
-      const sourceSelection = inspectFilmCsvImportSource(source)
-      const selectedCandidateId = sourceSelection.defaultCandidateId
-      const session = selectedCandidateId ? prepareFilmCsvImport(source, selectedCandidateId) : null
-      const configuration = session ? initialFilmImportConfiguration(session) : null
-      setSelectedFilmsImport({
-        source,
-        sourceSelection,
-        selectedCandidateId,
-        session,
-        configuration,
-        preview: session ? previewFilmCsvImport(session, source, configuration) : null,
-      })
-    } catch (error) {
-      console.error('Impossible de lire le CSV ou l’archive Notion.', error)
-      setSelectedFilmsImport(null)
-      setFilmsImportError('Le fichier choisi n’a pas pu être lu ou dépasse les limites sûres. Aucune donnée n’a été écrite.')
-    } finally {
-      setChoosingFilmsImport(false)
-    }
-  }
-
-  const updateFilmsImportConfiguration = (update: (configuration: FilmImportConfiguration) => FilmImportConfiguration) => {
-    setSelectedFilmsImport((selected) => {
-      if (!selected?.configuration || !selected.session) return selected
-      const configuration = update(selected.configuration)
-      return {
-        ...selected,
-        configuration,
-        preview: previewFilmCsvImport(selected.session, selected.source, configuration),
-      }
-    })
-  }
-
-  const selectFilmsImportCandidate = (candidateId: string | null) => {
-    setSelectedFilmsImport((selected) => {
-      if (!selected) return selected
-      if (candidateId === null) {
-        return {
-          ...selected,
-          selectedCandidateId: null,
-          session: null,
-          configuration: null,
-          preview: null,
-        }
-      }
-      const session = prepareFilmCsvImport(selected.source, candidateId)
-      const configuration = initialFilmImportConfiguration(session)
-      return {
-        ...selected,
-        selectedCandidateId: candidateId,
-        session,
-        configuration,
-        preview: previewFilmCsvImport(session, selected.source, configuration),
-      }
-    })
-  }
-
-  const confirmFilmsImport = async () => {
-    if (!selectedFilmsImport?.preview || !beginImport('films')) return
-
-    setFilmsImportError(null)
-    try {
-      const importedLibrary = await confirmValidatedImport(
-        selectedFilmsImport.preview,
-        (document) => filmsRepository.importLibrary(document),
-      )
-      onImported(importedLibrary)
-      setFilmsImportReport({
-        fileName: conciseFilmImportReportSource(
-          selectedFilmsImport.source,
-          selectedFilmsImport.selectedCandidateId,
-        ),
-        profileName: importedLibrary.profile.name,
-        filmCount: importedLibrary.films.length,
-      })
-      setSelectedFilmsImport(null)
-    } catch (error) {
-      console.error('Impossible d’importer les Films CSV ou Notion validés.', error)
-      setFilmsImportError('L’import SQLite a échoué. La transaction a été annulée et aucun profil incomplet n’a été conservé.')
-    } finally {
-      finishImport()
-    }
-  }
 
   const switchProfile = async (profileId: string) => {
     if (profileId === library.profile.id) return
@@ -421,40 +263,30 @@ export function Portability({
     setSavingBackup(false)
   }
 
-  const openTransferDialog = (dialog: TransferDialog) => {
-    setTransferDialog(dialog)
-    if (dialog === 'import') {
-      setImportKind(null)
-      setFilmsImportStep('source')
-    } else {
-      setExportKind(null)
+  const forgetBackupDirectory = async () => {
+    if (clearingBackupSettings) return
+    setClearingBackupSettings(true)
+    setBackupMessage(null)
+    try {
+      await backupService.clearSettings(library.profile.id)
+      const notice: BackupNotice = {
+        kind: 'success',
+        message: 'Snapshots désactivés pour ce profil. Les fichiers déjà présents dans l’ancien dossier sont conservés.',
+      }
+      setBackupSettings(null)
+      setBackupMessage(notice)
+      onBackupNotice(notice)
+    } catch (error) {
+      console.error('Impossible de désactiver les snapshots.', error)
+      const notice: BackupNotice = {
+        kind: 'error',
+        message: 'Le dossier n’a pas pu être oublié. Le réglage précédent reste actif.',
+      }
+      setBackupMessage(notice)
+      onBackupNotice(notice)
+    } finally {
+      setClearingBackupSettings(false)
     }
-  }
-
-  const closeTransferDialog = () => {
-    if (importInProgress) return
-    setTransferDialog(null)
-    setImportKind(null)
-    setExportKind(null)
-    setSelectedImport(null)
-    setSelectedFilmsImport(null)
-    setImportError(null)
-    setFilmsImportError(null)
-    setReport(null)
-    setFilmsImportReport(null)
-    setFilmsImportStep('source')
-  }
-
-  const resetImportChoice = () => {
-    if (importInProgress) return
-    setImportKind(null)
-    setSelectedImport(null)
-    setSelectedFilmsImport(null)
-    setImportError(null)
-    setFilmsImportError(null)
-    setReport(null)
-    setFilmsImportReport(null)
-    setFilmsImportStep('source')
   }
 
   return (
@@ -466,60 +298,25 @@ export function Portability({
         </div>
 
         {section === 'profiles' && (
-          <section className="settings-page" aria-labelledby="profiles-title">
-            <div className="settings-section-heading">
-              <p className="card-kicker">Bibliothèque locale</p>
-              <h2 id="profiles-title">Profils</h2>
-              <p>Ouvrez un profil existant. Le profil courant reste toujours indiqué.</p>
-            </div>
-            <div className="portability-card profile-card">
-              <div className="portability-card-heading">
-                <div><p className="card-kicker">Profil actif</p><h3>Profil courant</h3></div>
-                <span className="profile-badge">{library.profile.name}</span>
-              </div>
-              <div className="profile-list">
-                {profiles.map((profile) => {
-                  const active = profile.id === library.profile.id
-                  return (
-                    <button
-                      className={`profile-row ${active ? 'active' : ''}`}
-                      type="button"
-                      key={profile.id}
-                      aria-current={active ? 'true' : undefined}
-                      disabled={active || switchingProfileId !== null}
-                      onClick={() => switchProfile(profile.id)}
-                    >
-                      <span><b>{profile.name}</b><small>{profile.filmCount} {profile.filmCount === 1 ? 'film' : 'films'}</small></span>
-                      <span>{active ? 'Ouvert' : switchingProfileId === profile.id ? 'Ouverture…' : 'Ouvrir'}</span>
-                    </button>
-                  )
-                })}
-              </div>
-              {profileError && <p className="inline-report error" role="alert">{profileError}</p>}
-            </div>
-          </section>
+          <ProfilesSection
+            library={library}
+            profiles={profiles}
+            switchingProfileId={switchingProfileId}
+            profileError={profileError}
+            onSwitchProfile={switchProfile}
+            onProfilesChanged={onProfilesChanged}
+            onProfileDeleted={onProfileDeleted}
+          />
         )}
 
         {section === 'transfer' && (
-          <section className="settings-page" aria-labelledby="transfer-title">
-            <div className="settings-section-heading">
-              <p className="card-kicker">Formats portables</p>
-              <h2 id="transfer-title">Importer et exporter</h2>
-              <p>Choisissez une intention. Chaque parcours se poursuit dans son propre espace de travail et le profil ouvert reste intact avant confirmation.</p>
-            </div>
-            <div className="transfer-choice-grid" role="group" aria-label="Choisir une action de portabilité">
-              <button className="transfer-choice" type="button" onClick={() => openTransferDialog('import')}>
-                <span className="card-kicker">Ajouter une bibliothèque</span>
-                <b>Importer</b>
-                <small>Bibliothèque Sylloge complète JSON ou bibliothèque Films externe CSV/Notion.</small>
-              </button>
-              <button className="transfer-choice" type="button" onClick={() => openTransferDialog('export')}>
-                <span className="card-kicker">Conserver une copie</span>
-                <b>Exporter</b>
-                <small>Sauvegarde Sylloge JSON ou tableau Films CSV.</small>
-              </button>
-            </div>
-          </section>
+          <GlobalTransferSection
+            library={library}
+            fullLibrary={fullLibrary}
+            onImported={onImported}
+            onProfilesChanged={onProfilesChanged}
+            onLibraryChanged={onLibraryChanged}
+          />
         )}
 
         {section === 'backups' && (
@@ -538,13 +335,18 @@ export function Portability({
                 <>
                   <dl className="backup-summary">
                     <div><dt>Dossier</dt><dd title={backupSettings.backupDirectory}>{backupSettings.backupDirectory}</dd></div>
+                    <div><dt>État</dt><dd>{backupSettings.directoryAvailable ? 'Disponible' : 'Dossier introuvable'}</dd></div>
                     <div><dt>Automatique</dt><dd>{backupSettings.lastAutomaticSnapshotDay ?? 'Pas encore créé'}</dd></div>
                     <div><dt>Conservation</dt><dd>30 snapshots par profil</dd></div>
                   </dl>
+                  {!backupSettings.directoryAvailable && (
+                    <p className="inline-report error" role="alert">Ce dossier n’existe plus ou n’est plus accessible. Choisis un autre dossier ou oublie ce réglage.</p>
+                  )}
                   <p className="backup-policy">Un snapshot est tenté après le premier changement réussi de ce profil chaque jour local. « Sauvegarder maintenant » crée toujours un nouveau JSON.</p>
                   <div className="backup-actions">
-                    <button className="primary-button" type="button" onClick={saveManualBackup} disabled={savingBackup || choosingBackupDirectory}>{savingBackup ? 'Sauvegarde…' : 'Sauvegarder maintenant'}</button>
-                    <button className="secondary-button" type="button" onClick={chooseBackupDirectory} disabled={savingBackup || choosingBackupDirectory}>{choosingBackupDirectory ? 'Choix du dossier…' : 'Changer de dossier'}</button>
+                    <button className="primary-button" type="button" onClick={saveManualBackup} disabled={!backupSettings.directoryAvailable || savingBackup || choosingBackupDirectory || clearingBackupSettings}>{savingBackup ? 'Sauvegarde…' : 'Sauvegarder maintenant'}</button>
+                    <button className="secondary-button" type="button" onClick={chooseBackupDirectory} disabled={savingBackup || choosingBackupDirectory || clearingBackupSettings}>{choosingBackupDirectory ? 'Choix du dossier…' : 'Changer de dossier'}</button>
+                    <button className="secondary-button danger" type="button" onClick={() => void forgetBackupDirectory()} disabled={savingBackup || choosingBackupDirectory || clearingBackupSettings}>{clearingBackupSettings ? 'Désactivation…' : 'Oublier ce dossier'}</button>
                   </div>
                 </>
               ) : (
@@ -575,56 +377,13 @@ export function Portability({
             <dl className="settings-facts">
               <div><dt>Application</dt><dd>Sylloge</dd></div>
               <div><dt>Version installée</dt><dd>{installedVersion ?? 'Indisponible'}</dd></div>
-              <div><dt>Collection disponible</dt><dd>Films</dd></div>
+              <div><dt>Collections disponibles</dt><dd>Films, Séries, Livres, Jeux et Art</dd></div>
               <div><dt>Métadonnées Films</dt><dd>Ce produit utilise l’API TMDB sans être approuvé ni certifié par TMDB. <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">themoviedb.org</a></dd></div>
             </dl>
           </section>
         )}
       </main>
 
-      {transferDialog === 'import' && (
-        <AccessibleDialog title="Importer une bibliothèque" description="Choisissez un format, vérifiez les données et confirmez avant toute écriture." onClose={closeTransferDialog} closeDisabled={importInProgress}>
-          <ImportAssistant
-            kind={importKind}
-            selectedImport={selectedImport}
-            selectedFilmsImport={selectedFilmsImport}
-            importing={importing}
-            importingFilms={importingFilms}
-            disabled={importInProgress}
-            choosingImport={choosingImport}
-            choosingFilmsImport={choosingFilmsImport}
-            importError={importError}
-            filmsImportError={filmsImportError}
-            report={report}
-            filmsImportReport={filmsImportReport}
-            filmsImportStep={filmsImportStep}
-            onChooseJson={chooseImport}
-            onChooseFilms={chooseFilmsImport}
-            onReset={resetImportChoice}
-            onCandidateChange={selectFilmsImportCandidate}
-            onConfigurationChange={updateFilmsImportConfiguration}
-            onStepChange={setFilmsImportStep}
-            onConfirmJson={confirmImport}
-            onConfirmFilms={confirmFilmsImport}
-          />
-        </AccessibleDialog>
-      )}
-
-      {transferDialog === 'export' && (
-        <AccessibleDialog title="Exporter la bibliothèque" description="Choisissez un format avant de créer une copie lisible de votre bibliothèque locale." onClose={closeTransferDialog} closeDisabled={exportState === 'saving' || csvExportState === 'saving'}>
-          <ExportAssistant
-            library={library}
-            kind={exportKind}
-            exportState={exportState}
-            csvExportState={csvExportState}
-            exportMessage={exportMessage}
-            csvExportMessage={csvExportMessage}
-            onKindChange={setExportKind}
-            onExportJson={exportProfile}
-            onExportCsv={exportProfileCsv}
-          />
-        </AccessibleDialog>
-      )}
     </>
   )
 }
@@ -673,87 +432,6 @@ function ImportPreviewPanel({ selected, importing, disabled, onConfirm }: {
           </button>
         </div>
       )}
-    </div>
-  )
-}
-
-function AccessibleDialog({
-  title,
-  description,
-  closeDisabled,
-  onClose,
-  children,
-}: {
-  title: string
-  description: string
-  closeDisabled: boolean
-  onClose: () => void
-  children: ReactNode
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-  const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const returnFocusRef = useRef<HTMLElement | null>(null)
-
-  useEffect(() => {
-    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    window.requestAnimationFrame(() => closeButtonRef.current?.focus())
-    return () => returnFocusRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-
-    const focusableElements = () => [...dialog.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    )]
-    const keepFocusInDialog = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        if (!closeDisabled) onClose()
-        return
-      }
-      if (event.key !== 'Tab') return
-
-      const focusable = focusableElements()
-      if (focusable.length === 0) {
-        event.preventDefault()
-        dialog.focus()
-        return
-      }
-
-      const activeElement = document.activeElement
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (!dialog.contains(activeElement) || activeElement === dialog || !focusable.includes(activeElement as HTMLElement)) {
-        event.preventDefault()
-        const destination = event.shiftKey ? last : first
-        destination.focus()
-      } else if (event.shiftKey && activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener('keydown', keepFocusInDialog, true)
-    if (closeDisabled && focusableElements().length === 0) dialog.focus()
-    return () => document.removeEventListener('keydown', keepFocusInDialog, true)
-  }, [closeDisabled, onClose])
-
-  return (
-    <div className="transfer-dialog-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget && !closeDisabled) onClose()
-    }}>
-      <div className="transfer-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" aria-describedby="transfer-dialog-description" tabIndex={-1}>
-        <header className="transfer-dialog-header">
-          <div><p className="card-kicker">Assistant local</p><h2 id="transfer-dialog-title">{title}</h2><p id="transfer-dialog-description">{description}</p></div>
-          <button className="dialog-close" ref={closeButtonRef} type="button" disabled={closeDisabled} onClick={onClose} aria-label="Fermer l’assistant">Fermer</button>
-        </header>
-        {children}
-      </div>
     </div>
   )
 }
@@ -815,9 +493,9 @@ function ImportAssistant({
             <small>Une bibliothèque Sylloge complète sera relue, vérifiée puis ajoutée dans un nouveau profil.</small>
           </button>
           <button className="transfer-choice" type="button" onClick={onChooseFilms} disabled={choosingFilmsImport || disabled}>
-            <span className="card-kicker">Bibliothèque Films externe CSV/Notion</span>
+            <span className="card-kicker">Bibliothèque Films externe CSV/ZIP</span>
             <b>Importer des Films</b>
-            <small>Un tableau CSV ou un export Notion sera mappé avant la création d’un nouveau profil.</small>
+            <small>Un tableau CSV ou une archive ZIP compatible sera mappé avant la création d’un nouveau profil.</small>
           </button>
         </div>
       </div>
@@ -850,8 +528,8 @@ function ImportAssistant({
       <div className="assistant-toolbar"><button className="secondary-button" type="button" onClick={onReset} disabled={disabled}>Choisir un autre format</button></div>
       {!selectedFilmsImport && !filmsImportReport && (
         <section className="assistant-stage">
-          <p className="card-kicker">Bibliothèque Films externe CSV/Notion</p>
-          <h3>Choisir un CSV ou un export Notion</h3>
+          <p className="card-kicker">Bibliothèque Films externe CSV/ZIP</p>
+          <h3>Choisir un CSV ou une archive ZIP</h3>
           <p>Les colonnes seront affichées, y compris celles qui ne seront pas importées. Rien n’est écrit à cette étape.</p>
           <button className="primary-button" type="button" onClick={onChooseFilms} disabled={choosingFilmsImport || disabled}>{choosingFilmsImport ? 'Choix du fichier…' : 'Choisir le fichier'}</button>
         </section>
@@ -912,7 +590,7 @@ function FilmsImportAssistant({
         <p className="card-kicker">Source</p>
         <h3>Fichier et table retenue</h3>
         <dl className="assistant-source-summary">
-          <div><dt>Fichier</dt><dd>{source.kind === 'notion' ? 'Archive Notion sélectionnée' : 'Fichier CSV sélectionné'}</dd></div>
+          <div><dt>Fichier</dt><dd>{source.kind === 'notion' ? 'Archive ZIP compatible sélectionnée' : 'Fichier CSV sélectionné'}</dd></div>
           <div><dt>Table</dt><dd>{selectedCandidateId ? sourceSelection.candidates.find((candidate) => candidate.id === selectedCandidateId)?.label ?? 'À choisir' : 'À choisir'}</dd></div>
         </dl>
         {sourceSelection.selectionRequired && (
@@ -986,7 +664,7 @@ function SourceToDestinationMapping({
     }
   })
   if (source.kind === 'notion' && source.markdownPages.length > 0) {
-    sources.push({ source: NOTION_MARKDOWN_NOTES_SOURCE, label: 'Pages Notion « Notes »', detail: 'Contenu texte associé, distinct d’une évaluation chiffrée' })
+    sources.push({ source: NOTION_MARKDOWN_NOTES_SOURCE, label: 'Pages de notes associées', detail: 'Contenu texte associé, distinct d’une évaluation chiffrée' })
   }
   const detectedScaleLabel = {
     none: 'Aucune évaluation détectée',
@@ -1045,7 +723,7 @@ function FilmsImportPreviewSummary({ preview, importing, disabled, onConfirm }: 
   return (
     <>
       <dl className="transfer-summary compact films-import-summary">
-        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Bibliothèque Films Notion' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div><div><dt>Lignes lues</dt><dd>{preview.totalFilmCount}</dd></div><div><dt>Convertibles</dt><dd>{preview.validFilmCount}</dd></div><div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>
+        <div><dt>Format</dt><dd>{preview.sourceKind === 'notion' ? 'Archive ZIP compatible' : preview.sourceKind === 'csv' ? 'Bibliothèque Films CSV' : 'Bibliothèque Films Sylloge CSV'}</dd></div><div><dt>Lignes lues</dt><dd>{preview.totalFilmCount}</dd></div><div><dt>Convertibles</dt><dd>{preview.validFilmCount}</dd></div><div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>
       </dl>
       {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes visibles mais ignorées :</b> {preview.ignoredColumns.join(', ')}. Elles restent sur « Ne pas importer » et ne sont pas remplacées par une autre donnée.</p>}
       {preview.warnings.length > 0 && <div className="films-import-warnings" role="status"><p>Éléments non associés</p><ul>{preview.warnings.map((warning, index) => <li key={`${warning.path}-${index}`}><code>{warning.path}</code> {warning.message}</li>)}</ul></div>}
@@ -1095,5 +773,451 @@ function ImportReportPanel({ report }: { report: ImportReport }) {
         <li>Identifiants locaux recréés, autres champs V1 conservés</li>
       </ul>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Jalon 0.4.4 — gestion des profils (créer, renommer, supprimer, ouvrir)
+// ---------------------------------------------------------------------------
+
+function profileWorksSummary(profile: ProfileSummary): string {
+  const parts: string[] = []
+  if (profile.filmCount > 0) parts.push(`${profile.filmCount} ${profile.filmCount === 1 ? 'film' : 'films'}`)
+  if (profile.seriesCount > 0) parts.push(`${profile.seriesCount} ${profile.seriesCount === 1 ? 'série' : 'séries'}`)
+  if (profile.bookCount > 0) parts.push(`${profile.bookCount} ${profile.bookCount === 1 ? 'livre' : 'livres'}`)
+  if (profile.gameCount > 0) parts.push(`${profile.gameCount} ${profile.gameCount === 1 ? 'jeu' : 'jeux'}`)
+  if (profile.artworkCount > 0) parts.push(`${profile.artworkCount} ${profile.artworkCount === 1 ? 'œuvre' : 'œuvres'}`)
+  return parts.length > 0 ? parts.join(' · ') : 'Bibliothèque vide'
+}
+
+function profileTotalWorks(profile: ProfileSummary): number {
+  return profile.filmCount + profile.seriesCount + profile.bookCount + profile.gameCount + profile.artworkCount
+}
+
+type ProfilesSectionProps = {
+  library: FilmLibrary
+  profiles: ProfileSummary[]
+  switchingProfileId: string | null
+  profileError: string | null
+  onSwitchProfile: (profileId: string) => Promise<void>
+  onProfilesChanged: () => void
+  onProfileDeleted: (deletedProfileId: string) => void
+}
+
+function ProfilesSection({
+  library,
+  profiles,
+  switchingProfileId,
+  profileError,
+  onSwitchProfile,
+  onProfilesChanged,
+  onProfileDeleted,
+}: ProfilesSectionProps) {
+  const [creating, setCreating] = useState(false)
+  const [newProfileName, setNewProfileName] = useState('')
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [deletingProfile, setDeletingProfile] = useState<ProfileSummary | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const atProfileLimit = profiles.length >= 5
+
+  const submitCreate = async () => {
+    const name = newProfileName.trim()
+    if (!name || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await profilesRepository.create(name)
+      setNewProfileName('')
+      setCreating(false)
+      onProfilesChanged()
+    } catch (cause) {
+      console.error('Impossible de créer le profil.', cause)
+      setError(cause instanceof Error ? cause.message : 'Le profil n’a pas pu être créé.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const submitRename = async (profileId: string) => {
+    const name = renameValue.trim()
+    if (!name || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await profilesRepository.rename(profileId, name)
+      setRenamingId(null)
+      onProfilesChanged()
+    } catch (cause) {
+      console.error('Impossible de renommer le profil.', cause)
+      setError(cause instanceof Error ? cause.message : 'Le profil n’a pas pu être renommé.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (!deletingProfile || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      await profilesRepository.delete(deletingProfile.id)
+      const deletedId = deletingProfile.id
+      setDeletingProfile(null)
+      onProfilesChanged()
+      onProfileDeleted(deletedId)
+    } catch (cause) {
+      console.error('Impossible de supprimer le profil.', cause)
+      setError(cause instanceof Error ? cause.message : 'Le profil n’a pas pu être supprimé.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="settings-page" aria-labelledby="profiles-title">
+      <div className="settings-section-heading">
+        <p className="card-kicker">Bibliothèque locale</p>
+        <h2 id="profiles-title">Profils</h2>
+        <p>Un profil regroupe les cinq collections d’une même personne sur cet appareil. Ouvrez, créez, renommez ou supprimez un profil.</p>
+      </div>
+      <div className="portability-card profile-card">
+        <div className="portability-card-heading">
+          <div><p className="card-kicker">Profil actif</p><h3>Profil courant</h3></div>
+          <span className="profile-badge">{library.profile.name}</span>
+        </div>
+        <div className="profile-list">
+          {profiles.map((profile) => {
+            const active = profile.id === library.profile.id
+            const renaming = renamingId === profile.id
+            return (
+              <div className={`profile-row ${active ? 'active' : ''}`} key={profile.id}>
+                {renaming ? (
+                  <form
+                    className="profile-rename-form"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void submitRename(profile.id)
+                    }}
+                  >
+                    <label>
+                      <span className="visually-hidden">Nouveau nom du profil</span>
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={(event) => setRenameValue(event.target.value)}
+                        maxLength={60}
+                        autoFocus
+                      />
+                    </label>
+                    <button className="primary-button" type="submit" disabled={busy || !renameValue.trim()}>Renommer</button>
+                    <button className="secondary-button" type="button" disabled={busy} onClick={() => setRenamingId(null)}>Annuler</button>
+                  </form>
+                ) : (
+                  <>
+                    <span className="profile-row-identity">
+                      <b>{profile.name}</b>
+                      <small>{profileWorksSummary(profile)}</small>
+                    </span>
+                    <span className="profile-row-actions">
+                      {active ? (
+                        <span className="profile-active-label">Ouvert</span>
+                      ) : (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={busy || switchingProfileId !== null}
+                          onClick={() => void onSwitchProfile(profile.id)}
+                        >
+                          {switchingProfileId === profile.id ? 'Ouverture…' : 'Ouvrir'}
+                        </button>
+                      )}
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setRenamingId(profile.id)
+                          setRenameValue(profile.name)
+                        }}
+                      >
+                        Renommer
+                      </button>
+                      <button
+                        className="secondary-button danger"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => setDeletingProfile(profile)}
+                      >
+                        Supprimer
+                      </button>
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {creating ? (
+          <form
+            className="profile-create-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submitCreate()
+            }}
+          >
+            <label>
+              <span className="visually-hidden">Nom du nouveau profil</span>
+              <input
+                type="text"
+                value={newProfileName}
+                onChange={(event) => setNewProfileName(event.target.value)}
+                placeholder="Nom du profil"
+                maxLength={60}
+                autoFocus
+              />
+            </label>
+            <button className="primary-button" type="submit" disabled={busy || !newProfileName.trim()}>Créer le profil</button>
+            <button className="secondary-button" type="button" disabled={busy} onClick={() => { setCreating(false); setNewProfileName('') }}>Annuler</button>
+          </form>
+        ) : (
+          <button
+            className="primary-button"
+            type="button"
+            disabled={busy || atProfileLimit}
+            onClick={() => setCreating(true)}
+          >
+            Créer un profil
+          </button>
+        )}
+        {atProfileLimit && !creating && (
+          <p className="profile-limit-note">Le nombre maximal de 5 profils est atteint. Supprimez un profil pour en créer un autre.</p>
+        )}
+
+        {(error ?? profileError) && <p className="inline-report error" role="alert">{error ?? profileError}</p>}
+      </div>
+
+      {deletingProfile && (
+        <AccessibleDialog
+          title={`Supprimer le profil « ${deletingProfile.name} »`}
+          description="Cette suppression est définitive."
+          onClose={() => setDeletingProfile(null)}
+          closeDisabled={busy}
+        >
+          <div className="assistant-content">
+            <section className="assistant-stage">
+              <p className="card-kicker">Confirmation requise</p>
+              <h3>Supprimer définitivement ce profil ?</h3>
+              <p>
+                {profileTotalWorks(deletingProfile) > 0
+                  ? `Ce profil contient ${profileWorksSummary(deletingProfile)}. Toutes ces fiches seront définitivement supprimées.`
+                  : 'Ce profil ne contient aucune fiche.'}
+                {deletingProfile.id === library.profile.id && (
+                  <> Ce profil est actuellement ouvert : après suppression, Sylloge retournera à l’écran de premier lancement.</>
+                )}
+              </p>
+              <div className="assistant-actions">
+                <button className="secondary-button" type="button" disabled={busy} onClick={() => setDeletingProfile(null)}>Annuler</button>
+                <button className="primary-button danger" type="button" disabled={busy} onClick={() => void confirmDelete()}>
+                  {busy ? 'Suppression…' : 'Supprimer définitivement'}
+                </button>
+              </div>
+            </section>
+          </div>
+        </AccessibleDialog>
+      )}
+    </section>
+  )
+}
+
+
+// ---------------------------------------------------------------------------
+// Jalon 0.4.4 — export/import global « format Sylloge » (5 collections)
+// ---------------------------------------------------------------------------
+
+type GlobalTransferSectionProps = {
+  library: FilmLibrary
+  fullLibrary: CulturalLibrary | null
+  onImported: (library: FilmLibrary) => void
+  onProfilesChanged: () => void
+  onLibraryChanged: () => void
+}
+
+function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesChanged, onLibraryChanged }: GlobalTransferSectionProps) {
+  const [exportState, setExportState] = useState<'idle' | 'saving'>('idle')
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+
+  const exportGlobal = async () => {
+    setExportState('saving')
+    setExportMessage(null)
+    try {
+      const full = await libraryRepository.loadLibrary(library.profile.id)
+      const document = createLibraryDocument(full)
+      const savedName = await saveExportJson(
+        libraryExportFileName(document.exportedAt),
+        serializeLibraryDocument(document),
+      )
+      setExportMessage(savedName
+        ? `Export JSON enregistré dans « ${savedName} » (${full.films.length} films, ${full.series.length} séries, ${full.books.length} livres, ${full.games.length} jeux, ${full.artworks.length} œuvres).`
+        : 'Export annulé. Aucun fichier n’a été écrit.')
+    } catch (error) {
+      console.error('Impossible d’exporter la bibliothèque complète.', error)
+      setExportMessage('L’export JSON a échoué. La bibliothèque locale n’a pas été modifiée.')
+    } finally {
+      setExportState('idle')
+    }
+  }
+
+  const importGlobal = async () => {
+    if (importing) return
+    setImporting(true)
+    setImportError(null)
+    setImportMessage(null)
+    try {
+      const picked = await pickImportJson()
+      if (!picked) {
+        setImportMessage('Sélection annulée. Aucune donnée n’a été écrite.')
+        return
+      }
+
+      // Détecte v2 (5 collections) puis v1 (Films historique).
+      const previewV2 = validateLibraryDocument(picked.contents)
+      if (previewV2.document !== null) {
+        const full = await libraryRepository.loadLibrary(library.profile.id)
+        const totalWorks = full.films.length + full.series.length + full.books.length + full.games.length + full.artworks.length
+        if (totalWorks > 0) {
+          setImportError('Ce JSON réunit les cinq collections et ne peut être importé que dans un profil vide. Créez un profil ou videz le profil courant avant de recommencer.')
+          return
+        }
+        const imported = await libraryRepository.importLibraryDocumentIntoEmptyProfile(
+          library.profile,
+          previewV2.document,
+        )
+        onProfilesChanged()
+        onImported({ profile: imported.profile, films: imported.films })
+        setImportMessage(`Bibliothèque restaurée dans le profil courant « ${imported.profile.name} » : ${imported.films.length} films, ${imported.series.length} séries, ${imported.books.length} livres, ${imported.games.length} jeux, ${imported.artworks.length} œuvres.`)
+        return
+      }
+
+      const previewV1 = validateLibraryImport(picked.contents)
+      if (previewV1.document !== null) {
+        const full = await libraryRepository.loadLibrary(library.profile.id)
+        const totalWorks = full.films.length + full.series.length + full.books.length + full.games.length + full.artworks.length
+        if (totalWorks > 0) {
+          setImportError('Ce JSON réunit les cinq collections et ne peut être importé que dans un profil vide. Créez un profil ou videz le profil courant avant de recommencer.')
+          return
+        }
+        const compatibleDocument = createLibraryDocument({
+          profile: library.profile,
+          films: previewV1.document.films,
+          series: [],
+          books: [],
+          games: [],
+          artworks: [],
+        })
+        const imported = await libraryRepository.importLibraryDocumentIntoEmptyProfile(
+          library.profile,
+          compatibleDocument,
+        )
+        onProfilesChanged()
+        onImported({ profile: imported.profile, films: imported.films })
+        setImportMessage(`Bibliothèque restaurée dans le profil courant « ${imported.profile.name} » : ${imported.films.length} ${imported.films.length === 1 ? 'film' : 'films'}.`)
+        return
+      }
+
+      setImportError('Le fichier choisi n’est pas un JSON Sylloge valide (v1 ou v2). Aucune donnée n’a été écrite.')
+    } catch (error) {
+      console.error('L’import global a échoué.', error)
+      setImportError('L’import a échoué. La transaction a été annulée et aucune bibliothèque incomplète n’a été conservée.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  return (
+    <section className="settings-page" aria-labelledby="transfer-title">
+      <div className="settings-section-heading">
+        <p className="card-kicker">Formats portables</p>
+        <h2 id="transfer-title">Importer et exporter</h2>
+        <p>Choisis une action locale. JSON déplace une collection ou les cinq collections ; CSV sert aux échanges tabulaires d’un médium ; Snapshots créent des copies JSON datées.</p>
+      </div>
+
+      <div className="portability-card">
+        <div className="portability-card-heading">
+          <div><p className="card-kicker">JSON</p><h3>Sauvegarde Sylloge</h3></div>
+        </div>
+        <p>La Sauvegarde Sylloge réunit Films, Séries, Livres, Jeux et Art dans le schéma JSON identifié et versionné de Sylloge. Elle sert à déplacer toute la bibliothèque vers un profil vide.</p>
+        <div className="backup-actions">
+          <button className="primary-button" type="button" disabled={exportState === 'saving'} onClick={() => void exportGlobal()}>
+            {exportState === 'saving' ? 'Export…' : 'Exporter la sauvegarde'}
+          </button>
+          <button className="secondary-button" type="button" disabled={importing} onClick={() => void importGlobal()}>
+            {importing ? 'Lecture…' : 'Restaurer une sauvegarde'}
+          </button>
+        </div>
+        {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
+        {importMessage && <p className="inline-report" role="status">{importMessage}</p>}
+        {importError && <p className="inline-report error" role="alert">{importError}</p>}
+      </div>
+
+      <div className="portability-card">
+        <div className="portability-card-heading">
+          <div><p className="card-kicker">Collections</p><h3>Actions par médium</h3></div>
+        </div>
+        <p>Chaque bibliothèque reprend les mêmes actions que son écran : importer ou exporter son JSON et exporter son CSV. Le JSON reste nécessaire pour une copie complète fidèle ; le CSV décrit une seule collection.</p>
+        {fullLibrary === null ? (
+          <p className="backup-state" role="status">Lecture des collections locales…</p>
+        ) : (
+          <div className="transfer-media-grid">
+            <section className="transfer-media-card" aria-labelledby="transfer-films-title">
+              <h4 id="transfer-films-title">Films</h4>
+              <p>JSON et CSV</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="films" buttonLabel="Importer" mediumLabel="film" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.films} onDone={onLibraryChanged} />
+                <LibraryExportFlow kind="films" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-series-title">
+              <h4 id="transfer-series-title">Séries</h4>
+              <p>JSON et CSV</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="series" buttonLabel="Importer" mediumLabel="série" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.series} onDone={onLibraryChanged} />
+                <LibraryExportFlow kind="series" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-books-title">
+              <h4 id="transfer-books-title">Livres</h4>
+              <p>JSON et CSV, citations comprises</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="books" buttonLabel="Importer" mediumLabel="livre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.books} onDone={onLibraryChanged} />
+                <LibraryExportFlow kind="books" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-games-title">
+              <h4 id="transfer-games-title">Jeux</h4>
+              <p>JSON et CSV</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="games" buttonLabel="Importer" mediumLabel="jeu" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.games} onDone={onLibraryChanged} />
+                <LibraryExportFlow kind="games" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+            <section className="transfer-media-card" aria-labelledby="transfer-art-title">
+              <h4 id="transfer-art-title">Art</h4>
+              <p>JSON et CSV, sans note chiffrée</p>
+              <div className="backup-actions">
+                <LibraryImportButton kind="artworks" buttonLabel="Importer" mediumLabel="œuvre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.artworks} onDone={onLibraryChanged} />
+                <LibraryExportFlow kind="artworks" profileId={fullLibrary.profile.id} />
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
+    </section>
   )
 }

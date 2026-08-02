@@ -1,4 +1,5 @@
 import { normalizeFilm, type Film, type FilmStatus } from './film.ts'
+import { parseCsv, type CsvRow, type CsvTable } from './csv.ts'
 import {
   SYLLOGE_FILMS_CSV_FORMAT,
   SYLLOGE_FILMS_CSV_HEADER,
@@ -12,6 +13,8 @@ import {
   type ImportValidationError,
   type SyllogeExportDocument,
 } from './libraryTransfer.ts'
+
+export { parseCsv } from './csv.ts'
 
 export const IMPORTABLE_FILM_FIELDS = [
   'title',
@@ -38,7 +41,7 @@ export type FilmImportCsvCandidate = {
 
 export type PickedFilmsImportFile = {
   name: string
-  kind: 'csv' | 'notion'
+  kind: 'csv' | 'notion' | 'container'
   csvCandidates: FilmImportCsvCandidate[]
   markdownPages: MarkdownPage[]
 }
@@ -77,7 +80,7 @@ export type FilmImportSourceSelection = {
 }
 
 export type FilmsCsvImportPreview = ImportPreview & {
-  sourceKind: 'sylloge-csv-v1' | 'csv' | 'notion'
+  sourceKind: 'sylloge-csv-v1' | 'csv' | 'notion' | 'container'
   sourceLabel: string
   mapping: Array<{ field: string; column: string }>
   ignoredColumns: string[]
@@ -85,20 +88,9 @@ export type FilmsCsvImportPreview = ImportPreview & {
   detectedRatingScale: DetectedRatingScale
 }
 
-type CsvRow = {
-  cells: string[]
-  line: number
-}
-
-type CsvTable = {
-  headers: string[]
-  rows: CsvRow[]
-  errors: ImportValidationError[]
-}
-
 type GenericFilmImportSession = {
   kind: 'generic'
-  sourceKind: 'csv' | 'notion'
+  sourceKind: 'csv' | 'notion' | 'container'
   sourceLabel: string
   notionDatabaseRoots: string[]
   headers: string[]
@@ -288,7 +280,11 @@ export function prepareFilmCsvImport(
   if (!candidate || !candidateIsSelectable) throw new Error('Choisissez une table CSV Notion avant de préparer son aperçu.')
 
   const table = parseCsv(candidate.contents)
-  const sourceLabel = source.kind === 'notion' ? `Export Notion : ${candidate.name}` : 'CSV'
+  const sourceLabel = source.kind === 'notion'
+    ? `Export Notion : ${candidate.name}`
+    : source.kind === 'container'
+      ? `Conteneur local : ${candidate.name}`
+      : 'CSV'
 
   if (isSyllogeCsvHeader(table.headers)) {
     return { kind: 'sylloge', sourceLabel: 'CSV Sylloge Films v1', table }
@@ -401,110 +397,6 @@ export function previewFilmCsvImport(
   return previewGenericCsv(session, source.markdownPages, configuration, importedAt)
 }
 
-export function parseCsv(contents: string): CsvTable {
-  const errors: ImportValidationError[] = []
-  const rows: CsvRow[] = []
-  const cells: string[] = []
-  let cell = ''
-  let quoted = false
-  let quoteClosed = false
-  let line = 1
-  let rowLine = 1
-
-  for (let index = 0; index < contents.length; index += 1) {
-    const character = contents[index]
-    const next = contents[index + 1]
-
-    if (quoted) {
-      if (character === '"' && next === '"') {
-        cell += '"'
-        index += 1
-      } else if (character === '"') {
-        quoted = false
-        quoteClosed = true
-      } else {
-        cell += character
-        if (character === '\n') line += 1
-      }
-      continue
-    }
-
-    if (quoteClosed) {
-      if (character === ',') {
-        cells.push(cell)
-        cell = ''
-        quoteClosed = false
-      } else if (character === '\r' || character === '\n') {
-        if (character === '\r' && next === '\n') index += 1
-        cells.push(cell)
-        rows.push({ cells: [...cells], line: rowLine })
-        cells.length = 0
-        cell = ''
-        quoteClosed = false
-        line += 1
-        rowLine = line
-      } else {
-        errors.push({
-          path: `Ligne ${line}`,
-          message: 'Une cellule CSV citée doit être suivie d’une virgule ou de la fin de ligne.',
-        })
-        cell += character
-        quoteClosed = false
-      }
-    } else if (character === '"') {
-      if (cell.length > 0) {
-        errors.push({ path: `Ligne ${line}`, message: 'Un guillemet doit commencer au début d’une cellule CSV.' })
-      }
-      quoted = true
-    } else if (character === ',') {
-      cells.push(cell)
-      cell = ''
-    } else if (character === '\r' || character === '\n') {
-      if (character === '\r' && next === '\n') index += 1
-      cells.push(cell)
-      rows.push({ cells: [...cells], line: rowLine })
-      cells.length = 0
-      cell = ''
-      line += 1
-      rowLine = line
-    } else {
-      cell += character
-    }
-  }
-
-  if (quoted) errors.push({ path: `Ligne ${rowLine}`, message: 'Une cellule CSV citée n’est pas fermée.' })
-  if (cell.length > 0 || cells.length > 0 || quoteClosed) {
-    cells.push(cell)
-    rows.push({ cells: [...cells], line: rowLine })
-  }
-
-  const headerRow = rows.shift()
-  if (!headerRow) return { headers: [], rows: [], errors: [{ path: '$', message: 'Le CSV ne contient aucune ligne d’en-tête.' }] }
-  const headers = headerRow.cells.map((header, index) => {
-    const withoutBom = index === 0 ? header.replace(/^\uFEFF/u, '') : header
-    return withoutBom.trim()
-  })
-  if (headers.some((header) => header.length === 0)) {
-    errors.push({ path: `Ligne ${headerRow.line}`, message: 'Chaque colonne CSV doit avoir un en-tête non vide.' })
-  }
-  const headerNames = new Set<string>()
-  for (const header of headers) {
-    const key = normalize(header)
-    if (headerNames.has(key)) errors.push({ path: `Ligne ${headerRow.line}`, message: `L’en-tête « ${header} » est présent plusieurs fois.` })
-    headerNames.add(key)
-  }
-  for (const row of rows) {
-    if (row.cells.length !== headers.length) {
-      errors.push({
-        path: `Ligne ${row.line}`,
-        message: `Cette ligne contient ${row.cells.length} cellules alors que l’en-tête en définit ${headers.length}.`,
-      })
-    }
-  }
-
-  return { headers, rows, errors }
-}
-
 function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPreview {
   const errors = [...session.table.errors]
   const rows = session.table.rows
@@ -606,8 +498,8 @@ function previewGenericCsv(
     : []
   const detectedRatingScale = detectRatingScale(ratingCells)
 
-  if (!titleColumn) errors.push({ path: 'Mapping', message: 'Le titre doit être mappé avant de pouvoir créer un profil.' })
-  if (!configuration.profileName.trim()) errors.push({ path: 'Profil', message: 'Le nouveau profil doit recevoir un nom explicite.' })
+  if (!titleColumn) errors.push({ path: 'Mapping', message: 'Le titre doit être mappé avant de pouvoir préparer l’import.' })
+  if (!configuration.profileName.trim()) errors.push({ path: 'Profil', message: 'Le profil courant doit avoir un nom explicite.' })
   errors.push(...mappingValidationErrors(session, configuration))
   if (detectedRatingScale === 'mixed') {
     errors.push({ path: 'Notes', message: 'Les notes indiquent à la fois /5 et /10. Corrigez les valeurs avant l’import.' })
@@ -1131,8 +1023,8 @@ function isSyllogeCsvHeader(headers: string[]): boolean {
     && headers.every((header, index) => header === SYLLOGE_FILMS_CSV_HEADER[index])
 }
 
-function suggestedProfileName(tableName: string, kind: 'csv' | 'notion'): string {
-  const segments = tableName
+function suggestedProfileName(fileName: string, sourceKind: 'csv' | 'notion' | 'container'): string {
+  const segments = fileName
     .replace(/\\/gu, '/')
     .split('/')
     .map((segment) => readableTableName(segment))
@@ -1140,7 +1032,7 @@ function suggestedProfileName(tableName: string, kind: 'csv' | 'notion'): string
   const filmsTable = [...segments].reverse().find((segment) => /(^|\s)films?(\s|$)/iu.test(segment))
   const name = filmsTable ?? segments.at(-1) ?? 'Films'
 
-  return kind === 'notion' ? name : `Import ${name}`
+  return sourceKind === 'notion' ? name : `Import ${name}`
 }
 
 function readableTableName(value: string): string {
