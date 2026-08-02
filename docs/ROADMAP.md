@@ -429,7 +429,7 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.0` — Release publique Extension culturelle
 
-**État : fusionnée dans `main`, manifestes à jour, en attente de tag, push et artefacts signés.** La recette native a été exercée par Aurélien pendant la stabilisation ; les corrections remontées sont intégrées (jalons `0.4.23` à `0.4.29` + fix recette). La checklist consolidée reste dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md) pour la suite.
+**État : publiée le 2 août 2026 — tag `v0.5.0`, artefacts signés et `latest.json` sur GitHub Releases.** La recette native a été exercée par Aurélien pendant la stabilisation ; les corrections remontées sont intégrées (jalons `0.4.23` à `0.4.29` + fix recette). La checklist consolidée reste dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md) pour la suite.
 
 - Revoir, intégrer et valider les cinq verticales du contrat V1 ; ne publier que des médiums complets, documentés et migrables.
 - Vérifier que recherche, filtres, profils, exports, imports, sauvegardes et fallbacks visuels se comportent pour Films, Séries, Livres, Jeux et Art.
