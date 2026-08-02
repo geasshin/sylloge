@@ -12,6 +12,7 @@ import { Poster } from './components/Poster.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
 import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
+import { SeriesTmdbSearchFlow } from './components/SeriesTmdbSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportButton } from './components/LibraryExportButton.tsx'
 import { LibraryCsvExportButton } from './components/LibraryCsvExportButton.tsx'
@@ -31,7 +32,7 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
-import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm } from './data/tmdbService.ts'
+import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries } from './data/tmdbService.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -63,7 +64,8 @@ import {
   type Series,
   type SeriesCategory,
 } from './domain/series.ts'
-import type { SeriesWriteInput } from './domain/seriesForm.ts'
+import type { SeriesFormValues, SeriesWriteInput } from './domain/seriesForm.ts'
+import { seriesPresentationToInitialValues } from './domain/seriesMetadataAssistance.ts'
 import {
   BOOK_CATEGORIES,
   BOOK_CATEGORY_LABELS,
@@ -1453,7 +1455,8 @@ type View =
   | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
-  | { name: 'series-create' }
+  | { name: 'series-create'; initialValues?: SeriesFormValues }
+  | { name: 'series-tmdb-search' }
   | { name: 'series-detail'; seriesId: string }
   | { name: 'series-edit'; seriesId: string }
   | { name: 'books' }
@@ -1915,6 +1918,23 @@ function App() {
     }
   }
 
+  // Même parcours direct pour les Séries (jalon 0.4.26) : le clic sur un
+  // résultat préremplit immédiatement le formulaire.
+  const selectTmdbSeriesCandidate = async (candidate: TmdbSearchCandidate) => {
+    setCandidateSelection({ pendingId: candidate.tmdbId, error: null })
+    try {
+      const presentation = await previewTmdbSeries(candidate.tmdbId)
+      setCandidateSelection({ pendingId: null, error: null })
+      setView({ name: 'series-create', initialValues: seriesPresentationToInitialValues(presentation) })
+    } catch (error) {
+      console.error('La sélection TMDB Séries a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
+
   if (libraryState.status === 'loading') {
     content = (
       <main className="main home-main">
@@ -2145,16 +2165,27 @@ function App() {
         searchState={seriesSearchState}
         onContextChange={setSeriesContext}
         onRetrySearch={() => setSeriesSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'series-create' })}
+        onCreate={() => leaveLibrary({ name: 'series-tmdb-search' })}
         onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    )
+  } else if (view.name === 'series-tmdb-search') {
+    content = (
+      <SeriesTmdbSearchFlow
+        pendingCandidateId={candidateSelection.pendingId}
+        selectionError={candidateSelection.error}
+        onSelectCandidate={selectTmdbSeriesCandidate}
+        onManual={() => setView({ name: 'series-create' })}
+        onCancel={returnToLibrary}
       />
     )
   } else if (view.name === 'series-create') {
     const { library } = libraryState
     content = (
       <SeriesForm
+        initialValues={view.initialValues}
         onCancel={returnToLibrary}
         onSave={async (input: SeriesWriteInput) => {
           const series = await mediaRepository.createSeries(library.profile.id, input)
@@ -2575,7 +2606,7 @@ function App() {
             ? 'home'
             : view.name === 'settings'
               ? 'settings'
-              : view.name === 'series' || view.name === 'series-create' || view.name === 'series-detail' || view.name === 'series-edit'
+              : view.name === 'series' || view.name === 'series-create' || view.name === 'series-tmdb-search' || view.name === 'series-detail' || view.name === 'series-edit'
                 ? 'series'
                 : view.name === 'books' || view.name === 'book-create' || view.name === 'book-detail' || view.name === 'book-edit'
                   ? 'books'

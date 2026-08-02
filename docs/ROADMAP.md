@@ -396,6 +396,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.26` — Séries assistées TMDB
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** « Ajouter une série » ouvre la recherche TMDB TV avec suggestions temporisées ; le clic sur un résultat préremplit directement le formulaire (titre, showrunner, casting, résumé, total de saisons connu, affiche), éditable avant validation. Le statut, la note, le coup de cœur et les saisons vues ne sont jamais préremplis. Périmètre délibérément borné : pas de cache ni d'association persistée pour les Séries dans ce train — la clé embarquée et le client existants suffisent, aucune migration.
+
 - Réutiliser la clé TMDB embarquée, le client et le cache pour la recherche TV : suggestions temporisées, préremplissage éditable, données personnelles séparées, même parcours que Films.
 
 ### `0.4.27` — Livres assistés Open Library

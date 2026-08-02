@@ -52,6 +52,8 @@ pub fn run() {
             tmdb::purge_expired_tmdb_cache,
             tmdb::search_tmdb_films,
             tmdb::preview_tmdb_film,
+            tmdb::search_tmdb_series,
+            tmdb::preview_tmdb_series,
             tmdb::associate_film_with_tmdb,
             tmdb::refresh_film_tmdb_cache,
             tmdb::remove_tmdb_association,

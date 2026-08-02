@@ -3706,4 +3706,51 @@ assert.match(libraryViewBarSource, /Confirmer la suppression/, 'La suppression d
 assert.match(libraryViewBarSource, /Enregistrer comme vue/, 'La rangée doit permettre d’enregistrer le combo courant comme vue')
 assert.match(libraryViewBarSource, /INLINE_SAVED_VIEWS/, 'Le débordement des vues enregistrées doit rester borné dans la rangée')
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire.')
+// Jalon 0.4.26 — Séries assistées TMDB, même parcours direct que Films.
+const seriesMetadataAssistanceSource = readFileSync(new URL('../src/domain/seriesMetadataAssistance.ts', import.meta.url), 'utf8')
+const seriesTmdbSearchFlowSource = readFileSync(new URL('../src/components/SeriesTmdbSearchFlow.tsx', import.meta.url), 'utf8')
+const seriesFormComponentSource = readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8')
+const tmdbClientSource0426 = readFileSync(new URL('../src-tauri/src/tmdb/client.rs', import.meta.url), 'utf8')
+const tauriLibrarySource0426 = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
+
+assert.match(tmdbClientSource0426, /"\/search\/tv"/, 'La recherche Séries doit viser l’endpoint TV de TMDB')
+assert.match(tmdbClientSource0426, /\/tv\/\{tmdb_id\}\/aggregate_credits/, 'La présentation TV doit lire les crédits agrégés')
+assert.match(tmdbClientSource0426, /number_of_seasons/, 'Le total de saisons connu doit être lu depuis TMDB')
+assert.match(tmdbClientSource0426, /validate_series_presentation/, 'La présentation TV doit être validée et bornée')
+assert.match(tmdbClientSource0426, /series_fake_client_returns_bounded_presentation/, 'Une preuve Rust doit couvrir la présentation TV bornée')
+assert.match(tauriLibrarySource0426, /tmdb::search_tmdb_series/, 'La commande de recherche Séries doit être enregistrée')
+assert.match(tauriLibrarySource0426, /tmdb::preview_tmdb_series/, 'La commande de prévisualisation Séries doit être enregistrée')
+assert.match(tmdbServiceSource, /invoke\('search_tmdb_series'/, 'Le frontend doit appeler la recherche Séries')
+assert.match(tmdbServiceSource, /invoke\('preview_tmdb_series'/, 'Le frontend doit appeler la prévisualisation Séries')
+assert.doesNotMatch(seriesMetadataAssistanceSource, /status:|rating:|isFavorite:/, 'Le préremplissage Séries ne doit toucher ni statut, ni note, ni favori')
+assert.match(seriesFormComponentSource, /\.\.\.EMPTY_SERIES_FORM, \.\.\.initialValues/, 'Le formulaire Séries doit accepter des valeurs préremplies')
+assert.match(mainSource047, /series-tmdb-search/, 'L’ajout de Série doit ouvrir la recherche TMDB')
+assert.match(mainSource047, /seriesPresentationToInitialValues/, 'Le clic sur un résultat Séries doit préremplir directement le formulaire')
+assert.match(seriesTmdbSearchFlowSource, /setTimeout\(\(\) =>/, 'La recherche Séries doit être temporisée pendant la saisie')
+assert.match(seriesTmdbSearchFlowSource, /Saisir manuellement/, 'La recherche Séries doit proposer une issue manuelle')
+assert.match(seriesTmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche Séries doit désactiver l’autocorrection')
+
+{
+  const { seriesPresentationToInitialValues } = await import('../src/domain/seriesMetadataAssistance.ts')
+  const initial = seriesPresentationToInitialValues({
+    tmdbId: 1399,
+    title: 'Game of Thrones',
+    originalTitle: 'Game of Thrones',
+    firstAirYear: 2011,
+    synopsis: 'Des intrigues de pouvoir à Westeros.',
+    showrunners: ['David Benioff', 'D. B. Weiss'],
+    cast: ['Emilia Clarke', 'Peter Dinklage'],
+    seasonsTotal: 8,
+    posterUrl: 'https://image.tmdb.org/t/p/w500/got.jpg',
+  })
+  assert.equal(initial.title, 'Game of Thrones', 'Le titre doit être prérempli')
+  assert.equal(initial.showrunner, 'David Benioff, D. B. Weiss', 'Les showrunners doivent être joints lisiblement')
+  assert.equal(initial.casting, 'Emilia Clarke, Peter Dinklage', 'Le casting doit être joint lisiblement')
+  assert.equal(initial.seasonsTotal, '8', 'Le total de saisons connu doit être proposé')
+  assert.equal(initial.posterUrl, 'https://image.tmdb.org/t/p/w500/got.jpg', 'L’affiche doit être préremplie')
+  assert.equal(initial.status, 'à voir', 'Le statut personnel doit rester au neutre')
+  assert.equal(initial.rating, '', 'La note personnelle ne doit jamais être préremplie')
+  assert.equal(initial.seasonsSeen, '', 'Les saisons vues ne doivent jamais être préremplies')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation.')

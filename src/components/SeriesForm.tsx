@@ -32,12 +32,14 @@ function previewablePosterUrl(value: string): string | null {
 
 type SeriesFormProps = {
   series?: Series
+  /** Valeurs préremplies par la recherche TMDB (création assistée, jalon 0.4.26). */
+  initialValues?: SeriesFormValues
   onCancel: () => void
   onSave: (input: SeriesWriteInput) => Promise<void>
 }
 
-export function SeriesForm({ series, onCancel, onSave }: SeriesFormProps) {
-  const [values, setValues] = useState<SeriesFormValues>(() => series ? seriesToFormValues(series) : { ...EMPTY_SERIES_FORM })
+export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFormProps) {
+  const [values, setValues] = useState<SeriesFormValues>(() => series ? seriesToFormValues(series) : { ...EMPTY_SERIES_FORM, ...initialValues })
   const [errors, setErrors] = useState<SeriesFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -45,7 +47,7 @@ export function SeriesForm({ series, onCancel, onSave }: SeriesFormProps) {
   const hasSecondaryDetails = Boolean(
     series
       ? series.showrunner || series.casting || series.summary
-      : false,
+      : initialValues && (initialValues.showrunner || initialValues.casting || initialValues.summary),
   )
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewablePosterUrl(values.posterUrl)
