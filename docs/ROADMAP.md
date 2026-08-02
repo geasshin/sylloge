@@ -415,8 +415,10 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.29` — Import / Export à deux boutons et Sauvegarde Sylloge
 
-- Un seul bouton Importer et un seul bouton Exporter par bibliothèque ; Exporter ouvre un dialogue listant les formats disponibles.
-- L'export global des cinq collections devient la **Sauvegarde Sylloge** (JSON complet, réimportable pour restauration), nommée comme telle dans les Paramètres.
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Chaque bibliothèque n'expose plus que deux actions : **Importer** et **Exporter**. Exporter ouvre un dialogue accessible listant les formats — JSON Sylloge (document versionné réimportable) ou CSV (tableur) — et aucune écriture n'a lieu avant le choix explicite. Dans les Paramètres, l'export global des cinq collections devient la **Sauvegarde Sylloge** : « Exporter la sauvegarde » / « Restaurer une sauvegarde » (JSON complet, restauration atomique dans un profil vide, inchangée). Les cartes par médium du hub réutilisent le même flux unifié ; les anciens boutons Exporter / Exporter CSV séparés sont supprimés.
+
+- Chaque bibliothèque expose exactement deux boutons, Importer et Exporter ; Exporter ouvre un dialogue listant les formats proposés (JSON Sylloge, CSV) avant toute écriture.
+- L'export global des cinq collections devient la Sauvegarde Sylloge (JSON complet, réimportable pour restauration), nommée comme telle dans les Paramètres.
 
 ### `0.4.22` — Reprise complète de la recette et corrections de clôture
 

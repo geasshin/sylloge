@@ -42,8 +42,7 @@ import {
 } from '../data/nativePortability.ts'
 import { UpdaterSettings } from './UpdaterSettings.tsx'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
-import { LibraryExportButton } from './LibraryExportButton.tsx'
-import { LibraryCsvExportButton } from './LibraryCsvExportButton.tsx'
+import { LibraryExportFlow } from './LibraryExportFlow.tsx'
 import { LibraryImportButton } from './LibraryImportButton.tsx'
 import type { AvailableUpdate } from '../data/updaterService.ts'
 
@@ -1151,15 +1150,15 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
 
       <div className="portability-card">
         <div className="portability-card-heading">
-          <div><p className="card-kicker">JSON</p><h3>Les cinq collections</h3></div>
+          <div><p className="card-kicker">JSON</p><h3>Sauvegarde Sylloge</h3></div>
         </div>
-        <p>Ce fichier réunit Films, Séries, Livres, Jeux et Art dans le schéma JSON identifié et versionné de Sylloge. Il sert à déplacer toute la bibliothèque vers un profil vide.</p>
+        <p>La Sauvegarde Sylloge réunit Films, Séries, Livres, Jeux et Art dans le schéma JSON identifié et versionné de Sylloge. Elle sert à déplacer toute la bibliothèque vers un profil vide.</p>
         <div className="backup-actions">
           <button className="primary-button" type="button" disabled={exportState === 'saving'} onClick={() => void exportGlobal()}>
-            {exportState === 'saving' ? 'Export…' : 'Exporter JSON'}
+            {exportState === 'saving' ? 'Export…' : 'Exporter la sauvegarde'}
           </button>
           <button className="secondary-button" type="button" disabled={importing} onClick={() => void importGlobal()}>
-            {importing ? 'Lecture…' : 'Importer JSON'}
+            {importing ? 'Lecture…' : 'Restaurer une sauvegarde'}
           </button>
         </div>
         {exportMessage && <p className="inline-report" role="status">{exportMessage}</p>}
@@ -1181,8 +1180,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
               <p>JSON et CSV</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="films" buttonLabel="Importer" mediumLabel="film" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.films} onDone={onLibraryChanged} />
-                <LibraryExportButton kind="films" profileId={fullLibrary.profile.id} />
-                <LibraryCsvExportButton kind="films" profileId={fullLibrary.profile.id} />
+                <LibraryExportFlow kind="films" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-series-title">
@@ -1190,8 +1188,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
               <p>JSON et CSV</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="series" buttonLabel="Importer" mediumLabel="série" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.series} onDone={onLibraryChanged} />
-                <LibraryExportButton kind="series" profileId={fullLibrary.profile.id} />
-                <LibraryCsvExportButton kind="series" profileId={fullLibrary.profile.id} />
+                <LibraryExportFlow kind="series" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-books-title">
@@ -1199,8 +1196,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
               <p>JSON et CSV, citations comprises</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="books" buttonLabel="Importer" mediumLabel="livre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.books} onDone={onLibraryChanged} />
-                <LibraryExportButton kind="books" profileId={fullLibrary.profile.id} />
-                <LibraryCsvExportButton kind="books" profileId={fullLibrary.profile.id} />
+                <LibraryExportFlow kind="books" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-games-title">
@@ -1208,8 +1204,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
               <p>JSON et CSV</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="games" buttonLabel="Importer" mediumLabel="jeu" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.games} onDone={onLibraryChanged} />
-                <LibraryExportButton kind="games" profileId={fullLibrary.profile.id} />
-                <LibraryCsvExportButton kind="games" profileId={fullLibrary.profile.id} />
+                <LibraryExportFlow kind="games" profileId={fullLibrary.profile.id} />
               </div>
             </section>
             <section className="transfer-media-card" aria-labelledby="transfer-art-title">
@@ -1217,8 +1212,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
               <p>JSON et CSV, sans note chiffrée</p>
               <div className="backup-actions">
                 <LibraryImportButton kind="artworks" buttonLabel="Importer" mediumLabel="œuvre" profileId={fullLibrary.profile.id} profileName={fullLibrary.profile.name} existing={fullLibrary.artworks} onDone={onLibraryChanged} />
-                <LibraryExportButton kind="artworks" profileId={fullLibrary.profile.id} />
-                <LibraryCsvExportButton kind="artworks" profileId={fullLibrary.profile.id} />
+                <LibraryExportFlow kind="artworks" profileId={fullLibrary.profile.id} />
               </div>
             </section>
           </div>

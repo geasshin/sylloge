@@ -16,8 +16,7 @@ import { SeriesTmdbSearchFlow } from './components/SeriesTmdbSearchFlow.tsx'
 import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlow.tsx'
 import { GameRawgSearchFlow } from './components/GameRawgSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
-import { LibraryExportButton } from './components/LibraryExportButton.tsx'
-import { LibraryCsvExportButton } from './components/LibraryCsvExportButton.tsx'
+import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
@@ -666,8 +665,7 @@ function FilmsLibrary({
             existing={library.films}
             onDone={onLibraryChanged}
           />
-          <LibraryExportButton kind="films" profileId={library.profile.id} />
-          <LibraryCsvExportButton kind="films" profileId={library.profile.id} />
+          <LibraryExportFlow kind="films" profileId={library.profile.id} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
         </div>
       </header>
@@ -901,8 +899,7 @@ function SeriesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportButton kind="series" profileId={profileId} />
-          <LibraryCsvExportButton kind="series" profileId={profileId} />
+          <LibraryExportFlow kind="series" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
         </div>
       </header>
@@ -1083,8 +1080,7 @@ function GamesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportButton kind="games" profileId={profileId} />
-          <LibraryCsvExportButton kind="games" profileId={profileId} />
+          <LibraryExportFlow kind="games" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
         </div>
       </header>
@@ -1240,8 +1236,7 @@ function ArtworksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportButton kind="artworks" profileId={profileId} />
-          <LibraryCsvExportButton kind="artworks" profileId={profileId} />
+          <LibraryExportFlow kind="artworks" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
         </div>
       </header>
@@ -1369,8 +1364,7 @@ function BooksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportButton kind="books" profileId={profileId} />
-          <LibraryCsvExportButton kind="books" profileId={profileId} />
+          <LibraryExportFlow kind="books" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
         </div>
       </header>

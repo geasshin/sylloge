@@ -950,6 +950,14 @@ nav { display: flex; flex-direction: column; gap: 3px; }
   .duplicates-search-row .secondary-button { align-self: flex-start; }
 }
 
+.provider-attribution { margin: 12px 0 0; font-size: .8rem; color: var(--color-text-muted); }
+.provider-attribution a { color: inherit; }
+.export-format-options { display: grid; gap: 10px; }
+.export-format-option { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text); text-align: left; cursor: pointer; }
+.export-format-option:hover:not(:disabled) { background: var(--color-surface-muted); }
+.export-format-option:disabled { opacity: .6; cursor: default; }
+.export-format-option small { color: var(--color-text-muted); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
