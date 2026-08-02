@@ -389,6 +389,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.25` — Création assistée directe, même structure partout
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** Un clic sur un résultat TMDB ouvre directement le formulaire prérempli en création, et associe immédiatement une fiche existante en mode association — l'écran de confirmation intermédiaire (Préremplir / Choisir / Annuler) est supprimé. Pendant la préparation, la liste des résultats se fige avec un état « Préparation de la fiche… » ; un échec est annoncé sur place, sans perdre la recherche ni la fiche. La saisie manuelle reste toujours accessible. Ce parcours direct est la structure de référence pour les fournisseurs des autres médiums (`0.4.26` à `0.4.28`).
+
 - Un clic sur un résultat de recherche fournisseur ouvre directement le formulaire prérempli, sans écran intermédiaire de confirmation, pour toutes les bibliothèques disposant d'un fournisseur.
 - Conserver une issue de retour propre vers la recherche et la saisie manuelle toujours possible.
 

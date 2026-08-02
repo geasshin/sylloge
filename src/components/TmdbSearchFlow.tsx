@@ -8,6 +8,10 @@ import { Poster } from './Poster.tsx'
 
 type TmdbSearchFlowProps = {
   film?: Film | null
+  /** Candidat en cours de traitement : la liste se fige pendant la préparation. */
+  pendingCandidateId?: number | null
+  /** Échec de la sélection directe, annoncé sans quitter la recherche. */
+  selectionError?: string | null
   onSelectCandidate: (candidate: TmdbSearchCandidate) => void
   onManual: () => void
   onCancel: () => void
@@ -19,7 +23,7 @@ type SearchState =
   | { status: 'results'; candidates: TmdbSearchCandidate[] }
   | { status: 'error'; message: string }
 
-export function TmdbSearchFlow({ film = null, onSelectCandidate, onManual, onCancel }: TmdbSearchFlowProps) {
+export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel }: TmdbSearchFlowProps) {
   const [query, setQuery] = useState(() => film?.title ?? '')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
 
@@ -72,7 +76,7 @@ export function TmdbSearchFlow({ film = null, onSelectCandidate, onManual, onCan
         <p>
           {film
             ? `Recherchez une autre correspondance TMDB pour « ${film.title} ».`
-            : 'Recherchez un film dans TMDB, choisissez la bonne correspondance, puis confirmez avant tout enregistrement.'}
+            : 'Recherchez un film dans TMDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.'}
         </p>
       </div>
 
@@ -120,6 +124,16 @@ export function TmdbSearchFlow({ film = null, onSelectCandidate, onManual, onCan
         </div>
       )}
 
+      {pendingCandidateId !== null && (
+        <div className="results-state" role="status">Préparation de la fiche…</div>
+      )}
+
+      {selectionError !== null && pendingCandidateId === null && (
+        <div className="results-state error-state" role="alert">
+          <p>{selectionError}</p>
+        </div>
+      )}
+
       {searchState.status === 'results' && (
         <section className="tmdb-search-results" aria-labelledby="tmdb-results-title">
           <h2 id="tmdb-results-title">
@@ -136,6 +150,8 @@ export function TmdbSearchFlow({ film = null, onSelectCandidate, onManual, onCan
                   key={candidate.tmdbId}
                   className="tmdb-candidate-card"
                   type="button"
+                  disabled={pendingCandidateId !== null}
+                  aria-busy={pendingCandidateId === candidate.tmdbId}
                   onClick={() => onSelectCandidate(candidate)}
                 >
                   <Poster

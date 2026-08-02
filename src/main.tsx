@@ -13,7 +13,6 @@ import { Portability, type PortabilitySection } from './components/Portability.t
 import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
-import { TmdbAssociationConfirm } from './components/TmdbAssociationConfirm.tsx'
 import { LibraryExportButton } from './components/LibraryExportButton.tsx'
 import { LibraryCsvExportButton } from './components/LibraryCsvExportButton.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
@@ -32,7 +31,7 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
-import { associateFilmWithTmdb, getFilmTmdbCache } from './data/tmdbService.ts'
+import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm } from './data/tmdbService.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -40,6 +39,10 @@ import {
 } from './domain/film.ts'
 import type { FilmFormValues, FilmWriteInput } from './domain/filmForm.ts'
 import type { FilmMetadataProvenance } from './domain/filmMetadataAssistance.ts'
+import {
+  filmMetadataResultToFormInitialValues,
+  tmdbPresentationToFilmMetadataResult,
+} from './domain/filmMetadataAssistance.ts'
 import {
   RATED_BUILTIN_VIEWS,
   UNRATED_BUILTIN_VIEWS,
@@ -1447,7 +1450,6 @@ type View =
   | { name: 'settings' }
   | { name: 'create'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
   | { name: 'tmdb-search' }
-  | { name: 'tmdb-confirm'; candidate: TmdbSearchCandidate }
   | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
@@ -1574,6 +1576,7 @@ function App() {
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
+  const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
   const [tmdbNotice, setTmdbNotice] = useState<{ filmId: string; message: string } | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
@@ -1879,6 +1882,39 @@ function App() {
   const artworkCount = libraryState.status === 'ready' ? artworkCollection.length : null
   let content
 
+  // Jalon 0.4.25 : un clic sur un résultat TMDB agit directement, sans écran
+  // intermédiaire — préremplissage du formulaire en création, association
+  // immédiate à une fiche existante.
+  const selectTmdbCandidate = async (candidate: TmdbSearchCandidate) => {
+    const film = associatingFilm
+    setCandidateSelection({ pendingId: candidate.tmdbId, error: null })
+    try {
+      if (film) {
+        await associateFilmWithTmdb(film.id, candidate.tmdbId)
+        setAssociatingFilm(null)
+        setCandidateSelection({ pendingId: null, error: null })
+        setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
+        return
+      }
+      const presentation = await previewTmdbFilm(candidate.tmdbId)
+      const initialValues = filmMetadataResultToFormInitialValues(
+        tmdbPresentationToFilmMetadataResult(presentation),
+      )
+      setCandidateSelection({ pendingId: null, error: null })
+      setView({
+        name: 'create',
+        initialValues: initialValues.values,
+        provenance: initialValues.provenance ?? null,
+      })
+    } catch (error) {
+      console.error('La sélection TMDB a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
+
   if (libraryState.status === 'loading') {
     content = (
       <main className="main home-main">
@@ -1910,33 +1946,11 @@ function App() {
     content = (
       <TmdbSearchFlow
         film={associatingFilm}
-        onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
+        pendingCandidateId={candidateSelection.pendingId}
+        selectionError={candidateSelection.error}
+        onSelectCandidate={selectTmdbCandidate}
         onManual={() => setView({ name: 'create' })}
         onCancel={returnToLibrary}
-      />
-    )
-  } else if (view.name === 'tmdb-confirm') {
-    content = (
-      <TmdbAssociationConfirm
-        film={associatingFilm}
-        candidate={view.candidate}
-        onConfirm={(result) => {
-          setAssociatingFilm(null)
-          if (associatingFilm) {
-            setView({ name: 'detail', filmId: associatingFilm.id, returnTo: 'library' })
-          } else {
-            setView({
-              name: 'create',
-              initialValues: result.initialValues?.values,
-              provenance: result.initialValues?.provenance ?? null,
-            })
-          }
-        }}
-        onBack={() => setView({ name: 'tmdb-search' })}
-        onCancel={() => {
-          setAssociatingFilm(null)
-          returnToLibrary()
-        }}
       />
     )
   } else if (view.name === 'tmdb-associate') {
@@ -1960,7 +1974,9 @@ function App() {
       content = (
         <TmdbSearchFlow
           film={film}
-          onSelectCandidate={(candidate) => setView({ name: 'tmdb-confirm', candidate })}
+          pendingCandidateId={candidateSelection.pendingId}
+          selectionError={candidateSelection.error}
+          onSelectCandidate={selectTmdbCandidate}
           onManual={() => {
             setAssociatingFilm(null)
             setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
