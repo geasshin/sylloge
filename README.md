@@ -1,6 +1,6 @@
 # Sylloge
 
-Sylloge est une bibliothèque culturelle personnelle, locale et durable. La release publique `0.4.0` couvre les Films ; le train de développement `0.5.0` ajoute progressivement Séries, Livres, Jeux et Art. SQLite est la source de vérité : aucun compte, API ou accès réseau n’est nécessaire pour créer, consulter ou modifier une fiche. L'enrichissement TMDB, facultatif, est le seul appel réseau de métadonnées ; il ne sert qu'à préremplir une fiche Film après choix explicite de la personne.
+Sylloge est une bibliothèque culturelle personnelle, locale et durable. La release publique `0.5.0` couvre Films, Séries, Livres, Jeux et Art. SQLite est la source de vérité : aucun compte, API ou accès réseau n’est nécessaire pour créer, consulter ou modifier une fiche. L'enrichissement des métadonnées (TMDB, Open Library, RAWG), facultatif, est le seul appel réseau ; il ne sert qu'à préremplir une fiche après choix explicite de la personne.
 
 ## Structure
 
@@ -52,4 +52,4 @@ cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy -
 
 ## Périmètre actuel
 
-La release publique `0.4.0` livre Films, les imports/exports et l’enrichissement TMDB. Sur la branche du train `0.5.0`, les cinq médiums sont utilisables de bout en bout : saisie, fiche, recherche, filtres, import/export JSON dédié, profils et snapshots globaux. Livres conserve le suivi des tomes Manga/Comics et les citations personnelles. Jeux garde une plateforme libre assistée par des suggestions et filtrable, sans tracker ; Art n’a pas de note et garde lieu et exposition en textes libres facultatifs. La restauration globale remplit un profil vide ; les imports partiels restent propres à chaque bibliothèque. La synchronisation reste explicitement hors V1.
+La release publique `0.5.0` livre les cinq médiums de bout en bout : saisie et création assistée (TMDB pour Films et Séries, Open Library pour Livres, RAWG pour Jeux), fiche, recherche, vues unifiées (présets filtres + tri, vues enregistrées), filtres et tris combinables, import/export unifié à deux boutons, Sauvegarde Sylloge, profils et snapshots globaux. Livres conserve le suivi des tomes Manga/Comics et les citations personnelles. Jeux garde une plateforme libre assistée par des suggestions et filtrable, sans tracker ; Art n’a pas de note et garde lieu et exposition en textes libres facultatifs. La restauration globale remplit un profil vide ; les imports partiels restent propres à chaque bibliothèque. La synchronisation reste explicitement hors V1.
