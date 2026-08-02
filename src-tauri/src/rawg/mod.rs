@@ -15,7 +15,7 @@ pub const MAX_DEVELOPERS: usize = 3;
 
 const RAWG_API_BASE: &str = "https://api.rawg.io/api";
 const REQUEST_TIMEOUT_SECONDS: u64 = 10;
-const USER_AGENT: &str = "Sylloge/0.4 (bibliothèque culturelle personnelle, locale)";
+const USER_AGENT: &str = "Sylloge/0.4 (personal local cultural library)";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -277,6 +277,27 @@ mod tests {
         assert_eq!(candidate.game_id, 3328);
         assert_eq!(candidate.release_year, Some(2015));
         assert!(candidate.cover_url.is_some());
+    }
+
+    #[test]
+    fn client_builds_with_declared_user_agent() {
+        // Régression recette : un User-Agent non ASCII ferait échouer la
+        // construction du client (reqwest refuse les accents en en-tête).
+        assert!(RawgClient::new().is_ok());
+    }
+
+    #[test]
+    fn chained_query_calls_keep_all_parameters() {
+        // Diagnostic recette : deux appels .query() en chaîne doivent conserver
+        // la clé ET la recherche dans l'URL finale.
+        let client = reqwest::Client::new();
+        let request = client
+            .get("https://api.rawg.io/api/games")
+            .query(&[("key", "abc")])
+            .query(&[("search", "zelda")])
+            .build()
+            .expect("requête construite");
+        assert_eq!(request.url().query(), Some("key=abc&search=zelda"));
     }
 
     #[test]

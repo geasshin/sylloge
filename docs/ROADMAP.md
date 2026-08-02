@@ -422,7 +422,9 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.22` — Reprise complète de la recette et corrections de clôture
 
-- Rejouer la recette native consolidée sur les cinq médiums et mettre à jour sa checklist.
+**Corrections déjà intégrées depuis la recette (commit `fix(recette)`) :** le compteur de résultats entre les deux séparateurs (« 2 films affichés ») est retiré des cinq bibliothèques — un seul séparateur sous la barre d'outils, la collection suit directement. Les parcours assistés affichent désormais le message d'erreur réel du fournisseur au lieu d'un « vérifiez votre connexion » systématique : la panne RAWG constatée en recette (HTTP 522 sur tout le service, site inclus) n'était pas un défaut de l'app, mais le message induisait en erreur. User-Agent des clients Open Library et RAWG passés en ASCII par hygiène.
+
+- Reprendre la recette manuelle consolidée de `docs/QA_MANUELLE_0.5.0.md` sur un build natif frais, sur les cinq médiums et sur la machine de référence d'Aurélien.
 - Tout nouveau lot non trivial découvert devient `0.4.23`, puis `0.4.24`, etc. Aucun plafond artificiel n’est fixé avant `0.5.0`.
 
 ### `0.5.0` — Release publique Extension culturelle

@@ -645,7 +645,6 @@ function FilmsLibrary({
   onLibraryChanged,
 }: FilmsLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
-  const resultCount = searchState.status === 'ready' ? searchState.films.length : null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
@@ -704,12 +703,6 @@ function FilmsLibrary({
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
               currentCriteria={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
             />
-          </div>
-
-          <div className="collection-meta" aria-live="polite">
-            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
-              <p>{resultCount} {resultCount === 1 ? 'film affiché' : 'films affichés'}</p>
-            )}
           </div>
 
           {searchState.status === 'loading' ? (
@@ -879,7 +872,6 @@ function SeriesLibrary({
   onLibraryChanged,
 }: SeriesLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
-  const resultCount = searchState.status === 'ready' ? searchState.series.length : null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
@@ -939,12 +931,6 @@ function SeriesLibrary({
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
               currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
             />
-          </div>
-
-          <div className="collection-meta" aria-live="polite">
-            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
-              <p>{resultCount} {resultCount === 1 ? 'série affichée' : 'séries affichées'}</p>
-            )}
           </div>
 
           {searchState.status === 'loading' ? (
@@ -1059,7 +1045,6 @@ function GamesLibrary({
   onLibraryChanged,
 }: GamesLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
-  const resultCount = searchState.status === 'ready' ? searchState.games.length : null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const platforms = buildGamePlatformFilters(collection)
 
@@ -1126,12 +1111,6 @@ function GamesLibrary({
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
               currentCriteria={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
             />
-          </div>
-
-          <div className="collection-meta" aria-live="polite">
-            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
-              <p>{resultCount} {resultCount === 1 ? 'jeu affiché' : 'jeux affichés'}</p>
-            )}
           </div>
 
           {searchState.status === 'loading' ? (
@@ -1216,7 +1195,6 @@ function ArtworksLibrary({
   onLibraryChanged,
 }: ArtworksLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
-  const resultCount = searchState.status === 'ready' ? searchState.artworks.length : null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
@@ -1276,12 +1254,6 @@ function ArtworksLibrary({
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
               currentCriteria={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
             />
-          </div>
-
-          <div className="collection-meta" aria-live="polite">
-            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
-              <p>{resultCount} {resultCount === 1 ? 'œuvre affichée' : 'œuvres affichées'}</p>
-            )}
           </div>
 
           {searchState.status === 'loading' ? (
@@ -1344,7 +1316,6 @@ function BooksLibrary({
   onLibraryChanged,
 }: BooksLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
-  const resultCount = searchState.status === 'ready' ? searchState.books.length : null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
@@ -1404,12 +1375,6 @@ function BooksLibrary({
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
               currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
             />
-          </div>
-
-          <div className="collection-meta books-collection-meta" aria-live="polite">
-            {resultCount === null ? <p>Recherche dans la bibliothèque locale…</p> : (
-              <p>{resultCount} {resultCount === 1 ? 'livre affiché' : 'livres affichés'}</p>
-            )}
           </div>
 
           {searchState.status === 'loading' ? (

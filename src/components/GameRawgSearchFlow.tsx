@@ -51,9 +51,10 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
         (error: unknown) => {
           console.error('La recherche RAWG a échoué.', error)
           if (!cancelled) {
+            const providerMessage = typeof error === 'string' && error.trim().length > 0 ? error : null
             setSearchState({
               status: 'error',
-              message: 'La recherche a échoué. Vérifiez votre connexion puis réessayez.',
+              message: providerMessage ?? 'La recherche a échoué. Vérifiez votre connexion puis réessayez.',
             })
           }
         },

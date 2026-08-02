@@ -47,9 +47,12 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
         (error: unknown) => {
           console.error('La recherche TMDB a échoué.', error)
           if (!cancelled) {
+            // Le backend décrit la cause réelle (réseau, panne du fournisseur,
+            // erreur HTTP) : on l'affiche telle quelle au lieu de deviner.
+            const providerMessage = typeof error === 'string' && error.trim().length > 0 ? error : null
             setSearchState({
               status: 'error',
-              message: 'La recherche a échoué. Vérifiez votre clé TMDB dans les paramètres puis réessayez.',
+              message: providerMessage ?? 'La recherche a échoué. Vérifiez votre connexion puis réessayez.',
             })
           }
         },
