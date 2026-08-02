@@ -1,5 +1,6 @@
 mod books;
 mod database;
+mod openlibrary;
 mod portability;
 mod profiles;
 mod tmdb;
@@ -54,6 +55,8 @@ pub fn run() {
             tmdb::preview_tmdb_film,
             tmdb::search_tmdb_series,
             tmdb::preview_tmdb_series,
+            openlibrary::search_openlibrary_books,
+            openlibrary::preview_openlibrary_book,
             tmdb::associate_film_with_tmdb,
             tmdb::refresh_film_tmdb_cache,
             tmdb::remove_tmdb_association,

@@ -32,19 +32,25 @@ function previewableCoverUrl(value: string): string | null {
 
 type BookFormProps = {
   book?: Book
+  /** Valeurs préremplies par la recherche Open Library (création assistée, jalon 0.4.27). */
+  initialValues?: BookFormValues
   onCancel: () => void
   onSave: (input: BookWriteInput) => Promise<void>
 }
 
-export function BookForm({ book, onCancel, onSave }: BookFormProps) {
+export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProps) {
   const [values, setValues] = useState<BookFormValues>(() => book
     ? bookToFormValues(book)
-    : { ...EMPTY_BOOK_FORM, quotes: [] })
+    : { ...EMPTY_BOOK_FORM, ...initialValues, quotes: initialValues?.quotes ?? [] })
   const [errors, setErrors] = useState<BookFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  const hasSecondaryDetails = Boolean(book && (book.author || book.year !== null || book.summary))
+  const hasSecondaryDetails = Boolean(
+    book
+      ? book.author || book.year !== null || book.summary
+      : initialValues && (initialValues.author || initialValues.year || initialValues.summary),
+  )
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const hasVolumes = values.category === 'manga' || values.category === 'comics'

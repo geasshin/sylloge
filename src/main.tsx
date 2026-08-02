@@ -13,6 +13,7 @@ import { Portability, type PortabilitySection } from './components/Portability.t
 import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
 import { SeriesTmdbSearchFlow } from './components/SeriesTmdbSearchFlow.tsx'
+import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportButton } from './components/LibraryExportButton.tsx'
 import { LibraryCsvExportButton } from './components/LibraryCsvExportButton.tsx'
@@ -33,6 +34,7 @@ import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryVi
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries } from './data/tmdbService.ts'
+import { previewOpenLibraryBook, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -74,7 +76,8 @@ import {
   type Book,
   type BookCategory,
 } from './domain/book.ts'
-import type { BookWriteInput } from './domain/bookForm.ts'
+import type { BookFormValues, BookWriteInput } from './domain/bookForm.ts'
+import { bookPresentationToInitialValues } from './domain/bookMetadataAssistance.ts'
 import {
   buildGamePlatformFilters,
   buildGamePlatformSuggestions,
@@ -1460,7 +1463,8 @@ type View =
   | { name: 'series-detail'; seriesId: string }
   | { name: 'series-edit'; seriesId: string }
   | { name: 'books' }
-  | { name: 'book-create' }
+  | { name: 'book-create'; initialValues?: BookFormValues }
+  | { name: 'book-ol-search' }
   | { name: 'book-detail'; bookId: string }
   | { name: 'book-edit'; bookId: string }
   | { name: 'games' }
@@ -1580,6 +1584,7 @@ function App() {
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
   const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
+  const [bookSelection, setBookSelection] = useState<{ pendingKey: string | null; error: string | null }>({ pendingKey: null, error: null })
   const [tmdbNotice, setTmdbNotice] = useState<{ filmId: string; message: string } | null>(null)
   const libraryScrollPosition = useRef(0)
   const restoreLibraryScroll = useRef(false)
@@ -1918,8 +1923,23 @@ function App() {
     }
   }
 
-  // Même parcours direct pour les Séries (jalon 0.4.26) : le clic sur un
-  // résultat préremplit immédiatement le formulaire.
+  // Même parcours direct pour les Livres via Open Library (jalon 0.4.27),
+  // sans clé ni compte.
+  const selectOpenLibraryBookCandidate = async (candidate: OpenLibraryBookCandidate) => {
+    setBookSelection({ pendingKey: candidate.workKey, error: null })
+    try {
+      const presentation = await previewOpenLibraryBook(candidate)
+      setBookSelection({ pendingKey: null, error: null })
+      setView({ name: 'book-create', initialValues: bookPresentationToInitialValues(presentation) })
+    } catch (error) {
+      console.error('La sélection Open Library a échoué.', error)
+      setBookSelection({
+        pendingKey: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
+
   const selectTmdbSeriesCandidate = async (candidate: TmdbSearchCandidate) => {
     setCandidateSelection({ pendingId: candidate.tmdbId, error: null })
     try {
@@ -2273,16 +2293,27 @@ function App() {
         searchState={bookSearchState}
         onContextChange={setBookContext}
         onRetrySearch={() => setBookSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'book-create' })}
+        onCreate={() => leaveLibrary({ name: 'book-ol-search' })}
         onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    )
+  } else if (view.name === 'book-ol-search') {
+    content = (
+      <BookOpenLibrarySearchFlow
+        pendingCandidateKey={bookSelection.pendingKey}
+        selectionError={bookSelection.error}
+        onSelectCandidate={selectOpenLibraryBookCandidate}
+        onManual={() => setView({ name: 'book-create' })}
+        onCancel={returnToLibrary}
       />
     )
   } else if (view.name === 'book-create') {
     const { library } = libraryState
     content = (
       <BookForm
+        initialValues={view.initialValues}
         onCancel={() => setView({ name: 'books' })}
         onSave={async (input: BookWriteInput) => {
           const { quotes, ...bookInput } = input
@@ -2608,7 +2639,7 @@ function App() {
               ? 'settings'
               : view.name === 'series' || view.name === 'series-create' || view.name === 'series-tmdb-search' || view.name === 'series-detail' || view.name === 'series-edit'
                 ? 'series'
-                : view.name === 'books' || view.name === 'book-create' || view.name === 'book-detail' || view.name === 'book-edit'
+                : view.name === 'books' || view.name === 'book-create' || view.name === 'book-ol-search' || view.name === 'book-detail' || view.name === 'book-edit'
                   ? 'books'
                   : view.name === 'games' || view.name === 'game-create' || view.name === 'game-detail' || view.name === 'game-edit'
                     ? 'games'

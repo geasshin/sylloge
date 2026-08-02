@@ -402,6 +402,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.27` — Livres assistés Open Library
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.** « Ajouter un livre » ouvre la recherche Open Library (sans clé ni compte, `User-Agent` identifié, préférence `lang=fr`) avec suggestions temporisées ; le clic sur un résultat préremplit directement le formulaire (titre, auteur, année, couverture, résumé quand Open Library en a un), éditable avant validation. Catégorie, statut, note, favori, tomes et citations restent des choix personnels jamais préremplis. Les requêtes passent par le backend Rust (timeouts, réponses bornées, clé d'œuvre validée avant l'appel de détail).
+
 - Recherche Open Library sans clé, `User-Agent` identifié et cache respectueux : titre, auteur, année, couverture ; le résumé n'est prérempli que lorsqu'il existe. Même parcours que Films.
 
 ### `0.4.28` — Jeux assistés RAWG
