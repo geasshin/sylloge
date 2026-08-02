@@ -28,18 +28,24 @@ function previewableCoverUrl(value: string): string | null {
 
 type GameFormProps = {
   game?: Game
+  /** Valeurs préremplies par la recherche RAWG (création assistée, jalon 0.4.28). */
+  initialValues?: GameFormValues
   platformSuggestions: readonly string[]
   onCancel: () => void
   onSave: (input: GameWriteInput) => Promise<void>
 }
 
-export function GameForm({ game, platformSuggestions, onCancel, onSave }: GameFormProps) {
-  const [values, setValues] = useState<GameFormValues>(() => game ? gameToFormValues(game) : { ...EMPTY_GAME_FORM })
+export function GameForm({ game, initialValues, platformSuggestions, onCancel, onSave }: GameFormProps) {
+  const [values, setValues] = useState<GameFormValues>(() => game ? gameToFormValues(game) : { ...EMPTY_GAME_FORM, ...initialValues })
   const [errors, setErrors] = useState<GameFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  const hasSecondaryDetails = Boolean(game && (game.developer || game.platform || game.year !== null))
+  const hasSecondaryDetails = Boolean(
+    game
+      ? game.developer || game.platform || game.year !== null
+      : initialValues && (initialValues.developer || initialValues.year),
+  )
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
 

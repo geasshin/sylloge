@@ -408,6 +408,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.4.28` — Jeux assistés RAWG
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer. La clé RAWG d'Aurélien est embarquée obfusquée dans `embedded_key.rs`, ignoré par Git, et validée par un appel réel (HTTP 200).** « Ajouter un jeu » ouvre la recherche RAWG avec suggestions temporisées ; le clic sur un résultat préremplit directement le formulaire (titre, développeur, année, cover), éditable avant validation. La plateforme, le statut, la note et le favori restent des choix personnels jamais préremplis ; la recherche exclut les DLC. L'attribution « Données : RAWG » avec lien est visible dans le parcours, comme l'exigent leurs conditions du plan gratuit.
+
 - Clé RAWG fournie par Aurélien, embarquée hors dépôt selon le modèle TMDB ; recherche, préremplissage (titre, développeur, plateforme, année, cover) et attribution « Données : RAWG » exigée par leurs conditions.
 - Si les conditions RAWG ou la garde de la clé ne sont pas satisfaites, le jalon s'arrête et les Jeux restent manuels pour `0.5.0`.
 

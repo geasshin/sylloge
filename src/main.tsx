@@ -14,6 +14,7 @@ import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
 import { SeriesTmdbSearchFlow } from './components/SeriesTmdbSearchFlow.tsx'
 import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlow.tsx'
+import { GameRawgSearchFlow } from './components/GameRawgSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportButton } from './components/LibraryExportButton.tsx'
 import { LibraryCsvExportButton } from './components/LibraryCsvExportButton.tsx'
@@ -35,6 +36,7 @@ import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryVi
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries } from './data/tmdbService.ts'
 import { previewOpenLibraryBook, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
+import { previewRawgGame, type RawgGameCandidate } from './data/rawgService.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -85,7 +87,8 @@ import {
   GAME_STATUSES,
   type Game,
 } from './domain/game.ts'
-import type { GameWriteInput } from './domain/gameForm.ts'
+import type { GameFormValues, GameWriteInput } from './domain/gameForm.ts'
+import { gamePresentationToInitialValues } from './domain/gameMetadataAssistance.ts'
 import {
   ARTWORK_FORMS,
   ARTWORK_FORM_LABELS,
@@ -1468,7 +1471,8 @@ type View =
   | { name: 'book-detail'; bookId: string }
   | { name: 'book-edit'; bookId: string }
   | { name: 'games' }
-  | { name: 'game-create' }
+  | { name: 'game-create'; initialValues?: GameFormValues }
+  | { name: 'game-rawg-search' }
   | { name: 'game-detail'; gameId: string }
   | { name: 'game-edit'; gameId: string }
   | { name: 'artworks' }
@@ -1935,6 +1939,23 @@ function App() {
       console.error('La sélection Open Library a échoué.', error)
       setBookSelection({
         pendingKey: null,
+        error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
+      })
+    }
+  }
+
+  // Même parcours direct pour les Jeux via RAWG (jalon 0.4.28), clé
+  // embarquée côté backend, jamais exposée au frontend.
+  const selectRawgGameCandidate = async (candidate: RawgGameCandidate) => {
+    setCandidateSelection({ pendingId: candidate.gameId, error: null })
+    try {
+      const presentation = await previewRawgGame(candidate)
+      setCandidateSelection({ pendingId: null, error: null })
+      setView({ name: 'game-create', initialValues: gamePresentationToInitialValues(presentation) })
+    } catch (error) {
+      console.error('La sélection RAWG a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
         error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
       })
     }
@@ -2408,16 +2429,27 @@ function App() {
         searchState={gameSearchState}
         onContextChange={setGameContext}
         onRetrySearch={() => setGameSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'game-create' })}
+        onCreate={() => leaveLibrary({ name: 'game-rawg-search' })}
         onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
+    )
+  } else if (view.name === 'game-rawg-search') {
+    content = (
+      <GameRawgSearchFlow
+        pendingCandidateId={candidateSelection.pendingId}
+        selectionError={candidateSelection.error}
+        onSelectCandidate={selectRawgGameCandidate}
+        onManual={() => setView({ name: 'game-create' })}
+        onCancel={returnToLibrary}
       />
     )
   } else if (view.name === 'game-create') {
     const { library } = libraryState
     content = (
       <GameForm
+        initialValues={view.initialValues}
         platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
         onCancel={() => setView({ name: 'games' })}
         onSave={async (input: GameWriteInput) => {
@@ -2641,7 +2673,7 @@ function App() {
                 ? 'series'
                 : view.name === 'books' || view.name === 'book-create' || view.name === 'book-ol-search' || view.name === 'book-detail' || view.name === 'book-edit'
                   ? 'books'
-                  : view.name === 'games' || view.name === 'game-create' || view.name === 'game-detail' || view.name === 'game-edit'
+                  : view.name === 'games' || view.name === 'game-create' || view.name === 'game-rawg-search' || view.name === 'game-detail' || view.name === 'game-edit'
                     ? 'games'
                     : view.name === 'artworks' || view.name === 'artwork-create' || view.name === 'artwork-detail' || view.name === 'artwork-edit'
                       ? 'artworks'
