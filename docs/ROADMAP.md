@@ -493,7 +493,9 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.8` — Paramètres, portabilité et dialogues
 
-- Refondre les Paramètres (Profils, Données et sauvegardes, Application, À propos) en pages calmes du même langage.
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les quatre sections de Paramètres passent aux filets hairline, kickers en capitales espacées et titres en graisse 700 ; les cartes de portabilité gagnent une ombre discrète, les choix de transfert se soulèvent au survol avec l'état actif en teinte violette, les étapes de l'assistant d'import deviennent des pastules arrondies, la notice de sauvegarde est tokenisée (bordure chaude, rayon carte). L'onboarding reste centré sur son fond papier. Tous les libellés contractuels (Sauvegarde Sylloge, Importer et exporter, Oublier ce dossier) sont inchangés, assertions vertes.
+
+- Refonder les Paramètres (Profils, Données et sauvegardes, Application, À propos) en pages calmes du même langage.
 - Habiller les parcours Importer/Exporter, dialogues de formats, aperçus d'import, résolution de doublons et confirmations destructrices (danger prune).
 - Onboarding de premier lancement aligné sur la marque.
 
