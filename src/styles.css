@@ -291,8 +291,24 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .filters { display: flex; gap: 5px; }
 .library-views { flex-wrap: wrap; }
 .filter { background: transparent; border: 0; padding: 8px 10px; border-radius: 6px; font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
-.filter:hover { background: var(--color-surface-muted); }
+.filter:hover { background: rgba(31, 29, 26, .05); }
 .filter.active { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600; }
+/* Vues intégrées et enregistrées : onglets sobrement soulignés à l'actif */
+.library-views .filter { position: relative; font-size: 13px; }
+.library-views .filter::after {
+  content: "";
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color .12s ease;
+}
+.library-views .filter:hover { background: transparent; color: var(--color-text); }
+.library-views .filter.active { background: transparent; color: var(--color-text); }
+.library-views .filter.active::after { background: var(--color-accent); }
 .collection-filters { flex: 1 1 auto; flex-wrap: wrap; justify-content: flex-end; }
 .filter-panel { padding-top: 16px; }
 .filter-panel-toggle { background: transparent; border: 1px solid var(--color-border); padding: 7px 12px; border-radius: var(--radius-control); font-size: 12px; color: var(--color-text-muted); }
@@ -335,8 +351,19 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .film-card-info b { flex: 1 1 auto; min-width: 0; font-size: 14px; line-height: 1.2; letter-spacing: -.035em; overflow-wrap: anywhere; }
 .film-card-info i { flex: 0 0 auto; color: var(--color-accent); font-style: normal; font-size: 11px; }
 .film-card-info small { min-width: 0; color: var(--color-text-muted); font-size: 11px; overflow-wrap: anywhere; }
-.status-line { color: var(--color-positive); font: 10px var(--font-label); margin-top: 2px; }
-.status-line.to-discover { color: var(--color-text-muted); }
+.status-line {
+  justify-self: start;
+  margin-top: 2px;
+  padding: 2.5px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(31, 29, 26, .055);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.status-line.to-discover { background: transparent; padding-inline: 0; }
+.film-card-info .status-line { justify-self: start; }
+.library-subtitle { margin: 7px 0 0; color: var(--color-text-muted); font-size: 13px; }
 .library-state {
   min-height: 330px;
   border-top: 1px solid var(--color-border);

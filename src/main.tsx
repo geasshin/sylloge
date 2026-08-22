@@ -253,6 +253,20 @@ function Sidebar({
   )
 }
 
+/** Sous-titre éditorial d'une bibliothèque : compte réel, coups de cœur quand la note existe. */
+function librarySubtitle(
+  items: { isFavorite: boolean }[],
+  singular: string,
+  plural: string,
+): string {
+  const total = items.length
+  const count = total === 1 ? `1 ${singular}` : `${total} ${plural}`
+  const hearts = items.filter((item) => item.isFavorite).length
+  return hearts > 0
+    ? `${count} dont ${hearts} coup${hearts > 1 ? 's' : ''} de cœur`
+    : count
+}
+
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
   const [tmdbCache, setTmdbCache] = useState<CachedFilmTmdbPresentation | null>(null)
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
@@ -655,6 +669,7 @@ function FilmsLibrary({
         <div>
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Films</h1>
+          <p className="library-subtitle">{librarySubtitle(library.films, 'film', 'films')}</p>
         </div>
         <div className="library-header-actions">
           <LibraryImportButton
@@ -882,6 +897,7 @@ function SeriesLibrary({
         <div>
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Séries</h1>
+          <p className="library-subtitle">{librarySubtitle(collection, 'série', 'séries')}</p>
         </div>
         <div className="library-header-actions">
           <LibraryImportButton
@@ -1056,6 +1072,7 @@ function GamesLibrary({
         <div>
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Jeux</h1>
+          <p className="library-subtitle">{librarySubtitle(collection, 'jeu', 'jeux')}</p>
         </div>
         <div className="library-header-actions">
           <LibraryImportButton
@@ -1205,6 +1222,7 @@ function ArtworksLibrary({
         <div>
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Art</h1>
+          <p className="library-subtitle">{librarySubtitle(collection, 'œuvre', 'œuvres')}</p>
         </div>
         <div className="library-header-actions">
           <LibraryImportButton
@@ -1326,6 +1344,7 @@ function BooksLibrary({
         <div>
           <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Livres</h1>
+          <p className="library-subtitle">{librarySubtitle(collection, 'livre', 'livres')}</p>
         </div>
         <div className="library-header-actions">
           <LibraryImportButton
