@@ -486,6 +486,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.7` — Page Accueil éditoriale
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les quatre modules de l'accueil (Vus récemment, Favoris, module contextuel En attente ou Ajoutés récemment, calendrier Films vus) adoptent le langage validé : cartes blanches arrondies à ombre discrète sur papier, libellés de section en capitales espacées sans-serif, titres en graisse 700 sans capitales forcées, affiches arrondies qui se soulèvent au survol avec leur ombre, calendrier aux cases adoucies et chiffres tabulaires. Les données restent exclusivement les films locaux réels ; aucune métrique ni widget ajouté.
+
 - Recomposer l'accueil selon la direction validée : rythme éditorial fondé sur les œuvres locales réelles, reprise des modules existants (vus récemment, favoris, module contextuel) sans dashboard ni métriques.
 - Détacher visuellement chaque section avec les libellés capitales du langage ; aucune donnée inventée.
 

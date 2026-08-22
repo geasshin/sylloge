@@ -561,7 +561,7 @@ function Home({ library, onOpen }: HomeProps) {
                 <p className="card-kicker">Films</p>
                 <h2 id="watched-calendar-title">Films vus</h2>
               </div>
-              <p>Les cinq dernières semaines</p>
+              <p>Cinq dernières semaines</p>
             </header>
             <div className="home-calendar" aria-label="Calendrier des films vus pendant les cinq dernières semaines">
               <div className="home-calendar-weekdays" aria-hidden="true">
