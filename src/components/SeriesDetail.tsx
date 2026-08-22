@@ -23,6 +23,7 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onDelete }: Se
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const progress = series.seasonsSeen !== null
     ? series.seasonsTotal !== null
@@ -46,92 +47,118 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onDelete }: Se
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
         <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
-        <button className="secondary-button" type="button" onClick={onEdit}>Modifier</button>
-      </header>
-
-      <article className="film-detail">
-        <div className="film-detail-visual">
-          <div className="poster-container">
-            <Poster title={series.title} src={series.posterUrl} className="detail-poster" />
+        <div className="detail-actions">
+          <button className="secondary-button" type="button" onClick={onEdit}>Modifier</button>
+          <div className="menu-wrap">
+            <button
+              className="icon-menu-button"
+              type="button"
+              aria-label="Plus d’actions"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <>
+                <div className="menu-overlay" onClick={() => setMenuOpen(false)} />
+                <div className="detail-menu" role="menu">
+                  <button role="menuitem" type="button" className="danger-item" onClick={() => { setMenuOpen(false); setConfirmingDelete(true) }}>
+                    Supprimer cette série…
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
+      </header>
 
-        <div className="film-detail-content">
+      <article className="detail-layout">
+        <div className="detail-side">
+          <div className="poster-container detail-poster-wrap">
+            <Poster title={series.title} src={series.posterUrl} className="detail-poster" />
+          </div>
+          <div className="detail-status" role="group" aria-label="Statut">
+            {Object.entries(SERIES_STATUS_LABELS).map(([key, label]) => (
+              <span key={key} className={`seg-pill-static ${key === series.status ? 'on' : ''}`}>{label}</span>
+            ))}
+          </div>
+          {(series.rating !== null || series.isFavorite) && (
+            <div className="detail-rate">
+              {series.rating !== null && (
+                <>
+                  <span className="stars-display" aria-label={`Note ${series.rating} sur 5`}>
+                    {'★'.repeat(Math.round(series.rating))}
+                    <span className="stars-off">{'★'.repeat(5 - Math.round(series.rating))}</span>
+                  </span>
+                  <span className="rate-value">{series.rating.toLocaleString('fr-FR')}/5</span>
+                </>
+              )}
+              {series.isFavorite && <span className="heart-display on" aria-label="Coup de cœur">♥</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="detail-body">
           <p className="eyebrow">{SERIES_CATEGORY_LABELS[series.category]}</p>
           <h1 className="display-title">{series.title}</h1>
-          {series.showrunner && <p className="detail-attribution">{series.showrunner}</p>}
+          {(series.showrunner || progress || series.startedAt) && (
+            <p className="detail-factline">
+              {[series.showrunner, progress, series.startedAt ? `débutée le ${formatCalendarDate(series.startedAt)}` : null]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          )}
 
-          <dl className="film-facts">
-            <div>
-              <dt>Statut</dt>
-              <dd>{SERIES_STATUS_LABELS[series.status]}</dd>
-            </div>
+          <dl className="detail-facts">
+            {series.showrunner && (
+              <div><dt>Showrunner</dt><dd>{series.showrunner}</dd></div>
+            )}
+            {series.casting && (
+              <div><dt>Casting</dt><dd>{series.casting}</dd></div>
+            )}
             {progress && (
-              <div>
-                <dt>Avancement</dt>
-                <dd>{progress}</dd>
-              </div>
-            )}
-            {series.isFavorite && (
-              <div>
-                <dt>Collection</dt>
-                <dd>Favori</dd>
-              </div>
-            )}
-            {series.rating !== null && (
-              <div>
-                <dt>Note</dt>
-                <dd>{series.rating.toLocaleString('fr-FR')} / 5</dd>
-              </div>
+              <div><dt>Avancement</dt><dd>{progress}</dd></div>
             )}
             {series.startedAt && (
-              <div>
-                <dt>Début du visionnage</dt>
-                <dd>{formatCalendarDate(series.startedAt)}</dd>
-              </div>
+              <div><dt>Début du visionnage</dt><dd>{formatCalendarDate(series.startedAt)}</dd></div>
             )}
           </dl>
 
-          {series.casting && (
-            <section className="reading-section">
-              <h2>Casting</h2>
-              <p>{series.casting}</p>
-            </section>
-          )}
-
           {series.summary && (
-            <section className="reading-section">
-              <h2>Résumé</h2>
+            <div className="synopsis-block">
               <p>{series.summary}</p>
-            </section>
+            </div>
           )}
 
-          {series.personalNote && (
-            <section className="reading-section personal-reading">
-              <h2>Avis personnel</h2>
-              <p>{series.personalNote}</p>
-            </section>
-          )}
-
-          <section className="delete-section">
-            {!confirmingDelete ? (
-              <button className="delete-link" type="button" onClick={() => setConfirmingDelete(true)}>Supprimer cette série</button>
+          <section className="mine-block">
+            {series.personalNote ? (
+              <>
+                <blockquote className="review-personal">{series.personalNote}</blockquote>
+                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier</button>
+              </>
             ) : (
-              <div className="delete-confirmation" role="alertdialog" aria-labelledby="series-delete-title" aria-describedby="series-delete-description">
-                <h2 id="series-delete-title">Supprimer définitivement cette série ?</h2>
-                <p id="series-delete-description">« {series.title} » sera retirée de la collection sans possibilité de restauration.</p>
-                {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
-                <div>
-                  <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Annuler</button>
-                  <button className="danger-button" type="button" onClick={deleteSeries} disabled={deleting}>
-                    {deleting ? 'Suppression…' : 'Supprimer définitivement'}
-                  </button>
-                </div>
-              </div>
+              <p className="mine-empty">Ton avis s’écrira ici.</p>
             )}
           </section>
         </div>
       </article>
+
+      {confirmingDelete && (
+        <div className="confirm-backdrop">
+          <div className="delete-confirmation" role="alertdialog" aria-labelledby="series-delete-title" aria-describedby="series-delete-description">
+            <h2 id="series-delete-title">Supprimer définitivement cette série ?</h2>
+            <p id="series-delete-description">« {series.title} » sera retirée de la collection sans possibilité de restauration.</p>
+            {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
+            <div>
+              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Annuler</button>
+              <button className="danger-button" type="button" onClick={deleteSeries} disabled={deleting}>
+                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }

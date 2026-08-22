@@ -463,6 +463,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.4` — Fiches Films et Séries
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** FilmDetail et SeriesDetail adoptent la composition validée : colonne gauche collante (visuel avec ombre, statut en segmented control statique, note étoilée et coup de cœur dessous), bloc œuvre (surtitre du médium ou de la catégorie, titre, ligne de faits, grille d'informations à filets fins adaptée au médium, résumé en voix encyclopédie avec « Lire la suite » quand il est long, attribution TMDB en subtil avec actions Rafraîchir/Dissocier), puis partie personnelle immédiate après un simple filet (date de visionnage seule, critique en serif prune à filet violet, issue Modifier). La suppression déménage dans le menu ⋯ avec confirmation en dialogue centré ; les comportements TMDB existants sont conservés et les assertions de `verify.mjs` restent vertes.
+
 - Reconstruire FilmDetail et SeriesDetail selon la composition de référence : colonne gauche collante (visuel, statut, note/coup de cœur, action d'affiche), bloc œuvre (titre, faits, grille d'informations adaptée au médium, résumé avec Lire la suite, attribution TMDB), partie personnelle immédiate (date de visionnage seule, critique en serif prune, édition en place).
 - Séries : showrunner, casting, catégories Série télé/Animation et compteur de saisons intégrés à la grille d'informations, jamais mélangés aux données personnelles.
 - Conserver tous les comportements existants : association TMDB, rafraîchissement, dissociation, choix d'affiche.
