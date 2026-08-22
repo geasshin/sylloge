@@ -478,6 +478,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.6` — Formulaires et création assistée
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les cinq formulaires gagnent le langage pilule : champs sur carte blanche, focus violet en anneau doux, survols chauds, textarea héritant de la police. Les quatre recherches fournisseur affichent leur champ de saisie en pilule et leurs candidats en cartes arrondies à ombre douce au survol ; attribution RAWG et issues manuelles inchangées. Le blanc brut est remplacé par `--color-surface` sur toutes les surfaces restantes (imports, résolution de doublons, profils). Aucune logique modifiée : préremplissage éditorial uniquement, données personnelles jamais touchées.
+
 - Reprendre les cinq formulaires dans le langage pilule : champs blancs arrondis, labels sobres, sections éditoriales/personnelles distinguées, bouton principal violet.
 - Habiller les quatre flows de recherche fournisseur (TMDB films, TMDB TV, Open Library, RAWG) : suggestions, préparation, erreur sur place avec message réel, attribution visible.
 - Ne rien changer au contrat : données personnelles jamais préremplies, saisie manuelle toujours accessible.
