@@ -1,6 +1,6 @@
 # Sylloge — feuille de route vers la V1 publique
 
-> **Statut :** feuille de route active. Les releases `0.2.0`, `0.3.0`, `0.4.0` et `0.5.0` sont livrées. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le prochain train prépare la release publique `0.6.0` (front-end définitif).
+> **Statut :** feuille de route active. Les releases `0.2.0`, `0.3.0`, `0.4.0` et `0.5.0` sont livrées. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le train actif prépare la release publique `0.6.0` (front-end définitif) ; sa spécification détaillée vit dans [`plans/roadmap-future.md`](plans/roadmap-future.md), consultée à l'ouverture du train, et les jalons concernés sont réintégrés ici au fur et à mesure.
 >
 > Les releases publiques sont des hypothèses de séquencement, pas des promesses de calendrier. Elles sont construites par plusieurs jalons d’intégration étroits, chacun validé et commité avant le suivant.
 
@@ -429,17 +429,82 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.0` — Release publique Extension culturelle
 
-**État : publiée le 2 août 2026 — tag `v0.5.0`, artefacts signés et `latest.json` sur GitHub Releases.** La recette native a été exercée par Aurélien pendant la stabilisation ; les corrections remontées sont intégrées (jalons `0.4.23` à `0.4.29` + fix recette). La checklist consolidée reste dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md) pour la suite.
+**État : publiée le 2 août 2026 — tag `v0.5.0`, artefacts signés et `latest.json` sur GitHub Releases.** Les corrections remontées par la première passe de recette (interrompue le 22 juillet 2026) sont intégrées (jalons `0.4.23` à `0.4.29` + fix recette) et couvertes par les contrôles automatisés. La recette complète n'a pas été rejouée de bout en bout après la stabilisation : la preuve consolidée reste à consigner. Une recette courte de remise en état, sur profil de test, est prévue avant l'ouverture du jalon `0.5.1` ; protocole et verdict dans [`RECETTE_COURTE_REPRISE.md`](RECETTE_COURTE_REPRISE.md). La checklist consolidée reste dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md) pour la suite.
 
 - Revoir, intégrer et valider les cinq verticales du contrat V1 ; ne publier que des médiums complets, documentés et migrables.
 - Vérifier que recherche, filtres, profils, exports, imports, sauvegardes et fallbacks visuels se comportent pour Films, Séries, Livres, Jeux et Art.
 - Ne changer manifestes, tag et artefacts qu’après fermeture de tous les jalons internes et validation humaine de la recette.
 
-## 8. Trains suivants — document dédié
+## 8. Train `0.6.0` — Design desktop de V1 (train actif)
 
-Les trains `0.6.0` (front-end définitif), `0.7.0` (fiabilité et confidentialité), `0.8.0` (distribution macOS et Windows), `0.9.0` (bêta publique contrôlée), les conditions de sortie de la `1.0.0` et les perspectives V2 / V3 sont décrits dans `docs/plans/roadmap-future.md`. Ce document fait partie de la feuille de route : il est consulté à l'ouverture de chaque nouveau train, et les jalons concernés y sont réintégrés ici au moment où ils deviennent actifs.
+**But de la release :** appliquer partout le langage visuel validé (voir [`../DESIGN.md`](../DESIGN.md)) sans ajouter aucune capacité produit. La direction a été arbitrée par Aurélien le 22 août 2026 sur les maquettes `sylloge-design-051` : structure sobre de la bibliothèque, habillage chaleureux papier/violet, fiche réinventée autour de deux voix (encyclopédie / personnel).
 
-## 9. Backlog non priorisé
+**Mode de livraison acté avec Aurélien :** un jalon = une page ou une famille de surfaces = un commit ; point GO explicite d'Aurélien après chaque jalon avant de relancer ; pas de recette intermédiaire, les vérifications automatisées doivent rester vertes à chaque fois. Les maquettes HTML restent la référence visuelle (`~/Documents/Hermes/sylloge-design-051/`).
+
+### `0.5.1` — Direction visuelle et contrat DESIGN.md
+
+**État : livré.** Trois variantes comparées (Encre sobre, Galerie lumineuse, Index dense), arbitrage « structure V1 × habillage V2 », puis fiche film co-conçue en cinq itérations jusqu'à validation finale (statut et verdict sous l'affiche, métadonnées techniques masquées, critique en serif prune). Le contrat complet est écrit dans [`../DESIGN.md`](../DESIGN.md) : tokens papier/violet/prune, deux typographies de voix, formes pilules, composition de fiche, sidebar, bibliothèques, accessibilité et anti-directions. Écrans de référence : bibliothèque (`04-direction-validee`) et fiche film (`09-fiche-v5`).
+
+### `0.5.2` — Fondations du langage visuel
+
+- Remplacer les tokens actuels par le système validé : papier `#FAF9F6`, cartes blanches, bordures chaudes, violet encre `#5B3A68`, prune personnel `#473952`, rayons pilule et cartes.
+- Refondre `src/styles.css` : boutons principal/secondaire/tertiaire, segmented control, champ de recherche pilule, libellés de section en capitales espacées, ombres douces sous visuels uniquement.
+- Redessiner la sidebar : même fond que le contenu, marque Sylloge + surtitre, items pilules avec compteurs, actif en encre pleine, Paramètres ancré en bas.
+- Vérifier typecheck, verify, build, Cargo : verts sans exception.
+
+### `0.5.3` — Bibliothèques des cinq médiums
+
+- Appliquer la rangée d'outils validée aux cinq bibliothèques : vues intégrées et enregistrées en onglets soulignés violets, recherche pilule, actions filtre/tri, séparateur vertical.
+- Unifier les cartes : affiche arrondie avec ombre douce, titre, sous-titre, étoiles et pastille de statut dessous, survol par soulèvement ; fallback neutre inchangé.
+- Ajouter le sous-titre éditorial sous chaque titre de page (compte réel de la collection, coups de cœur quand la note existe, jamais pour l'Art).
+- Soigner les états vides : sobres, honnêtes, avec issue claire vers la création.
+
+### `0.5.4` — Fiches Films et Séries
+
+- Reconstruire FilmDetail et SeriesDetail selon la composition de référence : colonne gauche collante (visuel, statut, note/coup de cœur, action d'affiche), bloc œuvre (titre, faits, grille d'informations adaptée au médium, résumé avec Lire la suite, attribution TMDB), partie personnelle immédiate (date de visionnage seule, critique en serif prune, édition en place).
+- Séries : showrunner, casting, catégories Série télé/Animation et compteur de saisons intégrés à la grille d'informations, jamais mélangés aux données personnelles.
+- Conserver tous les comportements existants : association TMDB, rafraîchissement, dissociation, choix d'affiche.
+
+### `0.5.5` — Fiches Livres, Jeux et Art
+
+- Décliner la composition validée : Livres avec auteur, année, catégorie et citations personnelles en voix serif-prune ; Jeux avec développeur, plateforme et statuts étendus (Regardé compris) ; Art sans aucune note, avec lieu, exposition et formes.
+- Vérifier que la voix personnelle reste unique : citations et avis en prune serif, données éditoriales en sans-serif neutre, sur les cinq médiums.
+
+### `0.5.6` — Formulaires et création assistée
+
+- Reprendre les cinq formulaires dans le langage pilule : champs blancs arrondis, labels sobres, sections éditoriales/personnelles distinguées, bouton principal violet.
+- Habiller les quatre flows de recherche fournisseur (TMDB films, TMDB TV, Open Library, RAWG) : suggestions, préparation, erreur sur place avec message réel, attribution visible.
+- Ne rien changer au contrat : données personnelles jamais préremplies, saisie manuelle toujours accessible.
+
+### `0.5.7` — Page Accueil éditoriale
+
+- Recomposer l'accueil selon la direction validée : rythme éditorial fondé sur les œuvres locales réelles, reprise des modules existants (vus récemment, favoris, module contextuel) sans dashboard ni métriques.
+- Détacher visuellement chaque section avec les libellés capitales du langage ; aucune donnée inventée.
+
+### `0.5.8` — Paramètres, portabilité et dialogues
+
+- Refondre les Paramètres (Profils, Données et sauvegardes, Application, À propos) en pages calmes du même langage.
+- Habiller les parcours Importer/Exporter, dialogues de formats, aperçus d'import, résolution de doublons et confirmations destructrices (danger prune).
+- Onboarding de premier lancement aligné sur la marque.
+
+### `0.5.9` — Mouvement, clavier et QA visuelle
+
+- Transitions courtes (élévation, couleurs) avec respect strict de `prefers-reduced-motion`.
+- Parcours clavier complets : focus visible partout (anneau violet doux), ordre de tabulation, dialogues piégés correctement.
+- Captures de référence avant/après des surfaces principales ; vérification des contrastes documentée dans DESIGN.md.
+
+### `0.6.0` — Release publique Design desktop de V1
+
+- Revoir l'ensemble des jalons `0.5.1…0.5.9`, exercer les parcours principaux sur build natif, corriger les frictions remontées par Aurélien.
+- Mettre à jour manifestes, notes de release et tag après feu vert explicite ; publication signée via le processus existant.
+
+**Exclusions du train :** aucun nouveau médium, fournisseur, format, champ produit ni changement de modèle de données. Le design ne touche jamais aux règles : Art sans note, données personnelles jamais préremplies, fallback neutre obligatoire.
+
+## 9. Trains suivants — document dédié
+
+Les trains `0.7.0` (fiabilité et confidentialité), `0.8.0` (distribution macOS et Windows), `0.9.0` (bêta publique contrôlée), les conditions de sortie de la `1.0.0` et les perspectives V2 / V3 restent décrits dans `docs/plans/roadmap-future.md`. Ce document est consulté à l'ouverture de chaque nouveau train, et les jalons concernés y sont réintégrés ici au moment où ils deviennent actifs.
+
+## 10. Backlog non priorisé
 
 Les éléments suivants peuvent être utiles, mais n’entrent dans une version que lorsqu’un besoin concret les justifie :
 

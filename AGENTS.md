@@ -1,6 +1,6 @@
 # Sylloge — instructions pour les agents de code
 
-Sylloge est une bibliothèque culturelle personnelle **local-first**. La dernière release publique est `0.4.0` ; le train actif prépare `0.5.0`, l’extension culturelle aux cinq médiums définis dans la roadmap.
+Sylloge est une bibliothèque culturelle personnelle **local-first**. La dernière release publique est `0.5.0` (extension culturelle aux cinq médiums) ; le train actif prépare `0.6.0`, le design desktop définitif de la V1.
 
 ## Références à lire avant toute modification
 
@@ -38,7 +38,7 @@ Pour un lot non trivial, travaille dans la branche prévue par le brief. Ne comm
 
 - SQLite locale est la source de vérité. Ne synchronise jamais le fichier SQLite actif, son WAL ou son SHM avec un service cloud.
 - Préserve les migrations séquentielles de `src-tauri/src/database.rs` et teste toute évolution de schéma ou d’accès SQLite.
-- Un import est validé avant toute écriture, atomique, et crée un nouveau profil : il n’écrase ni ne fusionne silencieusement un profil existant.
+- Un import est validé avant toute écriture et atomique. Il écrit dans la collection du **profil courant** après un choix explicite Remplacer ou Fusionner ; la restauration globale vise un profil vide et ne crée jamais de profil. Aucun import n’écrase ni ne fusionne silencieusement une bibliothèque.
 - Les exports JSON restent lisibles et versionnés. N’invente ni données ni contenu de remplacement.
 - Une affiche est facultative. Garde l’alternative accessible et le fallback neutre quand son URL est absente ou échoue ; aucun filtre, teinte, dégradé ou recadrage destructeur.
 

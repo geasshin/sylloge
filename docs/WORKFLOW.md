@@ -18,7 +18,7 @@ Depuis juillet 2026, Hermes code directement chaque lot dans Hermes Agent (modè
 
 Le projet utilise **Semantic Versioning** pour les versions réellement installables : `MAJEUR.MINEUR.CORRECTIF`.
 
-- `0.3.0` : dernière release publique macOS signée.
+- `0.5.0` : dernière release publique macOS signée (extension culturelle aux cinq médiums).
 - `0.4.0`, `0.5.0`… : releases publiques qui regroupent plusieurs fonctionnalités cohérentes et validées.
 - `0.3.1`, `0.3.2`… sont des **jalons d’intégration internes** du train qui prépare `0.4.0` : ils ne deviennent ni un tag, ni une version de manifeste, ni une GitHub Release. Le même repérage décale ensuite d’un train : `0.4.1…` prépare `0.5.0`.
 - `1.0.0` : première version publique téléchargeable et assumée.

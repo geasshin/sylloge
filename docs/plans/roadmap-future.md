@@ -1,8 +1,8 @@
 # Sylloge — feuille de route future (trains `0.6.0` → `1.0.0` et au-delà)
 
-> **Statut :** document d'archive active. Ce fichier contient les trains postérieurs au train en cours (`0.5.0` — Extension culturelle). Il est extrait de `docs/ROADMAP.md` pour garder la feuille de route active légère. Il sera réintégré — ou consulté — lors de l'ouverture du train `0.6.0`.
+> **Statut :** train actif depuis le 22 août 2026. La release `0.5.0` (Extension culturelle) est publiée ; ce document porte la spécification du train `0.6.0` (front-end définitif) et des trains suivants, extraite de `docs/ROADMAP.md`. Les jalons sont promus dans la feuille de route active à mesure qu'ils deviennent actifs.
 >
-> Les jalons `0.5.1…` préparent `0.6.0`, les `0.6.1…` préparent `0.7.0`, et ainsi de suite, selon le rythme de livraison décrit dans `docs/ROADMAP.md` §3.
+> Les jalons `0.6.1…` prépareront `0.7.0`, et ainsi de suite, selon le rythme de livraison décrit dans `docs/ROADMAP.md` §3.
 
 ## 8. Train `0.6.0` — Front-end définitif et langage visuel de V1
 
