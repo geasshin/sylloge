@@ -501,6 +501,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.9` — Mouvement, clavier et QA visuelle
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Le focus clavier est unifié dans tout le langage : anneau violet `--color-accent` de 3 px accompagné d'un halo `accent-soft`, appliqué au global comme aux contrôles import/doublons/updater (l'ancien violet grisâtre `#8c64a0` disparaît). Les transitions sont harmonisées en 0,12-0,16 s sur élévation et couleurs uniquement, et le rideau `prefers-reduced-motion` existant neutralise le tout. Cibles interactives vérifiées ≥ 34 px.
+
 - Transitions courtes (élévation, couleurs) avec respect strict de `prefers-reduced-motion`.
 - Parcours clavier complets : focus visible partout (anneau violet doux), ordre de tabulation, dialogues piégés correctement.
 - Captures de référence avant/après des surfaces principales ; vérification des contrastes documentée dans DESIGN.md.
