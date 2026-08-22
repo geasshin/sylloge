@@ -447,6 +447,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.2` — Fondations du langage visuel
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les tokens papier/violet/prune remplacent l'ancien système (police Syne supprimée, `--font-personal` serif ajouté, ombres douces tokenisées), les boutons et la recherche passent en pilules, la sidebar perd sa bordure au profit du fond papier avec marque Sylloge + surtitre et items actifs en encre pleine, les affiches gagnent ombre et soulèvement au survol. Les assertions de style de `verify.mjs` restent vertes.
+
 - Remplacer les tokens actuels par le système validé : papier `#FAF9F6`, cartes blanches, bordures chaudes, violet encre `#5B3A68`, prune personnel `#473952`, rayons pilule et cartes.
 - Refondre `src/styles.css` : boutons principal/secondaire/tertiaire, segmented control, champ de recherche pilule, libellés de section en capitales espacées, ombres douces sous visuels uniquement.
 - Redessiner la sidebar : même fond que le contenu, marque Sylloge + surtitre, items pilules avec compteurs, actif en encre pleine, Paramètres ancré en bas.

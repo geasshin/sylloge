@@ -156,7 +156,10 @@ function Sidebar({
     <aside className="sidebar">
       <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
         <span className="wordmark-mark">S</span>
-        <span>Sylloge</span>
+        <span className="wordmark-text">
+          <span>Sylloge</span>
+          <small>Bibliothèque</small>
+        </span>
       </button>
       {settingsOpen ? (
         <nav aria-label="Navigation des paramètres">
@@ -175,7 +178,6 @@ function Sidebar({
         </nav>
       ) : (
         <nav aria-label="Navigation principale">
-          <p className="nav-label">Bibliothèque</p>
           <button
             className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
             type="button"
