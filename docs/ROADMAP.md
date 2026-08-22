@@ -471,6 +471,8 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.5` — Fiches Livres, Jeux et Art
 
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les trois fiches adoptent la composition validée des fiches Films et Séries : colonne gauche collante (visuel, statut segmenté propre au médium, note/coup de cœur — le cœur seul pour l'Art, jamais de note), bloc œuvre avec ligne de faits et grille d'informations adaptée (auteur/parution/avancement pour les Livres, développeur/plateforme/jeu ou visionnage pour les Jeux, artiste/année/lieu/exposition/découverte pour l'Art), partie personnelle en serif prune avec citations des Livres dans leur espace escamotable conservé. Menus ⋯ et dialogues de suppression alignés sur les autres fiches.
+
 - Décliner la composition validée : Livres avec auteur, année, catégorie et citations personnelles en voix serif-prune ; Jeux avec développeur, plateforme et statuts étendus (Regardé compris) ; Art sans aucune note, avec lieu, exposition et formes.
 - Vérifier que la voix personnelle reste unique : citations et avis en prune serif, données éditoriales en sans-serif neutre, sur les cinq médiums.
 
