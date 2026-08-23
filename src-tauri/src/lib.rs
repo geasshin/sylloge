@@ -1,9 +1,9 @@
 mod books;
 mod database;
+mod igdb;
 mod openlibrary;
 mod portability;
 mod profiles;
-mod rawg;
 mod tmdb;
 mod updater_preferences;
 
@@ -58,8 +58,8 @@ pub fn run() {
             tmdb::preview_tmdb_series,
             openlibrary::search_openlibrary_books,
             openlibrary::preview_openlibrary_book,
-            rawg::search_rawg_games,
-            rawg::preview_rawg_game,
+            igdb::search_igdb_games,
+            igdb::preview_igdb_game,
             tmdb::associate_film_with_tmdb,
             tmdb::refresh_film_tmdb_cache,
             tmdb::remove_tmdb_association,

@@ -4,4 +4,5 @@ dist
 .DS_Store
 CODEX_FINAL.md
 src-tauri/src/tmdb/embedded_key.rs
-src-tauri/src/rawg/embedded_key.rs
+src-tauri/src/igdb/embedded_client_id.rs
+src-tauri/src/igdb/embedded_client_secret.rs

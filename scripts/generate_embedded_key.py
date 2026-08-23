@@ -40,7 +40,7 @@ from pathlib import Path
 # mais rien d'autre, car le décodeur est régénéré avec le fichier.
 DEFAULT_SEED = [0x5A, 0xC3, 0x17, 0xE9, 0x42, 0x8D, 0x6B, 0xF1]
 
-PROVIDER_LABELS = {"tmdb": "TMDB", "rawg": "RAWG"}
+PROVIDER_LABELS = {"tmdb": "TMDB", "rawg": "RAWG", "igdb": "IGDB"}
 
 
 def mask_byte(seed: list[int], index: int) -> int:
@@ -114,7 +114,7 @@ mod tests {{
     fn embedded_key_is_not_empty_and_is_ascii() {{
         let key = embedded_api_key();
         assert!(!key.trim().is_empty());
-        assert!(key.chars().all(|c| c.is_ascii()));
+        assert!(key.is_ascii());
     }}
 
     #[test]

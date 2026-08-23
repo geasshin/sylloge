@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react'
 import {
-  searchRawgGames,
-  type RawgGameCandidate,
-} from '../data/rawgService.ts'
+  searchIgdbGames,
+  type IgdbGameCandidate,
+} from '../data/igdbService.ts'
 import { Poster } from './Poster.tsx'
 
-type GameRawgSearchFlowProps = {
+type GameIgdbSearchFlowProps = {
   /** Candidat en cours de traitement : la liste se fige pendant la préparation. */
   pendingCandidateId?: number | null
   /** Échec de la sélection directe, annoncé sans quitter la recherche. */
   selectionError?: string | null
-  onSelectCandidate: (candidate: RawgGameCandidate) => void
+  onSelectCandidate: (candidate: IgdbGameCandidate) => void
   onManual: () => void
   onCancel: () => void
 }
@@ -18,16 +18,16 @@ type GameRawgSearchFlowProps = {
 type SearchState =
   | { status: 'idle' }
   | { status: 'searching' }
-  | { status: 'results'; candidates: RawgGameCandidate[] }
+  | { status: 'results'; candidates: IgdbGameCandidate[] }
   | { status: 'error'; message: string }
 
 /**
- * Recherche Jeux RAWG (jalon 0.4.28), même structure que le parcours Films :
- * suggestions temporisées pendant la saisie, clic direct sur un résultat,
- * issue manuelle toujours accessible. L'attribution RAWG est exigée par
- * leurs conditions d'utilisation du plan gratuit.
+ * Recherche Jeux IGDB, même structure que le parcours Films : suggestions
+ * temporisées pendant la saisie, clic direct sur un résultat, issue manuelle
+ * toujours accessible. IGDB est gratuit pour un usage non commercial ; les
+ * couvertures sont verticales (3:4).
  */
-export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel }: GameRawgSearchFlowProps) {
+export function GameIgdbSearchFlow({ pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel }: GameIgdbSearchFlowProps) {
   const [query, setQuery] = useState('')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
 
@@ -35,7 +35,7 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
     let cancelled = false
     const trimmed = query.trim()
 
-    if (trimmed.length === 0) {
+    if (trimmed.length < 2) {
       setSearchState({ status: 'idle' })
       return () => {
         cancelled = true
@@ -44,12 +44,12 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
 
     setSearchState({ status: 'searching' })
     const timeout = window.setTimeout(() => {
-      searchRawgGames(trimmed).then(
+      searchIgdbGames(trimmed).then(
         (candidates) => {
           if (!cancelled) setSearchState({ status: 'results', candidates })
         },
         (error: unknown) => {
-          console.error('La recherche RAWG a échoué.', error)
+          console.error('La recherche IGDB a échoué.', error)
           if (!cancelled) {
             const providerMessage = typeof error === 'string' && error.trim().length > 0 ? error : null
             setSearchState({
@@ -68,7 +68,7 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
   }, [query])
 
   return (
-    <main className="main editor-main" aria-label="Recherche RAWG">
+    <main className="main editor-main" aria-label="Recherche IGDB">
       <header className="page-action-bar">
         <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
       </header>
@@ -76,18 +76,18 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
       <div className="editor-heading">
         <p className="eyebrow">Jeu</p>
         <h1 className="display-title">Rechercher un jeu</h1>
-        <p>Recherchez un jeu dans RAWG et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.</p>
+        <p>Recherchez un jeu dans IGDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.</p>
       </div>
 
       <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
-          <label htmlFor="game-rawg-search-query">Titre du jeu</label>
+          <label htmlFor="game-igdb-search-query">Titre du jeu</label>
           <input
-            id="game-rawg-search-query"
+            id="game-igdb-search-query"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher dans RAWG…"
+            placeholder="Rechercher dans IGDB…"
             autoFocus
             autoCapitalize="none"
             autoCorrect="off"
@@ -95,7 +95,7 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
             aria-busy={searchState.status === 'searching'}
           />
           <p className="field-help">
-            {searchState.status === 'searching' ? 'Recherche dans RAWG…' : 'Les suggestions se mettent à jour pendant la saisie.'}
+            {searchState.status === 'searching' ? 'Recherche dans IGDB…' : 'Les suggestions se mettent à jour pendant la saisie.'}
           </p>
         </div>
         <div className="form-actions">
@@ -123,8 +123,8 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
       )}
 
       {searchState.status === 'results' && (
-        <section className="tmdb-search-results" aria-labelledby="game-rawg-results-title">
-          <h2 id="game-rawg-results-title">
+        <section className="tmdb-search-results" aria-labelledby="game-igdb-results-title">
+          <h2 id="game-igdb-results-title">
             {searchState.candidates.length === 0
               ? 'Aucun résultat'
               : `${searchState.candidates.length} ${searchState.candidates.length === 1 ? 'résultat' : 'résultats'}`}
@@ -157,7 +157,7 @@ export function GameRawgSearchFlow({ pendingCandidateId = null, selectionError =
             </div>
           )}
           <p className="provider-attribution">
-            Données : <a href="https://rawg.io" target="_blank" rel="noreferrer">RAWG</a>
+            Données : <a href="https://www.igdb.com" target="_blank" rel="noreferrer">IGDB</a> (opéré par Twitch)
           </p>
         </section>
       )}

@@ -3798,43 +3798,44 @@ assert.match(bookOpenLibraryFlowSource, /Saisir manuellement/, 'La recherche Liv
   assert.deepEqual(initial.quotes, [], 'Les citations personnelles ne doivent jamais être préremplies')
 }
 
-// Jalon 0.4.28 — Jeux assistés RAWG, clé embarquée obfusquée hors dépôt.
-const rawgServiceSource = readFileSync(new URL('../src/data/rawgService.ts', import.meta.url), 'utf8')
-const gameMetadataAssistanceSource = readFileSync(new URL('../src/domain/gameMetadataAssistance.ts', import.meta.url), 'utf8')
-const gameRawgFlowSource = readFileSync(new URL('../src/components/GameRawgSearchFlow.tsx', import.meta.url), 'utf8')
+// Jalon 0.4.28 puis IGDB — Jeux assistés, identifiants embarqués obfusqués hors dépôt.
 const gameFormComponentSource = readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8')
-const rawgRustSource = readFileSync(new URL('../src-tauri/src/rawg/mod.rs', import.meta.url), 'utf8')
 const gitignoreSource = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
 
-assert.match(rawgRustSource, /https:\/\/api\.rawg\.io\/api/, 'Le client Jeux doit viser l’API RAWG')
-assert.match(rawgRustSource, /embedded_key::embedded_api_key\(\)/, 'La clé RAWG doit être lue depuis le fichier obfusqué embarqué')
-assert.match(gitignoreSource, /src-tauri\/src\/rawg\/embedded_key\.rs/, 'La clé RAWG obfusquée doit être exclue du dépôt')
-assert.doesNotMatch(rawgRustSource, /println!|eprintln!|dbg!/, 'La clé RAWG ne doit jamais passer par un log')
-assert.match(rawgRustSource, /exclude_additions/, 'La recherche Jeux doit exclure les DLC pour rester lisible')
-assert.match(rawgRustSource, /developers_are_bounded_and_joined/, 'Une preuve Rust doit borner et joindre les développeurs')
-assert.match(tauriLibrarySource0426, /rawg::search_rawg_games/, 'La commande de recherche Jeux doit être enregistrée')
-assert.match(tauriLibrarySource0426, /rawg::preview_rawg_game/, 'La commande de prévisualisation Jeux doit être enregistrée')
-assert.match(rawgServiceSource, /invoke\('search_rawg_games'/, 'Le frontend doit appeler la recherche Jeux')
-assert.doesNotMatch(gameMetadataAssistanceSource, /status:|rating:|isFavorite:|platform/, 'Le préremplissage Jeux ne doit toucher ni statut, ni note, ni favori, ni plateforme')
 assert.match(gameFormComponentSource, /\.\.\.EMPTY_GAME_FORM, \.\.\.initialValues/, 'Le formulaire Jeux doit accepter des valeurs préremplies')
-assert.match(mainSource047, /game-rawg-search/, 'L’ajout de Jeu doit ouvrir la recherche RAWG')
-assert.match(mainSource047, /gamePresentationToInitialValues/, 'Le clic sur un résultat Jeux doit préremplir directement le formulaire')
-assert.match(gameRawgFlowSource, /setTimeout\(\(\) =>/, 'La recherche Jeux doit être temporisée pendant la saisie')
-assert.match(gameRawgFlowSource, /Saisir manuellement/, 'La recherche Jeux doit proposer une issue manuelle')
-assert.match(gameRawgFlowSource, /Données : <a href="https:\/\/rawg\.io"/, 'L’attribution RAWG exigée par leurs conditions doit être visible')
+
+// Jalon IGDB : couvertures verticales pour les Jeux, jeton Twitch renouvelé côté backend.
+const igdbRustSource = readFileSync(new URL('../src-tauri/src/igdb/mod.rs', import.meta.url), 'utf8')
+const igdbServiceSource = readFileSync(new URL('../src/data/igdbService.ts', import.meta.url), 'utf8')
+const gitignoreSourceIgdb = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
+const gameIgdbAssistanceSource = readFileSync(new URL('../src/domain/gameIgdbAssistance.ts', import.meta.url), 'utf8')
+
+assert.match(igdbRustSource, /https:\/\/id\.twitch\.tv\/oauth2\/token/, 'IGDB doit obtenir son jeton via Twitch OAuth client credentials')
+assert.match(igdbRustSource, /TOKEN_CACHE/, 'Le jeton IGDB doit être mis en cache et renouvelé avant expiration')
+assert.match(igdbRustSource, /embedded_client_id::embedded_api_key/, 'Le Client ID IGDB doit être embarqué obfusqué hors dépôt')
+assert.match(igdbRustSource, /embedded_client_secret::embedded_api_key/, 'Le Client Secret IGDB doit être embarqué obfusqué hors dépôt')
+assert.match(gitignoreSourceIgdb, /src-tauri\/src\/igdb\/embedded_client_id\.rs/, 'Le Client ID IGDB doit être exclu du dépôt')
+assert.match(gitignoreSourceIgdb, /src-tauri\/src\/igdb\/embedded_client_secret\.rs/, 'Le Client Secret IGDB doit être exclu du dépôt')
+assert.doesNotMatch(igdbRustSource, /println!|eprintln!|dbg!/, 'Les identifiants IGDB ne doivent jamais passer par un log')
+assert.match(igdbRustSource, /t_cover_big/, 'Les couvertures IGDB doivent être servies verticales (cover_big)')
+assert.match(igdbServiceSource, /invoke\('search_igdb_games'/, 'Le frontend doit appeler la recherche IGDB')
+assert.match(gameIgdbAssistanceSource, /igdbPresentationToInitialValues/, 'Le préremplissage IGDB doit exister')
+assert.doesNotMatch(gameIgdbAssistanceSource, /status:|rating:|isFavorite:|platform/, 'Le préremplissage IGDB ne doit toucher ni statut, ni note, ni favori, ni plateforme')
+assert.match(mainSource047, /game-igdb-search/, 'L’ajout de Jeu doit ouvrir la recherche IGDB')
+assert.match(mainSource047, /igdbPresentationToInitialValues/, 'Le clic sur un résultat Jeux doit préremplir directement le formulaire')
 
 {
-  const { gamePresentationToInitialValues } = await import('../src/domain/gameMetadataAssistance.ts')
-  const initial = gamePresentationToInitialValues({
-    gameId: 3328,
-    title: 'The Witcher 3: Wild Hunt',
-    developer: 'CD Projekt Red',
-    releaseYear: 2015,
-    coverUrl: 'https://media.rawg.io/media/games/witcher3.jpg',
+  const { igdbPresentationToInitialValues } = await import('../src/domain/gameIgdbAssistance.ts')
+  const initial = igdbPresentationToInitialValues({
+    gameId: 237895,
+    title: 'The Legend of Zelda: Breath of the Wild',
+    developer: 'Nintendo EPD',
+    releaseYear: 2017,
+    coverUrl: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co67oa.jpg',
   })
-  assert.equal(initial.title, 'The Witcher 3: Wild Hunt', 'Le titre doit être prérempli')
-  assert.equal(initial.developer, 'CD Projekt Red', 'Le développeur doit être prérempli')
-  assert.equal(initial.year, '2015', 'L’année doit être préremplie')
+  assert.equal(initial.title, 'The Legend of Zelda: Breath of the Wild', 'Le titre doit être prérempli')
+  assert.equal(initial.developer, 'Nintendo EPD', 'Le développeur doit être prérempli')
+  assert.equal(initial.year, '2017', 'L’année doit être préremplie')
   assert.equal(initial.platform, '', 'La plateforme reste un choix personnel, jamais préremplie')
   assert.equal(initial.status, 'à jouer', 'Le statut personnel doit rester au neutre')
   assert.equal(initial.rating, '', 'La note personnelle ne doit jamais être préremplie')

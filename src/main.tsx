@@ -14,7 +14,7 @@ import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
 import { SeriesTmdbSearchFlow } from './components/SeriesTmdbSearchFlow.tsx'
 import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlow.tsx'
-import { GameRawgSearchFlow } from './components/GameRawgSearchFlow.tsx'
+import { GameIgdbSearchFlow } from './components/GameIgdbSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
@@ -35,7 +35,7 @@ import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryVi
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries } from './data/tmdbService.ts'
 import { previewOpenLibraryBook, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
-import { previewRawgGame, type RawgGameCandidate } from './data/rawgService.ts'
+import { previewIgdbGame, type IgdbGameCandidate } from './data/igdbService.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -87,7 +87,7 @@ import {
   type Game,
 } from './domain/game.ts'
 import type { GameFormValues, GameWriteInput } from './domain/gameForm.ts'
-import { gamePresentationToInitialValues } from './domain/gameMetadataAssistance.ts'
+import { igdbPresentationToInitialValues } from './domain/gameIgdbAssistance.ts'
 import {
   ARTWORK_FORMS,
   ARTWORK_FORM_LABELS,
@@ -1545,7 +1545,7 @@ type View =
   | { name: 'book-edit'; bookId: string }
   | { name: 'games' }
   | { name: 'game-create'; initialValues?: GameFormValues }
-  | { name: 'game-rawg-search' }
+  | { name: 'game-igdb-search' }
   | { name: 'game-detail'; gameId: string }
   | { name: 'game-edit'; gameId: string }
   | { name: 'artworks' }
@@ -2019,14 +2019,14 @@ function App() {
 
   // Même parcours direct pour les Jeux via RAWG (jalon 0.4.28), clé
   // embarquée côté backend, jamais exposée au frontend.
-  const selectRawgGameCandidate = async (candidate: RawgGameCandidate) => {
+  const selectIgdbGameCandidate = async (candidate: IgdbGameCandidate) => {
     setCandidateSelection({ pendingId: candidate.gameId, error: null })
     try {
-      const presentation = await previewRawgGame(candidate)
+      const presentation = await previewIgdbGame(candidate.gameId, candidate.title, candidate.releaseYear, candidate.coverUrl)
       setCandidateSelection({ pendingId: null, error: null })
-      setView({ name: 'game-create', initialValues: gamePresentationToInitialValues(presentation) })
+      setView({ name: 'game-create', initialValues: igdbPresentationToInitialValues(presentation) })
     } catch (error) {
-      console.error('La sélection RAWG a échoué.', error)
+      console.error('La sélection IGDB a échoué.', error)
       setCandidateSelection({
         pendingId: null,
         error: 'La sélection a échoué. Vérifiez votre connexion puis réessayez ; la saisie manuelle reste possible.',
@@ -2510,18 +2510,18 @@ function App() {
         searchState={gameSearchState}
         onContextChange={setGameContext}
         onRetrySearch={() => setGameSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'game-rawg-search' })}
+        onCreate={() => leaveLibrary({ name: 'game-igdb-search' })}
         onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
     )
-  } else if (view.name === 'game-rawg-search') {
+  } else if (view.name === 'game-igdb-search') {
     content = (
-      <GameRawgSearchFlow
+      <GameIgdbSearchFlow
         pendingCandidateId={candidateSelection.pendingId}
         selectionError={candidateSelection.error}
-        onSelectCandidate={selectRawgGameCandidate}
+        onSelectCandidate={selectIgdbGameCandidate}
         onManual={() => setView({ name: 'game-create' })}
         onCancel={returnToLibrary}
       />
@@ -2754,7 +2754,7 @@ function App() {
                 ? 'series'
                 : view.name === 'books' || view.name === 'book-create' || view.name === 'book-ol-search' || view.name === 'book-detail' || view.name === 'book-edit'
                   ? 'books'
-                  : view.name === 'games' || view.name === 'game-create' || view.name === 'game-rawg-search' || view.name === 'game-detail' || view.name === 'game-edit'
+                  : view.name === 'games' || view.name === 'game-create' || view.name === 'game-igdb-search' || view.name === 'game-detail' || view.name === 'game-edit'
                     ? 'games'
                     : view.name === 'artworks' || view.name === 'artwork-create' || view.name === 'artwork-detail' || view.name === 'artwork-edit'
                       ? 'artworks'
