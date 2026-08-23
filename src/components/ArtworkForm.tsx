@@ -39,6 +39,7 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
+  const [showVisualField, setShowVisualField] = useState(false)
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableImageUrl(values.imageUrl)
 
@@ -148,22 +149,33 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
             </div>
           </div>
 
-          {/* Visuel de l'œuvre : accessible sans fournisseur */}
-          <div className="field">
-            <label htmlFor="artwork-imageUrl">Visuel de l’œuvre (URL d’une image)</label>
-            <input
-              id="artwork-imageUrl"
-              type="url"
-              inputMode="url"
-              placeholder="https://…/oeuvre.jpg"
-              value={values.imageUrl}
-              onChange={(event) => update('imageUrl', event.target.value)}
-              aria-invalid={Boolean(errors.imageUrl)}
-              aria-describedby={`artwork-image-help${errors.imageUrl ? ' artwork-image-error' : ''}`}
-            />
-            <p className="field-help" id="artwork-image-help">Colle l’adresse d’une image de l’œuvre ; elle apparaît à gauche. Une image indisponible n’empêchera pas l’enregistrement.</p>
-            {errors.imageUrl && <p className="field-error" id="artwork-image-error">{errors.imageUrl}</p>}
-          </div>
+          {/* Visuel de l'œuvre : modifiable directement depuis l'affiche */}
+          <button
+            type="button"
+            className="artwork-visual-edit"
+            onClick={() => setShowVisualField((value) => !value)}
+            aria-expanded={showVisualField}
+          >
+            {values.imageUrl ? 'Changer le visuel' : 'Ajouter un visuel'}
+          </button>
+          {showVisualField && (
+            <div className="field">
+              <label htmlFor="artwork-imageUrl">Visuel de l’œuvre (URL d’une image)</label>
+              <input
+                id="artwork-imageUrl"
+                type="url"
+                inputMode="url"
+                autoFocus
+                placeholder="https://…/oeuvre.jpg"
+                value={values.imageUrl}
+                onChange={(event) => update('imageUrl', event.target.value)}
+                aria-invalid={Boolean(errors.imageUrl)}
+                aria-describedby={`artwork-image-help${errors.imageUrl ? ' artwork-image-error' : ''}`}
+              />
+              <p className="field-help" id="artwork-image-help">Colle l’adresse d’une image de l’œuvre ; elle apparaît à gauche. Une image indisponible n’empêchera pas l’enregistrement.</p>
+              {errors.imageUrl && <p className="field-error" id="artwork-image-error">{errors.imageUrl}</p>}
+            </div>
+          )}
 
           {/* Champs éditoriaux : repliés par défaut */}
           <details className="secondary-fields" open={Boolean(artwork) || undefined}>

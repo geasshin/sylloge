@@ -418,15 +418,35 @@ function formatWatchedDay(value: string): string {
 type CalendarDay = {
   date: Date
   key: string
-  filmCount: number
+  activityCount: number
 }
 
-function buildCalendarDays(films: Film[]): CalendarDay[] {
-  const filmCounts = new Map<string, number>()
+/** Calendrier des cinq dernières semaines, toutes consommations confondues. */
+function buildCalendarDays(
+  films: Film[],
+  series: Series[],
+  books: Book[],
+  games: Game[],
+  artworks: Artwork[],
+): CalendarDay[] {
+  const counts = new Map<string, number>()
+  const add = (key: string | null) => {
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
   films.forEach((film) => {
-    if (film.status === 'terminé' && film.watchedAt) {
-      filmCounts.set(film.watchedAt, (filmCounts.get(film.watchedAt) ?? 0) + 1)
-    }
+    if (film.status === 'terminé') add(film.watchedAt)
+  })
+  series.forEach((entry) => {
+    if (entry.status === 'vue' && entry.progressUpdatedAt?.slice(0, 10)) add(entry.progressUpdatedAt.slice(0, 10))
+  })
+  books.forEach((entry) => {
+    if (entry.status === 'lu' && entry.startedAt) add(entry.startedAt)
+  })
+  games.forEach((entry) => {
+    if ((entry.status === 'joué' || entry.status === 'regardé') && entry.playedAt) add(entry.playedAt)
+  })
+  artworks.forEach((entry) => {
+    if (entry.status === 'découverte' && entry.discoveredAt) add(entry.discoveredAt)
   })
 
   const today = new Date()
@@ -439,7 +459,7 @@ function buildCalendarDays(films: Film[]): CalendarDay[] {
     const date = new Date(firstDay)
     date.setDate(firstDay.getDate() + index)
     const key = formatCalendarDate(date)
-    return { date, key, filmCount: filmCounts.get(key) ?? 0 }
+    return { date, key, activityCount: counts.get(key) ?? 0 }
   })
 }
 
@@ -517,8 +537,8 @@ function Home({ library, seriesCollection, bookCollection, gameCollection, artwo
     .sort(compareByCreatedAt)
     .slice(0, 4)
   const recentlyAdded = [...library.films].sort(compareByCreatedAt).slice(0, 6)
-  const calendarDays = buildCalendarDays(library.films)
-  const hasViewedFilm = calendarDays.some((day) => day.filmCount > 0)
+  const calendarDays = buildCalendarDays(library.films, seriesCollection, bookCollection, gameCollection, artworkCollection)
+  const hasViewedFilm = calendarDays.some((day) => day.activityCount > 0)
 
   // Multi-médiums : les ajouts récents de toute la bibliothèque, mélangés.
   type RecentEntry = { key: string; label: string; title: string; subtitle: string; poster: string | null; createdAt: string; onOpen: () => void }
@@ -636,19 +656,19 @@ function Home({ library, seriesCollection, bookCollection, gameCollection, artwo
               </div>
               <p>Cinq dernières semaines</p>
             </header>
-            <div className="home-calendar" aria-label="Calendrier des films vus pendant les cinq dernières semaines">
+            <div className="home-calendar" aria-label="Calendrier des consommations des cinq dernières semaines">
               <div className="home-calendar-weekdays" aria-hidden="true">
                 {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
               </div>
               <ol className="home-calendar-days">
-                {calendarDays.map(({ date, key, filmCount }) => {
+                {calendarDays.map(({ date, key, activityCount }) => {
                   const dayLabel = formatWatchedDay(key)
-                  const countLabel = filmCount === 1 ? '1 film vu' : `${filmCount} films vus`
+                  const countLabel = activityCount === 1 ? '1 activité' : `${activityCount} activités`
                   return (
                     <li
-                      className={filmCount > 0 ? 'viewed' : ''}
+                      className={activityCount > 0 ? 'viewed' : ''}
                       key={key}
-                      aria-label={filmCount > 0 ? `${dayLabel} : ${countLabel}` : dayLabel}
+                      aria-label={activityCount > 0 ? `${dayLabel} : ${countLabel}` : dayLabel}
                     >
                       <time dateTime={key} aria-hidden="true">{date.getDate()}</time>
                     </li>
@@ -658,8 +678,8 @@ function Home({ library, seriesCollection, bookCollection, gameCollection, artwo
             </div>
             <p className={hasViewedFilm ? 'home-calendar-note' : 'home-module-empty'}>
               {hasViewedFilm
-                ? 'Les jours marqués correspondent à au moins un film terminé et daté.'
-                : 'Aucun film terminé daté au cours des cinq dernières semaines.'}
+                ? 'Les jours marqués correspondent à au moins une œuvre terminée et datée, tous médiums confondus.'
+                : 'Aucune œuvre terminée datée au cours des cinq dernières semaines.'}
             </p>
           </section>
         </div>
