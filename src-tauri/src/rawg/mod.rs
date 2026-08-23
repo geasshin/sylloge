@@ -111,6 +111,20 @@ fn join_developers(developers: Option<Vec<NamedEntry>>) -> Option<String> {
     }
 }
 
+/// RAWG sert ses visuels via un service de redimensionnement officiel ;
+/// on demande une largeur raisonnable pour les couvertures de bibliothèque.
+fn resized_cover(url: Option<String>) -> Option<String> {
+    url.map(|value| {
+        if let Some(rest) = value.strip_prefix("https://media.rawg.io/media/games/") {
+            format!("https://media.rawg.io/media/resize/640/-/games/{rest}")
+        } else if let Some(rest) = value.strip_prefix("https://media.rawg.io/media/screenshots/") {
+            format!("https://media.rawg.io/media/resize/640/-/screenshots/{rest}")
+        } else {
+            value
+        }
+    })
+}
+
 fn map_search_result(result: SearchResult) -> Option<RawgGameCandidateDto> {
     let title = result.name?;
     if title.trim().is_empty() {
@@ -120,7 +134,7 @@ fn map_search_result(result: SearchResult) -> Option<RawgGameCandidateDto> {
         game_id: result.id,
         title,
         release_year: release_year(result.released.as_deref()),
-        cover_url: result.background_image,
+        cover_url: resized_cover(result.background_image),
     })
 }
 
@@ -201,9 +215,11 @@ impl RawgClient {
                 .unwrap_or_else(|| fallback.title.clone()),
             developer: join_developers(details.developers),
             release_year: release_year(details.released.as_deref()).or(fallback.release_year),
-            cover_url: details
-                .background_image
-                .or_else(|| fallback.cover_url.clone()),
+            cover_url: resized_cover(
+                details
+                    .background_image
+                    .or_else(|| fallback.cover_url.clone()),
+            ),
         })
     }
 }

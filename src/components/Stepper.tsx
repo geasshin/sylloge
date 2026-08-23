@@ -2,11 +2,15 @@ type StepperProps = {
   id: string
   label: string
   value: string
-  onChange: (value: string) => void
+  onChange?: (value: string) => void
   min?: number
   max?: number | null
   error?: string
   describedBy?: string
+  /** Affichage lecture seule : la valeur est fournie (ex. total de saisons TMDB). */
+  readOnly?: boolean
+  /** Note affichée sous le compteur en lecture seule. */
+  hint?: string
 }
 
 /**
@@ -14,7 +18,7 @@ type StepperProps = {
  * possible, mais l'ajout d'une saison ou d'un tome se fait d'un geste, sans
  * champ numérique brut.
  */
-export function Stepper({ id, label, value, onChange, min = 0, max = null, error, describedBy }: StepperProps) {
+export function Stepper({ id, label, value, onChange, min = 0, max = null, error, describedBy, readOnly = false, hint }: StepperProps) {
   const numericValue = value.trim() === '' ? null : Number(value)
   const current = numericValue !== null && Number.isFinite(numericValue) ? numericValue : null
   const canDecrease = current !== null && current > min
@@ -25,7 +29,19 @@ export function Stepper({ id, label, value, onChange, min = 0, max = null, error
     const next = base + delta
     if (next < min) return
     if (max !== null && next > max) return
-    onChange(String(next))
+    onChange?.(String(next))
+  }
+
+  if (readOnly) {
+    return (
+      <div className="field stepper-field">
+        <span className="stepper-readonly-label">{label}</span>
+        <p className="stepper-readonly-value">
+          {current !== null ? current : '—'}
+          {hint && <small>{hint}</small>}
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -47,7 +63,7 @@ export function Stepper({ id, label, value, onChange, min = 0, max = null, error
           inputMode="numeric"
           className="stepper-input"
           value={value}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => onChange?.(event.target.value)}
           aria-invalid={Boolean(error)}
           aria-describedby={describedBy}
         />

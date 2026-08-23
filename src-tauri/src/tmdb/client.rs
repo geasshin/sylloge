@@ -471,7 +471,7 @@ impl TmdbClient for ReqwestTmdbClient {
         let credits: TmdbAggregateCreditsResponse = self
             .get(
                 secret,
-                &format!("/tv/{tmdb_id}/aggregate_credits"),
+                &format!("/tv/{tmdb_id}/credits"),
                 &[("language", language)],
             )
             .await?;

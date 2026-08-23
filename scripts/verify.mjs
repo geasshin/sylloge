@@ -3716,7 +3716,7 @@ const tmdbClientSource0426 = readFileSync(new URL('../src-tauri/src/tmdb/client.
 const tauriLibrarySource0426 = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 
 assert.match(tmdbClientSource0426, /"\/search\/tv"/, 'La recherche Séries doit viser l’endpoint TV de TMDB')
-assert.match(tmdbClientSource0426, /\/tv\/\{tmdb_id\}\/aggregate_credits/, 'La présentation TV doit lire les crédits agrégés')
+assert.match(tmdbClientSource0426, /\/tv\/\{tmdb_id\}\/credits/, 'La présentation TV doit lire les crédits (endpoint léger, sans timeout)')
 assert.match(tmdbClientSource0426, /number_of_seasons/, 'Le total de saisons connu doit être lu depuis TMDB')
 assert.match(tmdbClientSource0426, /validate_series_presentation/, 'La présentation TV doit être validée et bornée')
 assert.match(tmdbClientSource0426, /series_fake_client_returns_bounded_presentation/, 'Une preuve Rust doit couvrir la présentation TV bornée')

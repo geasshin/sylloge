@@ -34,7 +34,7 @@ export function BookOpenLibrarySearchFlow({ pendingCandidateKey = null, selectio
     let cancelled = false
     const trimmed = query.trim()
 
-    if (trimmed.length === 0) {
+    if (trimmed.length < 2) {
       setSearchState({ status: 'idle' })
       return () => {
         cancelled = true

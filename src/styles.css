@@ -461,16 +461,17 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   padding-top: 20px;
   border-top: 1px solid var(--color-hairline);
 }
-.verdict-row { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
-.seg-group-form { display: inline-flex; gap: 3px; padding: 4px; border-radius: 12px; background: rgba(31, 29, 26, .05); }
+.verdict-row { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; row-gap: 14px; }
+.seg-group-form { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 4px; border-radius: 12px; background: rgba(31, 29, 26, .05); max-width: 100%; }
 .seg-pill-btn {
   border: none;
-  padding: 7.5px 17px;
+  padding: 7.5px 15px;
   border-radius: 9px;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
+  white-space: nowrap;
   transition: background .12s ease, color .12s ease, box-shadow .12s ease;
 }
 .seg-pill-btn:hover { color: var(--color-text); }
@@ -604,6 +605,27 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .stepper-button:hover:not(:disabled) { background: var(--color-accent-soft); border-color: var(--color-accent); }
 .stepper-button:disabled { opacity: 0.4; cursor: not-allowed; }
 .stepper-input { flex: 1; text-align: center; }
+.stepper-field .stepper-readonly-label {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+.stepper-readonly-value {
+  margin: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stepper-readonly-value small { color: var(--color-text-subtle); font-size: 10.5px; font-weight: 600; }
+.verdict-progress .form-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px; }
 .quote-editor { display: grid; gap: 17px; padding-top: 21px; border-top: 1px solid var(--color-border); }
 .quote-editor-heading { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
 .quote-editor-heading h2 { margin: 0; font-size: 15px; letter-spacing: .01em; }

@@ -144,24 +144,26 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
 
             {progressVisible && (
               <fieldset className="progress-fields verdict-progress">
-                <Stepper
-                  id="seasonsSeen"
-                  label="Saisons vues"
-                  value={values.seasonsSeen}
-                  onChange={(value) => update('seasonsSeen', value)}
-                  error={errors.seasonsSeen}
-                  describedBy={errors.seasonsSeen ? 'seasonsSeen-error' : undefined}
-                />
-                <Stepper
-                  id="seasonsTotal"
-                  label="Saisons au total"
-                  value={values.seasonsTotal}
-                  onChange={(value) => update('seasonsTotal', value)}
-                  error={errors.seasonsTotal}
-                  describedBy={errors.seasonsTotal ? 'seasonsTotal-error' : undefined}
-                />
+                <div className="form-row">
+                  <Stepper
+                    id="seasonsSeen"
+                    label="Saisons vues"
+                    value={values.seasonsSeen}
+                    onChange={(value) => update('seasonsSeen', value)}
+                    max={values.seasonsTotal.trim() === '' ? null : Number(values.seasonsTotal)}
+                    error={errors.seasonsSeen}
+                    describedBy={errors.seasonsSeen ? 'seasonsSeen-error' : undefined}
+                  />
+                  <Stepper
+                    id="seasonsTotal"
+                    label="Saisons au total"
+                    value={values.seasonsTotal}
+                    readOnly
+                    hint={assisted ? 'fourni par TMDB' : undefined}
+                  />
+                </div>
                 {values.status === 'vue' && (
-                  <p className="field-help">Série à jour : si une nouvelle saison sort, augmentez le total et elle repassera en cours.</p>
+                  <p className="field-help">Série à jour : si une nouvelle saison sort, la série repassera en cours.</p>
                 )}
               </fieldset>
             )}
