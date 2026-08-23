@@ -108,6 +108,42 @@ export function collectionCsvFields(kind: CollectionCsvImportKind): readonly Col
   return FIELDS[kind]
 }
 
+/** Groupes du mapping inversé : champs éditoriaux puis personnels, par médium. */
+const FIELD_GROUPS: Array<{ id: string; label: string; description: string; keys: Record<CollectionCsvImportKind, readonly string[]> }> = [
+  {
+    id: 'editorial',
+    label: 'Éditorial',
+    description: 'Ce qui décrit l’œuvre. Les métadonnées manquantes restent récupérables plus tard via la recherche assistée.',
+    keys: {
+      series: ['title', 'showrunner', 'casting', 'summary', 'category', 'posterUrl'],
+      books: ['title', 'author', 'year', 'summary', 'category', 'coverUrl'],
+      games: ['title', 'developer', 'platform', 'year', 'coverUrl'],
+      artworks: ['title', 'artist', 'year', 'form', 'location', 'exhibition', 'imageUrl'],
+    },
+  },
+  {
+    id: 'personal',
+    label: 'Personnel',
+    description: 'Ta vision : statut, note, coup de cœur, progression, dates et avis. C’est ce qui vaut l’import.',
+    keys: {
+      series: ['status', 'rating', 'isFavorite', 'seasonsSeen', 'seasonsTotal', 'startedAt', 'personalNote'],
+      books: ['status', 'rating', 'isFavorite', 'volumesRead', 'volumesTotal', 'startedAt', 'personalNote', 'quotes'],
+      games: ['status', 'rating', 'isFavorite', 'playedAt', 'personalNote'],
+      artworks: ['status', 'isFavorite', 'discoveredAt', 'personalNote'],
+    },
+  },
+]
+
+export function collectionCsvFieldGroups(kind: CollectionCsvImportKind): Array<{ id: string; label: string; description: string; fields: readonly CollectionCsvField[] }> {
+  const all = FIELDS[kind]
+  return FIELD_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    description: group.description,
+    fields: group.keys[kind].map((key) => all.find((fieldDefinition) => fieldDefinition.key === key)).filter((fieldDefinition): fieldDefinition is CollectionCsvField => fieldDefinition !== undefined),
+  }))
+}
+
 export function prepareCollectionCsvImport(kind: CollectionCsvImportKind, contents: string): CollectionCsvImportSession {
   const table = parseCsv(contents)
   const sourceKind = isSyllogeCollectionCsv(kind, table.headers) ? 'sylloge-csv-v1' : 'csv'

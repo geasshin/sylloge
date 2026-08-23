@@ -552,12 +552,14 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 #### `0.6.2` — Mapping inversé : les champs Sylloge d'abord
 
-- Refondre l'écran de mapping des quatre médiums non-Films : **une ligne par champ Sylloge**, groupés en « Éditorial » (titre, auteur/showrunner/développeur/artiste, année, résumé, catégorie/forme…) et « Personnel » (statut, note, coup de cœur, progression, dates, avis, citations).
-- Chaque champ porte un sélecteur listant les colonnes réellement détectées (auto-sélection conservée quand l'aliasing reconnaît la colonne), plus l'option **« Ne pas importer »** par défaut pour tout champ non reconnu.
-- Redessiner les sélecteurs dans le langage actuel (pilules, focus violet/vert encre selon arbitrage final) — remplacer les `<select>` bruts.
-- Une zone secondaire liste les colonnes détectées mais non mappées, avec la mention : *« Ces colonnes ne sont pas importées. Les métadonnées éditoriales (résumés, affiches, casting…) peuvent être complétées plus tard par la recherche assistée dans Sylloge. »*
-- Appliquer la même grille au flux Films existant pour uniformiser l'expérience (son moteur garde ses spécificités Notion/Markdown).
-- Critères : sur l'export Notion réel d'Aurélien, chaque champ personnel trouvable et mappable en trois clics ; zéro colonne mystérieuse non expliquée ; tests domaine étendus aux nouveaux choix de mapping.
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** L'écran de mapping des quatre médiums non-Films est inversé : une ligne par champ Sylloge, groupés en « Éditorial » puis « Personnel », chaque champ portant un sélecteur pilule listant les colonnes réellement détectées (auto-sélection par aliasing conservée, colonnes déjà utilisées désactivées) avec « Ne pas importer » par défaut pour tout champ non reconnu. Le titre porte la mention Obligatoire. Les colonnes non mappées sont regroupées dans une zone repliable expliquant qu'elles ne sont pas importées et que l'éditorial reste récupérable via la recherche assistée. Moteur de mapping inchangé (`CollectionCsvMapping`, auto-détection, unicité des colonnes).
+
+- Refondre l'écran de mapping : **une ligne par champ Sylloge**, groupés « Éditorial » / « Personnel ». ✓
+- Chaque champ porte un sélecteur des colonnes détectées + **« Ne pas importer »** par défaut. ✓
+- Redessiner les sélecteurs dans le langage actuel (pilules, focus accent). ✓
+- Zone secondaire des colonnes non mappées avec mention recherche assistée. ✓
+- Appliquer la même grille au flux Films existant — reporté au jalon 0.6.5 (le moteur Films garde ses spécificités Notion/Markdown).
+- Critères : sur l'export Notion réel d'Aurélien, chaque champ personnel trouvable et mappable en trois clics ; zéro colonne mystérieuse non expliquée ; tests domaine verts. ✓
 
 #### `0.6.3` — Validation tolérante : normaliser d'abord, bloquer rarement
 
