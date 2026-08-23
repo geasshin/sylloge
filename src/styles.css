@@ -164,26 +164,53 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .home-heading { padding: 0 0 26px; }
 .home-heading .eyebrow { margin: 0 0 10px; }
 .home-heading h1 { margin: 0; font-size: clamp(34px, 4vw, 50px); }
-.home-grid {
-  min-height: 0;
+
+.dashboard-grid {
   display: grid;
-  grid-template-areas:
-    "all-recent all-recent"
-    "recent favorites"
-    "context calendar";
-  grid-template-columns: minmax(0, 1.55fr) minmax(290px, 1fr);
-  grid-template-rows: auto minmax(300px, .9fr) minmax(240px, .7fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
+  align-items: start;
 }
-.home-module-all-recent { grid-area: all-recent; min-width: 0; overflow: hidden; }
-.home-recent-list {
+.home-module {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  box-shadow: 0 1px 2px rgba(31, 29, 26, .04);
+}
+.home-module-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
+.home-module-heading .card-kicker { margin-bottom: 8px; color: var(--color-text-subtle); font-size: 10.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.home-module-heading h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.home-module-heading > p { max-width: 210px; margin: 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.45; text-align: right; overflow-wrap: anywhere; }
+.home-module-empty { max-width: 320px; margin: 14px 0 0; color: var(--color-text-muted); font-size: 12.5px; line-height: 1.55; }
+
+/* Puces de filtrage par médium */
+.medium-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.medium-chip {
+  border: none;
+  padding: 4.5px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(31, 29, 26, .05);
+  color: var(--color-text-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: background .12s ease, color .12s ease;
+}
+.medium-chip:hover { color: var(--color-text); }
+.medium-chip.on { background: var(--color-text); color: var(--color-canvas); }
+
+/* Cartes d'œuvre des modules */
+.home-entry-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
   gap: 16px;
-  margin-top: 18px;
+  margin-top: 16px;
   min-width: 0;
 }
-.home-recent-card {
+.home-entry-card {
   min-width: 0;
   max-width: 100%;
   border: 0;
@@ -194,7 +221,74 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   text-align: left;
   overflow: hidden;
 }
-.home-recent-card .poster { border-radius: var(--radius-card); width: 100%; }
+.home-entry-card .home-entry-poster { width: 100%; border-radius: var(--radius-card); transition: transform .16s ease, box-shadow .16s ease; }
+.home-entry-card:hover .home-entry-poster { transform: translateY(-2px); box-shadow: var(--shadow-lifted); }
+.home-entry-info { min-width: 0; max-width: 100%; display: grid; gap: 2px; }
+.home-entry-medium { font-size: 9px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.home-entry-info b {
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.25;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.home-entry-info small {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Calendrier mensuel à points colorés */
+.home-module-calendar { gap: 12px; }
+.calendar-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.calendar-nav .card-kicker { margin-bottom: 6px; color: var(--color-text-subtle); font-size: 10.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
+.calendar-nav h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; text-transform: capitalize; }
+.calendar-nav-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 17px;
+  line-height: 1;
+}
+.calendar-nav-button:hover:not(:disabled) { border-color: #D6D0C4; color: var(--color-text); }
+.calendar-nav-button:disabled { opacity: .35; cursor: default; }
+.calendar-weekdays, .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+.calendar-weekdays { margin-top: 6px; }
+.calendar-weekdays span { color: var(--color-text-subtle); font-size: 9px; font-weight: 700; text-align: center; }
+.calendar-days { margin: 0; padding: 0; list-style: none; }
+.calendar-days li {
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px 2px;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-days li.pad { border: none; }
+.calendar-days li.today { border-color: var(--color-accent); color: var(--color-text); font-weight: 650; }
+.calendar-days li.active { background: rgba(31, 29, 26, .035); color: var(--color-text); }
+.calendar-dots { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
+.calendar-dots i { width: 5px; height: 5px; border-radius: 50%; display: block; }
+.calendar-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: auto; padding-top: 12px; }
+.calendar-legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: 10.5px; }
+.calendar-legend i { width: 7px; height: 7px; border-radius: 50%; display: block; }
+
+.poster { border-radius: var(--radius-card); width: 100%; }
 .home-recent-card:hover .poster { transform: translateY(-2px); box-shadow: var(--shadow-lifted); }
 .home-recent-info { min-width: 0; max-width: 100%; display: grid; gap: 2px; }
 .home-recent-info b {

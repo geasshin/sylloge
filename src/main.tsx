@@ -442,109 +442,86 @@ function formatCalendarDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
-function formatWatchedDay(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
+type MediumFilterKey = 'film' | 'série' | 'livre' | 'jeu' | 'art'
+
+const MEDIUM_CHIP_LABELS: Record<MediumFilterKey, string> = {
+  film: 'Films',
+  'série': 'Séries',
+  livre: 'Livres',
+  jeu: 'Jeux',
+  art: 'Art',
 }
 
-type CalendarDay = {
-  date: Date
+const MEDIUM_CARD_LABELS: Record<MediumFilterKey, string> = {
+  film: 'Film',
+  'série': 'Série',
+  livre: 'Livre',
+  jeu: 'Jeu',
+  art: 'Art',
+}
+
+/** Couleur du point de calendrier par médium. */
+export const MEDIUM_DOT_COLORS: Record<MediumFilterKey, string> = {
+  film: '#C0473B',
+  'série': '#5B3A68',
+  livre: '#D9A21B',
+  jeu: '#44708F',
+  art: '#B8577E',
+}
+
+type HomeEntry = {
   key: string
-  activityCount: number
+  medium: MediumFilterKey
+  title: string
+  subtitle: string
+  poster: string | null
+  createdAt: string
+  rating: number | null
+  isFavorite: boolean
+  /** Date de consommation réelle (visionnage, lecture, partie, découverte). */
+  consumedAt: string | null
+  onOpen: () => void
 }
 
-/** Calendrier des cinq dernières semaines, toutes consommations confondues. */
-function buildCalendarDays(
+/** Cartes d'activité par jour : chaque médium marque sa couleur. */
+function buildActivityMap(
   films: Film[],
   series: Series[],
   books: Book[],
   games: Game[],
   artworks: Artwork[],
-): CalendarDay[] {
-  const counts = new Map<string, number>()
-  const add = (key: string | null) => {
-    if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
+): Map<string, MediumFilterKey[]> {
+  const map = new Map<string, MediumFilterKey[]>()
+  const add = (key: string | null | undefined, medium: MediumFilterKey) => {
+    if (!key) return
+    const day = key.slice(0, 10)
+    const list = map.get(day) ?? []
+    if (!list.includes(medium)) list.push(medium)
+    map.set(day, list)
   }
   films.forEach((film) => {
-    if (film.status === 'terminé') add(film.watchedAt)
+    if (film.status === 'terminé') add(film.watchedAt, 'film')
   })
   series.forEach((entry) => {
-    if (entry.status === 'vue' && entry.progressUpdatedAt?.slice(0, 10)) add(entry.progressUpdatedAt.slice(0, 10))
+    if (entry.status === 'vue') add(entry.progressUpdatedAt?.slice(0, 10), 'série')
   })
   books.forEach((entry) => {
-    if (entry.status === 'lu' && entry.startedAt) add(entry.startedAt)
+    if (entry.status === 'lu') add(entry.startedAt, 'livre')
   })
   games.forEach((entry) => {
-    if ((entry.status === 'joué' || entry.status === 'regardé') && entry.playedAt) add(entry.playedAt)
+    if (entry.status === 'joué' || entry.status === 'regardé') add(entry.playedAt, 'jeu')
   })
   artworks.forEach((entry) => {
-    if (entry.status === 'découverte' && entry.discoveredAt) add(entry.discoveredAt)
+    if (entry.status === 'découverte') add(entry.discoveredAt, 'art')
   })
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const weekday = today.getDay() || 7
-  const firstDay = new Date(today)
-  firstDay.setDate(today.getDate() - weekday + 1 - 28)
-
-  return Array.from({ length: 35 }, (_, index) => {
-    const date = new Date(firstDay)
-    date.setDate(firstDay.getDate() + index)
-    const key = formatCalendarDate(date)
-    return { date, key, activityCount: counts.get(key) ?? 0 }
-  })
+  return map
 }
 
-function HomeFilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
-  const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
-
-  return (
-    <button className="home-film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
-      <Poster title={film.title} src={film.posterUrl} className="home-film-poster" />
-      <span className="home-film-card-info">
-        <b>{film.title}</b>
-        {attribution && <small>{attribution}</small>}
-      </span>
-    </button>
-  )
+function formatWatchedDay(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
 }
 
-function HomeFilmModule({
-  title,
-  description,
-  films,
-  emptyMessage,
-  className = '',
-  onOpen,
-}: {
-  title: string
-  description: string
-  films: Film[]
-  emptyMessage: string
-  className?: string
-  onOpen: (film: Film) => void
-}) {
-  const headingId = `${title.toLocaleLowerCase('fr').replaceAll(' ', '-')}-title`
-
-  return (
-    <section className={`home-module ${className}`.trim()} aria-labelledby={headingId}>
-      <header className="home-module-heading">
-        <div>
-          <p className="card-kicker">Films</p>
-          <h2 id={headingId}>{title}</h2>
-        </div>
-        <p>{description}</p>
-      </header>
-      {films.length > 0 ? (
-        <div className="home-film-list">
-          {films.map((film) => <HomeFilmCard key={film.id} film={film} onOpen={() => onOpen(film)} />)}
-        </div>
-      ) : (
-        <p className="home-module-empty">{emptyMessage}</p>
-      )}
-    </section>
-  )
-}
 
 type HomeProps = {
   library: FilmLibrary
@@ -559,70 +536,264 @@ type HomeProps = {
   onOpenArtwork: (artwork: Artwork) => void
 }
 
-function Home({ library, seriesCollection, bookCollection, gameCollection, artworkCollection, onOpen, onOpenSeries, onOpenBook, onOpenGame, onOpenArtwork }: HomeProps) {
-  const recentlyWatched = library.films
-    .filter((film) => film.status === 'terminé' && film.watchedAt)
-    .sort(compareByWatchedAt)
-    .slice(0, 6)
-  const favorites = library.films
-    .filter((film) => film.isFavorite)
-    .sort(compareByCreatedAt)
-    .slice(0, 4)
-  const recentlyAdded = [...library.films].sort(compareByCreatedAt).slice(0, 6)
-  const calendarDays = buildCalendarDays(library.films, seriesCollection, bookCollection, gameCollection, artworkCollection)
-  const hasViewedFilm = calendarDays.some((day) => day.activityCount > 0)
-
-  // Multi-médiums : les ajouts récents de toute la bibliothèque, mélangés.
-  type RecentEntry = { key: string; label: string; title: string; subtitle: string; poster: string | null; createdAt: string; onOpen: () => void }
-  const recentEntries: RecentEntry[] = [
+function Home({
+  library,
+  seriesCollection,
+  bookCollection,
+  gameCollection,
+  artworkCollection,
+  onOpen,
+  onOpenSeries,
+  onOpenBook,
+  onOpenGame,
+  onOpenArtwork,
+}: HomeProps) {
+  // Toutes les œuvres, normalisées en entrées communes pour les modules.
+  const allEntries: HomeEntry[] = [
     ...library.films.map((film) => ({
       key: `film-${film.id}`,
-      label: 'Film',
+      medium: 'film' as const,
       title: film.title,
       subtitle: [film.director, film.year].filter((value) => value !== null).join(' · '),
       poster: film.posterUrl,
       createdAt: film.createdAt,
+      rating: film.rating,
+      isFavorite: film.isFavorite,
+      consumedAt: film.status === 'terminé' ? film.watchedAt : null,
       onOpen: () => onOpen(film),
     })),
-    ...seriesCollection.map((series) => ({
-      key: `series-${series.id}`,
-      label: 'Série',
-      title: series.title,
-      subtitle: series.showrunner ?? '',
-      poster: series.posterUrl,
-      createdAt: series.createdAt,
-      onOpen: () => onOpenSeries(series),
+    ...seriesCollection.map((entry) => ({
+      key: `series-${entry.id}`,
+      medium: 'série' as const,
+      title: entry.title,
+      subtitle: entry.showrunner ?? '',
+      poster: entry.posterUrl,
+      createdAt: entry.createdAt,
+      rating: entry.rating,
+      isFavorite: entry.isFavorite,
+      consumedAt: entry.status === 'vue' ? entry.progressUpdatedAt?.slice(0, 10) ?? null : null,
+      onOpen: () => onOpenSeries(entry),
     })),
-    ...bookCollection.map((book) => ({
-      key: `book-${book.id}`,
-      label: BOOK_CATEGORY_LABELS[book.category],
-      title: book.title,
-      subtitle: book.author ?? '',
-      poster: book.coverUrl,
-      createdAt: book.createdAt,
-      onOpen: () => onOpenBook(book),
+    ...bookCollection.map((entry) => ({
+      key: `book-${entry.id}`,
+      medium: 'livre' as const,
+      title: entry.title,
+      subtitle: entry.author ?? '',
+      poster: entry.coverUrl,
+      createdAt: entry.createdAt,
+      rating: entry.rating,
+      isFavorite: entry.isFavorite,
+      consumedAt: entry.status === 'lu' && entry.startedAt ? entry.startedAt : null,
+      onOpen: () => onOpenBook(entry),
     })),
-    ...gameCollection.map((game) => ({
-      key: `game-${game.id}`,
-      label: 'Jeu',
-      title: game.title,
-      subtitle: [game.developer, game.year].filter((value) => value !== null).join(' · '),
-      poster: game.coverUrl,
-      createdAt: game.createdAt,
-      onOpen: () => onOpenGame(game),
+    ...gameCollection.map((entry) => ({
+      key: `game-${entry.id}`,
+      medium: 'jeu' as const,
+      title: entry.title,
+      subtitle: [entry.developer, entry.year].filter((value) => value !== null).join(' · '),
+      poster: entry.coverUrl,
+      createdAt: entry.createdAt,
+      rating: entry.rating,
+      isFavorite: entry.isFavorite,
+      consumedAt:
+        (entry.status === 'joué' || entry.status === 'regardé') && entry.playedAt
+          ? entry.playedAt
+          : null,
+      onOpen: () => onOpenGame(entry),
     })),
-    ...artworkCollection.map((artwork) => ({
-      key: `artwork-${artwork.id}`,
-      label: ARTWORK_FORM_LABELS[artwork.form],
-      title: artwork.title,
-      subtitle: artwork.artist ?? '',
-      poster: artwork.imageUrl,
-      createdAt: artwork.createdAt,
-      onOpen: () => onOpenArtwork(artwork),
+    ...artworkCollection.map((entry) => ({
+      key: `artwork-${entry.id}`,
+      medium: 'art' as const,
+      title: entry.title,
+      subtitle: entry.artist ?? '',
+      poster: entry.imageUrl,
+      createdAt: entry.createdAt,
+      rating: null,
+      isFavorite: entry.isFavorite,
+      consumedAt: entry.status === 'découverte' ? entry.discoveredAt : null,
+      onOpen: () => onOpenArtwork(entry),
     })),
-  ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6)
+  ]
 
-  const recentEntriesVisible = recentEntries.length > 0
+  const activityMap = buildActivityMap(library.films, seriesCollection, bookCollection, gameCollection, artworkCollection)
+  return <HomeDashboard entries={allEntries} activityMap={activityMap} />
+}
+
+/** Puces de filtrage par médium d'un module. */
+function MediumChips({
+  active,
+  onChange,
+}: {
+  active: MediumFilterKey | 'tout'
+  onChange: (next: MediumFilterKey | 'tout') => void
+}) {
+  const options: Array<MediumFilterKey | 'tout'> = ['tout', 'film', 'série', 'livre', 'jeu', 'art']
+  return (
+    <div className="medium-chips" role="group" aria-label="Filtrer par médium">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={`medium-chip ${active === option ? 'on' : ''}`}
+          aria-pressed={active === option}
+          onClick={() => onChange(option)}
+        >
+          {option === 'tout' ? 'Tout' : MEDIUM_CHIP_LABELS[option]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Carte d'une œuvre dans un module. */
+function EntryCard({ entry }: { entry: HomeEntry }) {
+  return (
+    <button type="button" className="home-entry-card" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}`}>
+      <Poster title={entry.title} src={entry.poster} className="home-entry-poster" />
+      <span className="home-entry-info">
+        <span className="home-entry-medium" style={{ color: MEDIUM_DOT_COLORS[entry.medium] }}>
+          {MEDIUM_CARD_LABELS[entry.medium]}
+        </span>
+        <b>{entry.title}</b>
+        {entry.subtitle && <small>{entry.subtitle}</small>}
+      </span>
+    </button>
+  )
+}
+
+/** Module générique : titre + puces de médium + grille filtrée. */
+function FilterableModule({
+  kicker,
+  title,
+  description,
+  entries,
+  emptyMessage,
+  className,
+}: {
+  kicker: string
+  title: string
+  description: string
+  entries: HomeEntry[]
+  emptyMessage: string
+  className: string
+}) {
+  const [filter, setFilter] = useState<MediumFilterKey | 'tout'>('tout')
+  const visible = filter === 'tout' ? entries : entries.filter((entry) => entry.medium === filter)
+
+  return (
+    <section className={`home-module ${className}`} aria-labelledby={`${className}-title`}>
+      <header className="home-module-heading">
+        <div>
+          <p className="card-kicker">{kicker}</p>
+          <h2 id={`${className}-title`}>{title}</h2>
+        </div>
+        <p>{description}</p>
+      </header>
+      <MediumChips active={filter} onChange={setFilter} />
+      {visible.length > 0 ? (
+        <div className="home-entry-grid">
+          {visible.map((entry) => <EntryCard key={entry.key} entry={entry} />)}
+        </div>
+      ) : (
+        <p className="home-module-empty">{emptyMessage}</p>
+      )}
+    </section>
+  )
+}
+
+/** Calendrier mensuel à points colorés, navigable mois par mois. */
+function ActivityCalendar({ activityMap }: { activityMap: Map<string, MediumFilterKey[]> }) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const [monthOffset, setMonthOffset] = useState(0)
+  const cursor = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
+  const year = cursor.getFullYear()
+  const month = cursor.getMonth()
+  const firstWeekday = (new Date(year, month, 1).getDay() || 7) - 1
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const monthLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(cursor)
+  const canGoForward = monthOffset < 0
+
+  return (
+    <section className="home-module home-module-calendar" aria-labelledby="activity-calendar-title">
+      <header className="calendar-nav">
+        <button
+          type="button"
+          className="calendar-nav-button"
+          onClick={() => setMonthOffset((value) => value - 1)}
+          aria-label="Mois précédent"
+        >
+          ‹
+        </button>
+        <div>
+          <p className="card-kicker">Historique</p>
+          <h2 id="activity-calendar-title">{monthLabel}</h2>
+        </div>
+        <button
+          type="button"
+          className="calendar-nav-button"
+          onClick={() => setMonthOffset((value) => Math.min(0, value + 1))}
+          aria-label="Mois suivant"
+          disabled={!canGoForward}
+        >
+          ›
+        </button>
+      </header>
+
+      <div className="home-calendar-weekdays" aria-hidden="true">
+        {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
+      </div>
+      <ol className="calendar-days">
+        {Array.from({ length: firstWeekday }, (_, index) => <li key={`pad-${index}`} className="pad" />)}
+        {Array.from({ length: daysInMonth }, (_, index) => {
+          const day = index + 1
+          const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          const mediums = activityMap.get(key) ?? []
+          const isToday = key === formatCalendarDate(today)
+          return (
+            <li key={key} className={`calendar-day ${mediums.length > 0 ? 'active' : ''} ${isToday ? 'today' : ''}`}>
+              <time dateTime={key}>{day}</time>
+              {mediums.length > 0 && (
+                <span className="calendar-dots" aria-hidden="true">
+                  {mediums.map((medium) => (
+                    <i key={medium} style={{ background: MEDIUM_DOT_COLORS[medium] }} />
+                  ))}
+                </span>
+              )}
+              {mediums.length > 0 && <span className="visually-hidden">{`${dayLabel(key)} : ${mediums.map((m) => MEDIUM_CARD_LABELS[m]).join(', ')}`}</span>}
+            </li>
+          )
+        })}
+      </ol>
+
+      <div className="calendar-legend">
+        {(Object.keys(MEDIUM_DOT_COLORS) as MediumFilterKey[]).map((medium) => (
+          <span key={medium}>
+            <i style={{ background: MEDIUM_DOT_COLORS[medium] }} />
+            {MEDIUM_CHIP_LABELS[medium]}
+          </span>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function dayLabel(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
+}
+
+/** Tableau de bord d'accueil : modules multi-bibliothèques à puces. */
+function HomeDashboard({ entries, activityMap }: { entries: HomeEntry[]; activityMap: Map<string, MediumFilterKey[]> }) {
+  const recent = [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6)
+  const consumed = entries
+    .filter((entry) => entry.consumedAt !== null)
+    .sort((a, b) => b.consumedAt!.localeCompare(a.consumedAt!))
+    .slice(0, 6)
+  const favorites = entries
+    .filter((entry) => entry.isFavorite || entry.rating !== null)
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Number(b.isFavorite) - Number(a.isFavorite))
+    .slice(0, 6)
 
   return (
     <main className="main home-main" aria-label="Accueil">
@@ -632,88 +803,32 @@ function Home({ library, seriesCollection, bookCollection, gameCollection, artwo
           <h1 className="display-title">Accueil</h1>
         </header>
 
-        <div className="home-grid">
-          {recentEntriesVisible && (
-            <section className="home-module home-module-all-recent" aria-labelledby="all-recent-title">
-              <header className="home-module-heading">
-                <div>
-                  <p className="card-kicker">Toute la bibliothèque</p>
-                  <h2 id="all-recent-title">Derniers ajouts</h2>
-                </div>
-                <p>Films, séries, livres, jeux et art confondus</p>
-              </header>
-              <div className="home-recent-list">
-                {recentEntries.map((entry) => (
-                  <button key={entry.key} type="button" className="home-recent-card" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}`}>
-                    <Poster title={entry.title} src={entry.poster} className="home-film-poster" />
-                    <span className="home-recent-info">
-                      <span className="home-recent-label">{entry.label}</span>
-                      <b>{entry.title}</b>
-                      {entry.subtitle && <small>{entry.subtitle}</small>}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-          <HomeFilmModule
-            title="Vus récemment"
-            description="Films terminés avec une date de visionnage"
-            films={recentlyWatched}
-            emptyMessage="Aucun film terminé avec une date de visionnage."
-            className="home-module-recent"
-            onOpen={onOpen}
+        <div className="dashboard-grid">
+          <FilterableModule
+            kicker="Toute la bibliothèque"
+            title="Derniers ajouts"
+            description="Les œuvres ajoutées en dernier, tous médiums confondus"
+            entries={recent}
+            emptyMessage="Aucune œuvre n’a encore été ajoutée."
+            className="module-additions"
           />
-          <HomeFilmModule
-            title="Favoris"
-            description="Films marqués comme favoris"
-            films={favorites}
-            emptyMessage="Aucun film n’est marqué comme favori."
-            className="home-module-favorites"
-            onOpen={onOpen}
+          <FilterableModule
+            kicker="Consommé récemment"
+            title="Vus, lus et joués"
+            description="Les œuvres terminées ou datées le plus récemment"
+            entries={consumed}
+            emptyMessage="Aucune œuvre terminée et datée pour l’instant."
+            className="module-consumed"
           />
-          <HomeFilmModule
-            title="Ajoutés récemment"
-            description="Films ajoutés récemment à la bibliothèque"
-            films={recentlyAdded}
-            emptyMessage="Aucun film n’a encore été ajouté à la bibliothèque."
-            className="home-module-context"
-            onOpen={onOpen}
+          <FilterableModule
+            kicker="Le meilleur de ta bibliothèque"
+            title="Favoris et mieux notés"
+            description="Coups de cœur et meilleures notes, tous médiums confondus"
+            entries={favorites}
+            emptyMessage="Ajoute des favoris ou des notes pour remplir ce module."
+            className="module-favorites"
           />
-          <section className="home-module home-module-calendar" aria-labelledby="watched-calendar-title">
-            <header className="home-module-heading">
-              <div>
-                <p className="card-kicker">Films</p>
-                <h2 id="watched-calendar-title">Films vus</h2>
-              </div>
-              <p>Cinq dernières semaines</p>
-            </header>
-            <div className="home-calendar" aria-label="Calendrier des consommations des cinq dernières semaines">
-              <div className="home-calendar-weekdays" aria-hidden="true">
-                {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
-              </div>
-              <ol className="home-calendar-days">
-                {calendarDays.map(({ date, key, activityCount }) => {
-                  const dayLabel = formatWatchedDay(key)
-                  const countLabel = activityCount === 1 ? '1 activité' : `${activityCount} activités`
-                  return (
-                    <li
-                      className={activityCount > 0 ? 'viewed' : ''}
-                      key={key}
-                      aria-label={activityCount > 0 ? `${dayLabel} : ${countLabel}` : dayLabel}
-                    >
-                      <time dateTime={key} aria-hidden="true">{date.getDate()}</time>
-                    </li>
-                  )
-                })}
-              </ol>
-            </div>
-            <p className={hasViewedFilm ? 'home-calendar-note' : 'home-module-empty'}>
-              {hasViewedFilm
-                ? 'Les jours marqués correspondent à au moins une œuvre terminée et datée, tous médiums confondus.'
-                : 'Aucune œuvre terminée datée au cours des cinq dernières semaines.'}
-            </p>
-          </section>
+          <ActivityCalendar activityMap={activityMap} />
         </div>
       </div>
     </main>
