@@ -71,9 +71,13 @@ export function ArtIcon({ size = 17 }: IconProps) {
 
 export function SettingsIcon({ size = 17 }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <circle {...strokeProps} cx="10" cy="10" r="2.6" />
-      <path {...strokeProps} d="M10 2.8v2.4M10 14.8v2.4M2.8 10h2.4M14.8 10h2.4M4.9 4.9l1.7 1.7M13.4 13.4l1.7 1.7M15.1 4.9l-1.7 1.7M6.6 13.4l-1.7 1.7" />
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      {/* Engrenage d'après Feather Icons (MIT) */}
+      <circle {...strokeProps} cx="12" cy="12" r="3" />
+      <path
+        {...strokeProps}
+        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+      />
     </svg>
   )
 }
@@ -83,6 +87,16 @@ export function SearchIcon({ size = 15 }: IconProps) {
     <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
       <circle {...strokeProps} cx="8.5" cy="8.5" r="5" />
       <path {...strokeProps} d="m12.4 12.4 4 4" />
+    </svg>
+  )
+}
+
+/** Tirage aléatoire (flèches circulaires, d'après Feather Icons, MIT). */
+export function RefreshIcon({ size = 15 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <polyline {...strokeProps} points="23 4 23 10 17 10" />
+      <path {...strokeProps} d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
   )
 }

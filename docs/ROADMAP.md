@@ -514,9 +514,97 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 **Exclusions du train :** aucun nouveau médium, fournisseur, format, champ produit ni changement de modèle de données. Le design ne touche jamais aux règles : Art sans note, données personnelles jamais préremplies, fallback neutre obligatoire.
 
+### `0.5.10` — Accueil vivant et corrections de composition
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible en cours avec Aurélien.** La page d'accueil passe à une composition modulaire validée par Aurélien : deux rangées de modules demi-largeur (Derniers ajouts, Vus lus et joués, Favoris et mieux notés, calendrier discret), affiches côte à côte par trois, puis trois ajouts : **Jour pour jour** (œuvres consommées exactement il y a X ans, avec note en étoiles et aperçu de l'avis personnel ; le module disparaît quand aucun anniversaire n'existe), **À découvrir** (file d'attente réelle par statuts « à voir/à lire/à jouer/à découvrir », puces par médium, tirage aléatoire re-lançable de trois propositions), et un **bandeau de fin de page** comptant l'année en cours par médium (masqué si zéro). Corrections structurelles livrées dans la même passe : réservation de deux lignes de titre sous chaque carte des cinq bibliothèques (les sommets d'affiches ne bougent plus quel que soit le contenu), hauteur de calendrier stable entre mois de cinq et six semaines, espace restauré entre la barre d'outils et la grille, focus unique sur la pilule de recherche (l'anneau global clavier ne s'y applique plus en double), rail de navigation compact avec réapparition au survol, logo agrandi, et accent provisoirement déplacé du violet vers l'émeraude encre `#2E7D5B` (arbitrage définitif attendu avant mise à jour de DESIGN.md).
+
+**Différés actés avec Aurélien pendant ce lot :**
+
+- **Imports, exports et bibliothèques** : refonte à mener APRÈS la stabilisation de l'accueil et la clôture du train design. Ne pas ouvrir avant.
+- **Second avis / journal de décisions** : possibilité de re-noter une œuvre lors d'un anniversaire (« contre-avis » consigné dans un journal). Idée issue du module Jour pour jour, à spécifier plus tard.
+- **Indicateur de médium sur les cartes d'accueil** : conservé pour l'instant, suppression envisagée par Aurélien à terme.
+
+
 ## 9. Trains suivants — document dédié
 
-Les trains `0.7.0` (fiabilité et confidentialité), `0.8.0` (distribution macOS et Windows), `0.9.0` (bêta publique contrôlée), les conditions de sortie de la `1.0.0` et les perspectives V2 / V3 restent décrits dans `docs/plans/roadmap-future.md`. Ce document est consulté à l'ouverture de chaque nouveau train, et les jalons concernés y sont réintégrés ici au moment où ils deviennent actifs.
+### Train `0.7.0` — Importer depuis partout (refonte du processus d'import)
+
+**Décision de priorisation actée par Aurélien le 23 août 2026 :** ce train devient le suivant après la clôture de `0.6.0`, avant la thématique fiabilité/confidentialité jusqu'ici associée à `0.7.0` dans `roadmap-future.md`. Les anciens contenus glissent : fiabilité et confidentialité passent en `0.8.0`, la distribution macOS et Windows en `0.9.0`. Le document `roadmap-future.md` sera révisé à l'ouverture effective du train.
+
+**Constat issu de l'audit du code existant (23 août 2026) et du premier import réel d'Aurélien (401 films via export Notion ZIP) :**
+
+1. L'import Films fonctionne de bout en bout ; les quatre autres médiums échouent sur un export Notion réel non calibré sur le contrat Sylloge.
+2. Le dialogue d'import propose trois boutons (« Annuler », « Choisir un dossier », « Chooser un fichier ou ZIP ») et un texte long ; la compréhension repose sur l'utilisateur, pas sur l'interface. Le filtre natif Rust accepte pourtant déjà JSON, CSV et ZIP en une seule boîte.
+3. Le mapping est orienté « colonnes détectées » (une ligne par colonne du fichier, sélecteur de destination à droite). La bonne grille mentale est l'inverse : une ligne par champ Sylloge que l'on souhaite remplir, avec sélecteur « quelle colonne de mon fichier l'alimente », défaut « Ne pas importer ».
+4. La validation est tout-ou-rien : une seule valeur hors contrat (« statut indisponible », note hors bornes) bloque 100 % de l'import, sans explication exploitable ni issue.
+5. Les métadonnées éditoriales sont déjà couvrables par les fournisseurs assistés (TMDB, Open Library, IGDB) ; l'import ne devrait se concentrer que sur ce qui est personnel : statut, notes, coup de cœur, progression, dates, avis, citations.
+
+**Invariants conservés :** aperçu bloquant avant toute écriture, écriture atomique en une transaction, jamais d'écrasement silencieux, formats publiés JSON v1/v2 et CSV v1 inchangés, aucune donnée inventée. Ce train modifie la tolérance de lecture et l'interface, pas les contrats de données.
+
+#### `0.6.1` — Un seul bouton, un dialogue compréhensible
+
+- Remplacer les trois boutons du dialogue par **un unique bouton principal « Choisir un fichier »** ouvrant le sélecteur natif filtré JSON/CSV/ZIP (le filtre existe déjà côté Rust) ; supprimer le bouton dédié « dossier » de l'écran principal, l'inspection de dossier restant accessible en repli discret si besoin.
+- Supprimer le bouton « Annuler » ; fermeture par **croix × en haut à droite** du dialogue (plus Échap), désactivée pendant une écriture.
+- Réécrire le texte d'accueil : deux lignes maximum, forme « Formats acceptés : JSON, CSV, ou un ZIP qui en contient. Tout est analysé avant écriture. »
+- Critères : un utilisateur nouveau comprend en moins de dix secondes quoi cliquer ; aucun changement de pipeline derrière ; tests existants verts.
+
+#### `0.6.2` — Mapping inversé : les champs Sylloge d'abord
+
+- Refondre l'écran de mapping des quatre médiums non-Films : **une ligne par champ Sylloge**, groupés en « Éditorial » (titre, auteur/showrunner/développeur/artiste, année, résumé, catégorie/forme…) et « Personnel » (statut, note, coup de cœur, progression, dates, avis, citations).
+- Chaque champ porte un sélecteur listant les colonnes réellement détectées (auto-sélection conservée quand l'aliasing reconnaît la colonne), plus l'option **« Ne pas importer »** par défaut pour tout champ non reconnu.
+- Redessiner les sélecteurs dans le langage actuel (pilules, focus violet/vert encre selon arbitrage final) — remplacer les `<select>` bruts.
+- Une zone secondaire liste les colonnes détectées mais non mappées, avec la mention : *« Ces colonnes ne sont pas importées. Les métadonnées éditoriales (résumés, affiches, casting…) peuvent être complétées plus tard par la recherche assistée dans Sylloge. »*
+- Appliquer la même grille au flux Films existant pour uniformiser l'expérience (son moteur garde ses spécificités Notion/Markdown).
+- Critères : sur l'export Notion réel d'Aurélien, chaque champ personnel trouvable et mappable en trois clics ; zéro colonne mystérieuse non expliquée ; tests domaine étendus aux nouveaux choix de mapping.
+
+#### `0.6.3` — Validation tolérante : normaliser d'abord, bloquer rarement
+
+- **Statuts** : correspondance souple (casse, accents, pluriels, synonymes courants : « terminée »→« terminé », « completed »→« terminé », « watching »→« en cours »…) ; valeur non résolue → champ laissé vide + mention au rapport final, jamais une erreur bloquante.
+- **Notes** : accepter « 4 », « 4,5 », « 4/5 », « 8/10 » (conversion /10 → /5 automatique dès que l'échelle est détectée), « ★★★★ » ; hors bornes ou illisible → champ vidé + mention au rapport.
+- **Coup de cœur** : vrai/faux, oui/non, x, ✓, 1/0, étoiles.
+- **Compteurs et dates** : entiers tolérants, dates multi-formats (ISO, FR jj/mm/aaaa, formats Notion) ; illisible → vide + mention au rapport.
+- Seules situations bloquantes pour UNE fiche : titre absent ou fichier illisible — la fiche concernée n'est pas créée, signalée clairement, et **le reste de l'import continue**. Rien ne bloque jamais la totalité d'un import.
+- Critères : un jeu de fixtures « sales » volontaires (accents, casse, /10, dates FR, statuts anglais) passe avec uniquement des avertissements ; les tests domaine documentent chaque règle de normalisation.
+
+#### `0.6.4` — Aperçu honnête, import complet, résumé final lisible
+
+- L'aperçu cesse d'être tout-ou-rien : **« N fiches prêtes · M lignes ignorées »**, la liste des problèmes triée par ligne avec cause en français et la cellule fautive visible.
+- Tout ce qui peut être importé est importé, même incomplet : un champ introuvable ou illisible reste simplement vide dans la fiche créée. La personne complète ou corrige plus tard — Sylloge ne lui mentira jamais sur ce qui est entré.
+- À la fin de l'écriture, un **résumé final lisible et intuitif** : nombre de fiches créées, fusionnées, ignorées, puis la liste des œuvres impactées et, pour chacune, les champs non remplis (« Un homme qui dort — note et avis non trouvés », « Past Lives — date de visionnage absente »…). C'est le dernier écran du parcours, au même titre d'importance que l'aperçu.
+- Les doublons continuent de passer par le résolveur existant avant écriture ; l'écriture reste atomique et unique.
+- Critères : sur un CSV dont 30 % des lignes ont un défaut, l'utilisateur obtient ses 70 % de fiches complètes ou partielles, voit exactement ce qui manque et où ; tests d'intégration sur le décompte, les champs vides annoncés et l'atomicité.
+
+#### `0.6.5` — Prendre la main : assistant d'import et documentation
+
+- Parcours guidé de première import : **encarts contextuels dans le dialogue** (pas de page d'aide séparée), une explication courte à chaque étape — formats, mapping, aperçu, Remplacer/Fusionner — pour que chaque décision soit comprise au moment où elle est prise. Réutilisables comme aide permanente (« Comment ça marche ? »).
+- Textes d'erreur pédagogiques : chaque avertissement dit quoi faire (« Colonne “Statut” : “Terminée” n'est pas un statut connu — laissé vide. Modifiable fiche par fiche. »).
+- Documentation du dépôt mise à jour (README section import) et recette manuelle dédiée sur les cinq médiums avec l'export Notion réel d'Aurélien comme fixture de référence.
+- Critères : Aurélien réimporte ses séries/livres/jeux/art depuis son export Notion sans aide extérieure ; verdict consigné dans le dépôt.
+
+#### `0.6.6` — Baguette magique : association automatique des métadonnées
+
+**Besoin acté par Aurélien le 23 août 2026 :** après un import massif, associer chaque fiche à son fournisseur une par une est interminable. Un seul geste doit tout associer.
+
+- **Bouton baguette magique « Tout associer »** dans chaque bibliothèque disposant d'un fournisseur (Films et Séries via TMDB, Livres via Open Library, Jeux via IGDB) — pas pour l'Art, qui n'en a pas.
+- **Emplacement** : à gauche de la barre d'outils, à côté du champ de recherche (la recherche et les onglets de vues se décalent légèrement à droite pour lui laisser la place).
+- **Parcours** : clic → mini-pop-up de confirmation (« Associer toutes les fiches non associées via TMDB ? » avec Oui / Non) → commande de fond qui, pour chaque fiche non associée, recherche le titre et retient le meilleur candidat (score de correspondance sur titre, année, créateur/auteur/développeur), puis applique l'association existante (cache, affiche, provenance) sans toucher aux données personnelles.
+- **Transparence totale** : progression visible (n/total), résumé final (associées / déjà associées / non trouvées), et chaque fiche reste modifiable individuellement — l'association automatique n'est jamais une autorité, conformément aux invariants.
+- **Bornes** : requêtes séquencées et limitées (respect des fournisseurs), annulable en cours, aucune écriture avant confirmation, les fiches déjà associées ne sont jamais retouchées.
+- **Fiche — trois boutons explicites** : remplacer le menu ⋯ des fiches par trois boutons à icône en haut à droite : **Modifier** (crayon), **Associer** (baguette magique, ouvre le parcours d'association existant), **Supprimer** (corbeille, confirmation existante conservée). Même structure sur les cinq médiums.
+- Critères : sur une bibliothèque de 400 films non associés, « Tout associer » traite le lot avec progression et résumé ; les données personnelles restent intactes ; tests domaine sur le score de correspondance et les bornes réseau ; recette manuelle sur les quatre médiums à fournisseur.
+
+#### `0.7.0` — Release publique Importer depuis partout
+
+- Revoir les jalons `0.6.1…0.6.6`, recette complète sur les cinq médiums, publication signée après feu vert.
+
+**Arbitrages actés par Aurélien le 23 août 2026 :**
+
+1. **Import partiel** : tout ce qui peut entrer entre, même incomplet ; les champs non trouvés restent vides dans la fiche créée. Seule fiche bloquée : titre absent (elle n'est pas créée, signalée, le reste continue). Un **résumé final** liste les œuvres impactées et leurs champs non remplis.
+2. **Notes /10** : conversion automatique systématique dès qu'une échelle /10 est détectée, sans demande.
+3. **Statuts synonymes** : normalisation silencieuse ; valeur non résolue → champ vide + mention au résumé final.
+4. **Onboarding** : encarts contextuels dans le dialogue, étape par étape, jamais une page d'aide séparée.
+
+
 
 ## 10. Backlog non priorisé
 

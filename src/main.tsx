@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ArtworkDetail } from './components/ArtworkDetail.tsx'
 import { ArtworkForm } from './components/ArtworkForm.tsx'
@@ -106,10 +106,11 @@ import {
   GameIcon,
   ArtIcon,
   SettingsIcon,
+  RefreshIcon,
 } from './components/icons.tsx'
 import './styles.css'
 
-type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'search' | 'series' | 'settings'
+type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings'
 type SettingsSection = PortabilitySection
 
 const icon = (name: IconName) => {
@@ -128,6 +129,8 @@ const icon = (name: IconName) => {
       return <ArtIcon />
     case 'settings':
       return <SettingsIcon />
+    case 'refresh':
+      return <RefreshIcon />
     case 'search':
       return <SearchIcon />
     default:
@@ -185,12 +188,11 @@ function Sidebar({
   const settingsOpen = activeItem === 'settings'
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${settingsOpen ? 'sidebar-settings' : ''}`}>
       <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
-        <img className="wordmark-logo" src={logoSylloge} alt="" width={34} height={34} />
+        <img className="wordmark-logo" src={logoSylloge} alt="" width={52} height={52} />
         <span className="wordmark-text">
           <span>Sylloge</span>
-          <small>Bibliothèque</small>
         </span>
       </button>
       {settingsOpen ? (
@@ -216,7 +218,8 @@ function Sidebar({
             onClick={onHome}
             aria-current={activeItem === 'home' ? 'page' : undefined}
           >
-            {icon('home')} Accueil
+            <span className="nav-item-text">{icon('home')} Accueil</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('home')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
@@ -224,8 +227,9 @@ function Sidebar({
             onClick={onLibrary}
             aria-current={activeItem === 'library' ? 'page' : undefined}
           >
-            {icon('film')} Films
+            <span className="nav-item-text">{icon('film')} Films</span>
             {count !== null && <span className="nav-count">{count}</span>}
+            <span className="nav-item-peek" aria-hidden="true">{icon('film')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'series' ? 'active' : ''}`}
@@ -233,8 +237,9 @@ function Sidebar({
             onClick={onSeries}
             aria-current={activeItem === 'series' ? 'page' : undefined}
           >
-            {icon('series')} Séries
+            <span className="nav-item-text">{icon('series')} Séries</span>
             {seriesCount !== null && <span className="nav-count">{seriesCount}</span>}
+            <span className="nav-item-peek" aria-hidden="true">{icon('series')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'books' ? 'active' : ''}`}
@@ -242,8 +247,9 @@ function Sidebar({
             onClick={onBooks}
             aria-current={activeItem === 'books' ? 'page' : undefined}
           >
-            {icon('book')} Livres
+            <span className="nav-item-text">{icon('book')} Livres</span>
             {bookCount !== null && <span className="nav-count">{bookCount}</span>}
+            <span className="nav-item-peek" aria-hidden="true">{icon('book')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'games' ? 'active' : ''}`}
@@ -251,8 +257,9 @@ function Sidebar({
             onClick={onGames}
             aria-current={activeItem === 'games' ? 'page' : undefined}
           >
-            {icon('game')} Jeux
+            <span className="nav-item-text">{icon('game')} Jeux</span>
             {gameCount !== null && <span className="nav-count">{gameCount}</span>}
+            <span className="nav-item-peek" aria-hidden="true">{icon('game')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'artworks' ? 'active' : ''}`}
@@ -260,8 +267,9 @@ function Sidebar({
             onClick={onArtworks}
             aria-current={activeItem === 'artworks' ? 'page' : undefined}
           >
-            {icon('art')} Art
+            <span className="nav-item-text">{icon('art')} Art</span>
             {artworkCount !== null && <span className="nav-count">{artworkCount}</span>}
+            <span className="nav-item-peek" aria-hidden="true">{icon('art')}</span>
           </button>
         </nav>
       )}
@@ -277,7 +285,8 @@ function Sidebar({
             type="button"
             onClick={onSettings}
           >
-            {icon('settings')} Paramètres
+            <span className="nav-item-text">{icon('settings')} Paramètres</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
           </button>
         )}
       </div>
@@ -478,8 +487,11 @@ type HomeEntry = {
   createdAt: string
   rating: number | null
   isFavorite: boolean
+  /** Statut du médium (libellé brut du domaine) pour les modules par statut. */
+  status?: string
   /** Date de consommation réelle (visionnage, lecture, partie, découverte). */
   consumedAt: string | null
+  personalNote: string | null
   onOpen: () => void
 }
 
@@ -559,7 +571,9 @@ function Home({
       createdAt: film.createdAt,
       rating: film.rating,
       isFavorite: film.isFavorite,
+      status: film.status,
       consumedAt: film.status === 'terminé' ? film.watchedAt : null,
+      personalNote: film.personalNote,
       onOpen: () => onOpen(film),
     })),
     ...seriesCollection.map((entry) => ({
@@ -571,7 +585,9 @@ function Home({
       createdAt: entry.createdAt,
       rating: entry.rating,
       isFavorite: entry.isFavorite,
+      status: entry.status,
       consumedAt: entry.status === 'vue' ? entry.progressUpdatedAt?.slice(0, 10) ?? null : null,
+      personalNote: entry.personalNote,
       onOpen: () => onOpenSeries(entry),
     })),
     ...bookCollection.map((entry) => ({
@@ -583,7 +599,9 @@ function Home({
       createdAt: entry.createdAt,
       rating: entry.rating,
       isFavorite: entry.isFavorite,
+      status: entry.status,
       consumedAt: entry.status === 'lu' && entry.startedAt ? entry.startedAt : null,
+      personalNote: entry.personalNote,
       onOpen: () => onOpenBook(entry),
     })),
     ...gameCollection.map((entry) => ({
@@ -595,10 +613,12 @@ function Home({
       createdAt: entry.createdAt,
       rating: entry.rating,
       isFavorite: entry.isFavorite,
+      status: entry.status,
       consumedAt:
         (entry.status === 'joué' || entry.status === 'regardé') && entry.playedAt
           ? entry.playedAt
           : null,
+      personalNote: entry.personalNote,
       onOpen: () => onOpenGame(entry),
     })),
     ...artworkCollection.map((entry) => ({
@@ -610,7 +630,9 @@ function Home({
       createdAt: entry.createdAt,
       rating: null,
       isFavorite: entry.isFavorite,
+      status: entry.status,
       consumedAt: entry.status === 'découverte' ? entry.discoveredAt : null,
+      personalNote: entry.personalNote,
       onOpen: () => onOpenArtwork(entry),
     })),
   ]
@@ -661,35 +683,37 @@ function EntryCard({ entry }: { entry: HomeEntry }) {
   )
 }
 
-/** Module générique : titre + puces de médium + grille filtrée. */
+/** Module générique : titre + puces de médium + grille filtrée, teinté par médium. */
 function FilterableModule({
-  kicker,
   title,
-  description,
   entries,
   emptyMessage,
   className,
 }: {
-  kicker: string
   title: string
-  description: string
   entries: HomeEntry[]
   emptyMessage: string
   className: string
 }) {
   const [filter, setFilter] = useState<MediumFilterKey | 'tout'>('tout')
   const visible = filter === 'tout' ? entries : entries.filter((entry) => entry.medium === filter)
+  // Teinte pastel du module dans la couleur du médium actif.
+  const tintStyle = filter === 'tout'
+    ? undefined
+    : ({
+        '--module-tint': MEDIUM_DOT_COLORS[filter],
+      } as React.CSSProperties)
 
   return (
-    <section className={`home-module ${className}`} aria-labelledby={`${className}-title`}>
+    <section
+      className={`home-module ${className} ${filter !== 'tout' ? 'module-tinted' : ''}`}
+      style={tintStyle}
+      aria-labelledby={`${className}-title`}
+    >
       <header className="home-module-heading">
-        <div>
-          <p className="card-kicker">{kicker}</p>
-          <h2 id={`${className}-title`}>{title}</h2>
-        </div>
-        <p>{description}</p>
+        <h2 id={`${className}-title`}>{title}</h2>
+        <MediumChips active={filter} onChange={setFilter} />
       </header>
-      <MediumChips active={filter} onChange={setFilter} />
       {visible.length > 0 ? (
         <div className="home-entry-grid">
           {visible.map((entry) => <EntryCard key={entry.key} entry={entry} />)}
@@ -702,7 +726,268 @@ function FilterableModule({
 }
 
 /** Calendrier mensuel à points colorés, navigable mois par mois. */
-function ActivityCalendar({ activityMap }: { activityMap: Map<string, MediumFilterKey[]> }) {
+function dayLabel(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
+}
+
+/** Étoiles statiques (lecture seule) pour les aperçus de note. */
+function Stars({ value }: { value: number | null }) {
+  if (value === null) return <span className="stars-none">Pas encore noté</span>
+  return (
+    <span className="stars-display stars-display-compact" aria-label={`${value.toLocaleString('fr-FR')} sur 5`}>
+      {[1, 2, 3, 4, 5].map((star) => {
+        const fill = Math.max(0, Math.min(1, value - star + 1))
+        return (
+          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+            <span className="star-glyph" aria-hidden="true">★</span>
+            <span className="star-fill" aria-hidden="true" style={{ width: `${fill * 100}%` }}>★</span>
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+/** Anniversaires : œuvres consommées exactement il y a X ans, jour pour jour. */
+function collectAnniversaries(entries: HomeEntry[]): HomeEntry[] {
+  const today = new Date()
+  const todayKey = formatCalendarDate(today)
+  const mmdd = todayKey.slice(5)
+  return entries
+    .filter((entry) => {
+      const consumed = entry.consumedAt
+      if (!consumed || !/^\d{4}-\d{2}-\d{2}/.test(consumed)) return false
+      const day = consumed.slice(5, 10)
+      const years = today.getFullYear() - Number(consumed.slice(0, 4))
+      return day === mmdd && years >= 1
+    })
+    .sort((a, b) => a.consumedAt!.localeCompare(b.consumedAt!))
+}
+
+function AnniversariesModule({ anniversaries }: { anniversaries: HomeEntry[] }) {
+  // Interface modulable : le module disparaît quand aucun anniversaire n'existe.
+  if (anniversaries.length === 0) return null
+
+  return (
+    <section className="home-module home-module-anniversaries" aria-labelledby="anniversaries-title">
+      <header className="home-module-heading">
+        <h2 id="anniversaries-title">Jour pour jour</h2>
+        <p className="module-hint">Regarde ce que tu en pensais à l’époque</p>
+      </header>
+      <div className="home-entry-grid">
+        {anniversaries.map((entry) => {
+          const years = new Date().getFullYear() - Number(entry.consumedAt!.slice(0, 4))
+          const yearLabel = years.toLocaleString('fr-FR')
+          return (
+            <button type="button" className="home-entry-card" onClick={entry.onOpen} key={entry.key} aria-label={`Ouvrir la fiche de ${entry.title}`}>
+              <Poster title={entry.title} src={entry.poster} className="home-entry-poster" />
+              <span className="home-entry-info">
+                <span className="home-entry-years">Il y a {yearLabel} an{years > 1 ? 's' : ''}</span>
+                <b>{entry.title}</b>
+                <Stars value={entry.rating} />
+                {entry.personalNote && <small>{truncateNote(entry.personalNote)}</small>}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function truncateNote(note: string): string {
+  const clean = note.replace(/\s+/g, ' ').trim()
+  return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean
+}
+
+/** File d'attente : tout ce qui attend d'être vu, lu, joué ou découvert. */
+const QUEUE_STATUSES: Record<MediumFilterKey, string> = {
+  film: 'à découvrir',
+  'série': 'à voir',
+  livre: 'à lire',
+  jeu: 'à jouer',
+  art: 'à découvrir',
+}
+
+function DiscoverQueueModule({ entries }: { entries: HomeEntry[] }) {
+  const [filter, setFilter] = useState<MediumFilterKey | 'tout'>('tout')
+  const [seed, setSeed] = useState(0)
+  const queue = entries.filter((entry) => entry.status === QUEUE_STATUSES[entry.medium])
+  const options: Array<MediumFilterKey | 'tout'> = ['tout', 'film', 'série', 'livre', 'jeu', 'art']
+  const visibleQueue = filter === 'tout' ? queue : queue.filter((entry) => entry.medium === filter)
+  const tintStyle = filter === 'tout'
+    ? undefined
+    : ({
+        '--module-tint': MEDIUM_DOT_COLORS[filter],
+      } as React.CSSProperties)
+
+  // Tirage déterministe par graine : trois œuvres stables jusqu'au prochain clic.
+  const picked = useMemo(() => {
+    if (visibleQueue.length <= 3) return visibleQueue
+    let current = (seed + 1) * 2654435761 % 4294967296
+    const pool = [...visibleQueue]
+    for (let i = pool.length - 1; i > 0; i -= 1) {
+      current = (current * 1664525 + 1013904223) % 4294967296
+      const j = Math.floor((current / 4294967296) * (i + 1))
+      ;[pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+    return pool.slice(0, 3)
+  }, [visibleQueue, seed])
+
+  return (
+    <section
+      className={`home-module home-module-discover ${filter !== 'tout' ? 'module-tinted' : ''}`}
+      style={tintStyle}
+      aria-labelledby="discover-title"
+    >
+      <header className="home-module-heading">
+        <h2 id="discover-title">À découvrir</h2>
+        <div className="medium-chips discover-chips" role="group" aria-label="Filtrer la file d'attente par médium">
+          {options.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`medium-chip ${filter === option ? 'on' : ''}`}
+              aria-pressed={filter === option}
+              onClick={() => setFilter(option)}
+            >
+              {option === 'tout' ? 'Tout' : MEDIUM_CHIP_LABELS[option]}
+            </button>
+          ))}
+          <span className="discover-shuffle-slot">
+            <button
+              type="button"
+              className="shuffle-button"
+              onClick={() => setSeed((value) => value + 1)}
+              disabled={visibleQueue.length <= 3}
+              aria-label="Proposer trois autres œuvres au hasard"
+              title="Trois autres propositions"
+            >
+              {icon('refresh')}
+            </button>
+          </span>
+        </div>
+      </header>
+      {picked.length > 0 ? (
+        <div className="home-entry-grid">
+          {picked.map((entry) => <EntryCard key={entry.key} entry={entry} />)}
+        </div>
+      ) : (
+        <p className="home-module-empty">
+          {queue.length === 0
+            ? 'Aucune œuvre en attente : ajoute des statuts « à voir », « à lire » ou « à jouer ».'
+            : 'Rien dans cette file pour l’instant.'}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/** Tableau de bord d'accueil : modules multi-bibliothèques à puces. */
+function HomeDashboard({ entries, activityMap }: { entries: HomeEntry[]; activityMap: Map<string, MediumFilterKey[]> }) {
+  const recent = [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3)
+  const consumed = entries
+    .filter((entry) => entry.consumedAt !== null)
+    .sort((a, b) => b.consumedAt!.localeCompare(a.consumedAt!))
+    .slice(0, 3)
+  const favorites = entries
+    .filter((entry) => entry.isFavorite || entry.rating !== null)
+    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Number(b.isFavorite) - Number(a.isFavorite))
+    .slice(0, 3)
+  const anniversaries = collectAnniversaries(entries)
+
+  return (
+    <main className="main home-main" aria-label="Accueil">
+      <div className="home-content">
+        <div className="dashboard-grid">
+          <YearHero entries={entries} activityMap={activityMap} />
+          <FilterableModule
+            title="Derniers ajouts"
+            entries={recent}
+            emptyMessage="Aucune œuvre n’a encore été ajoutée."
+            className="module-additions"
+          />
+          <FilterableModule
+            title="Vus, lus et joués"
+            entries={consumed}
+            emptyMessage="Aucune œuvre terminée et datée pour l’instant."
+            className="module-consumed"
+          />
+          <FilterableModule
+            title="Favoris et mieux notés"
+            entries={favorites}
+            emptyMessage="Ajoute des favoris ou des notes pour remplir ce module."
+            className="module-favorites"
+          />
+          <AnniversariesModule anniversaries={anniversaries} />
+          <DiscoverQueueModule entries={entries} />
+        </div>
+      </div>
+    </main>
+  )
+}
+
+/** Icônes des stats du hero. */
+const HERO_STAT_ICONS: Record<MediumFilterKey, IconName> = {
+  film: 'film',
+  'série': 'series',
+  livre: 'book',
+  jeu: 'game',
+  art: 'art',
+}
+
+/** Bandeau hero d'en-tête : l'année en chiffres colorés et le calendrier, sur fond encre. */
+function YearHero({ entries, activityMap }: { entries: HomeEntry[]; activityMap: Map<string, MediumFilterKey[]> }) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const year = today.getFullYear()
+  const prefix = `${year}-`
+  const countByMedium = (medium: MediumFilterKey) =>
+    entries.filter((entry) => entry.medium === medium && entry.createdAt.startsWith(prefix)).length
+  const counts: Array<[MediumFilterKey, number]> = [
+    ('film'),
+    ('série'),
+    ('livre'),
+    ('jeu'),
+    ('art'),
+  ].map((medium) => [medium as MediumFilterKey, countByMedium(medium as MediumFilterKey)])
+  const total = counts.reduce((sum, [, value]) => sum + value, 0)
+  const labels: Record<MediumFilterKey, [string, string]> = {
+    film: ['film vu', 'films vus'],
+    'série': ['série vue', 'séries vues'],
+    livre: ['livre lu', 'livres lus'],
+    jeu: ['jeu ajouté', 'jeux ajoutés'],
+    art: ['œuvre découverte', 'œuvres découvertes'],
+  }
+
+  return (
+    <section className="home-hero" aria-label={`Votre année ${year}`}>
+      <div className="hero-left">
+        <p className="hero-kicker">Votre année</p>
+        <p className="hero-year">{year}</p>
+        <div className="hero-stats">
+          {counts.map(([medium, value]) => (
+            <span key={medium} className="hero-stat" style={{ '--stat-color': MEDIUM_DOT_COLORS[medium] } as React.CSSProperties}>
+              <span className="hero-stat-icon">{icon(HERO_STAT_ICONS[medium])}</span>
+              <b>{value}</b>
+              <small>{labels[medium][value > 1 ? 1 : 0]}</small>
+            </span>
+          ))}
+        </div>
+        {total === 0 && (
+          <p className="hero-empty">Ajoutez votre première œuvre pour voir l’année se remplir.</p>
+        )}
+      </div>
+      <div className="hero-calendar">
+        <ActivityCalendarCompact activityMap={activityMap} />
+      </div>
+    </section>
+  )
+}
+
+/** Calendrier compact du hero : mêmes données, habillage sombre. */
+function ActivityCalendarCompact({ activityMap }: { activityMap: Map<string, MediumFilterKey[]> }) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const [monthOffset, setMonthOffset] = useState(0)
@@ -711,39 +996,34 @@ function ActivityCalendar({ activityMap }: { activityMap: Map<string, MediumFilt
   const month = cursor.getMonth()
   const firstWeekday = (new Date(year, month, 1).getDay() || 7) - 1
   const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const monthLabel = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(cursor)
   const canGoForward = monthOffset < 0
 
   return (
-    <section className="home-module home-module-calendar" aria-labelledby="activity-calendar-title">
-      <header className="calendar-nav">
+    <>
+      <header className="calendar-nav hero-calendar-nav">
         <button
           type="button"
-          className="calendar-nav-button"
+          className="calendar-nav-button hero-calendar-button"
           onClick={() => setMonthOffset((value) => value - 1)}
           aria-label="Mois précédent"
         >
           ‹
         </button>
-        <div>
-          <p className="card-kicker">Historique</p>
-          <h2 id="activity-calendar-title">{monthLabel}</h2>
-        </div>
+        <h2>{new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(cursor)}</h2>
         <button
           type="button"
-          className="calendar-nav-button"
+          className="calendar-nav-button hero-calendar-button"
           onClick={() => setMonthOffset((value) => Math.min(0, value + 1))}
-          aria-label="Mois suivant"
           disabled={!canGoForward}
+          aria-label="Mois suivant"
         >
           ›
         </button>
       </header>
-
-      <div className="home-calendar-weekdays" aria-hidden="true">
+      <div className="calendar-weekdays hero-calendar-weekdays" aria-hidden="true">
         {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
       </div>
-      <ol className="calendar-days">
+      <ol className="calendar-days hero-calendar-days">
         {Array.from({ length: firstWeekday }, (_, index) => <li key={`pad-${index}`} className="pad" />)}
         {Array.from({ length: daysInMonth }, (_, index) => {
           const day = index + 1
@@ -765,73 +1045,7 @@ function ActivityCalendar({ activityMap }: { activityMap: Map<string, MediumFilt
           )
         })}
       </ol>
-
-      <div className="calendar-legend">
-        {(Object.keys(MEDIUM_DOT_COLORS) as MediumFilterKey[]).map((medium) => (
-          <span key={medium}>
-            <i style={{ background: MEDIUM_DOT_COLORS[medium] }} />
-            {MEDIUM_CHIP_LABELS[medium]}
-          </span>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function dayLabel(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
-}
-
-/** Tableau de bord d'accueil : modules multi-bibliothèques à puces. */
-function HomeDashboard({ entries, activityMap }: { entries: HomeEntry[]; activityMap: Map<string, MediumFilterKey[]> }) {
-  const recent = [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6)
-  const consumed = entries
-    .filter((entry) => entry.consumedAt !== null)
-    .sort((a, b) => b.consumedAt!.localeCompare(a.consumedAt!))
-    .slice(0, 6)
-  const favorites = entries
-    .filter((entry) => entry.isFavorite || entry.rating !== null)
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Number(b.isFavorite) - Number(a.isFavorite))
-    .slice(0, 6)
-
-  return (
-    <main className="main home-main" aria-label="Accueil">
-      <div className="home-content">
-        <header className="home-heading">
-          <p className="eyebrow">Bibliothèque locale</p>
-          <h1 className="display-title">Accueil</h1>
-        </header>
-
-        <div className="dashboard-grid">
-          <FilterableModule
-            kicker="Toute la bibliothèque"
-            title="Derniers ajouts"
-            description="Les œuvres ajoutées en dernier, tous médiums confondus"
-            entries={recent}
-            emptyMessage="Aucune œuvre n’a encore été ajoutée."
-            className="module-additions"
-          />
-          <FilterableModule
-            kicker="Consommé récemment"
-            title="Vus, lus et joués"
-            description="Les œuvres terminées ou datées le plus récemment"
-            entries={consumed}
-            emptyMessage="Aucune œuvre terminée et datée pour l’instant."
-            className="module-consumed"
-          />
-          <FilterableModule
-            kicker="Le meilleur de ta bibliothèque"
-            title="Favoris et mieux notés"
-            description="Coups de cœur et meilleures notes, tous médiums confondus"
-            entries={favorites}
-            emptyMessage="Ajoute des favoris ou des notes pour remplir ce module."
-            className="module-favorites"
-          />
-          <ActivityCalendar activityMap={activityMap} />
-        </div>
-      </div>
-    </main>
+    </>
   )
 }
 
