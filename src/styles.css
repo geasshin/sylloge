@@ -1475,6 +1475,20 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .unmapped-columns summary { cursor: pointer; font-weight: 600; color: var(--color-text-muted); }
 .unmapped-columns p { margin: 9px 0 2px; line-height: 1.55; }
+.import-warnings {
+  max-width: 690px;
+  margin: 14px 0 0;
+  padding: 11px 15px;
+  border: 1px solid #EDDBAA;
+  border-radius: var(--radius-control);
+  background: #FBF3DF;
+  color: var(--color-text);
+  font-size: 12px;
+}
+.import-warnings summary { cursor: pointer; font-weight: 600; }
+.import-warnings ol { margin: 10px 0 4px; padding-left: 20px; line-height: 1.6; }
+.import-warnings code { color: var(--color-text-subtle); font-size: 10.5px; margin-right: 6px; }
+.import-warnings p { margin: 8px 0 2px; color: var(--color-text-muted); line-height: 1.5; }
 .assistant-source-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 20px 0; overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-border); }
 .assistant-source-summary div { min-width: 0; padding: 11px; background: var(--color-surface); }
 .assistant-source-summary dt { color: var(--color-text-subtle); font: 500 8px var(--font-label); letter-spacing: .06em; text-transform: uppercase; }

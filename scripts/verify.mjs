@@ -690,9 +690,14 @@ const completeExport = createLibraryExport({
   const invalidGames = prepareCollectionCsvImport('games', 'Nom,Statut\nJeu valide,Joué\n,En cours\n')
   const invalidMapping = setCollectionCsvSourceDestination(invalidGames.initialMapping, 'Nom', 'title')
   const invalidPreview = previewCollectionCsvImport(invalidGames, invalidMapping, exportedAt)
-  assert.equal(invalidPreview.items, null, 'Une seule ligne CSV invalide doit bloquer l’import entier avant écriture')
-  assert.equal(invalidPreview.validItemCount, 1, 'L’aperçu peut compter les lignes convertibles sans autoriser une écriture partielle')
-  assert.ok(invalidPreview.errors.some((error) => /titre est obligatoire/i.test(error.message)), 'La ligne CSV invalide doit signaler son titre manquant')
+  assert.equal(invalidPreview.items?.length, 1, 'La ligne sans titre n’est pas créée, mais l’import entier ne bloque plus (0.6.3)')
+  assert.deepEqual(
+    [invalidPreview.items?.[0]?.title, invalidPreview.items?.[0]?.status, invalidPreview.items?.[0]?.rating],
+    ['Jeu valide', 'joué', null],
+    'La fiche valide est importée avec sa normalisation (statut « Joué » → « joué », note absente)',
+  )
+  assert.equal(invalidPreview.validItemCount, 1, 'Le compteur reflète les fiches réellement prêtes')
+  assert.ok(invalidPreview.errors.some((error) => /titre est obligatoire/i.test(error.message)), 'La ligne CSV invalide signale son titre manquant comme blocage de fiche')
 }
 
 {

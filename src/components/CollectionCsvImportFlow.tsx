@@ -134,26 +134,35 @@ function CollectionCsvPreviewPanel({
   onBack: () => void
   onContinue: () => void
 }) {
-  const valid = preview.items !== null && preview.errors.length === 0 && preview.items.length > 0
+  const blockingErrors = preview.errors.filter((error) => !error.path.endsWith('.info'))
+  const infos = preview.errors.filter((error) => error.path.endsWith('.info'))
+  const valid = preview.items !== null && preview.items.length > 0 && blockingErrors.length === 0
   const itemCount = preview.items?.length ?? 0
   return (
     <section className={`import-preview ${valid ? 'valid' : 'invalid'}`}>
       <div className="import-preview-heading">
         <div><p className="card-kicker">Aperçu avant écriture</p><h3>Import {mediumLabel}</h3></div>
-        <span>{valid ? 'Valide' : 'Import bloqué'}</span>
+        <span>{valid ? `${itemCount} fiche${itemCount > 1 ? 's prêtes' : ' prête'}` : 'Import bloqué'}</span>
       </div>
       <dl className="transfer-summary compact films-import-summary">
         <div><dt>Format</dt><dd>{preview.sourceKind === 'sylloge-csv-v1' ? 'CSV Sylloge v1' : 'CSV avec mapping'}</dd></div>
         <div><dt>Lignes lues</dt><dd>{preview.totalItemCount}</dd></div>
-        <div><dt>Convertibles</dt><dd>{preview.validItemCount}</dd></div>
-        <div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>
+        <div><dt>Fiches prêtes</dt><dd>{preview.validItemCount}</dd></div>
+        <div><dt>Blocages</dt><dd>{blockingErrors.length}</dd></div>
       </dl>
-      {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes ignorées :</b> {preview.ignoredColumns.join(', ')}.</p>}
+      {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes non importées :</b> {preview.ignoredColumns.join(', ')}. Les métadonnées éditoriales restent récupérables via la recherche assistée.</p>}
+      {infos.length > 0 && (
+        <details className="import-warnings" open={blockingErrors.length === 0}>
+          <summary>{infos.length} champ{infos.length > 1 ? 's' : ''} laissé{infos.length > 1 ? 's' : ''} vide{infos.length > 1 ? 's' : ''} — valeur non reconnue dans ton fichier</summary>
+          <ol>{infos.map((info, index) => <li key={`${info.path}-${index}`}><code>{info.path.replace('.info', '')}</code> {info.message}</li>)}</ol>
+          <p>Ces fiches sont importées sans ces champs. Tu pourras les compléter plus tard, fiche par fiche.</p>
+        </details>
+      )}
       {!valid ? (
         <div className="validation-errors" role="alert">
           <p>Aucune donnée n’a été écrite. Corrige le mapping ou le fichier avant de réessayer.</p>
-          {preview.items?.length === 0 && preview.errors.length === 0 && <p>Ce fichier ne contient aucune fiche importable.</p>}
-          {preview.errors.length > 0 && <ol>{preview.errors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {error.message}</li>)}</ol>}
+          {preview.items === null && blockingErrors.length === 0 && <p>Ce fichier ne contient aucune fiche importable.</p>}
+          {blockingErrors.length > 0 && <ol>{blockingErrors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {error.message}</li>)}</ol>}
         </div>
       ) : <div className="import-confirmation"><p>{itemCount} fiche{itemCount > 1 ? 's sont prêtes' : ' est prête'} à être comparée{itemCount > 1 ? 's' : ''} à la collection du profil courant. Aucune donnée n’a encore été écrite.</p></div>}
       <div className="assistant-actions">

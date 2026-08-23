@@ -563,12 +563,13 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 #### `0.6.3` — Validation tolérante : normaliser d'abord, bloquer rarement
 
-- **Statuts** : correspondance souple (casse, accents, pluriels, synonymes courants : « terminée »→« terminé », « completed »→« terminé », « watching »→« en cours »…) ; valeur non résolue → champ laissé vide + mention au rapport final, jamais une erreur bloquante.
-- **Notes** : accepter « 4 », « 4,5 », « 4/5 », « 8/10 » (conversion /10 → /5 automatique dès que l'échelle est détectée), « ★★★★ » ; hors bornes ou illisible → champ vidé + mention au rapport.
-- **Coup de cœur** : vrai/faux, oui/non, x, ✓, 1/0, étoiles.
-- **Compteurs et dates** : entiers tolérants, dates multi-formats (ISO, FR jj/mm/aaaa, formats Notion) ; illisible → vide + mention au rapport.
-- Seules situations bloquantes pour UNE fiche : titre absent ou fichier illisible — la fiche concernée n'est pas créée, signalée clairement, et **le reste de l'import continue**. Rien ne bloque jamais la totalité d'un import.
-- Critères : un jeu de fixtures « sales » volontaires (accents, casse, /10, dates FR, statuts anglais) passe avec uniquement des avertissements ; les tests domaine documentent chaque règle de normalisation.
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Nouveau module domaine `importNormalization.ts` : statuts résolus par synonymes (casse, accents, pluriels, anglais courant « completed/watching/dropped »), notes multi-formats (« 4 », « 4,5 », « 4/5 », « 8/10 » converti, « 80 % », « ★★★★ »), coups de cœur étendus (✓, x, oui…), compteurs tolérants, dates ISO/FR/textuelles FR et EN (formats Notion compris). Toute valeur non résolue laisse le champ vide avec un avertissement `.info` non bloquant ; seule une ligne sans titre ne produit pas de fiche, sans empêcher les autres. L'aperçu affiche « N fiches prêtes · Blocages » séparément des avertissements regroupés dans une zone repliable expliquant que ces fiches partent sans ces champs.
+
+- **Statuts** : correspondance souple multilingue → champ vide + mention si non résolu. ✓
+- **Notes** : toutes écritures courantes acceptées, /10 → /5 automatique. ✓
+- **Coup de cœur**, **compteurs**, **dates** : tolérants. ✓
+- Seule situation bloquante pour UNE fiche : titre absent — le reste continue. ✓
+- Critères : fixtures sales passent en avertissements ; assertion `verify.mjs` mise à jour vers le nouveau contrat (fiche valide importée, ligne sans titre ignorée). ✓
 
 #### `0.6.4` — Aperçu honnête, import complet, résumé final lisible
 
