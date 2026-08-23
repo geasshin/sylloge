@@ -96,8 +96,8 @@ import {
   type Artwork,
 } from './domain/artwork.ts'
 import type { ArtworkWriteInput } from './domain/artworkForm.ts'
+import logoSylloge from './assets/logo-sylloge.png'
 import {
-  BrandMark,
   SearchIcon,
   HomeIcon,
   FilmIcon,
@@ -187,7 +187,7 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
-        <BrandMark size={28} />
+        <img className="wordmark-logo" src={logoSylloge} alt="" width={34} height={34} />
         <span className="wordmark-text">
           <span>Sylloge</span>
           <small>Bibliothèque</small>

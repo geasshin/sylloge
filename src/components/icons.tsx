@@ -2,36 +2,6 @@
 
 type IconProps = { size?: number }
 
-/** Signe Sylloge : deux pages ouvertes formant un S négatif, dans une tuile arrondie. */
-export function BrandMark({ size = 26 }: IconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 26 26"
-      fill="none"
-      aria-hidden="true"
-    >
-      <rect width="26" height="26" rx="7.5" fill="#1F1D1A" />
-      {/* Page gauche */}
-      <path
-        d="M13.2 6.5c-1.9-1.4-4.3-1.5-5.7-.4v12.8c1.4-1.1 3.8-1 5.7.4V6.5Z"
-        fill="#FAF9F6"
-        fillOpacity=".92"
-      />
-      {/* Page droite */}
-      <path
-        d="M13.4 6.5c1.9-1.4 4.3-1.5 5.7-.4v12.8c-1.4-1.1-3.8-1-5.7.4V6.5Z"
-        stroke="#FAF9F6"
-        strokeOpacity=".55"
-        strokeWidth="1.1"
-      />
-      {/* Axe central : la reliure */}
-      <path d="M13.3 6.2v13.3" stroke="#5B3A68" strokeWidth="1.6" strokeLinecap="round" />
-    </svg>
-  )
-}
-
 const strokeProps = {
   fill: 'none',
   stroke: 'currentColor',
