@@ -5,6 +5,7 @@ import {
   type Artwork,
 } from '../domain/artwork.ts'
 import { Poster } from './Poster.tsx'
+import { StatusBadge } from './VerdictControls.tsx'
 
 function formatCalendarDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -71,10 +72,8 @@ export function ArtworkDetail({ artwork, onBack, onEdit, onDelete }: ArtworkDeta
           <div className="poster-container detail-poster-wrap">
             <Poster title={artwork.title} src={artwork.imageUrl} className="detail-poster" label="Visuel" />
           </div>
-          <div className="detail-status" role="group" aria-label="Statut">
-            {Object.entries(ARTWORK_STATUS_LABELS).map(([key, label]) => (
-              <span key={key} className={`seg-pill-static ${key === artwork.status ? 'on' : ''}`}>{label}</span>
-            ))}
+          <div className="detail-status">
+            <StatusBadge status={artwork.status} labels={ARTWORK_STATUS_LABELS} />
           </div>
           {artwork.isFavorite && (
             <div className="detail-rate">

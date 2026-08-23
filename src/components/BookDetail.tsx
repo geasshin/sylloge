@@ -5,6 +5,7 @@ import {
   type Book,
 } from '../domain/book.ts'
 import { Poster } from './Poster.tsx'
+import { StatusBadge } from './VerdictControls.tsx'
 
 function formatCalendarDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -77,18 +78,23 @@ export function BookDetail({ book, onBack, onEdit, onDelete }: BookDetailProps) 
           <div className="poster-container detail-poster-wrap">
             <Poster title={book.title} src={book.coverUrl} className="detail-poster" label="Couverture" />
           </div>
-          <div className="detail-status" role="group" aria-label="Statut">
-            {Object.entries(BOOK_STATUS_LABELS).map(([key, label]) => (
-              <span key={key} className={`seg-pill-static ${key === book.status ? 'on' : ''}`}>{label}</span>
-            ))}
+          <div className="detail-status">
+            <StatusBadge status={book.status} labels={BOOK_STATUS_LABELS} />
           </div>
           {(book.rating !== null || book.isFavorite) && (
             <div className="detail-rate">
               {book.rating !== null && (
                 <>
                   <span className="stars-display" aria-label={`Note ${book.rating} sur 5`}>
-                    {'★'.repeat(Math.round(book.rating))}
-                    <span className="stars-off">{'★'.repeat(5 - Math.round(book.rating))}</span>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const fill = Math.max(0, Math.min(1, book.rating! - star + 1))
+                      return (
+                        <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                          <span className="star-glyph" aria-hidden="true">★</span>
+                          <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                        </span>
+                      )
+                    })}
                   </span>
                   <span className="rate-value">{book.rating.toLocaleString('fr-FR')}/5</span>
                 </>

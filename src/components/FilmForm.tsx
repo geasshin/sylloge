@@ -11,6 +11,7 @@ import {
 } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import { Poster } from './Poster.tsx'
+import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
 /** Statuts proposés à la création : les trois qui ont du sens pour un film. */
 const FORM_STATUSES: FilmStatus[] = ['à découvrir', 'terminé', 'abandonné']
@@ -116,47 +117,14 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
           {/* Le verdict personnel : statut, note, coup de cœur */}
           <div className="verdict-block">
             <div className="verdict-row">
-              <div className="seg-group seg-group-form" role="radiogroup" aria-label="Statut">
-                {statusSegments.map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    role="radio"
-                    aria-checked={values.status === status}
-                    className={`seg-pill-btn ${values.status === status ? 'on' : ''}`}
-                    onClick={() => update('status', status)}
-                  >
-                    {FILM_STATUS_LABELS[status]}
-                  </button>
-                ))}
-              </div>
-
-              <div className="rate-input" role="radiogroup" aria-label="Note sur 5">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    role="radio"
-                    aria-checked={ratingValue === star}
-                    aria-label={`${star} sur 5`}
-                    className={`star-btn ${ratingValue !== null && star <= ratingValue ? 'full' : ''}`}
-                    onClick={() => update('rating', ratingValue === star ? '' : String(star))}
-                  >
-                    ★
-                  </button>
-                ))}
-                <span className="rate-value">{ratingValue !== null ? `${ratingValue}/5` : 'Aucune note'}</span>
-              </div>
-
-              <button
-                type="button"
-                className={`heart-input ${values.isFavorite ? 'on' : ''}`}
-                aria-pressed={values.isFavorite}
-                aria-label="Coup de cœur"
-                onClick={() => update('isFavorite', !values.isFavorite)}
-              >
-                ♥
-              </button>
+              <StatusSegmented
+                statuses={statusSegments}
+                labels={FILM_STATUS_LABELS}
+                value={values.status}
+                onChange={(next) => update('status', next as FilmFormValues['status'])}
+              />
+              <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
             </div>
             {errors.status && <p className="field-error">{errors.status}</p>}
 

@@ -8,6 +8,7 @@ import {
 } from '../data/tmdbService.ts'
 import { Poster } from './Poster.tsx'
 import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
+import { StatusBadge } from './VerdictControls.tsx'
 
 function formatWatchedDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -168,18 +169,23 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
               </button>
             )}
           </div>
-          <div className="detail-status" role="group" aria-label="Statut">
-            {Object.entries(FILM_STATUS_LABELS).map(([key, label]) => (
-              <span key={key} className={`seg-pill-static ${key === film.status ? 'on' : ''}`}>{label}</span>
-            ))}
+          <div className="detail-status">
+            <StatusBadge status={film.status} labels={FILM_STATUS_LABELS} />
           </div>
           {(film.rating !== null || film.isFavorite) && (
             <div className="detail-rate">
               {film.rating !== null && (
                 <>
                   <span className="stars-display" aria-label={`Note ${film.rating} sur 5`}>
-                    {'★'.repeat(Math.round(film.rating))}
-                    <span className="stars-off">{'★'.repeat(5 - Math.round(film.rating))}</span>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const fill = Math.max(0, Math.min(1, film.rating! - star + 1))
+                      return (
+                        <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                          <span className="star-glyph" aria-hidden="true">★</span>
+                          <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                        </span>
+                      )
+                    })}
                   </span>
                   <span className="rate-value">{film.rating.toLocaleString('fr-FR')}/5</span>
                 </>

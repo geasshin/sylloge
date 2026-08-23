@@ -14,6 +14,7 @@ import {
 } from '../domain/gameForm.ts'
 import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
+import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
 const RATINGS = Array.from({ length: 10 }, (_, index) => (index + 1) / 2)
 
@@ -104,49 +105,28 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
 
         <div className="form-row relationship-row">
           <div className="field">
-            <label htmlFor="game-status">Statut</label>
-            <select
-              id="game-status"
-              name="status"
+            <StatusSegmented
+              statuses={GAME_STATUSES}
+              labels={GAME_STATUS_LABELS}
               value={values.status}
-              onChange={(event) => update('status', event.target.value as GameFormValues['status'])}
-              aria-invalid={Boolean(errors.status)}
-              aria-describedby={errors.status ? 'game-status-error' : undefined}
-            >
-              {GAME_STATUSES.map((status) => (
-                <option value={status} key={status}>{GAME_STATUS_LABELS[status]}</option>
-              ))}
-            </select>
+              onChange={(next) => update('status', next as GameFormValues['status'])}
+            />
             {errors.status && <p className="field-error" id="game-status-error">{errors.status}</p>}
           </div>
 
           <div className="field">
-            <label htmlFor="game-rating">Note</label>
-            <select
-              id="game-rating"
-              name="rating"
-              value={values.rating}
-              onChange={(event) => update('rating', event.target.value)}
-              aria-invalid={Boolean(errors.rating)}
-              aria-describedby={errors.rating ? 'game-rating-error' : undefined}
-            >
-              <option value="">Aucune note</option>
-              {RATINGS.map((rating) => (
-                <option value={rating} key={rating}>{rating.toLocaleString('fr-FR')} / 5</option>
-              ))}
-            </select>
+            <StarRating
+              value={values.rating === '' ? null : Number(values.rating)}
+              onChange={(next) => update('rating', next === null ? '' : String(next))}
+            />
             {errors.rating && <p className="field-error" id="game-rating-error">{errors.rating}</p>}
           </div>
         </div>
 
-        <label className="favorite-control">
-          <input
-            type="checkbox"
-            checked={values.isFavorite}
-            onChange={(event) => update('isFavorite', event.target.checked)}
-          />
-          <span>Ajouter aux favoris</span>
-        </label>
+        <div className="favorite-heart-row">
+          <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+          <span>Coup de cœur</span>
+        </div>
 
         <div className="field">
           <label htmlFor="game-playedAt">Date de jeu ou de visionnage</label>

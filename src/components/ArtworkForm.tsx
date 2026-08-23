@@ -16,6 +16,7 @@ import {
 } from '../domain/artworkForm.ts'
 import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
+import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
 function previewableImageUrl(value: string): string | null {
   try {
@@ -114,31 +115,20 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
           </div>
 
           <div className="field">
-            <label htmlFor="artwork-status">Statut</label>
-            <select
-              id="artwork-status"
-              name="status"
+            <StatusSegmented
+              statuses={ARTWORK_STATUSES}
+              labels={ARTWORK_STATUS_LABELS}
               value={values.status}
-              onChange={(event) => update('status', event.target.value as ArtworkFormValues['status'])}
-              aria-invalid={Boolean(errors.status)}
-              aria-describedby={errors.status ? 'artwork-status-error' : undefined}
-            >
-              {ARTWORK_STATUSES.map((status) => (
-                <option value={status} key={status}>{ARTWORK_STATUS_LABELS[status]}</option>
-              ))}
-            </select>
+              onChange={(next) => update('status', next as ArtworkFormValues['status'])}
+            />
             {errors.status && <p className="field-error" id="artwork-status-error">{errors.status}</p>}
           </div>
         </div>
 
-        <label className="favorite-control">
-          <input
-            type="checkbox"
-            checked={values.isFavorite}
-            onChange={(event) => update('isFavorite', event.target.checked)}
-          />
-          <span>Ajouter aux favoris</span>
-        </label>
+        <div className="favorite-heart-row">
+          <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+          <span>Coup de cœur</span>
+        </div>
 
         <div className="field">
           <label htmlFor="artwork-discoveredAt">Date de découverte</label>

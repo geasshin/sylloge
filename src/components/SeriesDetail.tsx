@@ -5,6 +5,7 @@ import {
   type Series,
 } from '../domain/series.ts'
 import { Poster } from './Poster.tsx'
+import { StatusBadge } from './VerdictControls.tsx'
 
 function formatCalendarDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -78,18 +79,23 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onDelete }: Se
           <div className="poster-container detail-poster-wrap">
             <Poster title={series.title} src={series.posterUrl} className="detail-poster" />
           </div>
-          <div className="detail-status" role="group" aria-label="Statut">
-            {Object.entries(SERIES_STATUS_LABELS).map(([key, label]) => (
-              <span key={key} className={`seg-pill-static ${key === series.status ? 'on' : ''}`}>{label}</span>
-            ))}
+          <div className="detail-status">
+            <StatusBadge status={series.status} labels={SERIES_STATUS_LABELS} />
           </div>
           {(series.rating !== null || series.isFavorite) && (
             <div className="detail-rate">
               {series.rating !== null && (
                 <>
                   <span className="stars-display" aria-label={`Note ${series.rating} sur 5`}>
-                    {'★'.repeat(Math.round(series.rating))}
-                    <span className="stars-off">{'★'.repeat(5 - Math.round(series.rating))}</span>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const fill = Math.max(0, Math.min(1, series.rating! - star + 1))
+                      return (
+                        <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                          <span className="star-glyph" aria-hidden="true">★</span>
+                          <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                        </span>
+                      )
+                    })}
                   </span>
                   <span className="rate-value">{series.rating.toLocaleString('fr-FR')}/5</span>
                 </>

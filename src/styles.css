@@ -229,11 +229,11 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 
 .poster {
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 2 / 3;
   overflow: hidden;
   border-radius: var(--radius-card);
-  background: var(--color-poster-fallback);
-  border: 1px solid rgba(31, 29, 26, .08);
+  background: transparent;
+  border: none;
   box-shadow: var(--shadow-visual);
   transition: transform .16s ease, box-shadow .16s ease;
 }
@@ -252,6 +252,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  background: var(--color-surface-muted);
   color: var(--color-text-muted);
 }
 
@@ -474,18 +475,30 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .seg-pill-btn:hover { color: var(--color-text); }
 .seg-pill-btn.on { background: var(--color-text); color: var(--color-canvas); box-shadow: 0 2px 6px rgba(31, 29, 26, .22); }
-.rate-input { display: inline-flex; align-items: center; gap: 3px; }
-.star-btn {
-  border: none;
-  background: transparent;
-  padding: 2px;
-  color: #DDD7CA;
-  font-size: 23px;
-  line-height: 1;
-  transition: transform 90ms ease, color 90ms ease;
+.rate-input { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+.star-slot {
+  position: relative;
+  width: 23px;
+  height: 23px;
+  display: inline-block;
 }
-.star-btn.full { color: var(--color-text); }
-.star-btn:hover { transform: scale(1.18); }
+.star-glyph {
+  position: absolute;
+  inset: 0;
+  color: #E4DFD4;
+  font-size: 22px;
+  line-height: 1;
+}
+.star-fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-size: 22px;
+  line-height: 1;
+}
+.star-slot:hover { transform: scale(1.12); transition: transform 90ms ease; }
 .rate-input .rate-value { margin-left: 8px; }
 .heart-input {
   width: 38px;
@@ -499,6 +512,14 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   transition: all 120ms ease;
 }
 .heart-input.on { background: var(--color-accent-soft); border-color: transparent; color: var(--color-accent); }
+
+.favorite-heart-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+}
 
 .date-row { display: flex; align-items: center; gap: 10px; color: var(--color-text-muted); font-size: 12.5px; }
 .date-row svg { opacity: .55; flex: 0 0 auto; }
@@ -647,26 +668,44 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .detail-side { position: sticky; top: 74px; display: flex; flex-direction: column; align-items: center; }
 .detail-poster-wrap { width: 100%; max-width: 330px; }
-.detail-status {
-  margin-top: 18px;
-  display: inline-flex;
-  gap: 3px;
-  padding: 4px;
-  border-radius: 12px;
-  background: rgba(31, 29, 26, .05);
+.detail-status { margin-top: 18px; }
+/* Badge de statut unique : code couleur par famille d'état */
+.status-badge {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
 }
-.seg-pill-static {
-  padding: 6px 15px;
-  border-radius: 9px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
-.seg-pill-static.on { background: var(--color-text); color: var(--color-canvas); box-shadow: 0 2px 6px rgba(31, 29, 26, .22); }
+.status-badge.tone-done { background: var(--color-positive); color: #fff; }
+.status-badge.tone-active { background: var(--color-accent); color: #fff; }
+.status-badge.tone-dropped { background: var(--color-danger); color: #fff; }
+.status-badge.tone-todo { background: rgba(31, 29, 26, .07); color: var(--color-text-muted); }
 .detail-rate { margin-top: 14px; display: flex; align-items: center; gap: 11px; }
-.stars-display { color: var(--color-text); font-size: 20px; line-height: 1; letter-spacing: 2px; }
-.stars-display .stars-off { color: #DDD7CA; }
+.stars-display { display: inline-flex; gap: 2px; }
+.star-slot {
+  position: relative;
+  width: 21px;
+  height: 21px;
+  display: inline-block;
+}
+.star-glyph {
+  position: absolute;
+  inset: 0;
+  color: #E4DFD4;
+  font-size: 20px;
+  line-height: 1;
+}
+.star-fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--color-text);
+  font-size: 20px;
+  line-height: 1;
+}
 .rate-value { color: var(--color-text-subtle); font-size: 12.5px; }
 .heart-display {
   width: 38px;
