@@ -583,9 +583,11 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 #### `0.6.5` — Prendre la main : assistant d'import et documentation
 
-- Parcours guidé de première import : **encarts contextuels dans le dialogue** (pas de page d'aide séparée), une explication courte à chaque étape — formats, mapping, aperçu, Remplacer/Fusionner — pour que chaque décision soit comprise au moment où elle est prise. Réutilisables comme aide permanente (« Comment ça marche ? »).
-- Textes d'erreur pédagogiques : chaque avertissement dit quoi faire (« Colonne “Statut” : “Terminée” n'est pas un statut connu — laissé vide. Modifiable fiche par fiche. »).
-- Documentation du dépôt mise à jour (README section import) et recette manuelle dédiée sur les cinq médiums avec l'export Notion réel d'Aurélien comme fixture de référence.
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Chaque étape du dialogue d'import embarque désormais son encart contextuel court (composant `ImportHint`, fond accent doux) : au choix du fichier (export Notion/Excel reconnu, vérification avant écriture), au mapping (pré-sélection automatique des colonnes reconnues), à l'aperçu (ce que fait l'étape suivante, rien n'est encore écrit), et au choix Remplacer/Fusionner (recommandation Fusionner en cas de doute). La documentation du dépôt reste à compléter avec la recette dédiée lors de la validation.
+
+- Parcours guidé : **encarts contextuels dans le dialogue**, jamais une page séparée. ✓
+- Textes d'erreur pédagogiques : livrés avec 0.6.3/0.6.4. ✓
+- Documentation README + recette dédiée sur les cinq médiums avec l'export Notion réel d'Aurélien : à faire pendant la recette de fin de train.
 - Critères : Aurélien réimporte ses séries/livres/jeux/art depuis son export Notion sans aide extérieure ; verdict consigné dans le dépôt.
 
 #### `0.6.6` — Baguette magique : association automatique des métadonnées

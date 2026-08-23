@@ -51,6 +51,11 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
             Pour chaque champ ci-dessous, sélectionne la colonne de ton fichier qui doit le remplir.
             Laisse « Ne pas importer » quand rien ne correspond — c’est le réglage par défaut.
           </p>
+          <p className="import-contextual-hint">
+            <span aria-hidden="true">💡</span>
+            Sylloge pré-sélectionne déjà les colonnes qu’il reconnaît (titre, statut, note…).
+            Vérifie simplement les lignes marquées, puis continue.
+          </p>
           {groups.map((group) => (
             <fieldset className="mapping-group" key={group.id}>
               <legend>{group.label}</legend>
@@ -159,6 +164,12 @@ function CollectionCsvPreviewPanel({
           <ol>{infos.map((info, index) => <li key={`${info.path}-${index}`}><code>{info.path.replace('.info', '')}</code> {info.message}</li>)}</ol>
           <p>Ces fiches sont importées sans ces champs. Tu pourras les compléter plus tard, fiche par fiche.</p>
         </details>
+      )}
+      {valid && (
+        <p className="import-contextual-hint">
+          <span aria-hidden="true">💡</span>
+          L’étape suivante te propose Remplacer ou Fusionner. Rien n’est encore écrit : tu pourras relire le résumé complet après l’import.
+        </p>
       )}
       {!valid ? (
         <div className="validation-errors" role="alert">

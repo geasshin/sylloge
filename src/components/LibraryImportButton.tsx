@@ -44,6 +44,7 @@ import {
   type PickedAnyImportFile,
 } from '../data/nativePortability.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { ImportHint } from './ImportHint.tsx'
 import {
   DuplicatesResolver,
   ImportModeChoice,
@@ -456,6 +457,10 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                   </button>
                   <p className="import-hint">JSON, CSV, ou un ZIP qui en contient. Tout est analysé avant écriture — rien n’est modifié sans ton choix final.</p>
                 </div>
+                <ImportHint>
+                  Export Notion, Excel ou autre application ? Choisis simplement le ZIP ou le CSV exporté :
+                  Sylloge reconnaît les colonnes et te laisse vérifier chaque correspondance avant d’écrire quoi que ce soit.
+                </ImportHint>
               </section>
             </div>
           )}
