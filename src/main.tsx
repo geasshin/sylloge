@@ -96,12 +96,44 @@ import {
   type Artwork,
 } from './domain/artwork.ts'
 import type { ArtworkWriteInput } from './domain/artworkForm.ts'
+import {
+  BrandMark,
+  SearchIcon,
+  HomeIcon,
+  FilmIcon,
+  SeriesIcon,
+  BookIcon,
+  GameIcon,
+  ArtIcon,
+  SettingsIcon,
+} from './components/icons.tsx'
 import './styles.css'
 
 type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'search' | 'series' | 'settings'
 type SettingsSection = PortabilitySection
 
-const icon = (name: IconName) => <span className={`icon icon-${name}`} aria-hidden="true" />
+const icon = (name: IconName) => {
+  switch (name) {
+    case 'home':
+      return <HomeIcon />
+    case 'film':
+      return <FilmIcon />
+    case 'series':
+      return <SeriesIcon />
+    case 'book':
+      return <BookIcon />
+    case 'game':
+      return <GameIcon />
+    case 'art':
+      return <ArtIcon />
+    case 'settings':
+      return <SettingsIcon />
+    case 'search':
+      return <SearchIcon />
+    default:
+      return null
+  }
+}
 
 const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
   { id: 'profiles', label: 'Profils' },
@@ -155,7 +187,7 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
-        <span className="wordmark-mark">S</span>
+        <BrandMark size={28} />
         <span className="wordmark-text">
           <span>Sylloge</span>
           <small>Bibliothèque</small>
@@ -588,7 +620,7 @@ function Home({ library, seriesCollection, bookCollection, gameCollection, artwo
       createdAt: artwork.createdAt,
       onOpen: () => onOpenArtwork(artwork),
     })),
-  ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8)
+  ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 6)
 
   const recentEntriesVisible = recentEntries.length > 0
 

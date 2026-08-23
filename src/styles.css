@@ -33,7 +33,9 @@
 
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; margin: 0; }
-body { min-width: 760px; }
+body { min-width: 980px; overflow-x: auto; }
+.home-film-list, .home-recent-list { min-width: 0; }
+.home-film-list .home-film-card, .home-recent-list .home-recent-card { max-width: 100%; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, article:focus-visible {
@@ -152,28 +154,8 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   white-space: nowrap;
 }
 
-.icon { width: 17px; height: 17px; display: inline-block; position: relative; opacity: .8; }
-.icon-film { border: 1.5px solid currentColor; border-radius: 2px; }
-.icon-film:after { content: "···\A···"; white-space: pre; font-size: 8px; line-height: 5px; position: absolute; left: 1px; top: 0; }
-.icon-home:before { content: ""; position: absolute; width: 11px; height: 11px; border-top: 1.5px solid currentColor; border-left: 1.5px solid currentColor; transform: rotate(45deg); left: 3px; top: 1px; }
-.icon-home:after { content: ""; position: absolute; width: 10px; height: 8px; border: 1.5px solid currentColor; border-top: 0; border-radius: 1px; left: 3px; bottom: 1px; }
-.icon-search { border: 1.5px solid currentColor; width: 12px; height: 12px; border-radius: 50%; margin-left: 1px; }
-.icon-search:after { content: ""; position: absolute; height: 6px; border-left: 1.5px solid currentColor; transform: rotate(-45deg); right: -4px; bottom: -4px; }
-.icon-settings { border: 1.5px solid currentColor; border-radius: 50%; width: 15px; height: 15px; margin: 1px; }
-.icon-settings:before { content: ""; position: absolute; inset: 4px; border: 1.5px solid currentColor; border-radius: 50%; }
-.icon-settings:after { content: ""; position: absolute; inset: -3px; border-top: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; border-radius: 50%; transform: rotate(45deg); }
-.icon-series { border: 1.5px solid currentColor; border-radius: 2px; }
-.icon-series:before { content: ""; position: absolute; left: 2px; right: 2px; top: 3px; height: 4px; border: 1.5px solid currentColor; border-radius: 1px; }
-.icon-series:after { content: ""; position: absolute; left: 2px; right: 2px; bottom: 3px; height: 4px; border: 1.5px solid currentColor; border-radius: 1px; }
-.icon-book { border: 1.5px solid currentColor; border-radius: 2px 4px 4px 2px; }
-.icon-book:before { content: ""; position: absolute; top: 2px; bottom: 2px; left: 4px; border-left: 1.5px solid currentColor; }
-.icon-book:after { content: ""; position: absolute; right: 2px; bottom: 3px; left: 7px; border-top: 1.5px solid currentColor; }
-.icon-game { height: 12px; margin-top: 3px; border: 1.5px solid currentColor; border-radius: 5px 5px 7px 7px; }
-.icon-game:before { content: "+"; position: absolute; left: 2px; top: -4px; font-size: 12px; font-weight: 600; }
-.icon-game:after { content: "··"; position: absolute; right: 2px; top: -5px; font-size: 12px; letter-spacing: 1px; }
-.icon-art { border: 1.5px solid currentColor; border-radius: 50% 50% 44% 56%; transform: rotate(-18deg); }
-.icon-art:before { content: ""; position: absolute; width: 3px; height: 3px; border-radius: 50%; background: currentColor; left: 3px; top: 4px; box-shadow: 6px -1px 0 currentColor, 7px 5px 0 currentColor; }
-.icon-art:after { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--color-surface); border: 1.5px solid currentColor; right: -2px; bottom: 0; }
+.nav-item .nav-glyph-svg { flex: 0 0 auto; opacity: .62; }
+.nav-item.active .nav-glyph-svg { opacity: .92; }
 
 .main { margin-left: 225px; width: calc(100% - 225px); min-height: 100vh; }
 
@@ -338,7 +320,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .search:focus-within { border-color: #CBB8D4; }
 .search:has(input:focus-visible) { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-soft); }
-.search > .icon-search { flex: 0 0 auto; margin-right: 11px; }
+.search > svg { flex: 0 0 auto; margin-right: 10px; opacity: .55; }
 .search input { min-width: 0; height: 100%; width: 100%; border: 0; background: none; font-size: 13px; color: var(--color-text); }
 .search input:focus { outline: none; }
 .search input::placeholder { color: var(--color-text-subtle); }
