@@ -543,10 +543,12 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 #### `0.6.1` — Un seul bouton, un dialogue compréhensible
 
-- Remplacer les trois boutons du dialogue par **un unique bouton principal « Choisir un fichier »** ouvrant le sélecteur natif filtré JSON/CSV/ZIP (le filtre existe déjà côté Rust) ; supprimer le bouton dédié « dossier » de l'écran principal, l'inspection de dossier restant accessible en repli discret si besoin.
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Le dialogue d'import de chaque bibliothèque n'expose plus qu'un seul bouton principal « Choisir un fichier » (le sélecteur natif filtre déjà JSON, CSV et ZIP côté Rust) ; « Annuler » et « Choisir un dossier » disparaissent au profit de la croix × du dialogue. La croix de fermeture des assistants devient un bouton rond à filet, cohérent avec le langage pilule. Le texte d'accueil tient en une phrase de formats et une ligne d'engagement (« rien n'est modifié sans ton choix final »). Aucun changement de pipeline.
+
+- Remplacer les trois boutons du dialogue par **un unique bouton principal « Choisir un fichier »** ouvrant le sélecteur natif filtré JSON/CSV/ZIP (le filtre existe déjà côté Rust) ; supprimer le bouton dédié « dossier » de l'écran principal.
 - Supprimer le bouton « Annuler » ; fermeture par **croix × en haut à droite** du dialogue (plus Échap), désactivée pendant une écriture.
-- Réécrire le texte d'accueil : deux lignes maximum, forme « Formats acceptés : JSON, CSV, ou un ZIP qui en contient. Tout est analysé avant écriture. »
-- Critères : un utilisateur nouveau comprend en moins de dix secondes quoi cliquer ; aucun changement de pipeline derrière ; tests existants verts.
+- Réécrire le texte d'accueil sur une phrase de formats et une ligne d'engagement.
+- Critères : un utilisateur nouveau comprend en moins de dix secondes quoi cliquer ; aucun changement de pipeline derrière ; tests existants verts. ✓ (typecheck, verify, build, cargo check)
 
 #### `0.6.2` — Mapping inversé : les champs Sylloge d'abord
 

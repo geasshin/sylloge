@@ -75,7 +75,7 @@ export function AccessibleDialog({
       <div className="transfer-dialog" ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="transfer-dialog-title" aria-describedby="transfer-dialog-description" tabIndex={-1}>
         <header className="transfer-dialog-header">
           <div><p className="card-kicker">Assistant local</p><h2 id="transfer-dialog-title">{title}</h2><p id="transfer-dialog-description">{description}</p></div>
-          <button className="dialog-close" ref={closeButtonRef} type="button" disabled={closeDisabled} onClick={onClose} aria-label="Fermer l’assistant">Fermer</button>
+          <button className="dialog-close" ref={closeButtonRef} type="button" disabled={closeDisabled} onClick={onClose} aria-label="Fermer l’assistant">✕</button>
         </header>
         {children}
       </div>

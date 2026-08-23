@@ -40,7 +40,6 @@ import {
 } from '../data/libraryTransferService.ts'
 import {
   pickImportAny,
-  pickImportContainer,
   type ImportContainerCandidate,
   type PickedAnyImportFile,
 } from '../data/nativePortability.ts'
@@ -425,15 +424,11 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                 ) : (
                   <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
                 )}
-                <p>Un ZIP ou dossier sert uniquement à détecter des JSON et CSV, sans extraction ni suivi. Aucune donnée ne sera écrite avant l’aperçu puis ton choix Remplacer ou Fusionner.</p>
-                <div className="assistant-actions">
-                  <button className="secondary-button" type="button" onClick={close}>Annuler</button>
-                  <button className="secondary-button" type="button" disabled={choosingFile} onClick={() => void pickAndPrepare(pickImportContainer)}>
-                    {choosingFile ? 'Choix en cours…' : 'Choisir un dossier'}
-                  </button>
+                <div className="assistant-actions assistant-actions-single">
                   <button className="primary-button" type="button" disabled={choosingFile} onClick={() => void pickAndPrepare(pickImportAny)}>
-                    {choosingFile ? 'Choix en cours…' : 'Choisir un fichier ou ZIP'}
+                    {choosingFile ? 'Choix en cours…' : 'Choisir un fichier'}
                   </button>
+                  <p className="import-hint">JSON, CSV, ou un ZIP qui en contient. Tout est analysé avant écriture — rien n’est modifié sans ton choix final.</p>
                 </div>
               </section>
             </div>
