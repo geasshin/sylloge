@@ -50,6 +50,8 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
   const previewUrl = previewablePosterUrl(values.posterUrl)
   const progressVisible = values.status === 'en cours' || values.status === 'abandonnée' || values.status === 'vue'
   const ratingValue = values.rating === '' ? null : Number(values.rating)
+  // « À voir » : pas encore de verdict, on masque note, cœur, dates et avis.
+  const verdictVisible = values.status !== 'à voir'
 
   const update = <Key extends keyof SeriesFormValues>(key: Key, value: SeriesFormValues[Key]) => {
     setValues((current) => {
@@ -138,11 +140,15 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
                 value={values.status}
                 onChange={(next) => update('status', next as SeriesFormValues['status'])}
               />
-              <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+              {verdictVisible && (
+                <>
+                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+                </>
+              )}
             </div>
 
-            {progressVisible && (
+            {verdictVisible && progressVisible && (
               <fieldset className="progress-fields verdict-progress">
                 <div className="form-row">
                   <Stepper
@@ -179,7 +185,7 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
                 aria-label="Début du visionnage"
                 aria-invalid={Boolean(errors.startedAt)}
               />
-              {values.startedAt !== today && (
+              {values.startedAt !== today && verdictVisible && (
                 <button type="button" className="link-accent" onClick={() => update('startedAt', today)}>
                   Utiliser aujourd’hui
                 </button>
@@ -187,16 +193,22 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
             </div>
             {errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 
-            <div className="review-write">
-              <textarea
-                id="series-personalNote"
-                name="personalNote"
-                rows={5}
-                placeholder="Qu’as-tu pensé de cette série ?"
-                value={values.personalNote}
-                onChange={(event) => update('personalNote', event.target.value)}
-              />
-            </div>
+            {verdictVisible ? (
+              <div className="review-write">
+                <textarea
+                  id="series-personalNote"
+                  name="personalNote"
+                  rows={5}
+                  placeholder="Qu’as-tu pensé de cette série ?"
+                  value={values.personalNote}
+                  onChange={(event) => update('personalNote', event.target.value)}
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </div>
+            ) : (
+              <p className="verdict-hint">Passe la série en « En cours » ou « Vue » pour suivre ton avancement et ajouter ta note, ta date et ton avis.</p>
+            )}
           </div>
 
           {/* Champs éditoriaux : cachés en création assistée */}
@@ -228,11 +240,25 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
                   </div>
                   <div className="field">
                     <label htmlFor="series-casting">Casting</label>
-                    <textarea id="series-casting" rows={2} value={values.casting} onChange={(event) => update('casting', event.target.value)} />
+                    <textarea
+                      id="series-casting"
+                      rows={2}
+                      value={values.casting}
+                      onChange={(event) => update('casting', event.target.value)}
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
                   </div>
                   <div className="field">
                     <label htmlFor="series-summary">Résumé</label>
-                    <textarea id="series-summary" rows={3} value={values.summary} onChange={(event) => update('summary', event.target.value)} />
+                    <textarea
+                      id="series-summary"
+                      rows={3}
+                      value={values.summary}
+                      onChange={(event) => update('summary', event.target.value)}
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
                   </div>
                   <div className="field">
                     <label htmlFor="series-posterUrl">URL directe de l’affiche</label>

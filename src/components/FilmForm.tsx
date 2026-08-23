@@ -43,6 +43,8 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
   // ils restent dans les valeurs mais ne s'affichent plus comme formulaire.
   const assisted = !film && Boolean(initialValues?.title)
   const [showEditorial, setShowEditorial] = useState(!assisted)
+  // « À découvrir » : pas encore de verdict, on masque note, cœur, date et avis.
+  const verdictVisible = values.status !== 'à découvrir'
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewablePosterUrl(values.posterUrl)
 
@@ -123,40 +125,53 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
                 value={values.status}
                 onChange={(next) => update('status', next as FilmFormValues['status'])}
               />
-              <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+              {verdictVisible && (
+                <>
+                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+                </>
+              )}
             </div>
             {errors.status && <p className="field-error">{errors.status}</p>}
 
-            <div className="date-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              <input
-                id="watchedAt"
-                name="watchedAt"
-                type="date"
-                value={values.watchedAt}
-                onChange={(event) => update('watchedAt', event.target.value)}
-                aria-label="Date de visionnage"
-                aria-invalid={Boolean(errors.watchedAt)}
-              />
-              {values.watchedAt !== today && (
-                <button type="button" className="link-accent" onClick={() => update('watchedAt', today)}>
-                  Utiliser aujourd’hui
-                </button>
-              )}
-            </div>
-            {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
+            {verdictVisible && (
+              <>
+                <div className="date-row">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  <input
+                    id="watchedAt"
+                    name="watchedAt"
+                    type="date"
+                    value={values.watchedAt}
+                    onChange={(event) => update('watchedAt', event.target.value)}
+                    aria-label="Date de visionnage"
+                    aria-invalid={Boolean(errors.watchedAt)}
+                  />
+                  {values.watchedAt !== today && (
+                    <button type="button" className="link-accent" onClick={() => update('watchedAt', today)}>
+                      Utiliser aujourd’hui
+                    </button>
+                  )}
+                </div>
+                {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
 
-            <div className="review-write">
-              <textarea
-                id="personalNote"
-                name="personalNote"
-                rows={5}
-                placeholder="Qu’as-tu pensé de ce film ?"
-                value={values.personalNote}
-                onChange={(event) => update('personalNote', event.target.value)}
-              />
-            </div>
+                <div className="review-write">
+                  <textarea
+                    id="personalNote"
+                    name="personalNote"
+                    rows={5}
+                    placeholder="Qu’as-tu pensé de ce film ?"
+                    value={values.personalNote}
+                    onChange={(event) => update('personalNote', event.target.value)}
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </div>
+              </>
+            )}
+            {!verdictVisible && (
+              <p className="verdict-hint">Passe le film en « Terminé » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
+            )}
           </div>
 
           {/* Champs éditoriaux : cachés en création assistée, discrets sinon */}
@@ -191,7 +206,14 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
                   </div>
                   <div className="field">
                     <label htmlFor="summary">Résumé</label>
-                    <textarea id="summary" rows={3} value={values.summary} onChange={(event) => update('summary', event.target.value)} />
+                    <textarea
+                      id="summary"
+                      rows={3}
+                      value={values.summary}
+                      onChange={(event) => update('summary', event.target.value)}
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
                   </div>
                   <div className="field">
                     <label htmlFor="posterUrl">URL directe de l’affiche</label>

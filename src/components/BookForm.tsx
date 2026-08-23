@@ -53,6 +53,8 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
   const hasVolumes = values.category === 'manga' || values.category === 'comics'
   const progressVisible = hasVolumes && (values.status === 'en cours' || values.status === 'abandonné' || values.status === 'lu')
   const ratingValue = values.rating === '' ? null : Number(values.rating)
+  // « À lire » : pas encore de verdict, on masque note, cœur, dates et avis.
+  const verdictVisible = values.status !== 'à lire'
 
   const update = <Key extends Exclude<keyof BookFormValues, 'quotes'>>(
     key: Key,
@@ -170,8 +172,12 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
                 value={values.status}
                 onChange={(next) => update('status', next as BookFormValues['status'])}
               />
-              <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+              {verdictVisible && (
+                <>
+                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+                </>
+              )}
             </div>
 
             {!assisted && (
@@ -193,7 +199,7 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
               </div>
             )}
 
-            {progressVisible && (
+            {verdictVisible && progressVisible && (
               <fieldset className="progress-fields verdict-progress">
                 <legend>Avancement</legend>
                 <div className="form-row">
@@ -240,16 +246,22 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
             </div>
             {errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 
-            <div className="review-write">
-              <textarea
-                id="book-personalNote"
-                name="personalNote"
-                rows={5}
-                placeholder="Qu’as-tu pensé de ce livre ?"
-                value={values.personalNote}
-                onChange={(event) => update('personalNote', event.target.value)}
-              />
-            </div>
+            {verdictVisible ? (
+              <div className="review-write">
+                <textarea
+                  id="book-personalNote"
+                  name="personalNote"
+                  rows={5}
+                  placeholder="Qu’as-tu pensé de ce livre ?"
+                  value={values.personalNote}
+                  onChange={(event) => update('personalNote', event.target.value)}
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </div>
+            ) : (
+              <p className="verdict-hint">Passe le livre en « En cours », « Lu » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
+            )}
 
             <section className="quote-editor" aria-labelledby="quote-editor-title">
               <div className="quote-editor-heading">
@@ -272,6 +284,8 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
                           rows={3}
                           value={quote}
                           onChange={(event) => updateQuote(index, event.target.value)}
+                          autoCorrect="off"
+                          spellCheck={false}
                         />
                       </div>
                       <button className="delete-link" type="button" onClick={() => removeQuote(index)}>
@@ -311,7 +325,14 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
                   </div>
                   <div className="field">
                     <label htmlFor="book-summary">Résumé</label>
-                    <textarea id="book-summary" rows={3} value={values.summary} onChange={(event) => update('summary', event.target.value)} />
+                    <textarea
+                      id="book-summary"
+                      rows={3}
+                      value={values.summary}
+                      onChange={(event) => update('summary', event.target.value)}
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
                   </div>
                   <div className="field">
                     <label htmlFor="book-coverUrl">URL directe de la couverture</label>

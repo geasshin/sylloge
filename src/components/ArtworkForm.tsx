@@ -142,8 +142,27 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
                 placeholder="Qu’as-tu ressenti face à cette œuvre ?"
                 value={values.personalNote}
                 onChange={(event) => update('personalNote', event.target.value)}
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
+          </div>
+
+          {/* Visuel de l'œuvre : accessible sans fournisseur */}
+          <div className="field">
+            <label htmlFor="artwork-imageUrl">Visuel de l’œuvre (URL d’une image)</label>
+            <input
+              id="artwork-imageUrl"
+              type="url"
+              inputMode="url"
+              placeholder="https://…/oeuvre.jpg"
+              value={values.imageUrl}
+              onChange={(event) => update('imageUrl', event.target.value)}
+              aria-invalid={Boolean(errors.imageUrl)}
+              aria-describedby={`artwork-image-help${errors.imageUrl ? ' artwork-image-error' : ''}`}
+            />
+            <p className="field-help" id="artwork-image-help">Colle l’adresse d’une image de l’œuvre ; elle apparaît à gauche. Une image indisponible n’empêchera pas l’enregistrement.</p>
+            {errors.imageUrl && <p className="field-error" id="artwork-image-error">{errors.imageUrl}</p>}
           </div>
 
           {/* Champs éditoriaux : repliés par défaut */}
@@ -193,21 +212,6 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
               <div className="field">
                 <label htmlFor="artwork-exhibition">Exposition</label>
                 <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
-              </div>
-              <div className="field">
-                <label htmlFor="artwork-imageUrl">URL directe du visuel</label>
-                <input
-                  id="artwork-imageUrl"
-                  type="url"
-                  inputMode="url"
-                  placeholder="https://…/oeuvre.jpg"
-                  value={values.imageUrl}
-                  onChange={(event) => update('imageUrl', event.target.value)}
-                  aria-invalid={Boolean(errors.imageUrl)}
-                  aria-describedby={`artwork-image-help${errors.imageUrl ? ' artwork-image-error' : ''}`}
-                />
-                <p className="field-help" id="artwork-image-help">Une image indisponible n’empêchera pas l’enregistrement.</p>
-                {errors.imageUrl && <p className="field-error" id="artwork-image-error">{errors.imageUrl}</p>}
               </div>
             </div>
           </details>

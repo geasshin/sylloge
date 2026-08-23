@@ -46,6 +46,8 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const ratingValue = values.rating === '' ? null : Number(values.rating)
+  // « À jouer » : pas encore de verdict, on masque note, cœur, date et avis.
+  const verdictVisible = values.status !== 'à jouer'
 
   const update = <Key extends keyof GameFormValues>(key: Key, value: GameFormValues[Key]) => {
     setValues((current) => ({ ...current, [key]: value }))
@@ -117,39 +119,52 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
                 value={values.status}
                 onChange={(next) => update('status', next as GameFormValues['status'])}
               />
-              <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-            </div>
-
-            <div className="date-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              <input
-                id="game-playedAt"
-                name="playedAt"
-                type="date"
-                value={values.playedAt}
-                onChange={(event) => update('playedAt', event.target.value)}
-                aria-label={values.status === 'regardé' ? 'Date du visionnage' : 'Date de jeu'}
-                aria-invalid={Boolean(errors.playedAt)}
-              />
-              {values.status !== 'à jouer' && values.playedAt !== today && (
-                <button type="button" className="link-accent" onClick={() => update('playedAt', today)}>
-                  Utiliser aujourd’hui
-                </button>
+              {verdictVisible && (
+                <>
+                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+                </>
               )}
             </div>
-            {errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
 
-            <div className="review-write">
-              <textarea
-                id="game-personalNote"
-                name="personalNote"
-                rows={5}
-                placeholder="Qu’as-tu pensé de ce jeu ?"
-                value={values.personalNote}
-                onChange={(event) => update('personalNote', event.target.value)}
-              />
-            </div>
+            {verdictVisible && (
+              <>
+                <div className="date-row">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  <input
+                    id="game-playedAt"
+                    name="playedAt"
+                    type="date"
+                    value={values.playedAt}
+                    onChange={(event) => update('playedAt', event.target.value)}
+                    aria-label={values.status === 'regardé' ? 'Date du visionnage' : 'Date de jeu'}
+                    aria-invalid={Boolean(errors.playedAt)}
+                  />
+                  {values.status !== 'à jouer' && values.playedAt !== today && (
+                    <button type="button" className="link-accent" onClick={() => update('playedAt', today)}>
+                      Utiliser aujourd’hui
+                    </button>
+                  )}
+                </div>
+                {errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
+
+                <div className="review-write">
+                  <textarea
+                    id="game-personalNote"
+                    name="personalNote"
+                    rows={5}
+                    placeholder="Qu’as-tu pensé de ce jeu ?"
+                    value={values.personalNote}
+                    onChange={(event) => update('personalNote', event.target.value)}
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                </div>
+              </>
+            )}
+            {!verdictVisible && (
+              <p className="verdict-hint">Passe le jeu en « En cours », « Joué » ou « Regardé » pour ajouter ta note, ta date et ton avis.</p>
+            )}
           </div>
 
           {/* Champs éditoriaux : cachés en création assistée */}

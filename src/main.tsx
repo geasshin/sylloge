@@ -496,31 +496,81 @@ function HomeFilmModule({
 
 type HomeProps = {
   library: FilmLibrary
+  seriesCollection: Series[]
+  bookCollection: Book[]
+  gameCollection: Game[]
+  artworkCollection: Artwork[]
   onOpen: (film: Film) => void
+  onOpenSeries: (series: Series) => void
+  onOpenBook: (book: Book) => void
+  onOpenGame: (game: Game) => void
+  onOpenArtwork: (artwork: Artwork) => void
 }
 
-function Home({ library, onOpen }: HomeProps) {
+function Home({ library, seriesCollection, bookCollection, gameCollection, artworkCollection, onOpen, onOpenSeries, onOpenBook, onOpenGame, onOpenArtwork }: HomeProps) {
   const recentlyWatched = library.films
     .filter((film) => film.status === 'terminé' && film.watchedAt)
     .sort(compareByWatchedAt)
-    .slice(0, 4)
+    .slice(0, 6)
   const favorites = library.films
     .filter((film) => film.isFavorite)
     .sort(compareByCreatedAt)
     .slice(0, 4)
-  const waiting = library.films
-    .filter((film) => film.status === 'en attente')
-    .sort(compareByCreatedAt)
-    .slice(0, 4)
-  const recentlyAdded = [...library.films].sort(compareByCreatedAt).slice(0, 4)
+  const recentlyAdded = [...library.films].sort(compareByCreatedAt).slice(0, 6)
   const calendarDays = buildCalendarDays(library.films)
   const hasViewedFilm = calendarDays.some((day) => day.filmCount > 0)
-  const contextualFilms = waiting.length > 0 ? waiting : recentlyAdded
-  const contextualTitle = waiting.length > 0 ? 'En attente' : 'Ajoutés récemment'
-  const contextualDescription = waiting.length > 0 ? 'Films marqués en attente' : 'Films ajoutés récemment à la bibliothèque'
-  const contextualEmptyMessage = waiting.length > 0
-    ? 'Aucun film en attente n’est disponible à afficher.'
-    : 'Aucun film n’a encore été ajouté à la bibliothèque.'
+
+  // Multi-médiums : les ajouts récents de toute la bibliothèque, mélangés.
+  type RecentEntry = { key: string; label: string; title: string; subtitle: string; poster: string | null; createdAt: string; onOpen: () => void }
+  const recentEntries: RecentEntry[] = [
+    ...library.films.map((film) => ({
+      key: `film-${film.id}`,
+      label: 'Film',
+      title: film.title,
+      subtitle: [film.director, film.year].filter((value) => value !== null).join(' · '),
+      poster: film.posterUrl,
+      createdAt: film.createdAt,
+      onOpen: () => onOpen(film),
+    })),
+    ...seriesCollection.map((series) => ({
+      key: `series-${series.id}`,
+      label: 'Série',
+      title: series.title,
+      subtitle: series.showrunner ?? '',
+      poster: series.posterUrl,
+      createdAt: series.createdAt,
+      onOpen: () => onOpenSeries(series),
+    })),
+    ...bookCollection.map((book) => ({
+      key: `book-${book.id}`,
+      label: BOOK_CATEGORY_LABELS[book.category],
+      title: book.title,
+      subtitle: book.author ?? '',
+      poster: book.coverUrl,
+      createdAt: book.createdAt,
+      onOpen: () => onOpenBook(book),
+    })),
+    ...gameCollection.map((game) => ({
+      key: `game-${game.id}`,
+      label: 'Jeu',
+      title: game.title,
+      subtitle: [game.developer, game.year].filter((value) => value !== null).join(' · '),
+      poster: game.coverUrl,
+      createdAt: game.createdAt,
+      onOpen: () => onOpenGame(game),
+    })),
+    ...artworkCollection.map((artwork) => ({
+      key: `artwork-${artwork.id}`,
+      label: ARTWORK_FORM_LABELS[artwork.form],
+      title: artwork.title,
+      subtitle: artwork.artist ?? '',
+      poster: artwork.imageUrl,
+      createdAt: artwork.createdAt,
+      onOpen: () => onOpenArtwork(artwork),
+    })),
+  ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 8)
+
+  const recentEntriesVisible = recentEntries.length > 0
 
   return (
     <main className="main home-main" aria-label="Accueil">
@@ -531,6 +581,29 @@ function Home({ library, onOpen }: HomeProps) {
         </header>
 
         <div className="home-grid">
+          {recentEntriesVisible && (
+            <section className="home-module home-module-all-recent" aria-labelledby="all-recent-title">
+              <header className="home-module-heading">
+                <div>
+                  <p className="card-kicker">Toute la bibliothèque</p>
+                  <h2 id="all-recent-title">Derniers ajouts</h2>
+                </div>
+                <p>Films, séries, livres, jeux et art confondus</p>
+              </header>
+              <div className="home-recent-list">
+                {recentEntries.map((entry) => (
+                  <button key={entry.key} type="button" className="home-recent-card" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}`}>
+                    <Poster title={entry.title} src={entry.poster} className="home-film-poster" />
+                    <span className="home-recent-info">
+                      <span className="home-recent-label">{entry.label}</span>
+                      <b>{entry.title}</b>
+                      {entry.subtitle && <small>{entry.subtitle}</small>}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           <HomeFilmModule
             title="Vus récemment"
             description="Films terminés avec une date de visionnage"
@@ -548,10 +621,10 @@ function Home({ library, onOpen }: HomeProps) {
             onOpen={onOpen}
           />
           <HomeFilmModule
-            title={contextualTitle}
-            description={contextualDescription}
-            films={contextualFilms}
-            emptyMessage={contextualEmptyMessage}
+            title="Ajoutés récemment"
+            description="Films ajoutés récemment à la bibliothèque"
+            films={recentlyAdded}
+            emptyMessage="Aucun film n’a encore été ajouté à la bibliothèque."
             className="home-module-context"
             onOpen={onOpen}
           />
@@ -1980,7 +2053,15 @@ function App() {
     content = (
       <Home
         library={libraryState.library}
+        seriesCollection={seriesCollection}
+        bookCollection={bookCollection}
+        gameCollection={gameCollection}
+        artworkCollection={artworkCollection}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'home' })}
+        onOpenSeries={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
+        onOpenBook={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
+        onOpenGame={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
+        onOpenArtwork={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
       />
     )
   } else if (view.name === 'tmdb-search') {
