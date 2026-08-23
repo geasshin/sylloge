@@ -17,7 +17,7 @@ import type { Series } from '../domain/series.ts'
 type CollectionCsvImportFlowProps = {
   kind: CollectionCsvImportKind
   contents: string
-  onReady: (items: Artwork[] | Book[] | Game[] | Series[]) => void
+  onReady: (items: Artwork[] | Book[] | Game[] | Series[], warnings: Array<{ path: string; message: string }>) => void
   onChooseAnother: () => void
 }
 
@@ -115,7 +115,9 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
           preview={preview}
           onBack={() => setStep(session.sourceKind === 'sylloge-csv-v1' ? 'preview' : 'mapping')}
           onContinue={() => {
-            if (preview.items !== null && preview.errors.length === 0 && preview.items.length > 0) onReady(preview.items as Artwork[] | Book[] | Game[] | Series[])
+            if (preview.items !== null && preview.items.length > 0) {
+              onReady(preview.items as Artwork[] | Book[] | Game[] | Series[], preview.errors)
+            }
           }}
         />
       )}

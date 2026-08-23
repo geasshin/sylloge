@@ -573,11 +573,13 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 #### `0.6.4` — Aperçu honnête, import complet, résumé final lisible
 
-- L'aperçu cesse d'être tout-ou-rien : **« N fiches prêtes · M lignes ignorées »**, la liste des problèmes triée par ligne avec cause en français et la cellule fautive visible.
-- Tout ce qui peut être importé est importé, même incomplet : un champ introuvable ou illisible reste simplement vide dans la fiche créée. La personne complète ou corrige plus tard — Sylloge ne lui mentira jamais sur ce qui est entré.
-- À la fin de l'écriture, un **résumé final lisible et intuitif** : nombre de fiches créées, fusionnées, ignorées, puis la liste des œuvres impactées et, pour chacune, les champs non remplis (« Un homme qui dort — note et avis non trouvés », « Past Lives — date de visionnage absente »…). C'est le dernier écran du parcours, au même titre d'importance que l'aperçu.
-- Les doublons continuent de passer par le résolveur existant avant écriture ; l'écriture reste atomique et unique.
-- Critères : sur un CSV dont 30 % des lignes ont un défaut, l'utilisateur obtient ses 70 % de fiches complètes ou partielles, voit exactement ce qui manque et où ; tests d'intégration sur le décompte, les champs vides annoncés et l'atomicité.
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** L'aperçu des quatre médiums non-Films affiche désormais « N fiches prêtes · Blocages » et regroupe les champs laissés vides dans une zone jaune repliable (mécanisme 0.6.3). Après écriture, le **Rapport final** devient le résumé complet du parcours : lignes ignorées sans titre, puis liste repliable « Champs laissés vides sur N fiches — à compléter quand tu veux » nommant chaque œuvre et ses champs manquants (note, avis, affiche, couverture, visuel selon le médium), ou la mention « toutes les données reconnues ont été importées ». Les avertissements de mapping transitent maintenant du flow CSV vers le bouton d'import via `onReady(items, warnings)`.
+
+- Aperçu tout-ou-rien remplacé : fiches prêtes comptées séparément des blocages. ✓
+- Tout ce qui peut être importé entre, même incomplet ; champs introuvables laissés vides. ✓
+- **Résumé final lisible** : lignes ignorées + œuvres impactées avec leurs champs non remplis. ✓
+- Écriture atomique unique inchangée, doublons toujours via le résolveur. ✓
+- Critères : un CSV à 30 % de défauts produit ses 70 % de fiches avec le détail de ce qui manque ; tests verts. ✓
 
 #### `0.6.5` — Prendre la main : assistant d'import et documentation
 

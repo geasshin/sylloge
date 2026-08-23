@@ -103,6 +103,8 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
   const [fileName, setFileName] = useState<string | null>(null)
   const [importedCount, setImportedCount] = useState(0)
   const [report, setReport] = useState<string | null>(null)
+  /** Résumé final (0.6.4) : champs laissés vides et lignes ignorées, par œuvre. */
+  const [finalSummary, setFinalSummary] = useState<{ skippedLines: string[]; emptyFields: Array<{ title: string; fields: string[] }> }>({ skippedLines: [], emptyFields: [] })
   const [externalFilmSource, setExternalFilmSource] = useState<PickedFilmsImportFile | null>(null)
   const [externalCollectionCsv, setExternalCollectionCsv] = useState<{
     kind: 'series' | 'books' | 'games' | 'artworks'
@@ -146,6 +148,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     setFileName(null)
     setImportedCount(0)
     setReport(null)
+    setFinalSummary({ skippedLines: [], emptyFields: [] })
     setExternalFilmSource(null)
     setExternalCollectionCsv(null)
     setContainerSource(null)
@@ -286,6 +289,29 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     else return
     setImportedCount(items.length)
     setStep('mode')
+  }
+
+  /** Construit le résumé final depuis les avertissements du mapping CSV (0.6.4). */
+  const buildFinalSummary = (
+    items: Artwork[] | Book[] | Game[] | Series[],
+    warnings: Array<{ path: string; message: string }>,
+  ) => {
+    const emptyFields: Array<{ title: string; fields: string[] }> = []
+    for (const item of items) {
+      const fields: string[] = []
+      if ('rating' in item && item.rating === null) fields.push('note')
+      if (!item.personalNote) fields.push('avis')
+      if ('imageUrl' in item && !item.imageUrl) fields.push('visuel')
+      if ('coverUrl' in item && !item.coverUrl) fields.push('couverture')
+      if ('posterUrl' in item && !item.posterUrl) fields.push('affiche')
+      if (fields.length > 0) emptyFields.push({ title: item.title, fields })
+    }
+    setFinalSummary({
+      skippedLines: warnings
+        .filter((warning) => !warning.path.endsWith('.info') && /titre/i.test(warning.message))
+        .map((warning) => warning.path.replace(/\.[^.]+$/, '')),
+      emptyFields,
+    })
   }
 
   const chooseMode = (mode: ImportMode) => {
@@ -476,7 +502,10 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
             <CollectionCsvImportFlow
               kind={externalCollectionCsv.kind}
               contents={externalCollectionCsv.contents}
-              onReady={acceptExternalCollectionCsv}
+              onReady={(items, warnings) => {
+                buildFinalSummary(items, warnings)
+                acceptExternalCollectionCsv(items)
+              }}
               onChooseAnother={() => {
                 setExternalCollectionCsv(null)
                 setFileName(null)
@@ -567,10 +596,32 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                 <ul>
                   {fileName && <li>Fichier lu : {fileName}</li>}
                   {report && <li>{report}</li>}
+                  {finalSummary.skippedLines.length > 0 && (
+                    <li>
+                      {finalSummary.skippedLines.length} ligne{finalSummary.skippedLines.length > 1 ? 's ignorées' : ' ignorée'} — sans titre, non créée{finalSummary.skippedLines.length > 1 ? 's' : ''} ({finalSummary.skippedLines.join(', ')})
+                    </li>
+                  )}
                   <li>Profil courant conservé</li>
                 </ul>
+                {finalSummary.emptyFields.length > 0 && (
+                  <details className="final-summary-fields" open={finalSummary.emptyFields.length <= 12}>
+                    <summary>
+                      Champs laissés vides sur {finalSummary.emptyFields.length} fiche{finalSummary.emptyFields.length > 1 ? 's' : ''} — à compléter quand tu veux
+                    </summary>
+                    <ul className="final-summary-list">
+                      {finalSummary.emptyFields.map((entry) => (
+                        <li key={entry.title}>
+                          <b>{entry.title}</b> — {entry.fields.join(', ')}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {finalSummary.emptyFields.length === 0 && finalSummary.skippedLines.length === 0 && (
+                  <p className="import-hint">Toutes les données reconnues ont été importées.</p>
+                )}
               </div>
-              <div className="assistant-actions">
+              <div className="assistant-actions assistant-actions-single">
                 <button className="primary-button" type="button" onClick={close}>Fermer</button>
               </div>
             </div>
