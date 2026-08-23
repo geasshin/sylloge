@@ -34,7 +34,6 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
   const [showPosterGallery, setShowPosterGallery] = useState(false)
   const [savingPoster, setSavingPoster] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [synopsisExpanded, setSynopsisExpanded] = useState(false)
 
   const displayPosterUrl = tmdbCache?.selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
   const displayTitle = tmdbCache?.presentation.title ?? film.title
@@ -48,7 +47,6 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
     ? tmdbCache.presentation.cast.slice(0, 3).map((member) => member.name).join(', ')
     : null
   const synopsis = tmdbCache?.presentation.synopsis ?? film.summary
-  const synopsisLong = synopsis !== null && synopsis.length > 420
   const allPosters = tmdbCache
     ? [tmdbCache.presentation.posterUrl, ...tmdbCache.presentation.alternativePosterUrls].filter(Boolean) as string[]
     : []
@@ -235,14 +233,7 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
 
           {!tmdbLoading && synopsis && (
             <div className="synopsis-block">
-              <p className={synopsisExpanded ? 'expanded' : ''}>
-                {synopsisExpanded || !synopsisLong ? synopsis : `${synopsis.slice(0, 400)}… `}
-                {synopsisLong && (
-                  <button className="link-accent" type="button" onClick={() => setSynopsisExpanded((value) => !value)}>
-                    {synopsisExpanded ? 'Réduire' : 'Lire la suite'}
-                  </button>
-                )}
-              </p>
+              <p>{synopsis}</p>
             </div>
           )}
 
