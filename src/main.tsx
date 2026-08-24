@@ -1103,14 +1103,20 @@ type LibraryContext = {
 const ALL_SERIES_CATEGORIES = SERIES_CATEGORIES as readonly SeriesCategory[]
 const ALL_BOOK_CATEGORIES = BOOK_CATEGORIES as readonly BookCategory[]
 
-/** Liste de catégories → valeur du filtre dépôt (vide = toutes). */
-function categoriesToFilter(categories: readonly string[]): string {
-  return categories.length === 0 ? 'all' : categories[0]
+/**
+ * Sélection de catégories → valeur stockée dans une vue enregistrée.
+ * Liste vide ou complète = « all » ; sinon les catégories jointes par « | »,
+ * sans perte pour une sélection partielle multiple.
+ */
+function categoriesToStored(categories: readonly string[], complete: readonly string[]): string {
+  if (categories.length === 0 || categories.length === complete.length) return 'all'
+  return categories.join('|')
 }
 
-/** Valeur « all » ou catégorie unique → liste pour l'interrupteur. */
-function filterToCategories(value: string): string[] {
-  return value === 'all' ? [] : [value]
+/** Valeur stockée (« all », catégorie, ou « a|b ») → liste pour l'interrupteur. */
+function storedToCategories(value: string): string[] {
+  if (value === 'all' || value.trim() === '') return []
+  return value.split('|').map((entry) => entry.trim()).filter(Boolean)
 }
 
 /** Libellé lisible des catégories actives d'une bibliothèque, null si toutes. */
@@ -1735,13 +1741,16 @@ function SeriesLibrary({
               onViewChange={(view) => onContextChange({ ...context, view })}
               filterConfig={{ ...SERIES_FILTER_PANEL_CONFIG, mediumFilter: null }}
               mediumFilterValue="all"
-              onMediumFilterChange={() => {}}
+              onMediumFilterChange={(stored) => {
+                const selected = storedToCategories(stored)
+                onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] })
+              }}
               extraFilters={context.extraFilters}
               onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
               sortCapabilities={{ rating: true, year: false }}
               sortOverride={context.sortOverride}
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToFilter(context.category), filters: resolved.filters }}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_SERIES_CATEGORIES), filters: resolved.filters }}
             />
           </div>
 
@@ -2307,13 +2316,16 @@ function BooksLibrary({
               onViewChange={(view) => onContextChange({ ...context, view })}
               filterConfig={{ ...BOOK_FILTER_PANEL_CONFIG, mediumFilter: null }}
               mediumFilterValue="all"
-              onMediumFilterChange={() => {}}
+              onMediumFilterChange={(stored) => {
+                const selected = storedToCategories(stored)
+                onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_BOOK_CATEGORIES]) as BookCategory[] })
+              }}
               extraFilters={context.extraFilters}
               onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
               sortCapabilities={{ rating: true, year: true }}
               sortOverride={context.sortOverride}
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToFilter(context.category), filters: resolved.filters }}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_BOOK_CATEGORIES), filters: resolved.filters }}
             />
           </div>
 
@@ -2680,7 +2692,7 @@ function App() {
     setSeriesSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
       const resolved = resolveLibraryQuery(seriesContext.view, seriesContext.extraFilters, seriesContext.sortOverride)
-      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: categoriesToFilter(seriesContext.category) as SeriesCategory | 'all', filters: resolved.filters, sort: resolved.sort }).then(
+      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: seriesContext.category, filters: resolved.filters, sort: resolved.sort }).then(
         (series) => {
           if (!cancelled) setSeriesSearchState({ status: 'ready', series })
         },
@@ -2703,7 +2715,7 @@ function App() {
     setBookSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
       const resolved = resolveLibraryQuery(bookContext.view, bookContext.extraFilters, bookContext.sortOverride)
-      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: categoriesToFilter(bookContext.category) as BookCategory | 'all', filters: resolved.filters, sort: resolved.sort }).then(
+      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: bookContext.category, filters: resolved.filters, sort: resolved.sort }).then(
         (books) => {
           if (!cancelled) setBookSearchState({ status: 'ready', books })
         },

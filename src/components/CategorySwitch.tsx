@@ -4,10 +4,10 @@ import { BOOK_CATEGORIES } from '../domain/book.ts'
 /**
  * Interrupteur de catégories (0.6.8) : un seul bloc segmenté, plusieurs
  * sélections possibles — au moins une catégorie reste toujours active, donc
- * deux actives équivalent à « tout afficher ». Il pilote le filtre catégorie
+ * toutes actives équivaut à « tout afficher ». Il pilote le filtre catégorie
  * existant : la sélection s'applique à toutes les vues et se combine avec
- * elles, exactement comme le filtre du panneau qu'il remplace pour Séries
- * et Livres.
+ * elles. Chaque segment porte une coche quand il est actif : l'état se lit
+ * d'un coup d'œil, sans ambiguïté avec un groupe de boutons exclusifs.
  */
 export function CategorySwitch({
   categories,
@@ -17,38 +17,36 @@ export function CategorySwitch({
 }: {
   /** Valeurs de catégorie dans l'ordre d'affichage, 'all' exclu. */
   categories: readonly string[]
-  /** Sélection courante : liste de catégories actives (jamais vide). */
+  /** Sélection courante : catégories actives ; liste vide = toutes. */
   value: readonly string[]
   onChange: (next: string[]) => void
   /** Étiquettes courtes affichées sur chaque segment. */
   labels: Record<string, string>
 }) {
+  const effective = value.length === 0 ? categories : value
   const toggle = (category: string) => {
-    const active = value.includes(category)
-    if (active && value.length === 1) return
-    const next = active ? value.filter((entry) => entry !== category) : [...value, category]
+    const active = effective.includes(category)
+    if (active && effective.length === 1) return
+    const next = active ? effective.filter((entry) => entry !== category) : [...effective, category]
     // Tout sélectionné = filtre neutre : même sémantique que « all ».
-    const allSelected = categories.every((category_) => next.includes(category_))
+    const allSelected = categories.every((entry) => next.includes(entry))
     onChange(allSelected ? [] : next)
   }
 
   return (
-    <div className="category-switch" role="group" aria-label="Choisir les catégories affichées">
+    <div className="category-switch" role="group" aria-label="Catégories affichées">
       {categories.map((category) => {
-        const pressed = value.includes(category)
+        const pressed = effective.includes(category)
         return (
           <button
             key={category}
             type="button"
             className={`category-switch-segment ${pressed ? 'active' : ''}`}
             aria-pressed={pressed}
-            title={
-              pressed
-                ? `Masquer ${labels[category] ?? category}`
-                : `Afficher ${labels[category] ?? category}`
-            }
+            title={pressed ? `Masquer ${labels[category] ?? category}` : `Afficher ${labels[category] ?? category}`}
             onClick={() => toggle(category)}
           >
+            <span className={`category-switch-check ${pressed ? 'on' : ''}`} aria-hidden="true">✓</span>
             {labels[category] ?? category}
           </button>
         )

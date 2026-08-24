@@ -307,14 +307,16 @@ export function toArtwork(row: ArtworkRow): Artwork {
 
 export type SeriesSearchCriteria = {
   query: string
-  category: SeriesCategory | 'all'
+  /** Une catégorie, plusieurs (interrupteur 0.6.8), ou 'all'. */
+  category: SeriesCategory | readonly SeriesCategory[] | 'all'
   filters?: LibraryFilters
   sort: LibrarySort
 }
 
 export type BookSearchCriteria = {
   query: string
-  category: BookCategory | 'all'
+  /** Une catégorie, plusieurs (interrupteur 0.6.8), ou 'all'. */
+  category: BookCategory | readonly BookCategory[] | 'all'
   filters?: LibraryFilters
   sort: LibrarySort
 }
@@ -428,8 +430,18 @@ export class SqliteMediaRepository {
     }
 
     if (criteria.category !== 'all') {
-      bindValues.push(criteria.category)
-      clauses.push(`category = $${bindValues.length}`)
+      // Interrupteur 0.6.8 : la sélection peut compter plusieurs catégories.
+      const selected = Array.isArray(criteria.category) ? criteria.category : [criteria.category]
+      if (selected.length === 1) {
+        bindValues.push(selected[0])
+        clauses.push(`category = $${bindValues.length}`)
+      } else if (selected.length > 1) {
+        const placeholders = selected.map((value) => {
+          bindValues.push(value)
+          return `$${bindValues.length}`
+        })
+        clauses.push(`category IN (${placeholders.join(', ')})`)
+      }
     }
 
     appendLibraryFilterClauses(criteria.filters, SERIES_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
@@ -646,8 +658,18 @@ export class SqliteMediaRepository {
     }
 
     if (criteria.category !== 'all') {
-      bindValues.push(criteria.category)
-      clauses.push(`category = $${bindValues.length}`)
+      // Interrupteur 0.6.8 : la sélection peut compter plusieurs catégories.
+      const selected = Array.isArray(criteria.category) ? criteria.category : [criteria.category]
+      if (selected.length === 1) {
+        bindValues.push(selected[0])
+        clauses.push(`category = $${bindValues.length}`)
+      } else if (selected.length > 1) {
+        const placeholders = selected.map((value) => {
+          bindValues.push(value)
+          return `$${bindValues.length}`
+        })
+        clauses.push(`category IN (${placeholders.join(', ')})`)
+      }
     }
 
     appendLibraryFilterClauses(criteria.filters, BOOK_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)

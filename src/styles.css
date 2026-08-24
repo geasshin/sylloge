@@ -1814,14 +1814,26 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   flex: 0 0 auto;
 }
 .category-switch-segment {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
   min-height: 32px;
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--color-text-subtle);
   border: none;
   background: none;
 }
+.category-switch-check {
+  display: inline-block;
+  width: 13px;
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+  opacity: 0;
+}
+.category-switch-check.on { opacity: 1; }
 .category-switch-segment + .category-switch-segment { border-left: 1px solid var(--color-hairline); }
 .category-switch-segment:hover { color: var(--color-text); }
 .category-switch-segment.active {
