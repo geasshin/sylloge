@@ -1,22 +1,22 @@
 :root {
-  /* Direction artistique : gris anthracite moderne.
-     Light mode : surfaces claires neutres sur base anthracite adoucie. */
-  --color-canvas: #F4F4F3;
+  /* Direction artistique : gris anthracite ultra-moderne, monochrome.
+     Light mode : gris froids neutres, accent = encre presque noire. */
+  --color-canvas: #F6F6F7;
   --color-surface: #FFFFFF;
-  --color-surface-muted: #ECECEB;
-  --color-poster-fallback: #E4E4E2;
-  --color-text: #1C1C1E;
-  --color-text-muted: #63636A;
-  --color-text-subtle: #9A9AA1;
-  --color-border: #DEDEDD;
-  --color-hairline: #EAEAEA;
+  --color-surface-muted: #EDEDEF;
+  --color-poster-fallback: #E5E5E8;
+  --color-text: #17171A;
+  --color-text-muted: #606068;
+  --color-text-subtle: #98989F;
+  --color-border: #E1E1E5;
+  --color-hairline: #EBEBEE;
   --color-personal: #473952;
-  --color-accent: #2E7D5B;
-  --color-accent-soft: #E3F0E9;
+  --color-accent: #232327;
+  --color-accent-soft: #EBEBEF;
   --color-positive: #4A6B57;
-  --color-danger: #9C3B2E;
+  --color-danger: #A03A2D;
   --color-danger-soft: #F6ECEA;
-  --color-focus: #2E7D5B;
+  --color-focus: #55555E;
   /* Texte posé sur un fond accent/positif/danger */
   --color-on-accent: #FFFFFF;
   /* Encarts sémantiques et détails */
@@ -24,9 +24,9 @@
   --color-text-secondary: #55555C;
   --color-danger-border: #D8B8B4;
   --color-danger-text: #7A4438;
-  --color-accent-border: #BCD6C9;
-  --color-positive-border: #B9CFC2;
-  --color-positive-soft: #EDF3EF;
+  --color-accent-border: #C6C6CD;
+  --color-positive-border: #C6C6CD;
+  --color-positive-soft: #EDEDEF;
   --color-warning-border: #E2D5A8;
   --color-warning-soft: #F7F2E2;
   --color-warning-text: #6C571A;
@@ -37,31 +37,31 @@
   --shadow-visual-value: 0 1px 2px rgba(28, 28, 30, .08), 0 8px 24px -12px rgba(28, 28, 30, .18);
   --shadow-lifted-value: 0 2px 4px rgba(28, 28, 30, .08), 0 16px 34px -14px rgba(28, 28, 30, .28);
   /* Couleurs du hero sombre (identiques dans les deux thèmes) */
-  --hero-bg: #26231F;
-  --hero-text: #F5F3EE;
+  --hero-bg: #1D1D20;
+  --hero-text: #F2F2F4;
   --hero-text-muted: rgba(245, 243, 238, .62);
   --hero-stat-bg: rgba(255, 255, 255, .06);
-  --hero-calendar-card: rgba(250, 249, 246, .97);
+  --hero-calendar-card: rgba(246, 246, 247, .97);
   --hover-border: #CFCFD0;
   /* Dark mode : gris anthracite profond, surfaces en dégradés subtils */
   &[data-theme='dark'] {
-    --color-canvas: #1A1A1C;
-    --color-surface: #242427;
-    --color-surface-muted: #2E2E32;
-    --color-poster-fallback: #323236;
-    --color-text: #ECECED;
-    --color-text-muted: #A5A5AC;
-    --color-text-subtle: #71717A;
-    --color-border: #3B3B40;
-    --color-hairline: #313135;
+    --color-canvas: #161618;
+    --color-surface: #232326;
+    --color-surface-muted: #2D2D31;
+    --color-poster-fallback: #313136;
+    --color-text: #EDEDEF;
+    --color-text-muted: #A3A3AB;
+    --color-text-subtle: #6F6F78;
+    --color-border: #3A3A3F;
+    --color-hairline: #303035;
     --color-personal: #B9A8D4;
-    --color-accent: #4CAF85;
-    --color-accent-soft: #24352D;
+    --color-accent: #EDEDEF;
+    --color-accent-soft: #2E2E33;
     --color-positive: #7BAF92;
     --color-danger: #D07A6C;
     --color-danger-soft: #3A2825;
-    --color-focus: #4CAF85;
-    --color-on-accent: #FFFFFF;
+    --color-focus: #8E8E98;
+    --color-on-accent: #17171A;
     --color-star-empty: #3A3A3F;
     --color-text-secondary: #B5B5BC;
     --color-danger-border: #5C382F;
@@ -626,7 +626,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   padding: 0 16px;
   color: var(--color-text-muted);
 }
-.search:focus-within { border-color: var(--color-accent-border); }
+.search:focus-within { border-color: var(--color-focus); }
 .search:has(input:focus-visible) { border-color: var(--color-accent); box-shadow: 0 0 0 3px var(--color-accent-soft); }
 /* La pilule de recherche porte son propre état de focus : l'input ne dessine jamais le sien */
 .search input:focus-visible {

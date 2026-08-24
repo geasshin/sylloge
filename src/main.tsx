@@ -484,13 +484,14 @@ const MEDIUM_CARD_LABELS: Record<MediumFilterKey, string> = {
   art: 'Art',
 }
 
-/** Couleur du point de calendrier par médium. */
+/** Couleur du point de calendrier par médium — palette désaturée,
+ * cohérente avec la direction anthracite (lisibles sur clair et sombre). */
 export const MEDIUM_DOT_COLORS: Record<MediumFilterKey, string> = {
-  film: '#C0473B',
-  'série': '#5B3A68',
-  livre: '#D9A21B',
-  jeu: '#44708F',
-  art: '#B8577E',
+  film: '#A8645C',
+  'série': '#7D729B',
+  livre: '#B39A55',
+  jeu: '#64809B',
+  art: '#AD7288',
 }
 
 type HomeEntry = {
