@@ -220,17 +220,6 @@ function Sidebar({
             <span>Sylloge</span>
           </span>
         </button>
-        <button
-          className={`sidebar-toggle ${expanded ? '' : 'is-floating'}`}
-          type="button"
-          onClick={onToggleExpanded}
-          title={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
-          aria-label={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
-          aria-pressed={expanded}
-          data-tooltip={expanded ? undefined : 'Barre latérale'}
-        >
-          {icon('panel')}
-        </button>
       </div>
       {settingsOpen ? (
         <nav aria-label="Navigation des paramètres">
@@ -309,19 +298,44 @@ function Sidebar({
       <div className="sidebar-bottom">
         {currentProfileName && <p className="sidebar-profile" title={currentProfileName}>{currentProfileName}</p>}
         {settingsOpen ? (
-          <button className="nav-item muted" type="button" onClick={onReturnToLibrary}>
-            {icon('film')} Retour à la bibliothèque
-          </button>
+          <>
+            <button
+              className="sidebar-toggle"
+              type="button"
+              onClick={onToggleExpanded}
+              aria-label={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
+              aria-pressed={expanded}
+            >
+              <span className="nav-item-text">{icon('panel')} Barre latérale</span>
+              <span className="nav-item-peek" aria-hidden="true">{icon('panel')}</span>
+            </button>
+            <button className="nav-item muted" type="button" onClick={onReturnToLibrary}>
+              {icon('film')} Retour à la bibliothèque
+            </button>
+          </>
         ) : (
-          <button
-            className="nav-item"
-            type="button"
-            onClick={onSettings}
-            data-tooltip={labelFor('Paramètres')}
-          >
-            <span className="nav-item-text">{icon('settings')} Paramètres</span>
-            <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
-          </button>
+          <>
+            <button
+              className={`sidebar-toggle ${expanded ? '' : 'is-floating'}`}
+              type="button"
+              onClick={onToggleExpanded}
+              aria-label={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
+              aria-pressed={expanded}
+              data-tooltip={expanded ? undefined : 'Barre latérale'}
+            >
+              <span className="nav-item-text">Barre latérale</span>
+              <span className="nav-item-peek" aria-hidden="true">{icon('panel')}</span>
+            </button>
+            <button
+              className="nav-item"
+              type="button"
+              onClick={onSettings}
+              data-tooltip={labelFor('Paramètres')}
+            >
+              <span className="nav-item-text">{icon('settings')} Paramètres</span>
+              <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
+            </button>
+          </>
         )}
       </div>
     </aside>

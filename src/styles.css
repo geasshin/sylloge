@@ -181,23 +181,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   display: block;
 }
 
-/* Bascule rail / étendue : en rail elle vit en bas de la barre (comme un pied),
-   en étendue elle remonte sous le logo */
+/* Bascule rail / étendue : vit dans le groupe du bas, au-dessus de Paramètres,
+   avec le style des items de navigation */
 .sidebar-toggle {
-  width: 42px;
-  height: 42px;
-  border: 1px solid transparent;
+  position: relative;
+  min-height: 46px;
+  width: 100%;
+  border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-text-muted);
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  gap: 11px;
+  padding: 0;
+  font-size: 13px;
+  text-align: center;
 }
-.sidebar-toggle svg { width: 20px; height: 20px; }
+.sidebar-toggle svg { width: 21px; height: 21px; }
 .sidebar-toggle:hover { background: var(--veil-soft); color: var(--color-text); }
-.sidebar-expanded .sidebar-toggle { margin-top: auto; justify-content: flex-start; padding-left: 11px; gap: 10px; }
-.sidebar-expanded .wordmark { justify-content: flex-start; }
+.sidebar-expanded .sidebar-toggle { justify-content: flex-start; padding: 0 12px; }
+.sidebar-expanded .sidebar-toggle svg { width: 18px; height: 18px; }
+.sidebar-expanded .sidebar-toggle .nav-item-text { display: inline-flex; }
+.sidebar-expanded .sidebar-toggle .nav-item-peek { display: none; }
 
 nav { display: flex; flex-direction: column; gap: 2px; }
 .nav-label, .eyebrow, .mini-reference {
