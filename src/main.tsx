@@ -977,21 +977,18 @@ function HomeDashboard({ entries, activityMap }: { entries: HomeEntry[]; activit
   )
 }
 
-/** Icônes des stats du hero. */
-const HERO_STAT_ICONS: Record<MediumFilterKey, IconName> = {
-  film: 'film',
-  'série': 'series',
-  livre: 'book',
-  jeu: 'game',
-  art: 'art',
+const HERO_LABELS: Record<MediumFilterKey, [string, string]> = {
+  film: ['film vu', 'films vus'],
+  'série': ['série vue', 'séries vues'],
+  livre: ['livre lu', 'livres lus'],
+  jeu: ['jeu ajouté', 'jeux ajoutés'],
+  art: ['œuvre découverte', 'œuvres découvertes'],
 }
 
-/** Bandeau hero d'en-tête : l'année en chiffres colorés et le calendrier, sur fond encre. */
+/** Bandeau hero d'en-tête : l'année en cours et le calendrier, monochrome. */
 function YearHero({ entries, activityMap }: { entries: HomeEntry[]; activityMap: Map<string, MediumFilterKey[]> }) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const year = today.getFullYear()
-  const prefix = `${year}-`
+  const year = new Date().getFullYear()
+  const prefix = String(year)
   const countByMedium = (medium: MediumFilterKey) =>
     entries.filter((entry) => entry.medium === medium && entry.createdAt.startsWith(prefix)).length
   const counts: Array<[MediumFilterKey, number]> = [
@@ -1002,32 +999,24 @@ function YearHero({ entries, activityMap }: { entries: HomeEntry[]; activityMap:
     ('art'),
   ].map((medium) => [medium as MediumFilterKey, countByMedium(medium as MediumFilterKey)])
   const total = counts.reduce((sum, [, value]) => sum + value, 0)
-  const labels: Record<MediumFilterKey, [string, string]> = {
-    film: ['film vu', 'films vus'],
-    'série': ['série vue', 'séries vues'],
-    livre: ['livre lu', 'livres lus'],
-    jeu: ['jeu ajouté', 'jeux ajoutés'],
-    art: ['œuvre découverte', 'œuvres découvertes'],
-  }
 
   return (
     <section className="home-hero" aria-label={`Votre année ${year}`}>
       <div className="hero-left">
         <p className="hero-kicker">Votre année</p>
         <p className="hero-year">{year}</p>
-        <div className="hero-stats">
-          {counts.map(([medium, value]) => (
-            <span key={medium} className="hero-stat" style={{ '--stat-color': MEDIUM_DOT_COLORS[medium] } as React.CSSProperties}>
-              <span className="hero-stat-icon">{icon(HERO_STAT_ICONS[medium])}</span>
-              <b>{value}</b>
-              <small>{labels[medium][value > 1 ? 1 : 0]}</small>
-            </span>
-          ))}
-        </div>
-        {total === 0 && (
-          <p className="hero-empty">Ajoutez votre première œuvre pour voir l’année se remplir.</p>
-        )}
       </div>
+      <div className="hero-stats">
+        {counts.map(([medium, value]) => (
+          <div key={medium} className="hero-stat">
+            <b>{value}</b>
+            <small>{HERO_LABELS[medium][value > 1 ? 1 : 0]}</small>
+          </div>
+        ))}
+      </div>
+      {total === 0 && (
+        <p className="hero-empty">Ajoutez votre première œuvre pour voir l’année se remplir.</p>
+      )}
       <div className="hero-calendar">
         <ActivityCalendarCompact activityMap={activityMap} />
       </div>
