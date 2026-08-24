@@ -41,6 +41,7 @@ import {
   type PickedFilmsImportFile,
 } from '../data/nativePortability.ts'
 import { UpdaterSettings } from './UpdaterSettings.tsx'
+import type { ThemePreference } from '../domain/theme.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import { LibraryExportFlow } from './LibraryExportFlow.tsx'
 import { LibraryImportButton } from './LibraryImportButton.tsx'
@@ -77,6 +78,8 @@ type PortabilityProps = {
   section: PortabilitySection
   library: FilmLibrary
   profiles: ProfileSummary[]
+  themePreference: ThemePreference
+  onThemePreferenceChange: (preference: ThemePreference) => void
   onSwitchProfile: (profileId: string) => Promise<void>
   onImported: (library: FilmLibrary) => void
   onBackupNotice: (notice: BackupNotice) => void
@@ -92,6 +95,8 @@ export function Portability({
   section,
   library,
   profiles,
+  themePreference,
+  onThemePreferenceChange,
   onSwitchProfile,
   onImported,
   onBackupNotice,
@@ -363,6 +368,7 @@ export function Portability({
         {section === 'application' && (
           <section className="settings-page settings-information" aria-labelledby="application-title">
             <div className="settings-section-heading"><p className="card-kicker">Fonctionnement local</p><h2 id="application-title">Application</h2></div>
+            <ThemeSettings preference={themePreference} onPreferenceChange={onThemePreferenceChange} />
             <UpdaterSettings availableUpdate={availableUpdate} onUpdateAvailable={onUpdateAvailable} onUpdateHandled={onUpdateHandled} />
             <dl className="settings-facts">
               <div><dt>Données</dt><dd>La bibliothèque reste enregistrée localement dans SQLite.</dd></div>
@@ -1219,5 +1225,34 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
         )}
       </div>
     </section>
+  )
+}
+
+const THEME_OPTIONS: Array<[ThemePreference, string, string]> = [
+  ['system', 'Système', 'Suit automatiquement le réglage de votre Mac'],
+  ['light', 'Clair', 'Interface claire anthracite'],
+  ['dark', 'Sombre', 'Interface sombre anthracite'],
+]
+
+function ThemeSettings({ preference, onPreferenceChange }: { preference: ThemePreference; onPreferenceChange: (preference: ThemePreference) => void }) {
+  return (
+    <div className="theme-settings">
+      <div className="settings-section-heading"><p className="card-kicker">Apparence</p><h3>Thème</h3></div>
+      <div className="theme-picker" role="radiogroup" aria-label="Thème de l’application">
+        {THEME_OPTIONS.map(([value, label, description]) => (
+          <button
+            key={value}
+            type="button"
+            role="radio"
+            aria-checked={preference === value}
+            className={`theme-option ${preference === value ? 'selected' : ''}`}
+            onClick={() => onPreferenceChange(value)}
+          >
+            <b>{label}</b>
+            <small>{description}</small>
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

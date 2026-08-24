@@ -610,6 +610,10 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 3. **Statuts synonymes** : normalisation silencieuse ; valeur non résolue → champ vide + mention au résumé final.
 4. **Onboarding** : encarts contextuels dans le dialogue, étape par étape, jamais une page d'aide séparée.
 
+#### Journal de décisions — import depuis fournisseurs externes (23 août 2026)
+
+Après stabilisation du train courant, l'import évoluera vers un parcours par fournisseur connu : TV Time, Letterboxd, Allociné, SensCritique, etc. À l'onboarding de création de profil, l'utilisateur choisira son fournisseur ; un tutoriel pas-à-pas lui montrera uniquement ce qu'il doit faire manuellement (exporter depuis le fournisseur), tout le reste (détection, mapping, validation) étant automatisé. Pour garantir un mapping sans erreur, Sylloge s'entraînera sur des jeux de données réels de chaque fournisseur classique : chaque mapping validé sera conservé comme preset dédié. Les presets fournisseurs rejoindront le moteur de mapping existant (aliasing), sans format propriétaire imposé aux utilisateurs d'applications non couvertes.
+
 
 
 ## 10. Backlog non priorisé

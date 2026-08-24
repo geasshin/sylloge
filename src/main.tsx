@@ -39,6 +39,7 @@ import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSe
 import { previewOpenLibraryBook, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
 import { previewIgdbGame, type IgdbGameCandidate } from './data/igdbService.ts'
 import { autoAssociateFilms } from './domain/autoAssociate.ts'
+import { useTheme, type ThemePreference } from './domain/theme.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -2117,6 +2118,7 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
 }
 
 function App() {
+  const { preference: themePreference, setPreference: setThemePreference } = useTheme()
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
@@ -2653,6 +2655,8 @@ function App() {
         section={settingsSection}
         library={library}
         profiles={profiles}
+        themePreference={themePreference}
+        onThemePreferenceChange={setThemePreference}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
           setLibraryContext({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
