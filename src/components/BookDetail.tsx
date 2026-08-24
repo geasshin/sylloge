@@ -7,6 +7,7 @@ import {
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
+import { icon } from '../main.tsx'
 
 function formatCalendarDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -16,17 +17,19 @@ function formatCalendarDate(value: string): string {
 type BookDetailProps = {
   book: Book
   onBack: () => void
+  backLabel: string
   onEdit: () => void
   /** Modification de la couverture par URL depuis le crayon. */
   onCoverEdit?: (url: string | null) => Promise<void> | void
+  /** Ouverture de la pop-up d'association Open Library (même parcours que les films). */
+  onAssociate?: () => void
   onDelete: () => Promise<void>
 }
 
-export function BookDetail({ book, onBack, onEdit, onCoverEdit, onDelete }: BookDetailProps) {
+export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAssociate, onDelete }: BookDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [posterDialogOpen, setPosterDialogOpen] = useState(false)
 
   const progress = book.volumesRead !== null
@@ -50,30 +53,27 @@ export function BookDetail({ book, onBack, onEdit, onCoverEdit, onDelete }: Book
   return (
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
-        <button className="back-button" type="button" onClick={onBack}>← Retour aux livres</button>
+        <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
         <div className="detail-actions">
-          <button className="secondary-button" type="button" onClick={onEdit}>Modifier</button>
-          <div className="menu-wrap">
-            <button
-              className="icon-menu-button"
-              type="button"
-              aria-label="Plus d’actions"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              ⋯
+          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+            {icon('pencil')}
+            <span>Modifier</span>
+          </button>
+          {onAssociate && (
+            <button className="icon-action-button" type="button" onClick={onAssociate} title="Associer à Open Library (recherche assistée)">
+              {icon('wand')}
+              <span>Associer</span>
             </button>
-            {menuOpen && (
-              <>
-                <div className="menu-overlay" onClick={() => setMenuOpen(false)} />
-                <div className="detail-menu" role="menu">
-                  <button role="menuitem" type="button" className="danger-item" onClick={() => { setMenuOpen(false); setConfirmingDelete(true) }}>
-                    Supprimer ce livre…
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          )}
+          <button
+            className="icon-action-button icon-action-danger"
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            title="Supprimer ce livre"
+          >
+            {icon('trash')}
+            <span>Supprimer</span>
+          </button>
         </div>
       </header>
 

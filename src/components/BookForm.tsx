@@ -233,16 +233,11 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
                 id="book-startedAt"
                 name="startedAt"
                 type="date"
-                value={values.startedAt}
+                value={values.startedAt || today}
                 onChange={(event) => update('startedAt', event.target.value)}
                 aria-label="Début de la lecture"
                 aria-invalid={Boolean(errors.startedAt)}
               />
-              {values.startedAt !== today && (
-                <button type="button" className="link-accent" onClick={() => update('startedAt', today)}>
-                  Utiliser aujourd’hui
-                </button>
-              )}
             </div>
             {errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 

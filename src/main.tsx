@@ -3625,7 +3625,7 @@ function App() {
       {addFlow && libraryState.status === 'ready' && (
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAddFlow(null) }}>
           <div
-            className="editor-dialog"
+            className="editor-dialog dialog-add-flow"
             role="dialog"
             aria-modal="true"
             aria-label="Ajouter un film"

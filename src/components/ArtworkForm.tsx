@@ -122,16 +122,11 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
                 id="artwork-discoveredAt"
                 name="discoveredAt"
                 type="date"
-                value={values.discoveredAt}
+                value={values.discoveredAt || today}
                 onChange={(event) => update('discoveredAt', event.target.value)}
                 aria-label="Date de découverte"
                 aria-invalid={Boolean(errors.discoveredAt)}
               />
-              {values.status === 'découverte' && values.discoveredAt !== today && (
-                <button type="button" className="link-accent" onClick={() => update('discoveredAt', today)}>
-                  Utiliser aujourd’hui
-                </button>
-              )}
             </div>
             {errors.discoveredAt && <p className="field-error">{errors.discoveredAt}</p>}
 

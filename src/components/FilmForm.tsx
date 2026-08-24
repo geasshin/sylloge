@@ -171,17 +171,12 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
                   id="watchedAt"
                   name="watchedAt"
                   type="date"
-                  value={values.watchedAt}
+                  value={values.watchedAt || today}
                   onChange={(event) => update('watchedAt', event.target.value)}
                   aria-label="Date de visionnage"
                   aria-invalid={Boolean(errors.watchedAt)}
-                />
-                {values.watchedAt !== today && (
-                  <button type="button" className="link-accent" onClick={() => update('watchedAt', today)}>
-                    Utiliser aujourd’hui
-                  </button>
-                )}
-              </div>
+                  />
+                  </div>
               {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
 
               <div className="review-write">

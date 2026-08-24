@@ -180,16 +180,11 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
                 id="series-startedAt"
                 name="startedAt"
                 type="date"
-                value={values.startedAt}
+                value={values.startedAt || today}
                 onChange={(event) => update('startedAt', event.target.value)}
                 aria-label="Début du visionnage"
                 aria-invalid={Boolean(errors.startedAt)}
               />
-              {values.startedAt !== today && verdictVisible && (
-                <button type="button" className="link-accent" onClick={() => update('startedAt', today)}>
-                  Utiliser aujourd’hui
-                </button>
-              )}
             </div>
             {errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 

@@ -135,16 +135,11 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
                     id="game-playedAt"
                     name="playedAt"
                     type="date"
-                    value={values.playedAt}
+                    value={values.playedAt || today}
                     onChange={(event) => update('playedAt', event.target.value)}
                     aria-label={values.status === 'regardé' ? 'Date du visionnage' : 'Date de jeu'}
                     aria-invalid={Boolean(errors.playedAt)}
                   />
-                  {values.status !== 'à jouer' && values.playedAt !== today && (
-                    <button type="button" className="link-accent" onClick={() => update('playedAt', today)}>
-                      Utiliser aujourd’hui
-                    </button>
-                  )}
                 </div>
                 {errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
 
