@@ -3628,6 +3628,7 @@ function App() {
             </div>
             {addFlow.medium === 'film' && addFlow.step === 'search' && (
               <TmdbSearchFlow
+                compact
                 film={null}
                 pendingCandidateId={candidateSelection.pendingId}
                 selectionError={candidateSelection.error}

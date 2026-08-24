@@ -1723,7 +1723,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .poster-dialog-add small { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 
 /* Pop-up d'ajout/édition de fiche : modale centrée au-dessus de la
-   bibliothèque, arrière-plan flouté */
+   bibliothèque, arrière-plan flouté. Taille ajustée au contenu. */
 .dialog-backdrop-blur {
   position: fixed;
   inset: 0;
@@ -1738,18 +1738,33 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .editor-dialog {
   position: relative;
-  width: min(920px, 100%);
-  margin: auto;
-  padding: 30px 34px;
+  width: min(860px, 100%);
+  max-height: calc(100vh - 56px);
+  overflow-y: auto;
+  padding: 26px 30px 24px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
   box-shadow: var(--shadow-lifted);
 }
-.editor-dialog .editor-heading { padding: 0 0 18px; }
-.editor-dialog-close { position: absolute; top: 16px; right: 16px; }
+.editor-dialog .editor-heading { padding: 0 0 16px; }
+.editor-dialog .editor-heading h1 { font-size: clamp(24px, 2.4vw, 32px); }
+.editor-dialog .editor-heading p { margin: 6px 0 0; }
+.editor-dialog-close { position: absolute; top: 14px; right: 14px; }
 /* En pop-up, le formulaire n'a plus ses ombres/padding de page */
 .editor-dialog .film-form { padding: 0; border: none; box-shadow: none; background: transparent; }
+/* Recherche TMDB compacte dans la pop-up : titre réduit, pas de redondance */
+.tmdb-search-compact .editor-heading h1 { font-size: clamp(20px, 2vw, 26px); letter-spacing: -.02em; }
+.tmdb-search-compact .editor-heading p { margin: 5px 0 0; font-size: 12.5px; color: var(--color-text-muted); }
+.tmdb-search-compact .tmdb-search-form { margin-top: 14px; }
+.tmdb-search-compact .form-actions { margin-top: 10px; justify-content: flex-end; }
+.tmdb-search-compact .tmdb-candidates-grid {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
+}
+.editor-dialog .film-form.form-detail { display: grid; grid-template-columns: minmax(150px, 200px) minmax(0, 1fr); gap: 22px; align-items: start; }
 
 /* Fiche : trois boutons explicites Modifier / Associer / Supprimer */
 .icon-action-button {
