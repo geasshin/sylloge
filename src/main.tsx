@@ -2432,6 +2432,12 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
   )
 }
 
+/** Cible d'association directe depuis une fiche : même parcours que les films, en pop-up. */
+type AssociateTarget =
+  | { medium: 'série'; id: string }
+  | { medium: 'livre'; id: string }
+  | { medium: 'jeu'; id: string }
+
 function App() {
   const { preference: themePreference, setPreference: setThemePreference } = useTheme()
   // Barre latérale : « rail » (icônes seules) ou « étendue » (icônes + libellés).
@@ -2463,6 +2469,8 @@ function App() {
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
+  /** Pop-up d'association directe depuis une fiche Série/Livre/Jeu (parcours des films). */
+  const [associateTarget, setAssociateTarget] = useState<AssociateTarget | null>(null)
   /** Pop-up d'ajout : étapes recherche → formulaire, au-dessus de la bibliothèque. */
   type AddFlow =
     | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
@@ -3289,6 +3297,7 @@ function App() {
         <BookDetail
           book={book}
           onBack={() => setView({ name: 'books' })}
+          backLabel="← Retour aux livres"
           onEdit={() => setView({ name: 'book-edit', bookId: view.bookId })}
           onCoverEdit={async (url: string | null) => {
             await mediaRepository.updateBook(library.profile.id, book.id, { ...book, coverUrl: url })
@@ -3408,6 +3417,7 @@ function App() {
         <GameDetail
           game={game}
           onBack={() => setView({ name: 'games' })}
+          backLabel="← Retour aux jeux"
           onEdit={() => setView({ name: 'game-edit', gameId: view.gameId })}
           onCoverEdit={async (url: string | null) => {
             await mediaRepository.updateGame(library.profile.id, game.id, { ...game, coverUrl: url })
@@ -3515,6 +3525,7 @@ function App() {
         <ArtworkDetail
           artwork={artwork}
           onBack={() => setView({ name: 'artworks' })}
+          backLabel="← Retour aux œuvres"
           onEdit={() => setView({ name: 'artwork-edit', artworkId: view.artworkId })}
           onImageEdit={async (url: string | null) => {
             await mediaRepository.updateArtwork(library.profile.id, artwork.id, { ...artwork, imageUrl: url })
@@ -3638,7 +3649,7 @@ function App() {
                 pendingCandidateId={candidateSelection.pendingId}
                 selectionError={candidateSelection.error}
                 onSelectCandidate={selectTmdbCandidate}
-                onManual={() => setView({ name: 'create' })}
+                onManual={() => setAddFlow({ medium: 'film', step: 'search', initialValues: {} as never })}
                 onCancel={() => setAddFlow(null)}
               />
             )}

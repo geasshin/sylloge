@@ -1738,10 +1738,10 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .editor-dialog {
   position: relative;
-  width: min(860px, 100%);
+  width: min(640px, 100%);
   max-height: calc(100vh - 56px);
   overflow-y: auto;
-  padding: 26px 30px 24px;
+  padding: 22px 24px 20px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
@@ -1756,23 +1756,23 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 /* Étape « Ajouter le film » : fenêtre resserrée sur le contenu, affiche
    compacte à gauche, formulaire dense à droite — plus aucun grand vide. */
 .editor-dialog.dialog-add-flow {
-  width: min(640px, 100%);
-  padding: 22px 24px 20px;
+  width: min(560px, 100%);
+  padding: 20px 22px 18px;
 }
-.dialog-add-flow .editor-heading h1 { font-size: clamp(20px, 2vw, 26px); letter-spacing: -.02em; margin: 0; }
-.dialog-add-flow .editor-heading p { margin: 4px 0 0; font-size: 12.5px; color: var(--color-text-muted); }
+.dialog-add-flow .editor-heading h1 { font-size: clamp(19px, 1.8vw, 24px); letter-spacing: -.02em; margin: 0; }
+.dialog-add-flow .editor-heading p { margin: 4px 0 0; font-size: 12px; color: var(--color-text-muted); }
 .dialog-add-flow .film-form.form-detail {
   display: grid;
-  grid-template-columns: minmax(120px, 150px) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(110px, 140px) minmax(0, 1fr);
+  gap: 16px;
   align-items: start;
 }
 .dialog-add-flow .form-poster-frame { width: 100%; }
-.dialog-add-flow .form-poster-caption { font-size: 10.5px; }
-.dialog-add-flow .field-title input { font-size: 15px; padding: 8px 11px; }
-.dialog-add-flow .verdict-block { gap: 12px; }
-.dialog-add-flow .review-write textarea { min-height: 84px; }
-.dialog-add-flow .form-actions { margin-top: 2px; }
+.dialog-add-flow .form-poster-caption { font-size: 10px; margin-top: 6px; }
+.dialog-add-flow .field-title input { font-size: 14px; padding: 7px 10px; }
+.dialog-add-flow .verdict-block { gap: 10px; }
+.dialog-add-flow .review-write textarea { min-height: 72px; }
+.dialog-add-flow .form-actions { margin-top: 0; }
 /* Recherche TMDB compacte dans la pop-up : titre réduit, pas de redondance */
 .tmdb-search-compact .editor-heading h1 { font-size: clamp(20px, 2vw, 26px); letter-spacing: -.02em; }
 .tmdb-search-compact .editor-heading p { margin: 5px 0 0; font-size: 12.5px; color: var(--color-text-muted); }

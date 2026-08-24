@@ -7,6 +7,7 @@ import {
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
+import { icon } from '../main.tsx'
 
 function formatCalendarDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -16,17 +17,17 @@ function formatCalendarDate(value: string): string {
 type ArtworkDetailProps = {
   artwork: Artwork
   onBack: () => void
+  backLabel: string
   onEdit: () => void
   /** Modification du visuel par URL depuis le crayon. */
   onImageEdit?: (url: string | null) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function ArtworkDetail({ artwork, onBack, onEdit, onImageEdit, onDelete }: ArtworkDetailProps) {
+export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit, onDelete }: ArtworkDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [posterDialogOpen, setPosterDialogOpen] = useState(false)
 
   const deleteArtwork = async () => {
@@ -44,30 +45,22 @@ export function ArtworkDetail({ artwork, onBack, onEdit, onImageEdit, onDelete }
   return (
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
-        <button className="back-button" type="button" onClick={onBack}>← Retour à l’Art</button>
+        <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
+        {/* L'Art n'a aucun fournisseur d'association : pas de baguette ici, règle du domaine. */}
         <div className="detail-actions">
-          <button className="secondary-button" type="button" onClick={onEdit}>Modifier</button>
-          <div className="menu-wrap">
-            <button
-              className="icon-menu-button"
-              type="button"
-              aria-label="Plus d’actions"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              ⋯
-            </button>
-            {menuOpen && (
-              <>
-                <div className="menu-overlay" onClick={() => setMenuOpen(false)} />
-                <div className="detail-menu" role="menu">
-                  <button role="menuitem" type="button" className="danger-item" onClick={() => { setMenuOpen(false); setConfirmingDelete(true) }}>
-                    Supprimer cette œuvre…
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+            {icon('pencil')}
+            <span>Modifier</span>
+          </button>
+          <button
+            className="icon-action-button icon-action-danger"
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            title="Supprimer cette œuvre"
+          >
+            {icon('trash')}
+            <span>Supprimer</span>
+          </button>
         </div>
       </header>
 
