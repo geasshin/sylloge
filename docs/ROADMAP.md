@@ -608,6 +608,15 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 - Fusion éditoriale bornée réutilisée telle quelle ; données personnelles et citations intactes (preuves dédiées). ✓
 - Critères : changer une mauvaise association depuis la fiche sans passer par Modifier ; tests verts. ✓
 
+#### `0.6.8` — Vues intégrées sémantiques, interrupteur de catégories, correctif Favoris
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Les vues intégrées deviennent sémantiques et la vue inventaire « Tous » disparaît. Chaque bibliothèque s'ouvre désormais sur sa **watchlist** (« À voir » Films/Séries, « À lire » Livres, « À jouer » Jeux, « À découvrir » Art) : uniquement les éléments pas encore consommés, triés par titre. **Récents** n'affiche plus que du déjà consommé (terminé/abandonné/vue/lu/joué/découverte selon le médium), du plus récemment vu au plus ancien — plus aucun élément « à découvrir » ne s'y glisse. **Favoris** (coups de cœur) et **Classement** (note décroissante, jamais sur l'Art) restent inchangés dans leur principe mais suivent la même mécanique. Séries et Livres gagnent une vue **En cours** dédiée (séries attendues, lectures en cours). Mécanique : nouveau filtre abstrait `statusGroup` ('pending' / 'inProgress' / 'consumed') porté par les présets de vue, traduit en liste blanche SQL paramétrée (`status IN (…)`) par médium ; un statut précis choisi à la volée raffine la vue au lieu de la contredire ; les vues enregistrées peuvent capturer un groupe, et les anciennes vues v1 « Tous » survivent comme présets neutres.
+
+- Interrupteur de catégories (Séries : Télé | Animation ; Livres : Livre | Manga | Comics) : bloc segmenté multi-sélection placé à gauche des icônes Filtrer/Trier/Enregistrer, au moins une catégorie toujours active, deux actives = toutes. Il pilote le filtre catégorie existant : la sélection conditionne TOUTES les vues et se combine avec elles (ex. Animation seule dans Récents = animés récents). ✓
+- L'Art reste sans interrupteur (neuf formes) : ses formes vivent dans le panneau Filtre ; ses vues intégrées sont À découvrir / Récents / Favoris, et des vues enregistrées par forme prennent le relais. ✓
+- Correctif du bug d'affichage en vue Favoris (Livres et Art) : `scrollbar-gutter: stable` réserve en permanence la place de la barre de défilement — la grille ne se recompose plus quand la liste raccourcit. Bénéfique aux cinq bibliothèques. ✓
+- Preuves dédiées 0.6.8 dans `verify.mjs` (contrat des vues, traduction SQL des groupes, interrupteur, gutter). ✓
+
 #### `0.7.0` — Release publique Importer depuis partout
 
 - Revoir les jalons `0.6.1…0.6.6`, recette complète sur les cinq médiums, publication signée après feu vert.
