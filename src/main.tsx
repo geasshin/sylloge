@@ -35,10 +35,11 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
-import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries } from './data/tmdbService.ts'
-import { previewOpenLibraryBook, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
-import { previewIgdbGame, type IgdbGameCandidate } from './data/igdbService.ts'
+import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
+import { previewOpenLibraryBook, searchOpenLibraryBooks, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
+import { previewIgdbGame, searchIgdbGames, type IgdbGameCandidate } from './data/igdbService.ts'
 import { autoAssociateFilms } from './domain/autoAssociate.ts'
+import { MATCH_THRESHOLD, REQUEST_DELAY_MS, delay, scoreNamedCandidate, seriesWithPresentation, bookWithPresentation, gameWithPresentation } from './domain/autoAssociateMedia.ts'
 import { useTheme, type ThemePreference } from './domain/theme.ts'
 import {
   FILM_STATUS_LABELS,
@@ -1356,6 +1357,103 @@ function AutoAssociateDialog({
   )
 }
 
+/** Baguette magique générique (Séries, Livres, Jeux) : éditeur de champs éditoriaux. */
+function AutoAssociateEditsDialog({
+  open,
+  onClose,
+  providerLabel,
+  pendingCount,
+  confirmText,
+  run,
+  onDone,
+}: {
+  open: boolean
+  onClose: () => void
+  providerLabel: string
+  pendingCount: number
+  confirmText: string
+  run: (options: {
+    onProgress: (processed: number, total: number) => void
+    isCancelled: () => boolean
+  }) => Promise<{ associatedCount: number; noMatchCount: number }>
+  onDone: () => void
+}) {
+  const [phase, setPhase] = useState<'confirm' | 'running' | 'done'>('confirm')
+  const [progress, setProgress] = useState({ processed: 0, total: 0 })
+  const [summary, setSummary] = useState<{ associated: number; noMatch: number; cancelled: boolean } | null>(null)
+  const cancelRef = useRef(false)
+
+  if (!open) return null
+
+  const start = async () => {
+    setPhase('running')
+    setProgress({ processed: 0, total: pendingCount })
+    cancelRef.current = false
+    const result = await run({
+      onProgress: (processed, total) => setProgress({ processed, total }),
+      isCancelled: () => cancelRef.current,
+    })
+    setSummary({ associated: result.associatedCount, noMatch: result.noMatchCount, cancelled: cancelRef.current })
+    setPhase('done')
+    onDone()
+  }
+
+  return (
+    <AccessibleDialog
+      title="Tout associer"
+      description={`Recherche automatique sur ${providerLabel}`}
+      closeDisabled={phase === 'running'}
+      onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
+    >
+      <div className="assistant-content">
+        {phase === 'confirm' && (
+          <section className="assistant-stage">
+            <h3>{confirmText}</h3>
+            <p className="films-import-details">
+              Sylloge recherchera chaque titre sur {providerLabel} et gardera la meilleure correspondance.
+              Seuls les champs éditoriaux sont mis à jour (visuel, résumé, année, créateur) :
+              tes statuts, notes, coups de cœur et avis restent exactement tels quels.
+            </p>
+            <ImportHint>
+              Les visuels viendront du fournisseur officiel : même format, même rendu, sur toute la bibliothèque.
+              Une fiche sans correspondance sûre reste inchangée.
+            </ImportHint>
+            <div className="assistant-actions">
+              <button className="secondary-button" type="button" onClick={onClose}>Non</button>
+              <button className="primary-button" type="button" disabled={pendingCount === 0} onClick={() => void start()}>Oui, lancer</button>
+            </div>
+          </section>
+        )}
+        {phase === 'running' && (
+          <section className="assistant-stage">
+            <h3>Association en cours…</h3>
+            <p className="films-import-details">{progress.processed} / {progress.total} fiches traitées.</p>
+            <div className="auto-associate-progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.processed}>
+              <div className="auto-associate-progress-fill" style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%` }} />
+            </div>
+            <div className="assistant-actions">
+              <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>Arrêter</button>
+            </div>
+          </section>
+        )}
+        {phase === 'done' && summary !== null && (
+          <section className="assistant-stage">
+            <h3>Association terminée</h3>
+            <ul className="import-report auto-associate-summary">
+              <li>{summary.associated} fiche{summary.associated > 1 ? 's enrichie' : ' enrichie'}{summary.associated > 1 ? 's' : ''}</li>
+              <li>{summary.noMatch} sans correspondance assez sûre — inchangée{summary.noMatch > 1 ? 's' : ''}</li>
+              {summary.cancelled && <li>Opération arrêtée avant la fin — relance « Tout associer » pour continuer.</li>}
+            </ul>
+            <div className="assistant-actions assistant-actions-single">
+              <button className="primary-button" type="button" onClick={() => { onClose(); setPhase('confirm'); setSummary(null) }}>Fermer</button>
+            </div>
+          </section>
+        )}
+      </div>
+    </AccessibleDialog>
+  )
+}
+
 type LibraryState =
   | { status: 'loading' }
   | { status: 'ready'; library: FilmLibrary }
@@ -1491,6 +1589,41 @@ function SeriesLibrary({
 }: SeriesLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
+
+  const runSeriesAssociation = async ({ onProgress, isCancelled }: {
+    onProgress: (processed: number, total: number) => void
+    isCancelled: () => boolean
+  }) => {
+    let associatedCount = 0
+    let noMatchCount = 0
+    const pending = collection.slice()
+    for (let index = 0; index < pending.length; index += 1) {
+      if (isCancelled()) break
+      const series = pending[index]
+      try {
+        const candidates = await searchTmdbSeries(series.title, 'fr-FR')
+        const scored = candidates
+          .map((candidate) => ({
+            candidate,
+            score: scoreNamedCandidate(series.title, series.startedAt ? Number(series.startedAt.slice(0, 4)) : null, candidate.title, candidate.releaseYear),
+          }))
+          .sort((a, b) => b.score - a.score)
+        if (scored.length > 0 && scored[0].score >= MATCH_THRESHOLD) {
+          const presentation = await previewTmdbSeries(scored[0].candidate.tmdbId, 'fr-FR')
+          await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation))
+          associatedCount += 1
+        } else {
+          noMatchCount += 1
+        }
+      } catch {
+        noMatchCount += 1
+      }
+      onProgress(index + 1, pending.length)
+      await delay(REQUEST_DELAY_MS)
+    }
+    return { associatedCount, noMatchCount }
+  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
@@ -1524,6 +1657,15 @@ function SeriesLibrary({
       ) : (
         <>
           <div className="library-tools">
+            <button
+              className="auto-associate-button"
+              type="button"
+              onClick={() => setAutoAssociateOpen(true)}
+              title="Normaliser les visuels et fiches via TMDB"
+            >
+              {icon('wand')}
+              <span>Tout associer</span>
+            </button>
             <label className="search">
               {icon('search')}
               <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
@@ -1581,6 +1723,15 @@ function SeriesLibrary({
           )}
         </>
       )}
+      <AutoAssociateEditsDialog
+        open={autoAssociateOpen}
+        onClose={() => setAutoAssociateOpen(false)}
+        providerLabel="TMDB"
+        pendingCount={collection.length}
+        confirmText="Normaliser toutes les séries via TMDB ?"
+        run={runSeriesAssociation}
+        onDone={onLibraryChanged}
+      />
     </main>
   )
 }
@@ -1666,6 +1817,48 @@ function GamesLibrary({
   const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const platforms = buildGamePlatformFilters(collection)
+  const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
+
+  const runGamesAssociation = async ({ onProgress, isCancelled }: {
+    onProgress: (processed: number, total: number) => void
+    isCancelled: () => boolean
+  }) => {
+    let associatedCount = 0
+    let noMatchCount = 0
+    for (let index = 0; index < collection.length; index += 1) {
+      if (isCancelled()) break
+      const game = collection[index]
+      try {
+        const candidates = await searchIgdbGames(game.title)
+        const scored = candidates
+          .map((candidate) => ({
+            candidate,
+            score: scoreNamedCandidate(game.title, game.year ?? null, candidate.title, candidate.releaseYear),
+          }))
+          .sort((a, b) => b.score - a.score)
+        if (scored.length > 0 && scored[0].score >= MATCH_THRESHOLD) {
+          const presentation = await previewIgdbGame(scored[0].candidate.gameId, scored[0].candidate.title, scored[0].candidate.releaseYear, scored[0].candidate.coverUrl)
+          await mediaRepository.updateGame(
+            profileId,
+            game.id,
+            gameWithPresentation(game, {
+              developer: presentation.developer,
+              releaseYear: presentation.releaseYear,
+              coverUrl: presentation.coverUrl,
+            }),
+          )
+          associatedCount += 1
+        } else {
+          noMatchCount += 1
+        }
+      } catch {
+        noMatchCount += 1
+      }
+      onProgress(index + 1, collection.length)
+      await delay(REQUEST_DELAY_MS)
+    }
+    return { associatedCount, noMatchCount }
+  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
@@ -1699,6 +1892,15 @@ function GamesLibrary({
       ) : (
         <>
           <div className="library-tools">
+            <button
+              className="auto-associate-button"
+              type="button"
+              onClick={() => setAutoAssociateOpen(true)}
+              title="Normaliser les couvertures et fiches via IGDB"
+            >
+              {icon('wand')}
+              <span>Tout associer</span>
+            </button>
             <label className="search">
               {icon('search')}
               <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
@@ -1758,6 +1960,15 @@ function GamesLibrary({
           )}
         </>
       )}
+      <AutoAssociateEditsDialog
+        open={autoAssociateOpen}
+        onClose={() => setAutoAssociateOpen(false)}
+        providerLabel="IGDB"
+        pendingCount={collection.length}
+        confirmText="Normaliser tous les jeux via IGDB ?"
+        run={runGamesAssociation}
+        onDone={onLibraryChanged}
+      />
     </main>
   )
 }
@@ -1938,6 +2149,49 @@ function BooksLibrary({
 }: BooksLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
+
+  const runBooksAssociation = async ({ onProgress, isCancelled }: {
+    onProgress: (processed: number, total: number) => void
+    isCancelled: () => boolean
+  }) => {
+    let associatedCount = 0
+    let noMatchCount = 0
+    for (let index = 0; index < collection.length; index += 1) {
+      if (isCancelled()) break
+      const book = collection[index]
+      try {
+        const candidates = await searchOpenLibraryBooks(book.title)
+        const scored = candidates
+          .map((candidate) => ({
+            candidate,
+            score: scoreNamedCandidate(book.title, book.year ?? null, candidate.title, candidate.firstPublishYear),
+          }))
+          .sort((a, b) => b.score - a.score)
+        if (scored.length > 0 && scored[0].score >= MATCH_THRESHOLD) {
+          const presentation = await previewOpenLibraryBook(scored[0].candidate)
+          await mediaRepository.updateBook(
+            profileId,
+            book.id,
+            bookWithPresentation(book, {
+              author: presentation.author,
+              firstPublishYear: presentation.firstPublishYear,
+              synopsis: presentation.synopsis,
+              coverUrl: presentation.coverUrl,
+            }),
+          )
+          associatedCount += 1
+        } else {
+          noMatchCount += 1
+        }
+      } catch {
+        noMatchCount += 1
+      }
+      onProgress(index + 1, collection.length)
+      await delay(REQUEST_DELAY_MS)
+    }
+    return { associatedCount, noMatchCount }
+  }
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
@@ -1971,6 +2225,15 @@ function BooksLibrary({
       ) : (
         <>
           <div className="library-tools">
+            <button
+              className="auto-associate-button"
+              type="button"
+              onClick={() => setAutoAssociateOpen(true)}
+              title="Normaliser les couvertures et fiches via Open Library"
+            >
+              {icon('wand')}
+              <span>Tout associer</span>
+            </button>
             <label className="search">
               {icon('search')}
               <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
@@ -2028,6 +2291,15 @@ function BooksLibrary({
           )}
         </>
       )}
+      <AutoAssociateEditsDialog
+        open={autoAssociateOpen}
+        onClose={() => setAutoAssociateOpen(false)}
+        providerLabel="Open Library"
+        pendingCount={collection.length}
+        confirmText="Normaliser tous les livres via Open Library ?"
+        run={runBooksAssociation}
+        onDone={onLibraryChanged}
+      />
     </main>
   )
 }
