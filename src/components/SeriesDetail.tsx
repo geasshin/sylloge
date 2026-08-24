@@ -5,6 +5,7 @@ import {
   type Series,
 } from '../domain/series.ts'
 import { Poster } from './Poster.tsx'
+import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 
 function formatCalendarDate(value: string): string {
@@ -17,14 +18,17 @@ type SeriesDetailProps = {
   onBack: () => void
   backLabel: string
   onEdit: () => void
+  /** Modification du visuel par URL depuis le crayon sur l'affiche. */
+  onPosterEdit?: (url: string | null) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function SeriesDetail({ series, onBack, backLabel, onEdit, onDelete }: SeriesDetailProps) {
+export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, onDelete }: SeriesDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [posterDialogOpen, setPosterDialogOpen] = useState(false)
 
   const progress = series.seasonsSeen !== null
     ? series.seasonsTotal !== null
@@ -77,7 +81,7 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onDelete }: Se
       <article className="detail-layout">
         <div className="detail-side">
           <div className="poster-container detail-poster-wrap">
-            <Poster title={series.title} src={series.posterUrl} className="detail-poster" />
+            <Poster title={series.title} src={series.posterUrl} className="detail-poster" onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
           <div className="detail-status">
             <StatusBadge status={series.status} labels={SERIES_STATUS_LABELS} />
@@ -165,6 +169,14 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onDelete }: Se
           </div>
         </div>
       )}
+      <PosterUrlDialog
+        open={posterDialogOpen}
+        title={series.title}
+        label="Affiche"
+        currentUrl={series.posterUrl}
+        onClose={() => setPosterDialogOpen(false)}
+        onSave={(url) => onPosterEdit?.(url)}
+      />
     </main>
   )
 }

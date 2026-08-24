@@ -1329,10 +1329,20 @@ function AutoAssociateDialog({
         {phase === 'running' && (
           <section className="assistant-stage">
             <h3>Association en cours…</h3>
-            <p className="films-import-details">{progress.processed} / {progress.total} fiches traitées.</p>
-            <div className="auto-associate-progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.processed}>
+            <p className="films-import-details">
+              <b>{progress.processed}</b> sur {progress.total} fiches traitées.
+            </p>
+            <div
+              className="auto-associate-progress"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={progress.total}
+              aria-valuenow={progress.processed}
+              aria-label="Progression de l’association"
+            >
               <div className="auto-associate-progress-fill" style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%` }} />
             </div>
+            <p className="auto-associate-percent">{progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0} %</p>
             <div className="assistant-actions">
               <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>Arrêter</button>
             </div>
@@ -1427,10 +1437,20 @@ function AutoAssociateEditsDialog({
         {phase === 'running' && (
           <section className="assistant-stage">
             <h3>Association en cours…</h3>
-            <p className="films-import-details">{progress.processed} / {progress.total} fiches traitées.</p>
-            <div className="auto-associate-progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.processed}>
+            <p className="films-import-details">
+              <b>{progress.processed}</b> sur {progress.total} fiches traitées.
+            </p>
+            <div
+              className="auto-associate-progress"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={progress.total}
+              aria-valuenow={progress.processed}
+              aria-label="Progression de l’association"
+            >
               <div className="auto-associate-progress-fill" style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%` }} />
             </div>
+            <p className="auto-associate-percent">{progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0} %</p>
             <div className="assistant-actions">
               <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>Arrêter</button>
             </div>
@@ -3127,6 +3147,10 @@ function App() {
           onBack={() => setView({ name: 'series' })}
           backLabel="← Retour aux séries"
           onEdit={() => setView({ name: 'series-edit', seriesId: view.seriesId })}
+          onPosterEdit={async (url: string | null) => {
+            await mediaRepository.updateSeries(library.profile.id, series.id, { ...series, posterUrl: url })
+            setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...series, posterUrl: url } : entry)))
+          }}
           onDelete={async () => {
             await mediaRepository.deleteSeries(library.profile.id, view.seriesId)
             setSeriesCollection((current) => current.filter((entry) => entry.id !== view.seriesId))
@@ -3236,6 +3260,10 @@ function App() {
           book={book}
           onBack={() => setView({ name: 'books' })}
           onEdit={() => setView({ name: 'book-edit', bookId: view.bookId })}
+          onCoverEdit={async (url: string | null) => {
+            await mediaRepository.updateBook(library.profile.id, book.id, { ...book, coverUrl: url })
+            setBookCollection((current) => current.map((entry) => (entry.id === book.id ? { ...book, coverUrl: url } : entry)))
+          }}
           onDelete={async () => {
             await mediaRepository.deleteBook(library.profile.id, view.bookId)
             setBookCollection((current) => current.filter((entry) => entry.id !== view.bookId))
@@ -3351,6 +3379,10 @@ function App() {
           game={game}
           onBack={() => setView({ name: 'games' })}
           onEdit={() => setView({ name: 'game-edit', gameId: view.gameId })}
+          onCoverEdit={async (url: string | null) => {
+            await mediaRepository.updateGame(library.profile.id, game.id, { ...game, coverUrl: url })
+            setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...game, coverUrl: url } : entry)))
+          }}
           onDelete={async () => {
             await mediaRepository.deleteGame(library.profile.id, view.gameId)
             setGameCollection((current) => current.filter((entry) => entry.id !== view.gameId))
@@ -3454,6 +3486,10 @@ function App() {
           artwork={artwork}
           onBack={() => setView({ name: 'artworks' })}
           onEdit={() => setView({ name: 'artwork-edit', artworkId: view.artworkId })}
+          onImageEdit={async (url: string | null) => {
+            await mediaRepository.updateArtwork(library.profile.id, artwork.id, { ...artwork, imageUrl: url })
+            setArtworkCollection((current) => current.map((entry) => (entry.id === artwork.id ? { ...artwork, imageUrl: url } : entry)))
+          }}
           onDelete={async () => {
             await mediaRepository.deleteArtwork(library.profile.id, view.artworkId)
             setArtworkCollection((current) => current.filter((entry) => entry.id !== view.artworkId))

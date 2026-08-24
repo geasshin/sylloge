@@ -4,6 +4,7 @@ import {
   type Game,
 } from '../domain/game.ts'
 import { Poster } from './Poster.tsx'
+import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 
 function formatCalendarDate(value: string): string {
@@ -15,14 +16,17 @@ type GameDetailProps = {
   game: Game
   onBack: () => void
   onEdit: () => void
+  /** Modification de la couverture par URL depuis le crayon. */
+  onCoverEdit?: (url: string | null) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function GameDetail({ game, onBack, onEdit, onDelete }: GameDetailProps) {
+export function GameDetail({ game, onBack, onEdit, onCoverEdit, onDelete }: GameDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [posterDialogOpen, setPosterDialogOpen] = useState(false)
 
   const deleteGame = async () => {
     setDeleting(true)
@@ -69,7 +73,7 @@ export function GameDetail({ game, onBack, onEdit, onDelete }: GameDetailProps) 
       <article className="detail-layout">
         <div className="detail-side">
           <div className="poster-container detail-poster-wrap">
-            <Poster title={game.title} src={game.coverUrl} className="detail-poster" label="Couverture" />
+            <Poster title={game.title} src={game.coverUrl} className="detail-poster" label="Couverture" onEdit={onCoverEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
           <div className="detail-status">
             <StatusBadge status={game.status} labels={GAME_STATUS_LABELS} />
@@ -149,6 +153,14 @@ export function GameDetail({ game, onBack, onEdit, onDelete }: GameDetailProps) 
           </div>
         </div>
       )}
+      <PosterUrlDialog
+        open={posterDialogOpen}
+        title={game.title}
+        label="Couverture"
+        currentUrl={game.coverUrl}
+        onClose={() => setPosterDialogOpen(false)}
+        onSave={(url) => onCoverEdit?.(url)}
+      />
     </main>
   )
 }

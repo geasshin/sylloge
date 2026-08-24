@@ -5,6 +5,7 @@ import {
   type Artwork,
 } from '../domain/artwork.ts'
 import { Poster } from './Poster.tsx'
+import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 
 function formatCalendarDate(value: string): string {
@@ -16,14 +17,17 @@ type ArtworkDetailProps = {
   artwork: Artwork
   onBack: () => void
   onEdit: () => void
+  /** Modification du visuel par URL depuis le crayon. */
+  onImageEdit?: (url: string | null) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function ArtworkDetail({ artwork, onBack, onEdit, onDelete }: ArtworkDetailProps) {
+export function ArtworkDetail({ artwork, onBack, onEdit, onImageEdit, onDelete }: ArtworkDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [posterDialogOpen, setPosterDialogOpen] = useState(false)
 
   const deleteArtwork = async () => {
     setDeleting(true)
@@ -70,7 +74,7 @@ export function ArtworkDetail({ artwork, onBack, onEdit, onDelete }: ArtworkDeta
       <article className="detail-layout">
         <div className="detail-side">
           <div className="poster-container detail-poster-wrap">
-            <Poster title={artwork.title} src={artwork.imageUrl} className="detail-poster" label="Visuel" />
+            <Poster title={artwork.title} src={artwork.imageUrl} className="detail-poster" label="Visuel" onEdit={onImageEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
           <div className="detail-status">
             <StatusBadge status={artwork.status} labels={ARTWORK_STATUS_LABELS} />
@@ -137,6 +141,14 @@ export function ArtworkDetail({ artwork, onBack, onEdit, onDelete }: ArtworkDeta
           </div>
         </div>
       )}
+      <PosterUrlDialog
+        open={posterDialogOpen}
+        title={artwork.title}
+        label="Visuel"
+        currentUrl={artwork.imageUrl}
+        onClose={() => setPosterDialogOpen(false)}
+        onSave={(url) => onImageEdit?.(url)}
+      />
     </main>
   )
 }

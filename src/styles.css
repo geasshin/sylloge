@@ -645,7 +645,10 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  /* Uniformisation : toute image (affiche TMDB, couverture Open Library,
+     cover IGDB, visuel importé d'un export) remplit exactement le cadre
+     2/3 aux bords arrondis — plus jamais d'angle droit ni de bande blanche. */
+  object-fit: cover;
 }
 
 .poster-fallback {
@@ -1314,6 +1317,29 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 
 /* Bouton d'édition d'affiche sur la fiche détail */
 .poster-container { position: relative; }
+/* Crayon intégré à l'affiche : apparaît au survol, coin inférieur droit */
+.poster-edit-overlay {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: rgba(23, 23, 26, .78);
+  color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .14s ease, transform .14s ease;
+}
+.poster:hover .poster-edit-overlay,
+.poster-edit-overlay:focus-visible { opacity: 1; }
+.poster-edit-overlay:hover { transform: scale(1.08); background: rgba(23, 23, 26, .92); }
+@media (prefers-reduced-motion: reduce) {
+  .poster-edit-overlay { transition: none; }
+}
 .poster-edit-button {
   position: absolute;
   bottom: 12px;
@@ -1660,15 +1686,21 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   font-size: 13px;
   font-weight: 600;
 }
-.auto-associate-button:hover { border-color: var(--color-accent); box-shadow: 0 1px 3px rgba(31, 29, 26, .08); }
+.auto-associate-button:hover { border-color: var(--hover-border); box-shadow: 0 1px 3px rgba(28, 28, 30, .08); }
+/* Barre de progression : pleine largeur du contenu du dialogue, strictement
+   proportionnelle au rapport traité/total */
 .auto-associate-progress {
-  max-width: 420px;
-  height: 8px;
+  width: 100%;
+  max-width: none;
+  height: 10px;
   border-radius: 99px;
   background: var(--color-surface-muted);
   overflow: hidden;
 }
-.auto-associate-progress-fill { height: 100%; border-radius: 99px; background: var(--color-accent); transition: width .2s ease; }
+.auto-associate-progress-fill { height: 100%; border-radius: 99px; background: var(--color-accent); transition: width .25s ease; }
+.auto-associate-percent { margin: 6px 0 0; color: var(--color-text-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+/* Dialogue d'association : largeur maîtrisée, contenu compact */
+.assistant-dialog-narrow { max-width: 460px; }
 
 /* Fiche : trois boutons explicites Modifier / Associer / Supprimer */
 .icon-action-button {

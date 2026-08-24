@@ -5,6 +5,7 @@ import {
   type Book,
 } from '../domain/book.ts'
 import { Poster } from './Poster.tsx'
+import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 
 function formatCalendarDate(value: string): string {
@@ -16,14 +17,17 @@ type BookDetailProps = {
   book: Book
   onBack: () => void
   onEdit: () => void
+  /** Modification de la couverture par URL depuis le crayon. */
+  onCoverEdit?: (url: string | null) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function BookDetail({ book, onBack, onEdit, onDelete }: BookDetailProps) {
+export function BookDetail({ book, onBack, onEdit, onCoverEdit, onDelete }: BookDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [posterDialogOpen, setPosterDialogOpen] = useState(false)
 
   const progress = book.volumesRead !== null
     ? book.volumesTotal !== null
@@ -76,7 +80,7 @@ export function BookDetail({ book, onBack, onEdit, onDelete }: BookDetailProps) 
       <article className="detail-layout">
         <div className="detail-side">
           <div className="poster-container detail-poster-wrap">
-            <Poster title={book.title} src={book.coverUrl} className="detail-poster" label="Couverture" />
+            <Poster title={book.title} src={book.coverUrl} className="detail-poster" label="Couverture" onEdit={onCoverEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
           <div className="detail-status">
             <StatusBadge status={book.status} labels={BOOK_STATUS_LABELS} />
@@ -177,6 +181,14 @@ export function BookDetail({ book, onBack, onEdit, onDelete }: BookDetailProps) 
           </div>
         </div>
       )}
+      <PosterUrlDialog
+        open={posterDialogOpen}
+        title={book.title}
+        label="Couverture"
+        currentUrl={book.coverUrl}
+        onClose={() => setPosterDialogOpen(false)}
+        onSave={(url) => onCoverEdit?.(url)}
+      />
     </main>
   )
 }
