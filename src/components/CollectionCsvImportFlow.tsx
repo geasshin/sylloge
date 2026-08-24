@@ -28,8 +28,6 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
   const preview = previewCollectionCsvImport(session, mapping)
   const mediumLabel = { series: 'Séries', books: 'Livres', games: 'Jeux', artworks: 'Art' }[kind]
   const groups = collectionCsvFieldGroups(kind)
-  const mappedColumns = new Set(Object.values(mapping).filter((column): column is string => column !== null))
-  const unmappedColumns = session.table.headers.filter((header) => !mappedColumns.has(header))
 
   return (
     <div className="assistant-content">
@@ -46,68 +44,51 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
       {step === 'mapping' && (
         <section className="assistant-stage">
           <p className="card-kicker">Mapping</p>
-          <h3>Choisir la colonne de ton fichier pour chaque champ Sylloge</h3>
-          <p className="films-import-details">
-            Pour chaque champ ci-dessous, sélectionne la colonne de ton fichier qui doit le remplir.
-            Laisse « Ne pas importer » quand rien ne correspond — c’est le réglage par défaut.
-          </p>
-          <p className="import-contextual-hint">
-            <span aria-hidden="true">💡</span>
-            Sylloge pré-sélectionne déjà les colonnes qu’il reconnaît (titre, statut, note…).
-            Vérifie simplement les lignes marquées, puis continue.
-          </p>
-          {groups.map((group) => (
-            <fieldset className="mapping-group" key={group.id}>
-              <legend>{group.label}</legend>
-              <p className="mapping-group-description">{group.description}</p>
-              <div className="mapping-rows">
-                {group.fields.map((fieldDefinition) => {
-                  const destination = mapping[fieldDefinition.key] ?? null
-                  return (
-                    <div className="mapping-row" key={fieldDefinition.key}>
-                      <div className="mapping-field-name">
-                        <b>{fieldDefinition.label}</b>
-                        {fieldDefinition.key === 'title' && <small>Obligatoire</small>}
+          <h3>Relie les colonnes de ton fichier à Sylloge</h3>
+          {groups.map((group) => {
+            const isSecondary = group.id === 'editorial'
+            return (
+              <details className="mapping-group" key={group.id} open={!isSecondary}>
+                <summary>
+                  <span className="mapping-group-label">{group.label}</span>
+                  <small>{group.summary}</small>
+                </summary>
+                <div className="mapping-rows">
+                  {group.fields.map((fieldDefinition) => {
+                    const destination = mapping[fieldDefinition.key] ?? null
+                    return (
+                      <div className="mapping-row" key={fieldDefinition.key}>
+                        <div className="mapping-field-name">
+                          <b>{fieldDefinition.label}</b>
+                          {fieldDefinition.key === 'title' && <small>Obligatoire</small>}
+                        </div>
+                        <label className="visually-hidden" htmlFor={`mapping-${fieldDefinition.key}`}>
+                          Colonne du fichier pour {fieldDefinition.label}
+                        </label>
+                        <select
+                          id={`mapping-${fieldDefinition.key}`}
+                          className="mapping-select"
+                          value={destination ?? ''}
+                          onChange={(event) => setMapping((current) => setCollectionCsvSourceDestination(
+                            current,
+                            fieldDefinition.key,
+                            event.target.value || null,
+                          ))}
+                        >
+                          <option value="">Ne pas importer</option>
+                          {session.table.headers.map((header) => (
+                            <option key={header} value={header}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <label className="visually-hidden" htmlFor={`mapping-${fieldDefinition.key}`}>
-                        Colonne du fichier pour {fieldDefinition.label}
-                      </label>
-                      <select
-                        id={`mapping-${fieldDefinition.key}`}
-                        className="mapping-select"
-                        value={destination ?? ''}
-                        onChange={(event) => setMapping((current) => setCollectionCsvSourceDestination(
-                          current,
-                          event.target.value === '' ? destination ?? '' : event.target.value,
-                          event.target.value || null,
-                        ))}
-                      >
-                        <option value="">Ne pas importer</option>
-                        {session.table.headers.map((header) => (
-                          <option
-                            key={header}
-                            value={header}
-                            disabled={mappedColumns.has(header) && header !== destination}
-                          >
-                            {header}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )
-                })}
-              </div>
-            </fieldset>
-          ))}
-          {unmappedColumns.length > 0 && (
-            <details className="unmapped-columns">
-              <summary>{unmappedColumns.length} colonne{unmappedColumns.length > 1 ? 's' : ''} de ton fichier ne sera{unmappedColumns.length > 1 ? 'ont' : ''} pas importée{unmappedColumns.length > 1 ? 's' : ''}</summary>
-              <p>
-                {unmappedColumns.join(' · ')}. Ce n’est pas perdu : les métadonnées éditoriales
-                (résumés, affiches, casting…) peuvent être complétées plus tard dans Sylloge via la recherche assistée.
-              </p>
-            </details>
-          )}
+                    )
+                  })}
+                </div>
+              </details>
+            )
+          })}
           <div className="assistant-actions">
             <button className="primary-button" type="button" onClick={() => setStep('preview')}>Vérifier l’aperçu</button>
           </div>

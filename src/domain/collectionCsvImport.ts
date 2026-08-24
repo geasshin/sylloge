@@ -118,11 +118,11 @@ export function collectionCsvFields(kind: CollectionCsvImportKind): readonly Col
 }
 
 /** Groupes du mapping inversé : champs éditoriaux puis personnels, par médium. */
-const FIELD_GROUPS: Array<{ id: string; label: string; description: string; keys: Record<CollectionCsvImportKind, readonly string[]> }> = [
+const FIELD_GROUPS: Array<{ id: string; label: string; summary: string; keys: Record<CollectionCsvImportKind, readonly string[]> }> = [
   {
     id: 'editorial',
     label: 'Éditorial',
-    description: 'Ce qui décrit l’œuvre. Les métadonnées manquantes restent récupérables plus tard via la recherche assistée.',
+    summary: 'titre et description de l’œuvre — optionnel, récupérable plus tard via la recherche assistée',
     keys: {
       series: ['title', 'showrunner', 'casting', 'summary', 'category', 'posterUrl'],
       books: ['title', 'author', 'year', 'summary', 'category', 'coverUrl'],
@@ -133,7 +133,7 @@ const FIELD_GROUPS: Array<{ id: string; label: string; description: string; keys
   {
     id: 'personal',
     label: 'Personnel',
-    description: 'Ta vision : statut, note, coup de cœur, progression, dates et avis. C’est ce qui vaut l’import.',
+    summary: 'statut, note, coup de cœur, progression, dates et avis — l’essentiel de ton import',
     keys: {
       series: ['status', 'rating', 'isFavorite', 'seasonsSeen', 'seasonsTotal', 'startedAt', 'personalNote'],
       books: ['status', 'rating', 'isFavorite', 'volumesRead', 'volumesTotal', 'startedAt', 'personalNote', 'quotes'],
@@ -143,12 +143,12 @@ const FIELD_GROUPS: Array<{ id: string; label: string; description: string; keys
   },
 ]
 
-export function collectionCsvFieldGroups(kind: CollectionCsvImportKind): Array<{ id: string; label: string; description: string; fields: readonly CollectionCsvField[] }> {
+export function collectionCsvFieldGroups(kind: CollectionCsvImportKind): Array<{ id: string; label: string; summary: string; fields: readonly CollectionCsvField[] }> {
   const all = FIELDS[kind]
   return FIELD_GROUPS.map((group) => ({
     id: group.id,
     label: group.label,
-    description: group.description,
+    summary: group.summary,
     fields: group.keys[kind].map((key) => all.find((fieldDefinition) => fieldDefinition.key === key)).filter((fieldDefinition): fieldDefinition is CollectionCsvField => fieldDefinition !== undefined),
   }))
 }
@@ -168,14 +168,17 @@ export function prepareCollectionCsvImport(kind: CollectionCsvImportKind, conten
 
 export function setCollectionCsvSourceDestination(
   configuration: CollectionCsvMapping,
-  source: string,
-  destination: string | null,
+  fieldKey: string,
+  column: string | null,
 ): CollectionCsvMapping {
-  const mapping = { ...configuration }
-  for (const [fieldKey, column] of Object.entries(mapping)) {
-    if (column === source || fieldKey === destination) mapping[fieldKey] = null
+  // Mapping inversé (0.6.2) : mapping[champSylloge] = nomDeColonne.
+  // Affecte `column` au champ `fieldKey`, en retirant cette colonne de tout
+  // autre champ qui la détenait (une colonne ne peut alimenter qu'un champ).
+  const mapping: CollectionCsvMapping = { ...configuration }
+  for (const [otherField, otherColumn] of Object.entries(mapping)) {
+    if (otherColumn === column && otherField !== fieldKey) mapping[otherField] = null
   }
-  if (destination !== null) mapping[destination] = source
+  mapping[fieldKey] = column
   return mapping
 }
 
@@ -410,15 +413,17 @@ function parseQuotes(value: string, line: number, errors: ImportValidationError[
   try {
     const parsed: unknown = JSON.parse(value)
     if (!Array.isArray(parsed) || parsed.some((quote) => typeof quote !== 'string')) {
-      errors.push({ path: `Ligne ${line}.citations`, message: 'Les citations doivent être un tableau JSON de textes.' })
+      errors.push({ path: `Ligne ${line}.citations.info`, message: 'Citations dans un format inattendu — laissées vides.' })
       return []
     }
     return parsed.filter((quote) => quote.trim()).map((body, position) => ({
       id: `import-preview-${line}-quote-${position}`, bookId: `import-preview-${line}`, body, position, createdAt: importedAt,
     }))
   } catch {
-    errors.push({ path: `Ligne ${line}.citations`, message: 'Les citations doivent être un tableau JSON valide.' })
-    return []
+    // Citations libres (texte non JSON, ex. export Notion) : on garde le texte
+    // brut comme une seule citation plutôt que de bloquer quoi que ce soit.
+    errors.push({ path: `Ligne ${line}.citations.info`, message: 'Citations en texte libre — importées comme une citation unique.' })
+    return [{ id: `import-preview-${line}-quote-0`, bookId: `import-preview-${line}`, body: value.trim(), position: 0, createdAt: importedAt }]
   }
 }
 

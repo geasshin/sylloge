@@ -34,6 +34,7 @@ const STATUS_SYNONYMS: Record<string, StatusSynonyms> = {
     'en cours': ['en cours', 'cours', 'encours', 'in progress', 'watching', 'ongoing', 'started', 'current'],
     'vue': ['vue', 'vues', 'vu', 'terminé', 'terminée', 'completed', 'complete', 'done', 'finished', 'watched', 'seen'],
     'abandonnée': ['abandonnee', 'abandonnée', 'abandonné', 'abandonnes', 'dropped', 'abandoned', 'stopped'],
+    'en attente': ['en attente', 'attente', 'on hold', 'onhold', 'hold', 'paused', 'pending', 'waiting'],
   },
   livre: {
     'à lire': ['a lire', 'lire', 'to read', 'readlist', 'planned'],
@@ -45,7 +46,7 @@ const STATUS_SYNONYMS: Record<string, StatusSynonyms> = {
     'à jouer': ['a jouer', 'jouer', 'to play', 'backlog', 'planned'],
     'en cours': ['en cours', 'cours', 'encours', 'in progress', 'playing', 'playing now', 'started', 'current'],
     'joué': ['joue', 'joués', 'jouée', 'jouées', 'fini', 'terminé', 'played', 'finished', 'beaten', 'completed', 'done'],
-    'regardé': ['regarde', 'regardé', 'regardés', 'watched', 'let’s play', 'lets play', 'let us play', 'stream', 'twitch', 'youtube'],
+    'regardé': ['regarde', 'regardé', 'regardés', 'watched let s play', "watched (let's play)", 'watched lets play', 'let s play', "let's play", 'lets play', 'let us play', 'stream', 'twitch', 'youtube', 'watched as let s play'],
     'abandonné': ['abandonne', 'abandonnés', 'abandonnée', 'abandonnées', 'dropped', 'abandoned', 'stopped'],
   },
   art: {
@@ -114,6 +115,14 @@ export function normalizeImportRating(value: string | null): Normalized<number> 
       return { value: null, warning: `Note « ${raw} » illisible — champ laissé vide.` }
     }
     return clampRating((numerator / denominator) * 5)
+  }
+
+  // Nombre suivi d'une annotation : « 9 (Chef d'œuvre) », « 7 - Très bon ».
+  const annotated = /^(\d+(?:[.,]\d+)?)\b[\s(:\-–—]/.exec(normalizeLoose(raw))
+  if (annotated) {
+    const parsed = Number(annotated[1])
+    if (parsed > 5 && parsed <= 10) return clampRating(parsed / 2)
+    return clampRating(parsed)
   }
 
   // Nombre simple : « 4 » ou « 4,5 ». Échelle /10 devinée si > 5.

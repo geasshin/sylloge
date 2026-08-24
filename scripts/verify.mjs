@@ -677,9 +677,9 @@ const completeExport = createLibraryExport({
 
   const externalSeries = prepareCollectionCsvImport('series', 'Nom,État,Préféré\nSérie externe,Vue,oui\n')
   let externalMapping = externalSeries.initialMapping
-  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Nom', 'title')
-  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'État', 'status')
-  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Préféré', 'isFavorite')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'title', 'Nom')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'status', 'État')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'isFavorite', 'Préféré')
   const externalPreview = previewCollectionCsvImport(externalSeries, externalMapping, exportedAt)
   assert.deepEqual(
     [externalPreview.items?.[0]?.title, externalPreview.items?.[0]?.status, externalPreview.items?.[0]?.isFavorite],
@@ -688,7 +688,7 @@ const completeExport = createLibraryExport({
   )
 
   const invalidGames = prepareCollectionCsvImport('games', 'Nom,Statut\nJeu valide,Joué\n,En cours\n')
-  const invalidMapping = setCollectionCsvSourceDestination(invalidGames.initialMapping, 'Nom', 'title')
+  const invalidMapping = setCollectionCsvSourceDestination(invalidGames.initialMapping, 'title', 'Nom')
   const invalidPreview = previewCollectionCsvImport(invalidGames, invalidMapping, exportedAt)
   assert.equal(invalidPreview.items?.length, 1, 'La ligne sans titre n’est pas créée, mais l’import entier ne bloque plus (0.6.3)')
   assert.deepEqual(
