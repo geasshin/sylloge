@@ -260,21 +260,6 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
                       spellCheck={false}
                     />
                   </div>
-                  <div className="field">
-                    <label htmlFor="series-posterUrl">URL directe de l’affiche</label>
-                    <input
-                      id="series-posterUrl"
-                      type="url"
-                      inputMode="url"
-                      placeholder="https://…/affiche.jpg"
-                      value={values.posterUrl}
-                      onChange={(event) => update('posterUrl', event.target.value)}
-                      aria-invalid={Boolean(errors.posterUrl)}
-                      aria-describedby={`series-poster-help${errors.posterUrl ? ' series-poster-error' : ''}`}
-                    />
-                    <p className="field-help" id="series-poster-help">Une image indisponible n’empêchera pas l’enregistrement.</p>
-                    {errors.posterUrl && <p className="field-error" id="series-poster-error">{errors.posterUrl}</p>}
-                  </div>
                 </div>
               )}
             </details>

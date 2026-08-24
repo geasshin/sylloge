@@ -205,21 +205,6 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
                     />
                     {errors.year && <p className="field-error" id="game-year-error">{errors.year}</p>}
                   </div>
-                  <div className="field">
-                    <label htmlFor="game-coverUrl">URL directe de la couverture</label>
-                    <input
-                      id="game-coverUrl"
-                      type="url"
-                      inputMode="url"
-                      placeholder="https://…/couverture.jpg"
-                      value={values.coverUrl}
-                      onChange={(event) => update('coverUrl', event.target.value)}
-                      aria-invalid={Boolean(errors.coverUrl)}
-                      aria-describedby={`game-cover-help${errors.coverUrl ? ' game-cover-error' : ''}`}
-                    />
-                    <p className="field-help" id="game-cover-help">Une image indisponible n’empêchera pas l’enregistrement.</p>
-                    {errors.coverUrl && <p className="field-error" id="game-cover-error">{errors.coverUrl}</p>}
-                  </div>
                 </div>
               )}
             </details>

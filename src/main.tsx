@@ -2963,6 +2963,7 @@ function App() {
           setView({ name: 'detail', filmId: film.id, returnTo: 'library' })
           window.scrollTo({ top: 0 })
         }}
+        asDialog
       />
     )
   } else if (view.name === 'settings') {

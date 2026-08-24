@@ -334,21 +334,6 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
                       spellCheck={false}
                     />
                   </div>
-                  <div className="field">
-                    <label htmlFor="book-coverUrl">URL directe de la couverture</label>
-                    <input
-                      id="book-coverUrl"
-                      type="url"
-                      inputMode="url"
-                      placeholder="https://…/couverture.jpg"
-                      value={values.coverUrl}
-                      onChange={(event) => update('coverUrl', event.target.value)}
-                      aria-invalid={Boolean(errors.coverUrl)}
-                      aria-describedby={`book-cover-help${errors.coverUrl ? ' book-cover-error' : ''}`}
-                    />
-                    <p className="field-help" id="book-cover-help">Une image indisponible n’empêchera pas l’enregistrement.</p>
-                    {errors.coverUrl && <p className="field-error" id="book-cover-error">{errors.coverUrl}</p>}
-                  </div>
                 </div>
               )}
             </details>

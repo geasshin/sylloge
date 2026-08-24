@@ -1722,6 +1722,35 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 .poster-dialog-add small { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 
+/* Pop-up d'ajout/édition de fiche : modale centrée au-dessus de la
+   bibliothèque, arrière-plan flouté */
+.dialog-backdrop-blur {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: color-mix(in srgb, var(--color-canvas) 55%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  overflow-y: auto;
+}
+.editor-dialog {
+  position: relative;
+  width: min(920px, 100%);
+  margin: auto;
+  padding: 30px 34px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lifted);
+}
+.editor-dialog .editor-heading { padding: 0 0 18px; }
+.editor-dialog-close { position: absolute; top: 16px; right: 16px; }
+/* En pop-up, le formulaire n'a plus ses ombres/padding de page */
+.editor-dialog .film-form { padding: 0; border: none; box-shadow: none; background: transparent; }
+
 /* Fiche : trois boutons explicites Modifier / Associer / Supprimer */
 .icon-action-button {
   min-height: 36px;
