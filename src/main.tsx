@@ -114,10 +114,11 @@ import {
   WandIcon,
   PencilIcon,
   TrashIcon,
+  PanelIcon,
 } from './components/icons.tsx'
 import './styles.css'
 
-type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash'
+type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel'
 export type { IconName }
 type SettingsSection = PortabilitySection
 
@@ -146,6 +147,8 @@ export function icon(name: IconName) {
       return <PencilIcon />
     case 'trash':
       return <TrashIcon />
+    case 'panel':
+      return <PanelIcon />
     case 'search':
       return <SearchIcon />
     default:
@@ -162,6 +165,8 @@ const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
 ]
 
 type SidebarProps = {
+  expanded: boolean
+  onToggleExpanded: () => void
   count: number | null
   seriesCount: number | null
   bookCount: number | null
@@ -182,6 +187,8 @@ type SidebarProps = {
 }
 
 function Sidebar({
+  expanded,
+  onToggleExpanded,
   count,
   seriesCount,
   bookCount,
@@ -201,15 +208,30 @@ function Sidebar({
   onReturnToLibrary,
 }: SidebarProps) {
   const settingsOpen = activeItem === 'settings'
+  // En rail, les libellés sont masqués : l'infobulle maison prend le relais.
+  const labelFor = (label: string) => (expanded ? undefined : label)
 
   return (
-    <aside className={`sidebar ${settingsOpen ? 'sidebar-settings' : ''}`}>
-      <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
-        <img className="wordmark-logo" src={logoSylloge} alt="" width={52} height={52} />
-        <span className="wordmark-text">
-          <span>Sylloge</span>
-        </span>
-      </button>
+    <aside className={`sidebar ${settingsOpen ? 'sidebar-settings' : ''} ${expanded ? 'sidebar-expanded' : 'sidebar-rail'}`}>
+      <div className="sidebar-top">
+        <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
+          <img className="wordmark-logo" src={logoSylloge} alt="" width={34} height={34} />
+          <span className="wordmark-text">
+            <span>Sylloge</span>
+          </span>
+        </button>
+        <button
+          className={`sidebar-toggle ${expanded ? '' : 'is-floating'}`}
+          type="button"
+          onClick={onToggleExpanded}
+          title={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
+          aria-label={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
+          aria-pressed={expanded}
+          data-tooltip={expanded ? undefined : 'Barre latérale'}
+        >
+          {icon('panel')}
+        </button>
+      </div>
       {settingsOpen ? (
         <nav aria-label="Navigation des paramètres">
           <p className="nav-label">Paramètres</p>
@@ -228,18 +250,10 @@ function Sidebar({
       ) : (
         <nav aria-label="Navigation principale">
           <button
-            className={`nav-item ${activeItem === 'home' ? 'active' : ''}`}
-            type="button"
-            onClick={onHome}
-            aria-current={activeItem === 'home' ? 'page' : undefined}
-          >
-            <span className="nav-item-text">{icon('home')} Accueil</span>
-            <span className="nav-item-peek" aria-hidden="true">{icon('home')}</span>
-          </button>
-          <button
             className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
             type="button"
             onClick={onLibrary}
+            data-tooltip={labelFor('Films')}
             aria-current={activeItem === 'library' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('film')} Films</span>
@@ -250,6 +264,7 @@ function Sidebar({
             className={`nav-item ${activeItem === 'series' ? 'active' : ''}`}
             type="button"
             onClick={onSeries}
+            data-tooltip={labelFor('Séries')}
             aria-current={activeItem === 'series' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('series')} Séries</span>
@@ -260,6 +275,7 @@ function Sidebar({
             className={`nav-item ${activeItem === 'books' ? 'active' : ''}`}
             type="button"
             onClick={onBooks}
+            data-tooltip={labelFor('Livres')}
             aria-current={activeItem === 'books' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('book')} Livres</span>
@@ -270,6 +286,7 @@ function Sidebar({
             className={`nav-item ${activeItem === 'games' ? 'active' : ''}`}
             type="button"
             onClick={onGames}
+            data-tooltip={labelFor('Jeux')}
             aria-current={activeItem === 'games' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('game')} Jeux</span>
@@ -280,6 +297,7 @@ function Sidebar({
             className={`nav-item ${activeItem === 'artworks' ? 'active' : ''}`}
             type="button"
             onClick={onArtworks}
+            data-tooltip={labelFor('Art')}
             aria-current={activeItem === 'artworks' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('art')} Art</span>
@@ -299,6 +317,7 @@ function Sidebar({
             className="nav-item"
             type="button"
             onClick={onSettings}
+            data-tooltip={labelFor('Paramètres')}
           >
             <span className="nav-item-text">{icon('settings')} Paramètres</span>
             <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
@@ -2120,6 +2139,8 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
 
 function App() {
   const { preference: themePreference, setPreference: setThemePreference } = useTheme()
+  // Barre latérale : « rail » (icônes seules) ou « étendue » (icônes + libellés).
+  const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
@@ -3228,6 +3249,8 @@ function App() {
   return (
     <div className="app">
       <Sidebar
+        expanded={sidebarExpanded}
+        onToggleExpanded={() => setSidebarExpanded((value) => !value)}
         count={count}
         seriesCount={seriesCount}
         bookCount={bookCount}

@@ -132,6 +132,16 @@ export function TrashIcon({ size = 16 }: IconProps) {
   )
 }
 
+/** Panneau latéral : bascule rail / étendue de la barre de navigation. */
+export function PanelIcon({ size = 17 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <rect {...strokeProps} x="3" y="4" width="18" height="16" rx="2.5" />
+      <line {...strokeProps} x1="9.5" y1="4" x2="9.5" y2="20" />
+    </svg>
+  )
+}
+
 /** Icônes des vues de l'accueil et des sections. */
 export function CalendarIcon({ size = 17 }: IconProps) {
   return (

@@ -4,14 +4,13 @@
 Spécification appliquée :
 - Canevas 1024x1024, fond transparent.
 - Artwork 824x824 centré (marges de 100 px), coins arrondis au rayon
-  du gabarit macOS (~185 px sur la tuile 824) — le système peut encore
-  masquer sans déformer.
-- Fond du artwork : dégradé vertical gris anthracite (#3A3A3F → #1D1D20),
-  sobre et moderne, lisible dans un dock clair ou sombre.
-- Logo Sylloge centré à 62 % de la tuile (zone sûre du gabarit).
+  du gabarit macOS (~185 px sur le canevas).
+- Fond : dégradé vertical anthracite dessiné NATIVEMENT en AppKit
+  (pas de passage par SVG/Quick Look, qui casse la transparence et
+  ajoute un fond blanc — le bug constaté dans le dock).
+- Logo Sylloge centré à 72 % de la tuile, ombre douce.
 
-Usage : python3 scripts/build-icons.py
-Nécessite macOS (sips + Swift/AppKit pour la composition).
+Usage : python3 scripts/build-icons.py   (macOS requis)
 """
 
 import subprocess
@@ -23,27 +22,9 @@ OUT_DIR = ROOT / 'src-tauri/icons'
 TMP = Path('/tmp/sylloge-icon-build')
 
 CANVAS = 1024          # canevas final
-ARTWORK = 824          # taille de la tuile dessinée (marges 100 px)
-RADIUS = 185           # rayon de coin du gabarit macOS sur 1024
-LOGO_RATIO = 0.62      # logo = 62 % de la tuile
-
-SVG_BG = f'''<svg xmlns="http://www.w3.org/2000/svg" width="{ARTWORK}" height="{ARTWORK}" viewBox="0 0 {ARTWORK} {ARTWORK}">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3E3E44"/>
-      <stop offset="0.55" stop-color="#2B2B30"/>
-      <stop offset="1" stop-color="#1D1D20"/>
-    </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".10"/>
-      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-  <rect width="{ARTWORK}" height="{ARTWORK}" rx="{RADIUS}" fill="url(#bg)"/>
-  <rect width="{ARTWORK}" height="{ARTWORK}" rx="{RADIUS}" fill="url(#sheen)"/>
-  <rect x="1" y="1" width="{ARTWORK - 2}" height="{ARTWORK - 2}" rx="{RADIUS - 1}" fill="none"
-        stroke="#FFFFFF" stroke-opacity=".14" stroke-width="2"/>
-</svg>'''
+ARTWORK = 824          # tuile dessinée (marges 100 px)
+RADIUS = 185           # rayon de coin du gabarit macOS
+LOGO_RATIO = 0.72      # logo = 72 % de la tuile
 
 
 def run(cmd: list[str]) -> None:
@@ -53,48 +34,66 @@ def run(cmd: list[str]) -> None:
 
 
 def compose(size: int) -> Path:
-    """Compose fond + logo à `size` px via Swift/AppKit."""
+    """Dessine toute l'icône en Swift/AppKit : transparence garantie."""
     out = TMP / f'icon-{size}.png'
     scale = size / CANVAS
     tile = round(ARTWORK * scale)
     radius = round(RADIUS * scale)
-    logo_px = max(1, round(tile * LOGO_RATIO))
-    margin = (size - tile) // 2
+    margin = round((size - tile) / 2)
+    logo_px = round(tile * LOGO_RATIO)
 
-    bg_svg = TMP / 'bg.svg'
-    bg_png = TMP / 'bg.png'
-    bg_svg.write_text(SVG_BG)
-    # Rendu SVG → PNG via qlmanage (Quick Look, présent sur tout macOS)
-    run(['qlmanage', '-t', '-s', str(ARTWORK), '-o', str(TMP), str(bg_svg)])
-    produced = TMP / f'bg.svg.png'
-    run(['sips', '-z', str(tile), str(tile), str(produced), '--out', str(bg_png)])
+    logo = TMP / 'logo-1024.png'
+    if not logo.exists():
+        run(['sips', '-z', '1024', '1024', str(SRC_LOGO), '--out', str(logo)])
 
-    logo = TMP / 'logo.png'
-    run(['sips', '-z', str(logo_px), str(logo_px), str(SRC_LOGO), '--out', str(logo)])
-
-    script = TMP / 'compose.swift'
+    script = TMP / f'compose-{size}.swift'
     script.write_text(f'''
 import AppKit
-guard let bg = NSImage(contentsOfFile: "{bg_png}") else {{ fatalError("bg") }}
-guard let logo = NSImage(contentsOfFile: "{logo}") else {{ fatalError("logo") }}
-let canvas = NSSize(width: {size}, height: {size})
-let image = NSImage(size: canvas)
+
+let size = CGFloat({size})
+let tile = CGFloat({tile})
+let radius = CGFloat({radius})
+let margin = CGFloat({margin})
+let logoPx = {logo_px}.0
+
+guard let logo = NSImage(contentsOfFile: "{logo}") else {{ fatalError("logo manquant") }}
+
+let image = NSImage(size: NSSize(width: size, height: size))
 image.lockFocus()
-let tileRect = NSRect(x: {margin}, y: {margin}, width: {tile}, height: {tile})
-bg.draw(in: tileRect)
-let logoSize = logo.size
-let origin = NSPoint(x: tileRect.midX - logoSize.width / 2, y: tileRect.midY - logoSize.height / 2)
-// Ombre douce sous le logo pour le détacher du fond sombre
+NSGraphicsContext.current?.imageInterpolation = .high
+
+let tileRect = NSRect(x: margin, y: margin, width: tile, height: tile)
+
+// Fond : dégradé anthracite vertical dans un squircle
+let bgPath = NSBezierPath(roundedRect: tileRect, xRadius: radius, yRadius: radius)
+bgPath.addClip()
+let gradient = NSGradient(starting: NSColor(srgbRed: 0.26, green: 0.26, blue: 0.28, alpha: 1),
+                          ending: NSColor(srgbRed: 0.10, green: 0.10, blue: 0.12, alpha: 1))!
+gradient.draw(in: bgPath, angle: -90)
+
+// Filet lumineux discret sur le bord supérieur (profondeur)
+NSGraphicsContext.current?.saveGraphicsState()
+let highlight = NSGradient(starting: NSColor.white.withAlphaComponent(0.14),
+                           ending: NSColor.white.withAlphaComponent(0.0))
+highlight?.draw(in: bgPath, angle: -90)
+NSGraphicsContext.current?.restoreGraphicsState()
+
+// Logo centré avec ombre douce
+let logoSize = NSSize(width: logoPx, height: logoPx)
+let origin = NSPoint(x: tileRect.midX - logoSize.width / 2,
+                     y: tileRect.midY - logoSize.height / 2)
 NSGraphicsContext.current?.saveGraphicsState()
 let shadow = NSShadow()
-shadow.shadowColor = NSColor.black.withAlphaComponent(0.45)
-shadow.shadowBlurRadius = {max(2, round(tile * 0.02))}
-shadow.shadowOffset = NSSize(width: 0, height: -{max(1, round(tile * 0.008))}
-)
+shadow.shadowColor = NSColor.black.withAlphaComponent(0.5)
+shadow.shadowBlurRadius = Double(tile) * 0.02
+shadow.shadowOffset = NSSize(width: 0, height: -Double(tile) * 0.008)
 shadow.set()
-logo.draw(in: NSRect(origin: origin, size: logoSize))
+logo.draw(in: NSRect(origin: origin, size: logoSize),
+          from: .zero, operation: .sourceOver, fraction: 1.0)
 NSGraphicsContext.current?.restoreGraphicsState()
+
 image.unlockFocus()
+
 let tiff = image.tiffRepresentation!
 let rep = NSBitmapImageRep(data: tiff)!
 let png = rep.representation(using: .png, properties: [:])!
@@ -110,19 +109,14 @@ def main() -> None:
         compose(size)
         print(f'tuile {size}px OK')
 
-    # iconset macOS (le dock et le Finder utilisent l'icns)
     iconset = TMP / 'icon.iconset'
     iconset.mkdir(exist_ok=True)
-    entries = []
     for base in (16, 32, 128, 256, 512):
-        entries.append((f'icon_{base}x{base}.png', base))
-        entries.append((f'icon_{base}x{base}@2x.png', base * 2))
-    for name, pixel in entries:
-        src = TMP / f'icon-{min(pixel, 1024)}.png'
-        run(['sips', '-z', str(pixel), str(pixel), str(src), '--out', str(iconset / name)])
+        for name, pixel in [(f'icon_{base}x{base}.png', base), (f'icon_{base}x{base}@2x.png', base * 2)]:
+            run(['sips', '-z', str(pixel), str(pixel),
+                 str(TMP / f'icon-{min(pixel, 1024)}.png'), '--out', str(iconset / name)])
     run(['iconutil', '-c', 'icns', str(iconset), '-o', str(OUT_DIR / 'icon.icns')])
 
-    # PNG applicatifs
     png_targets = [
         ('128x128.png', 128), ('128x128@2x.png', 256), ('32x32.png', 32), ('64x64.png', 64),
         ('Square30x30Logo.png', 30), ('Square44x44Logo.png', 44), ('Square71x71Logo.png', 71),
@@ -134,17 +128,12 @@ def main() -> None:
         run(['sips', '-z', str(pixel), str(pixel), str(TMP / f'icon-{min(pixel, 1024)}.png'),
              '--out', str(OUT_DIR / name)])
 
-    # ICO Windows (PNG embarqués, multi-tailles) — les petites tailles
-    # sont produites par redimensionnement sips à la volée.
     import struct
-    sizes = [16, 24, 32, 48, 64, 128, 256]
     images = []
-    for s in sizes:
-        src_png = TMP / f'icon-{min(s, 1024)}.png'
-        if not src_png.exists():
-            nearest = max((p for p in (64, 128, 256, 512, 1024) if p >= s), default=1024)
-            src_png = TMP / f'icon-{s}.png'
-            run(['sips', '-z', str(s), str(s), str(TMP / f'icon-{nearest}.png'), '--out', str(src_png)])
+    for s in [16, 24, 32, 48, 64, 128, 256]:
+        src_png = TMP / f'icon-{s}.png'
+        nearest = max((p for p in (64, 128, 256, 512, 1024) if p >= s), default=1024)
+        run(['sips', '-z', str(s), str(s), str(TMP / f'icon-{nearest}.png'), '--out', str(src_png)])
         images.append((s, src_png.read_bytes()))
     header = struct.pack('<HHH', 0, 1, len(images))
     offset = 6 + 16 * len(images)
