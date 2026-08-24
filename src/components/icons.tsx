@@ -101,6 +101,37 @@ export function RefreshIcon({ size = 15 }: IconProps) {
   )
 }
 
+/** Baguette magique : association automatique des métadonnées. */
+export function WandIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path {...strokeProps} d="M15 4V2M15 10V8M11.5 6.5h-2M20.5 6.5h-2M17.8 3.7l-1.4 1.4M17.8 9.3l-1.4-1.4M12.2 3.7l1.4 1.4" />
+      <path {...strokeProps} d="M3 21 12.7 11.3a1.6 1.6 0 0 1 2.26 0l.34.34a1.6 1.6 0 0 1 0 2.26L5.6 23" transform="translate(-1 -1) scale(.92)" />
+    </svg>
+  )
+}
+
+/** Crayon : édition d'une fiche (d'après Feather Icons, MIT). */
+export function PencilIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path {...strokeProps} d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </svg>
+  )
+}
+
+/** Corbeille : suppression d'une fiche (d'après Feather Icons, MIT). */
+export function TrashIcon({ size = 16 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <polyline {...strokeProps} points="3 6 5 6 21 6" />
+      <path {...strokeProps} d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line {...strokeProps} x1="10" y1="11" x2="10" y2="17" />
+      <line {...strokeProps} x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  )
+}
+
 /** Icônes des vues de l'accueil et des sections. */
 export function CalendarIcon({ size = 17 }: IconProps) {
   return (

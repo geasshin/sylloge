@@ -9,6 +9,7 @@ import {
 import { Poster } from './Poster.tsx'
 import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
+import { icon } from '../main.tsx'
 
 function formatWatchedDate(value: string): string {
   const [year, month, day] = value.split('-').map(Number)
@@ -34,7 +35,6 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
   const [removingAssociation, setRemovingAssociation] = useState(false)
   const [showPosterGallery, setShowPosterGallery] = useState(false)
   const [savingPoster, setSavingPoster] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
 
   const displayPosterUrl = tmdbCache?.selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
   const displayTitle = tmdbCache?.presentation.title ?? film.title
@@ -114,42 +114,35 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
       <header className="page-action-bar detail-action-bar">
         <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
         <div className="detail-actions">
-          <button className="secondary-button" type="button" onClick={onEdit}>Modifier</button>
-          <div className="menu-wrap">
-            <button
-              className="icon-menu-button"
-              type="button"
-              aria-label="Plus d’actions"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              ⋯
+          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+            {icon('pencil')}
+            <span>Modifier</span>
+          </button>
+          {tmdbCache ? (
+            <>
+              <button className="icon-action-button" type="button" onClick={onAssociateTmdb} title="Rafraîchir depuis TMDB">
+                {icon('wand')}
+                <span>Rafraîchir</span>
+              </button>
+              <button className="icon-action-button" type="button" onClick={() => void handleRemoveAssociation()} disabled={removingAssociation} title="Dissocier TMDB">
+                {removingAssociation ? 'Dissociation…' : 'Dissocier'}
+              </button>
+            </>
+          ) : (
+            <button className="icon-action-button" type="button" onClick={onAssociateTmdb} title="Associer à TMDB (recherche assistée)">
+              {icon('wand')}
+              <span>Associer</span>
             </button>
-            {menuOpen && (
-              <>
-                <div className="menu-overlay" onClick={() => setMenuOpen(false)} />
-                <div className="detail-menu" role="menu">
-                  {tmdbCache ? (
-                    <>
-                      <button role="menuitem" type="button" onClick={() => { setMenuOpen(false); onAssociateTmdb() }}>
-                        Rafraîchir depuis TMDB
-                      </button>
-                      <button role="menuitem" type="button" onClick={() => { setMenuOpen(false); handleRemoveAssociation() }} disabled={removingAssociation}>
-                        {removingAssociation ? 'Dissociation…' : 'Dissocier TMDB'}
-                      </button>
-                    </>
-                  ) : (
-                    <button role="menuitem" type="button" onClick={() => { setMenuOpen(false); onAssociateTmdb() }}>
-                      Associer à TMDB
-                    </button>
-                  )}
-                  <button role="menuitem" type="button" className="danger-item" onClick={() => { setMenuOpen(false); setConfirmingDelete(true) }}>
-                    Supprimer ce film…
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          )}
+          <button
+            className="icon-action-button icon-action-danger"
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            title="Supprimer ce film"
+          >
+            {icon('trash')}
+            <span>Supprimer</span>
+          </button>
         </div>
       </header>
 

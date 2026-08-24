@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { AccessibleDialog } from './components/AccessibleDialog.tsx'
+import { ImportHint } from './components/ImportHint.tsx'
 import { ArtworkDetail } from './components/ArtworkDetail.tsx'
 import { ArtworkForm } from './components/ArtworkForm.tsx'
 import { FilmDetail } from './components/FilmDetail.tsx'
@@ -36,6 +38,7 @@ import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmd
 import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries } from './data/tmdbService.ts'
 import { previewOpenLibraryBook, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
 import { previewIgdbGame, type IgdbGameCandidate } from './data/igdbService.ts'
+import { autoAssociateFilms } from './domain/autoAssociate.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -107,13 +110,18 @@ import {
   ArtIcon,
   SettingsIcon,
   RefreshIcon,
+  WandIcon,
+  PencilIcon,
+  TrashIcon,
 } from './components/icons.tsx'
 import './styles.css'
 
-type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings'
+type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash'
+export type { IconName }
 type SettingsSection = PortabilitySection
 
-const icon = (name: IconName) => {
+/** Fabrique d'icônes SVG partagée par tous les composants de l'app. */
+export function icon(name: IconName) {
   switch (name) {
     case 'home':
       return <HomeIcon />
@@ -131,6 +139,12 @@ const icon = (name: IconName) => {
       return <SettingsIcon />
     case 'refresh':
       return <RefreshIcon />
+    case 'wand':
+      return <WandIcon />
+    case 'pencil':
+      return <PencilIcon />
+    case 'trash':
+      return <TrashIcon />
     case 'search':
       return <SearchIcon />
     default:
@@ -1116,6 +1130,7 @@ function FilmsLibrary({
 }: FilmsLibraryProps) {
   const isUnfiltered = context.query.trim() === '' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   return (
     <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
@@ -1145,6 +1160,15 @@ function FilmsLibrary({
       ) : (
         <>
           <div className="library-tools">
+            <button
+              className="auto-associate-button"
+              type="button"
+              onClick={() => setAutoAssociateOpen(true)}
+              title="Associer automatiquement les fiches non associées via TMDB"
+            >
+              {icon('wand')}
+              <span>Tout associer</span>
+            </button>
             <label className="search">
               {icon('search')}
               <span className="visually-hidden">Rechercher par titre, titre original ou réalisation</span>
@@ -1205,7 +1229,106 @@ function FilmsLibrary({
           )}
         </>
       )}
+      <AutoAssociateDialog
+        open={autoAssociateOpen}
+        onClose={() => setAutoAssociateOpen(false)}
+        films={library.films}
+        onDone={onLibraryChanged}
+      />
     </main>
+  )
+}
+
+/** Baguette magique (0.6.6) : confirmation, progression puis résumé. */
+function AutoAssociateDialog({
+  open,
+  onClose,
+  films,
+  onDone,
+}: {
+  open: boolean
+  onClose: () => void
+  films: Film[]
+  onDone: () => void
+}) {
+  const [phase, setPhase] = useState<'confirm' | 'running' | 'done'>('confirm')
+  const [progress, setProgress] = useState({ processed: 0, total: 0 })
+  const [summary, setSummary] = useState<{ associated: number; noMatch: number; cancelled: boolean } | null>(null)
+  const cancelRef = useRef(false)
+
+  if (!open) return null
+
+  const pendingCount = films.filter((film) => !film.providerId || !film.providerName).length
+
+  const start = async () => {
+    setPhase('running')
+    setProgress({ processed: 0, total: pendingCount })
+    cancelRef.current = false
+    const result = await autoAssociateFilms(
+      films,
+      'fr-FR',
+      (processed, total) => setProgress({ processed, total }),
+      () => cancelRef.current,
+    )
+    setSummary({ associated: result.associatedCount, noMatch: result.noMatchCount, cancelled: cancelRef.current })
+    setPhase('done')
+    onDone()
+  }
+
+  return (
+    <AccessibleDialog
+      title="Tout associer"
+      description="Recherche automatique des fiches sur TMDB"
+      closeDisabled={phase === 'running'}
+      onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
+    >
+      <div className="assistant-content">
+        {phase === 'confirm' && (
+          <section className="assistant-stage">
+            <h3>Associer toutes les fiches non associées via TMDB ?</h3>
+            <p className="films-import-details">
+              {pendingCount} fiche{pendingCount > 1 ? 's ne sont' : ' n’est'} pas encore associée{pendingCount > 1 ? 's' : ''}.
+              Sylloge recherchera chaque titre et gardera la meilleure correspondance (titre et année).
+              Tes notes, avis et statuts ne sont jamais modifiés.
+            </p>
+            <ImportHint>
+              Les fiches déjà associées ne sont pas retouchées, et tu pourras corriger une association
+              fiche par fiche si le résultat n’est pas le bon.
+            </ImportHint>
+            <div className="assistant-actions">
+              <button className="secondary-button" type="button" onClick={onClose}>Non</button>
+              <button className="primary-button" type="button" disabled={pendingCount === 0} onClick={() => void start()}>Oui, lancer</button>
+            </div>
+          </section>
+        )}
+        {phase === 'running' && (
+          <section className="assistant-stage">
+            <h3>Association en cours…</h3>
+            <p className="films-import-details">{progress.processed} / {progress.total} fiches traitées.</p>
+            <div className="auto-associate-progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.processed}>
+              <div className="auto-associate-progress-fill" style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%` }} />
+            </div>
+            <div className="assistant-actions">
+              <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>Arrêter</button>
+            </div>
+          </section>
+        )}
+        {phase === 'done' && summary !== null && (
+          <section className="assistant-stage">
+            <h3>Association terminée</h3>
+            <ul className="import-report auto-associate-summary">
+              <li>{summary.associated} fiche{summary.associated > 1 ? 's associée' : ' associée'}{summary.associated > 1 ? 's' : ''}</li>
+              <li>{summary.noMatch} sans correspondance assez sûre</li>
+              {summary.cancelled && <li>Opération arrêtée avant la fin — relance « Tout associer » pour continuer.</li>}
+            </ul>
+            <p className="films-import-details">Chaque fiche reste modifiable individuellement via le bouton Associer.</p>
+            <div className="assistant-actions assistant-actions-single">
+              <button className="primary-button" type="button" onClick={() => { onClose(); setPhase('confirm'); setSummary(null) }}>Fermer</button>
+            </div>
+          </section>
+        )}
+      </div>
+    </AccessibleDialog>
   )
 }
 

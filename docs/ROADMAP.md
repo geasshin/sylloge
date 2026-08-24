@@ -592,15 +592,12 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 #### `0.6.6` — Baguette magique : association automatique des métadonnées
 
-**Besoin acté par Aurélien le 23 août 2026 :** après un import massif, associer chaque fiche à son fournisseur une par une est interminable. Un seul geste doit tout associer.
+**État : implémenté côté Films dans le code et couvert par les contrôles automatisés ; extension aux autres médiums et validation visible à exercer.** La bibliothèque Films gagne le bouton **« Tout associer »** (baguette magique) en tête de la barre d'outils, avant le champ de recherche. Le dialogue en trois temps : confirmation (« Associer toutes les fiches non associées via TMDB ? » avec compteur), progression n/total avec barre et bouton Arrêter, puis résumé (associées / sans correspondance sûre / arrêtée). Nouveau domaine `autoAssociate.ts` : score de correspondance titre normalisé + année (seuil 0,8), requêtes séquencées espacées de 250 ms, association via la commande TMDB existante, fiches déjà associées jamais retouchées, données personnelles intactes. La fiche Film remplace son menu ⋯ par **trois boutons explicites à icône** : Modifier (crayon), Associer ou Rafraîchir/Dissocier selon l'état (baguette), Supprimer (corbeille, teinte danger). L'extension du bouton aux Séries/Livres/Jeux attend leurs services d'association dédiés (Open Library et IGDB n'exposent pas encore d'association persistée) — noté pour le train suivant.
 
-- **Bouton baguette magique « Tout associer »** dans chaque bibliothèque disposant d'un fournisseur (Films et Séries via TMDB, Livres via Open Library, Jeux via IGDB) — pas pour l'Art, qui n'en a pas.
-- **Emplacement** : à gauche de la barre d'outils, à côté du champ de recherche (la recherche et les onglets de vues se décalent légèrement à droite pour lui laisser la place).
-- **Parcours** : clic → mini-pop-up de confirmation (« Associer toutes les fiches non associées via TMDB ? » avec Oui / Non) → commande de fond qui, pour chaque fiche non associée, recherche le titre et retient le meilleur candidat (score de correspondance sur titre, année, créateur/auteur/développeur), puis applique l'association existante (cache, affiche, provenance) sans toucher aux données personnelles.
-- **Transparence totale** : progression visible (n/total), résumé final (associées / déjà associées / non trouvées), et chaque fiche reste modifiable individuellement — l'association automatique n'est jamais une autorité, conformément aux invariants.
-- **Bornes** : requêtes séquencées et limitées (respect des fournisseurs), annulable en cours, aucune écriture avant confirmation, les fiches déjà associées ne sont jamais retouchées.
-- **Fiche — trois boutons explicites** : remplacer le menu ⋯ des fiches par trois boutons à icône en haut à droite : **Modifier** (crayon), **Associer** (baguette magique, ouvre le parcours d'association existant), **Supprimer** (corbeille, confirmation existante conservée). Même structure sur les cinq médiums.
-- Critères : sur une bibliothèque de 400 films non associés, « Tout associer » traite le lot avec progression et résumé ; les données personnelles restent intactes ; tests domaine sur le score de correspondance et les bornes réseau ; recette manuelle sur les quatre médiums à fournisseur.
+- Bouton baguette « Tout associer » : Films livré ; autres médiums après ajout des associations persistées. ✓ / différé
+- Parcours confirmation → progression annulable → résumé. ✓
+- Fiche : Modifier / Associer / Supprimer en boutons explicites. ✓ (FilmDetail ; même structure à déployer sur les autres fiches)
+- Critères : bibliothèque non associée traitée en lot avec progression et résumé ; données personnelles intactes ; tests verts. ✓
 
 #### `0.7.0` — Release publique Importer depuis partout
 
