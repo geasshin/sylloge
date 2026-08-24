@@ -3350,7 +3350,8 @@ assert.match(tauriLibrarySource, /portability::import_games_into_profile/, 'La c
 assert.match(tauriLibrarySource, /portability::import_artworks_into_profile/, 'La commande Tauri Art doit être enregistrée')
 
 assert.doesNotMatch(mainSource047, /create-choice|FilmCreationChoice/, 'La création Film ne doit plus passer par un écran de choix intermédiaire')
-assert.match(mainSource047, /onCreate=\{\(\) => \{[\s\S]*setAssociatingFilm\(null\)[\s\S]*leaveLibrary\(\{ name: 'tmdb-search' \}\)/, 'Ajouter un film doit ouvrir directement la recherche TMDB sans conserver un ancien contexte')
+// 0.6.0 : l'ajout de film s'ouvre en pop-up modale (addFlow) au-dessus de la bibliothèque
+assert.match(mainSource, /onCreate=\{\(\) => setAddFlow\(\{ medium: 'film', step: 'search' \}\)\}/, 'Ajouter un film doit ouvrir la pop-up de recherche TMDB au-dessus de la bibliothèque')
 assert.match(tmdbSearchFlowSource, /setTimeout\(\(\) =>/, 'La recherche TMDB doit être temporisée pendant la saisie')
 assert.match(tmdbSearchFlowSource, /useState\(\(\) => film\?\.title \?\? ''\)/, 'Une association existante doit préremplir la recherche avec son titre')
 assert.match(tmdbSearchFlowSource, /className="tmdb-film-context"/, 'La recherche TMDB doit conserver la fiche existante comme contexte visuel')

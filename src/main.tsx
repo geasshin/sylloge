@@ -2463,6 +2463,13 @@ function App() {
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
+  /** Pop-up d'ajout : étapes recherche → formulaire, au-dessus de la bibliothèque. */
+  type AddFlow =
+    | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
+    | { medium: 'série'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
+    | { medium: 'livre'; step: 'search' }
+    | { medium: 'jeu'; step: 'search' }
+  const [addFlow, setAddFlow] = useState<AddFlow | null>(null)
   const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
   const [bookSelection, setBookSelection] = useState<{ pendingKey: string | null; error: string | null }>({ pendingKey: null, error: null })
   const [tmdbNotice, setTmdbNotice] = useState<{ filmId: string; message: string } | null>(null)
@@ -2789,6 +2796,10 @@ function App() {
         tmdbPresentationToFilmMetadataResult(presentation),
       )
       setCandidateSelection({ pendingId: null, error: null })
+      if (addFlow?.medium === 'film') {
+        setAddFlow({ medium: 'film', step: 'search', initialValues: initialValues.values, provenance: initialValues.provenance ?? null })
+        return
+      }
       setView({
         name: 'create',
         initialValues: initialValues.values,
@@ -3556,10 +3567,7 @@ function App() {
         searchState={searchState}
         onContextChange={setLibraryContext}
         onRetrySearch={() => setSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => {
-          setAssociatingFilm(null)
-          leaveLibrary({ name: 'tmdb-search' })
-        }}
+        onCreate={() => setAddFlow({ medium: 'film', step: 'search' })}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
@@ -3604,6 +3612,59 @@ function App() {
         onReturnToLibrary={returnToLibrary}
       />
       {content}
+      {addFlow && libraryState.status === 'ready' && (
+        <div className="dialog-backdrop-blur" role="presentation">
+          <div
+            className="editor-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ajouter un film"
+          >
+            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAddFlow(null)} aria-label="Fermer">×</button>
+            <div className="editor-heading">
+              <p className="eyebrow">Film</p>
+              <h1 className="display-title">{addFlow.medium === 'film' && addFlow.initialValues ? 'Ajouter le film' : 'Rechercher un film'}</h1>
+              <p>{addFlow.medium === 'film' && addFlow.initialValues ? 'Ton film est reconnu : choisis juste ton verdict.' : 'Recherchez un film dans TMDB et choisissez la bonne correspondance ; le formulaire s’ouvre directement prérempli.'}</p>
+            </div>
+            {addFlow.medium === 'film' && addFlow.step === 'search' && (
+              <TmdbSearchFlow
+                film={null}
+                pendingCandidateId={candidateSelection.pendingId}
+                selectionError={candidateSelection.error}
+                onSelectCandidate={selectTmdbCandidate}
+                onManual={() => setView({ name: 'create' })}
+                onCancel={() => setAddFlow(null)}
+              />
+            )}
+            {addFlow.medium === 'film' && addFlow.initialValues && (
+              <FilmForm
+                initialValues={addFlow.initialValues}
+                provenance={addFlow.provenance ?? null}
+                asDialog={false}
+                onCancel={() => setAddFlow(null)}
+                onSave={async (input, provenance) => {
+                  const library = libraryState.library
+                  const film = await filmsRepository.createFilm(library.profile.id, input, provenance)
+                  const updatedLibrary: FilmLibrary = { ...library, films: sortFilms([...library.films, film]) }
+                  setLibraryState({ status: 'ready', library: updatedLibrary })
+                  requestAutomaticBackup(updatedLibrary)
+                  setTmdbNotice(null)
+                  if (provenance) {
+                    try {
+                      await associateFilmWithTmdb(film.id, Number(provenance.providerId))
+                    } catch (error) {
+                      console.error('Le film a été créé mais son association TMDB a échoué.', error)
+                    }
+                  }
+                  setAddFlow(null)
+                  leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })
+                  window.scrollTo({ top: 0 })
+                }}
+              />
+            )}
+          </div>
+        </div>
+      )}
       {backupNotice && (
         <div className={`backup-notice ${backupNotice.kind}`} role={backupNotice.kind === 'error' ? 'alert' : 'status'} aria-atomic="true">
           <p>{backupNotice.message}</p>
