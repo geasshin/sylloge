@@ -14,6 +14,7 @@ import {
 } from '../domain/gameForm.ts'
 import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
+import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
 function previewableCoverUrl(value: string): string | null {
@@ -27,14 +28,17 @@ function previewableCoverUrl(value: string): string | null {
 
 type GameFormProps = {
   game?: Game
-  /** Valeurs préremplies par la recherche RAWG (création assistée, jalon 0.4.28). */
+  /** Valeurs préremplies par la recherche IGDB (création assistée). */
   initialValues?: GameFormValues
   platformSuggestions: readonly string[]
+  /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
+      sans <main> pleine page ni barre de retour redondante. */
+  embeddedInDialog?: boolean
   onCancel: () => void
   onSave: (input: GameWriteInput) => Promise<void>
 }
 
-export function GameForm({ game, initialValues, platformSuggestions, onCancel, onSave }: GameFormProps) {
+export function GameForm({ game, initialValues, platformSuggestions, embeddedInDialog = false, onCancel, onSave }: GameFormProps) {
   const [values, setValues] = useState<GameFormValues>(() => game ? gameToFormValues(game) : { ...EMPTY_GAME_FORM, ...initialValues })
   const [errors, setErrors] = useState<GameFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -48,6 +52,14 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   // « À jouer » : pas encore de verdict, on masque note, cœur, date et avis.
   const verdictVisible = values.status !== 'à jouer'
+
+  // Crayon commun sur la jaquette (0.6.11) : modification par URL, locale.
+  const posterEditor = usePosterEditor({
+    title: previewTitle,
+    label: 'Couverture',
+    currentUrl: values.coverUrl,
+    onSave: (url) => update('coverUrl', url ?? ''),
+  })
 
   const update = <Key extends keyof GameFormValues>(key: Key, value: GameFormValues[Key]) => {
     setValues((current) => ({ ...current, [key]: value }))
@@ -75,27 +87,24 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
     }
   }
 
-  return (
-    <main className="main editor-main">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
+  const heading = (
+    <div className="editor-heading">
+      <p className="eyebrow">Jeu vidéo</p>
+      <h1 className="display-title">{game ? 'Modifier la fiche' : 'Ajouter un jeu'}</h1>
+      <p>{assisted ? 'Ton jeu est reconnu : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
+    </div>
+  )
 
-      <div className="editor-heading">
-        <p className="eyebrow">Jeu vidéo</p>
-        <h1 className="display-title">{game ? 'Modifier la fiche' : 'Ajouter un jeu'}</h1>
-        <p>{assisted ? 'Ton jeu est reconnu : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
+  const form = (
+    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
+      <div className="form-side">
+        <div className="form-poster-frame">
+          <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" {...posterEditor.posterProps} />
+        </div>
+        <p className="form-poster-caption">Aperçu de la couverture</p>
       </div>
 
-      <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-        <div className="form-side">
-          <div className="form-poster-frame">
-            <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" />
-          </div>
-          <p className="form-poster-caption">Aperçu de la couverture</p>
-        </div>
-
-        <div className="form-body">
+      <div className="form-body">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
             <label htmlFor="game-title">Titre <span aria-hidden="true">*</span></label>
             <input
@@ -137,7 +146,7 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
                     type="date"
                     value={values.playedAt || today}
                     onChange={(event) => update('playedAt', event.target.value)}
-                    aria-label={values.status === 'regardé' ? 'Date du visionnage' : 'Date de jeu'}
+                    aria-label="Date de jeu"
                     aria-invalid={Boolean(errors.playedAt)}
                   />
                 </div>
@@ -213,8 +222,30 @@ export function GameForm({ game, initialValues, platformSuggestions, onCancel, o
               {saving ? 'Enregistrement…' : game ? 'Enregistrer les modifications' : 'Ajouter le jeu'}
             </button>
           </footer>
-        </div>
-      </form>
+      </div>
+    </form>
+  )
+
+  // Pop-up hôte (0.6.10) : en-tête compact et formulaire rendus directement
+  // dans la fenêtre, sans <main> pleine page ni barre « ← Annuler » en double.
+  if (embeddedInDialog) {
+    return (
+      <div className="editor-dialog-embedded">
+        {heading}
+        {form}
+        {posterEditor.posterDialog}
+      </div>
+    )
+  }
+
+  return (
+    <main className="main editor-main">
+      <header className="page-action-bar">
+        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+      </header>
+      {heading}
+      {form}
+      {posterEditor.posterDialog}
     </main>
   )
 }

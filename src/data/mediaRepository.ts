@@ -1,4 +1,4 @@
-import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
+import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkCustomField, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
 import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
@@ -96,6 +96,7 @@ type ArtworkRow = {
   discovered_at: string | null
   image_url: string | null
   personal_note: string | null
+  custom_fields?: string | null
   created_at: string
   updated_at: string
 }
@@ -170,6 +171,7 @@ const ARTWORK_COLUMNS = `
   discovered_at,
   image_url,
   personal_note,
+  custom_fields,
   created_at,
   updated_at`
 
@@ -198,6 +200,10 @@ function toBookStatus(value: string): BookStatus {
 }
 
 function toGameStatus(value: string): GameStatus {
+  // 0.6.11 : « en cours » et « regardé » sont remappés par la migration 14,
+  // mais une sauvegarde JSON/ZIP antérieure peut en contenir encore. Repli
+  // conservateur au lieu d'une exception : ces fiches deviennent « joué ».
+  if (value === 'en cours' || value === 'regardé') return 'joué'
   return toEnumValue(GAME_STATUSES, value, 'Statut Jeu')
 }
 
@@ -300,9 +306,41 @@ export function toArtwork(row: ArtworkRow): Artwork {
     discoveredAt: row.discovered_at,
     imageUrl: row.image_url,
     personalNote: row.personal_note,
+    customFields: parseArtworkCustomFields(row.custom_fields),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })
+}
+
+/**
+ * Champs personnalisés stockés en JSON texte (0.6.12). Toute valeur illisible
+ * ou hors contrat est jetée silencieusement : ces métadonnées sont
+ * facultatives et ne doivent jamais empêcher l'ouverture d'une fiche.
+ */
+function parseArtworkCustomFields(raw: string | null | undefined): ArtworkCustomField[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    const fields: ArtworkCustomField[] = []
+    for (const entry of parsed) {
+      if (typeof entry === 'object' && entry !== null) {
+        const candidate = entry as { name?: unknown; value?: unknown }
+        if (typeof candidate.name === 'string' && typeof candidate.value === 'string') {
+          fields.push({ name: candidate.name, value: candidate.value })
+        }
+      }
+    }
+    return fields
+  } catch {
+    return []
+  }
+}
+
+/** Sérialise les champs personnalisés ; une liste vide (ou absente) reste NULL. */
+function serializeArtworkCustomFields(fields: ArtworkCustomField[] | null | undefined): string | null {
+  if (!fields || fields.length === 0) return null
+  return JSON.stringify(fields)
 }
 
 export type SeriesSearchCriteria = {
@@ -1051,9 +1089,10 @@ export class SqliteMediaRepository {
          discovered_at,
          image_url,
          personal_note,
+         custom_fields,
          created_at,
          updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         artwork.id,
         artwork.profileId,
@@ -1068,6 +1107,7 @@ export class SqliteMediaRepository {
         artwork.discoveredAt,
         artwork.imageUrl,
         artwork.personalNote,
+        serializeArtworkCustomFields(artwork.customFields),
         artwork.createdAt,
         artwork.updatedAt,
       ],
@@ -1108,8 +1148,9 @@ export class SqliteMediaRepository {
          discovered_at = $9,
          image_url = $10,
          personal_note = $11,
-         updated_at = $12
-       WHERE id = $13 AND profile_id = $14`,
+         custom_fields = $12,
+         updated_at = $13
+       WHERE id = $14 AND profile_id = $15`,
       [
         artwork.title,
         artwork.artist,
@@ -1122,6 +1163,7 @@ export class SqliteMediaRepository {
         artwork.discoveredAt,
         artwork.imageUrl,
         artwork.personalNote,
+        serializeArtworkCustomFields(artwork.customFields),
         artwork.updatedAt,
         id,
         profileId,

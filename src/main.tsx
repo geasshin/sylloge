@@ -121,10 +121,11 @@ import {
   PencilIcon,
   TrashIcon,
   PanelIcon,
+  UnlinkIcon,
 } from './components/icons.tsx'
 import './styles.css'
 
-type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel'
+type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink'
 export type { IconName }
 type SettingsSection = PortabilitySection
 
@@ -155,6 +156,8 @@ export function icon(name: IconName) {
       return <TrashIcon />
     case 'panel':
       return <PanelIcon />
+    case 'unlink':
+      return <UnlinkIcon />
     case 'search':
       return <SearchIcon />
     default:
@@ -329,7 +332,9 @@ function Sidebar({
               aria-pressed={expanded}
               data-tooltip={expanded ? undefined : 'Barre latérale'}
             >
-              <span className="nav-item-text">Barre latérale</span>
+              {/* Icône conservée dans les deux modes (0.6.11) : elle ne doit
+                  pas disparaître au profit du seul texte. */}
+              <span className="nav-item-text">{icon('panel')} Barre latérale</span>
               <span className="nav-item-peek" aria-hidden="true">{icon('panel')}</span>
             </button>
             <button
@@ -525,7 +530,9 @@ const MEDIUM_CARD_LABELS: Record<MediumFilterKey, string> = {
 
 /** Couleur du point de calendrier par médium — palette désaturée,
  * cohérente avec la direction anthracite (lisibles sur clair et sombre). */
-export const MEDIUM_DOT_COLORS: Record<MediumFilterKey, string> = {
+// Constante interne (jamais exportée : un export non-composant désactive le
+// Fast Refresh de tout main.tsx et provoque des doubles montages au HMR).
+const MEDIUM_DOT_COLORS: Record<MediumFilterKey, string> = {
   film: '#A8645C',
   'série': '#7D729B',
   livre: '#B39A55',
@@ -576,7 +583,7 @@ function buildActivityMap(
     if (entry.status === 'lu') add(entry.startedAt, 'livre')
   })
   games.forEach((entry) => {
-    if (entry.status === 'joué' || entry.status === 'regardé') add(entry.playedAt, 'jeu')
+    if (entry.status === 'joué') add(entry.playedAt, 'jeu')
   })
   artworks.forEach((entry) => {
     if (entry.status === 'découverte') add(entry.discoveredAt, 'art')
@@ -670,7 +677,7 @@ function Home({
       isFavorite: entry.isFavorite,
       status: entry.status,
       consumedAt:
-        (entry.status === 'joué' || entry.status === 'regardé') && entry.playedAt
+        entry.status === 'joué' && entry.playedAt
           ? entry.playedAt
           : null,
       personalNote: entry.personalNote,
@@ -1186,7 +1193,7 @@ function FilmsLibrary({
   onOpen,
   onLibraryChanged,
 }: FilmsLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.view.id === RATED_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -1640,7 +1647,7 @@ function SeriesLibrary({
   profileId,
   onLibraryChanged,
 }: SeriesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_SERIES_CATEGORIES.length && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_SERIES_CATEGORIES.length && context.view.id === PROGRESS_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -1874,7 +1881,7 @@ function GamesLibrary({
   profileId,
   onLibraryChanged,
 }: GamesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === RATED_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const platforms = buildGamePlatformFilters(collection)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
@@ -2085,7 +2092,7 @@ function ArtworksLibrary({
   profileId,
   onLibraryChanged,
 }: ArtworksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === UNRATED_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
@@ -2207,7 +2214,7 @@ function BooksLibrary({
   profileId,
   onLibraryChanged,
 }: BooksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_BOOK_CATEGORIES.length && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_BOOK_CATEGORIES.length && context.view.id === PROGRESS_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -2381,22 +2388,15 @@ type View =
   | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
-  | { name: 'series-create'; initialValues?: SeriesFormValues }
-  | { name: 'series-tmdb-search' }
   | { name: 'series-detail'; seriesId: string }
   | { name: 'series-edit'; seriesId: string }
   | { name: 'books' }
-  | { name: 'book-create'; initialValues?: BookFormValues }
-  | { name: 'book-ol-search' }
   | { name: 'book-detail'; bookId: string }
   | { name: 'book-edit'; bookId: string }
   | { name: 'games' }
-  | { name: 'game-create'; initialValues?: GameFormValues }
-  | { name: 'game-igdb-search' }
   | { name: 'game-detail'; gameId: string }
   | { name: 'game-edit'; gameId: string }
   | { name: 'artworks' }
-  | { name: 'artwork-create' }
   | { name: 'artwork-detail'; artworkId: string }
   | { name: 'artwork-edit'; artworkId: string }
 
@@ -2518,12 +2518,15 @@ function App() {
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
   /** Pop-up d'association directe depuis une fiche Série/Livre/Jeu (parcours des films). */
   const [associateTarget, setAssociateTarget] = useState<AssociateTarget | null>(null)
-  /** Pop-up d'ajout : étapes recherche → formulaire, au-dessus de la bibliothèque. */
+  /** Pop-up d'ajout : étapes recherche → formulaire, au-dessus de la bibliothèque.
+      Cinq médiums, même parcours (0.6.10) ; l'Art, sans fournisseur, entre
+      directement au stade formulaire. */
   type AddFlow =
     | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
-    | { medium: 'série'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
-    | { medium: 'livre'; step: 'search' }
-    | { medium: 'jeu'; step: 'search' }
+    | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues }
+    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues }
+    | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues }
+    | { medium: 'artwork'; step: 'form' }
   const [addFlow, setAddFlow] = useState<AddFlow | null>(null)
   const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
   const [bookSelection, setBookSelection] = useState<{ pendingKey: string | null; error: string | null }>({ pendingKey: null, error: null })
@@ -2876,7 +2879,10 @@ function App() {
     try {
       const presentation = await previewOpenLibraryBook(candidate)
       setBookSelection({ pendingKey: null, error: null })
-      setView({ name: 'book-create', initialValues: bookPresentationToInitialValues(presentation) })
+      if (addFlow?.medium === 'livre') {
+        setAddFlow({ medium: 'livre', step: 'search', initialValues: bookPresentationToInitialValues(presentation) })
+        return
+      }
     } catch (error) {
       console.error('La sélection Open Library a échoué.', error)
       setBookSelection({
@@ -2893,7 +2899,10 @@ function App() {
     try {
       const presentation = await previewIgdbGame(candidate.gameId, candidate.title, candidate.releaseYear, candidate.coverUrl)
       setCandidateSelection({ pendingId: null, error: null })
-      setView({ name: 'game-create', initialValues: igdbPresentationToInitialValues(presentation) })
+      if (addFlow?.medium === 'jeu') {
+        setAddFlow({ medium: 'jeu', step: 'search', initialValues: igdbPresentationToInitialValues(presentation) })
+        return
+      }
     } catch (error) {
       console.error('La sélection IGDB a échoué.', error)
       setCandidateSelection({
@@ -2908,7 +2917,10 @@ function App() {
     try {
       const presentation = await previewTmdbSeries(candidate.tmdbId)
       setCandidateSelection({ pendingId: null, error: null })
-      setView({ name: 'series-create', initialValues: seriesPresentationToInitialValues(presentation) })
+      if (addFlow?.medium === 'série') {
+        setAddFlow({ medium: 'série', step: 'search', initialValues: seriesPresentationToInitialValues(presentation) })
+        return
+      }
     } catch (error) {
       console.error('La sélection TMDB Séries a échoué.', error)
       setCandidateSelection({
@@ -3297,35 +3309,13 @@ function App() {
         searchState={seriesSearchState}
         onContextChange={setSeriesContext}
         onRetrySearch={() => setSeriesSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'series-tmdb-search' })}
+        onCreate={() => {
+          setCandidateSelection({ pendingId: null, error: null })
+          setAddFlow({ medium: 'série', step: 'search' })
+        }}
         onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
-      />
-    )
-  } else if (view.name === 'series-tmdb-search') {
-    content = (
-      <SeriesTmdbSearchFlow
-        pendingCandidateId={candidateSelection.pendingId}
-        selectionError={candidateSelection.error}
-        onSelectCandidate={selectTmdbSeriesCandidate}
-        onManual={() => setView({ name: 'series-create' })}
-        onCancel={returnToLibrary}
-      />
-    )
-  } else if (view.name === 'series-create') {
-    const { library } = libraryState
-    content = (
-      <SeriesForm
-        initialValues={view.initialValues}
-        onCancel={returnToLibrary}
-        onSave={async (input: SeriesWriteInput) => {
-          const series = await mediaRepository.createSeries(library.profile.id, input)
-          setSeriesCollection((current) => [...current, series])
-          requestAutomaticBackup(library)
-          setView({ name: 'series-detail', seriesId: series.id })
-          window.scrollTo({ top: 0 })
-        }}
       />
     )
   } else if (view.name === 'series-detail') {
@@ -3413,37 +3403,13 @@ function App() {
         searchState={bookSearchState}
         onContextChange={setBookContext}
         onRetrySearch={() => setBookSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'book-ol-search' })}
+        onCreate={() => {
+          setBookSelection({ pendingKey: null, error: null })
+          setAddFlow({ medium: 'livre', step: 'search' })
+        }}
         onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
-      />
-    )
-  } else if (view.name === 'book-ol-search') {
-    content = (
-      <BookOpenLibrarySearchFlow
-        pendingCandidateKey={bookSelection.pendingKey}
-        selectionError={bookSelection.error}
-        onSelectCandidate={selectOpenLibraryBookCandidate}
-        onManual={() => setView({ name: 'book-create' })}
-        onCancel={returnToLibrary}
-      />
-    )
-  } else if (view.name === 'book-create') {
-    const { library } = libraryState
-    content = (
-      <BookForm
-        initialValues={view.initialValues}
-        onCancel={() => setView({ name: 'books' })}
-        onSave={async (input: BookWriteInput) => {
-          const { quotes, ...bookInput } = input
-          const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
-          setBookCollection((current) => sortBooks([...current, book]))
-          setBookSearchAttempt((attempt) => attempt + 1)
-          requestAutomaticBackup(library)
-          setView({ name: 'book-detail', bookId: book.id })
-          window.scrollTo({ top: 0 })
-        }}
       />
     )
   } else if (view.name === 'book-detail') {
@@ -3537,37 +3503,13 @@ function App() {
         searchState={gameSearchState}
         onContextChange={setGameContext}
         onRetrySearch={() => setGameSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'game-igdb-search' })}
+        onCreate={() => {
+          setCandidateSelection({ pendingId: null, error: null })
+          setAddFlow({ medium: 'jeu', step: 'search' })
+        }}
         onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
-      />
-    )
-  } else if (view.name === 'game-igdb-search') {
-    content = (
-      <GameIgdbSearchFlow
-        pendingCandidateId={candidateSelection.pendingId}
-        selectionError={candidateSelection.error}
-        onSelectCandidate={selectIgdbGameCandidate}
-        onManual={() => setView({ name: 'game-create' })}
-        onCancel={returnToLibrary}
-      />
-    )
-  } else if (view.name === 'game-create') {
-    const { library } = libraryState
-    content = (
-      <GameForm
-        initialValues={view.initialValues}
-        platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
-        onCancel={() => setView({ name: 'games' })}
-        onSave={async (input: GameWriteInput) => {
-          const game = await mediaRepository.createGame(library.profile.id, input)
-          setGameCollection((current) => sortGames([...current, game]))
-          setGameSearchAttempt((attempt) => attempt + 1)
-          requestAutomaticBackup(library)
-          setView({ name: 'game-detail', gameId: game.id })
-          window.scrollTo({ top: 0 })
-        }}
       />
     )
   } else if (view.name === 'game-detail') {
@@ -3661,25 +3603,10 @@ function App() {
         searchState={artworkSearchState}
         onContextChange={setArtworkContext}
         onRetrySearch={() => setArtworkSearchAttempt((attempt) => attempt + 1)}
-        onCreate={() => leaveLibrary({ name: 'artwork-create' })}
+        onCreate={() => setAddFlow({ medium: 'artwork', step: 'form' })}
         onOpen={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
-      />
-    )
-  } else if (view.name === 'artwork-create') {
-    const { library } = libraryState
-    content = (
-      <ArtworkForm
-        onCancel={() => setView({ name: 'artworks' })}
-        onSave={async (input: ArtworkWriteInput) => {
-          const artwork = await mediaRepository.createArtwork(library.profile.id, input)
-          setArtworkCollection((current) => sortArtworks([...current, artwork]))
-          setArtworkSearchAttempt((attempt) => attempt + 1)
-          requestAutomaticBackup(library)
-          setView({ name: 'artwork-detail', artworkId: artwork.id })
-          window.scrollTo({ top: 0 })
-        }}
       />
     )
   } else if (view.name === 'artwork-detail') {
@@ -3790,13 +3717,13 @@ function App() {
             ? 'home'
             : view.name === 'settings'
               ? 'settings'
-              : view.name === 'series' || view.name === 'series-create' || view.name === 'series-tmdb-search' || view.name === 'series-detail' || view.name === 'series-edit'
+              : view.name === 'series' || view.name === 'series-detail' || view.name === 'series-edit'
                 ? 'series'
-                : view.name === 'books' || view.name === 'book-create' || view.name === 'book-ol-search' || view.name === 'book-detail' || view.name === 'book-edit'
+                : view.name === 'books' || view.name === 'book-detail' || view.name === 'book-edit'
                   ? 'books'
-                  : view.name === 'games' || view.name === 'game-create' || view.name === 'game-igdb-search' || view.name === 'game-detail' || view.name === 'game-edit'
+                  : view.name === 'games' || view.name === 'game-detail' || view.name === 'game-edit'
                     ? 'games'
-                    : view.name === 'artworks' || view.name === 'artwork-create' || view.name === 'artwork-detail' || view.name === 'artwork-edit'
+                    : view.name === 'artworks' || view.name === 'artwork-detail' || view.name === 'artwork-edit'
                       ? 'artworks'
                       : 'library'
         }
@@ -3818,7 +3745,13 @@ function App() {
             className="editor-dialog dialog-add-flow"
             role="dialog"
             aria-modal="true"
-            aria-label="Ajouter un film"
+            aria-label={{
+              film: 'Ajouter un film',
+              série: 'Ajouter une série',
+              livre: 'Ajouter un livre',
+              jeu: 'Ajouter un jeu',
+              artwork: 'Ajouter une œuvre',
+            }[addFlow.medium]}
           >
             <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAddFlow(null)} aria-label="Fermer">×</button>
             {addFlow.medium === 'film' && !addFlow.initialValues && (
@@ -3834,7 +3767,7 @@ function App() {
             )}
             {addFlow.medium === 'film' && addFlow.initialValues && (
               <FilmForm
-                compactHeading
+                embeddedInDialog
                 initialValues={addFlow.initialValues}
                 provenance={addFlow.provenance ?? null}
                 asDialog={false}
@@ -3855,6 +3788,116 @@ function App() {
                   }
                   setAddFlow(null)
                   leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })
+                  window.scrollTo({ top: 0 })
+                }}
+              />
+            )}
+            {addFlow.medium === 'série' && !addFlow.initialValues && (
+              <SeriesTmdbSearchFlow
+                compact
+                pendingCandidateId={candidateSelection.pendingId}
+                selectionError={candidateSelection.error}
+                onSelectCandidate={selectTmdbSeriesCandidate}
+                onManual={() => setAddFlow({ medium: 'série', step: 'search', initialValues: {} as never })}
+                onCancel={() => setAddFlow(null)}
+              />
+            )}
+            {addFlow.medium === 'série' && addFlow.initialValues && (() => {
+              // Saisie assistée (préremplie TMDB) ou manuelle (objet vide).
+              const initialValues = addFlow.initialValues as SeriesFormValues
+              return (
+                <SeriesForm
+                  embeddedInDialog
+                  initialValues={initialValues}
+                  onCancel={() => setAddFlow(null)}
+                  onSave={async (input: SeriesWriteInput) => {
+                    const library = libraryState.library
+                    const series = await mediaRepository.createSeries(library.profile.id, input)
+                    setSeriesCollection((current) => [...current, series])
+                    requestAutomaticBackup(library)
+                    setAddFlow(null)
+                    leaveLibrary({ name: 'series-detail', seriesId: series.id })
+                    window.scrollTo({ top: 0 })
+                  }}
+                />
+              )
+            })()}
+            {addFlow.medium === 'livre' && !addFlow.initialValues && (
+              <BookOpenLibrarySearchFlow
+                compact
+                pendingCandidateKey={bookSelection.pendingKey}
+                selectionError={bookSelection.error}
+                onSelectCandidate={selectOpenLibraryBookCandidate}
+                onManual={() => setAddFlow({ medium: 'livre', step: 'search', initialValues: {} as never })}
+                onCancel={() => setAddFlow(null)}
+              />
+            )}
+            {addFlow.medium === 'livre' && addFlow.initialValues && (() => {
+              const initialValues = addFlow.initialValues as BookFormValues
+              return (
+                <BookForm
+                  embeddedInDialog
+                  initialValues={initialValues}
+                  onCancel={() => setAddFlow(null)}
+                  onSave={async (input: BookWriteInput) => {
+                    const library = libraryState.library
+                    const { quotes, ...bookInput } = input
+                    const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
+                    setBookCollection((current) => sortBooks([...current, book]))
+                    setBookSearchAttempt((attempt) => attempt + 1)
+                    requestAutomaticBackup(library)
+                    setAddFlow(null)
+                    leaveLibrary({ name: 'book-detail', bookId: book.id })
+                    window.scrollTo({ top: 0 })
+                  }}
+                />
+              )
+            })()}
+            {addFlow.medium === 'jeu' && !addFlow.initialValues && (
+              <GameIgdbSearchFlow
+                compact
+                pendingCandidateId={candidateSelection.pendingId}
+                selectionError={candidateSelection.error}
+                onSelectCandidate={selectIgdbGameCandidate}
+                onManual={() => setAddFlow({ medium: 'jeu', step: 'search', initialValues: {} as never })}
+                onCancel={() => setAddFlow(null)}
+              />
+            )}
+            {addFlow.medium === 'jeu' && addFlow.initialValues && (() => {
+              const initialValues = addFlow.initialValues as GameFormValues
+              return (
+                <GameForm
+                  embeddedInDialog
+                  initialValues={initialValues}
+                  platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
+                  onCancel={() => setAddFlow(null)}
+                  onSave={async (input: GameWriteInput) => {
+                    const library = libraryState.library
+                    const game = await mediaRepository.createGame(library.profile.id, input)
+                    setGameCollection((current) => sortGames([...current, game]))
+                    setGameSearchAttempt((attempt) => attempt + 1)
+                    requestAutomaticBackup(library)
+                    setAddFlow(null)
+                    leaveLibrary({ name: 'game-detail', gameId: game.id })
+                    window.scrollTo({ top: 0 })
+                  }}
+                />
+              )
+            })()}
+            {/* L'Art n'a aucun fournisseur par règle du domaine : la pop-up
+                s'ouvre directement sur le formulaire, même gabarit. */}
+            {addFlow.medium === 'artwork' && (
+              <ArtworkForm
+                embeddedInDialog
+                onCancel={() => setAddFlow(null)}
+                onSave={async (input: ArtworkWriteInput) => {
+                  const library = libraryState.library
+                  const artwork = await mediaRepository.createArtwork(library.profile.id, input)
+                  setArtworkCollection((current) => sortArtworks([...current, artwork]))
+                  setArtworkSearchAttempt((attempt) => attempt + 1)
+                  requestAutomaticBackup(library)
+                  setAddFlow(null)
+                  leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })
                   window.scrollTo({ top: 0 })
                 }}
               />
@@ -3930,4 +3973,11 @@ function App() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(<App />)
+// Garde anti-double-montage (bug « boutons dupliqués ») : un HMR invalidé
+// ré-exécute ce module sur le conteneur déjà monté. On réutilise la racine
+// React existante au lieu d'en créer une deuxième par-dessus.
+const rootElement = document.getElementById('root')!
+const existingRoot = (rootElement as unknown as { __reactRoot?: ReturnType<typeof createRoot> }).__reactRoot
+const root = existingRoot ?? createRoot(rootElement)
+;(rootElement as unknown as { __reactRoot?: ReturnType<typeof createRoot> }).__reactRoot = root
+root.render(<App />)

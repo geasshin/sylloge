@@ -631,10 +631,14 @@ fn validate_optional_text(
     max_characters: usize,
     error: &'static str,
 ) -> Result<(), TmdbError> {
-    if let Some(value) = value {
-        validate_required_text(value, max_characters, error)?;
+    match value {
+        // TMDB renvoie souvent des chaînes vides pour les champs absents
+        // (personnage de casting, synopsis manquant…). Vide = absent : on
+        // accepte, on ne rejette pas la fiche entière pour autant.
+        None => Ok(()),
+        Some(value) if value.trim().is_empty() => Ok(()),
+        Some(value) => validate_required_text(value, max_characters, error),
     }
-    Ok(())
 }
 
 fn validate_optional_https_url(value: Option<&str>) -> Result<(), TmdbError> {
@@ -792,6 +796,26 @@ mod tests {
         assert!(url.contains("image.tmdb.org"));
         assert!(url.contains("w500"));
         assert!(url.ends_with(".jpg"));
+    }
+
+    // 0.6.11 : TMDB renvoie souvent `character = ""` pour un membre de casting
+    // sans personnage nommé. Vide = absent, la fiche ne doit pas être rejetée.
+    #[test]
+    fn optional_text_treats_empty_string_as_absent() {
+        validate_optional_text(Some(""), 500, "personnage incorrect")
+            .expect("une chaîne vide est une valeur absente");
+        validate_optional_text(Some("   "), 500, "personnage incorrect")
+            .expect("une chaîne blanche est une valeur absente");
+        validate_optional_text(None, 500, "personnage incorrect").expect("absent est valide");
+        assert!(
+            validate_optional_text(
+                Some("Nom dépassant la limite".repeat(60).as_str()),
+                500,
+                "personnage incorrect"
+            )
+            .is_err(),
+            "au-delà de la borne, l'erreur reste levée"
+        );
     }
 
     #[test]

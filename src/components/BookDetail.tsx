@@ -72,7 +72,6 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
             title="Supprimer ce livre"
           >
             {icon('trash')}
-            <span>Supprimer</span>
           </button>
         </div>
       </header>

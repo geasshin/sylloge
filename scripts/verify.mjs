@@ -2249,7 +2249,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
       developer: 'Studio',
       platform: 'Dreamcast',
       year: 2001,
-      status: 'regardé',
+      status: 'joué',
       rating: 3.5,
       isFavorite: false,
       playedAt: '2026-02-01',
@@ -2886,7 +2886,7 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
     developer: '  Studio local  ',
     platform: '  Steam Deck  ',
     year: '2026',
-    status: 'regardé',
+    status: 'joué',
     rating: '4.5',
     isFavorite: true,
     playedAt: '2026-07-22',
@@ -2895,7 +2895,7 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
   })
   assert.equal(complete.success, true, 'Tous les champs Jeu contractuels valides doivent être acceptés')
   assert.equal(complete.data.platform, 'Steam Deck', 'La plateforme libre doit être normalisée sans être remplacée')
-  assert.equal(complete.data.status, 'regardé', 'Le statut Regardé doit couvrir les jeux suivis en vidéo')
+  assert.equal(complete.data.status, 'joué', 'Le statut Joué couvre le suivi réel du jeu')
 
   for (const values of [
     { title: '   ' },
@@ -3032,7 +3032,26 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     discoveredAt: null,
     imageUrl: null,
     personalNote: null,
+    customFields: [],
   }, 'Les champs Art facultatifs vides doivent rester null sans donnée inventée')
+
+  // 0.6.12 : les champs personnalisés nom → valeur sont normalisés (trim,
+  // bornes), une ligne sans nom est jetée.
+  const withFields = validateArtworkForm({
+    ...EMPTY_ARTWORK_FORM,
+    title: 'Œuvre documentée',
+    customFields: [
+      { name: '  Exposition  ', value: '  Musée d’Orsay  ' },
+      { name: '   ', value: 'sans nom, ignoré' },
+      { name: 'Provenance', value: '' },
+    ],
+  })
+  assert.equal(withFields.success, true, 'Les champs personnalisés valides doivent être acceptés')
+  assert.deepEqual(
+    withFields.data.customFields,
+    [{ name: 'Exposition', value: 'Musée d’Orsay' }, { name: 'Provenance', value: '' }],
+    'Un champ sans nom est ignoré, nom et valeur sont normalisés',
+  )
 
   const complete = validateArtworkForm({
     ...EMPTY_ARTWORK_FORM,
@@ -3133,7 +3152,7 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
   const updatedAt = await repository.updateArtwork('default', 'artwork-local', { ...input, status: 'à découvrir' })
   assert.equal(updatedAt, timestamp, 'La modification doit restituer son horodatage local')
   const update = calls.at(-1)
-  assert.match(update.query, /WHERE id = \$13 AND profile_id = \$14/, 'La modification doit cibler l’œuvre et son profil')
+  assert.match(update.query, /WHERE id = \$14 AND profile_id = \$15/, 'La modification doit cibler l’œuvre et son profil (custom_fields ajouté en 0.6.12)')
   assert.deepEqual(update.bindValues.slice(-2), ['artwork-local', 'default'], 'La modification doit rester isolée au profil courant')
 
   await repository.deleteArtwork('default', 'artwork-local')
@@ -3368,9 +3387,10 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
   const { librarySortOrderBy } = await import('../src/data/libraryViewQuery.ts')
   const { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters } = await import('../src/domain/libraryFilters.ts')
 
-  // Jalon 0.6.8 : vues sémantiques — la vue « all » disparaît au profit de « watchlist »
-  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'recent', 'favorites', 'ranking'], 'Les médiums notés doivent proposer les quatre vues intégrées')
-  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'recent', 'favorites'], 'L’Art ne doit jamais proposer de classement par note')
+  // Jalon 0.6.11 : « all » revient en fin de rangée ; Films ouvrent sur Récent,
+  // l'Art sur Favori. Les vues restent des présets du même modèle unifié.
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['recent', 'watchlist', 'favorites', 'ranking', 'all'], 'Les médiums notés proposent les cinq vues intégrées, Récent en tête')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['favorites', 'recent', 'all'], 'L’Art ouvre sur Favori, sans classement par note ni watchlist')
   assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les vues de base sont des présets intégrés du même modèle')
 
   const watchlist = RATED_BUILTIN_VIEWS.find((view) => view.id === 'watchlist')
@@ -3420,7 +3440,7 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   const { PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID, builtinViewById } = await import('../src/domain/libraryViews.ts')
   const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
 
-  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'in-progress', 'recent', 'favorites', 'ranking'], 'Séries et Livres ajoutent la vue En cours (0.6.8)')
+  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'in-progress', 'recent', 'favorites', 'ranking', 'all'], 'Séries et Livres : progression, socle commun et vue Tous (0.6.8 + 0.6.11)')
 
   const clauses = []
   const binds = []
@@ -3781,7 +3801,7 @@ assert.match(tmdbServiceSource, /invoke\('search_tmdb_series'/, 'Le frontend doi
 assert.match(tmdbServiceSource, /invoke\('preview_tmdb_series'/, 'Le frontend doit appeler la prévisualisation Séries')
 assert.doesNotMatch(seriesMetadataAssistanceSource, /status:|rating:|isFavorite:/, 'Le préremplissage Séries ne doit toucher ni statut, ni note, ni favori')
 assert.match(seriesFormComponentSource, /\.\.\.EMPTY_SERIES_FORM, \.\.\.initialValues/, 'Le formulaire Séries doit accepter des valeurs préremplies')
-assert.match(mainSource047, /series-tmdb-search/, 'L’ajout de Série doit ouvrir la recherche TMDB')
+assert.match(mainSource047, /selectTmdbSeriesCandidate/, 'Le clic sur un résultat Séries doit préremplir directement le formulaire')
 assert.match(mainSource047, /seriesPresentationToInitialValues/, 'Le clic sur un résultat Séries doit préremplir directement le formulaire')
 assert.match(seriesTmdbSearchFlowSource, /setTimeout\(\(\) =>/, 'La recherche Séries doit être temporisée pendant la saisie')
 assert.match(seriesTmdbSearchFlowSource, /Saisir manuellement/, 'La recherche Séries doit proposer une issue manuelle')
@@ -3829,7 +3849,6 @@ assert.match(tauriLibrarySource0426, /openlibrary::preview_openlibrary_book/, 'L
 assert.match(openLibraryServiceSource, /invoke\('search_openlibrary_books'/, 'Le frontend doit appeler la recherche Livres')
 assert.doesNotMatch(bookMetadataAssistanceSource, /status:|rating:|isFavorite:|volumesRead/, 'Le préremplissage Livres ne doit toucher ni statut, ni note, ni favori, ni tomes lus')
 assert.match(bookFormComponentSource, /\.\.\.EMPTY_BOOK_FORM, \.\.\.initialValues/, 'Le formulaire Livres doit accepter des valeurs préremplies')
-assert.match(mainSource047, /book-ol-search/, 'L’ajout de Livre doit ouvrir la recherche Open Library')
 assert.match(mainSource047, /bookPresentationToInitialValues/, 'Le clic sur un résultat Livres doit préremplir directement le formulaire')
 assert.match(bookOpenLibraryFlowSource, /setTimeout\(\(\) =>/, 'La recherche Livres doit être temporisée pendant la saisie')
 assert.match(bookOpenLibraryFlowSource, /Saisir manuellement/, 'La recherche Livres doit proposer une issue manuelle')
@@ -3876,7 +3895,6 @@ assert.match(igdbRustSource, /t_cover_big/, 'Les couvertures IGDB doivent être 
 assert.match(igdbServiceSource, /invoke\('search_igdb_games'/, 'Le frontend doit appeler la recherche IGDB')
 assert.match(gameIgdbAssistanceSource, /igdbPresentationToInitialValues/, 'Le préremplissage IGDB doit exister')
 assert.doesNotMatch(gameIgdbAssistanceSource, /status:|rating:|isFavorite:|platform/, 'Le préremplissage IGDB ne doit toucher ni statut, ni note, ni favori, ni plateforme')
-assert.match(mainSource047, /game-igdb-search/, 'L’ajout de Jeu doit ouvrir la recherche IGDB')
 assert.match(mainSource047, /igdbPresentationToInitialValues/, 'Le clic sur un résultat Jeux doit préremplir directement le formulaire')
 
 {
@@ -3948,6 +3966,68 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const mergedBook = bookWithPresentation(book, { author: 'A. Christie', firstPublishYear: 1939, synopsis: 'Dix petits indiens.', coverUrl: 'https://x/c.jpg' })
   assert.deepEqual(mergedBook.quotes, [{ body: 'citation' }], 'Les citations personnelles traversent la réassociation intactes')
   assert.equal(mergedBook.status, 'à lire', 'L’association ne touche jamais le statut personnel')
+}
+
+// Jalon 0.6.9 — pop-up d'ajout de film : recherche à trois colonnes défilante,
+// formulaire intégré à la fenêtre sans faux <main> pleine page.
+{
+  const mainSource069 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const formSource069 = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
+  const appStylesSource069 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  assert.match(mainSource069, /embeddedInDialog/, 'Le formulaire d’ajout doit être intégré à la pop-up hôte (plus de faux <main> pleine page)')
+  assert.doesNotMatch(mainSource069, /<FilmForm\s+compactHeading/, 'Le rendu pop-up ne passe plus par compactHeading')
+  assert.match(formSource069, /embeddedInDialog\?: boolean/, 'Le formulaire expose le mode intégré à la pop-up')
+  assert.match(formSource069, /className="editor-dialog-embedded"/, 'Le mode intégré rend le formulaire directement dans la fenêtre')
+  assert.match(appStylesSource069, /\.tmdb-search-compact \.tmdb-candidates-grid[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/, 'La recherche en pop-up affiche trois résultats par ligne')
+  assert.match(appStylesSource069, /\.tmdb-search-compact \.tmdb-candidates-grid[\s\S]*?scrollbar-gutter: stable/, 'La grille de suggestions réserve la place de la barre de défilement')
+}
+
+// Jalon 0.6.10 — pop-up d'ajout des cinq médiums : même parcours en deux étapes
+// (recherche fournisseur → formulaire intégré) que les films.
+{
+  const mainSource0610 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const formLabels0610 = ['Films', 'Séries', 'Livres', 'Jeux', 'Art']
+  const formSources0610 = [
+    readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
+  ]
+  assert.match(mainSource0610, /medium: 'série', step: 'search' \}/, 'Le bouton Ajouter une série doit ouvrir la pop-up de recherche TMDB')
+  assert.match(mainSource0610, /medium: 'livre', step: 'search' \}/, 'Le bouton Ajouter un livre doit ouvrir la pop-up de recherche Open Library')
+  assert.match(mainSource0610, /medium: 'jeu', step: 'search' \}/, 'Le bouton Ajouter un jeu doit ouvrir la pop-up de recherche IGDB')
+  assert.match(mainSource0610, /medium: 'artwork', step: 'form'/, 'L’Art, sans fournisseur par règle du domaine, ouvre la pop-up directement au stade formulaire')
+  assert.match(mainSource0610, /<SeriesTmdbSearchFlow\s+compact/, 'La recherche Séries doit vivre dans la pop-up, sans page pleine page')
+  assert.match(mainSource0610, /<BookOpenLibrarySearchFlow\s+compact/, 'La recherche Livres doit vivre dans la pop-up, sans page pleine page')
+  assert.match(mainSource0610, /<GameIgdbSearchFlow\s+compact/, 'La recherche Jeux doit vivre dans la pop-up, sans page pleine page')
+  assert.doesNotMatch(mainSource0610, /name: '(series-create|series-tmdb-search|book-create|book-ol-search|game-create|game-igdb-search|artwork-create)'/, 'Les anciennes pages d’ajout assistée doivent disparaître au profit de la pop-up unique')
+  for (const [index, source] of formSources0610.entries()) {
+    assert.match(source, /embeddedInDialog\?: boolean/, `${formLabels0610[index]} : le formulaire doit exposer le mode intégré à la pop-up`)
+    assert.match(source, /className="editor-dialog-embedded"/, `${formLabels0610[index]} : le mode intégré rend le formulaire directement dans la fenêtre hôte`)
+  }
+}
+
+// Jalon 0.6.11 — normalisation des bibliothèques : vues Tous/Récent/Favori,
+// statuts Jeux réduits à trois états, crayon de visuel commun aux cinq médiums.
+{
+  const mainSource0611 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const gameDomainSource0611 = readFileSync(new URL('../src/domain/game.ts', import.meta.url), 'utf8')
+  const migration14Source = readFileSync(new URL('../src-tauri/migrations/0014_normalize_game_statuses.sql', import.meta.url), 'utf8')
+  const databaseSource0611 = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
+  assert.match(mainSource0611, /__reactRoot/, 'Le montage React doit réutiliser la racine existante : plus de double rendu au HMR invalidé')
+  assert.doesNotMatch(mainSource0611, /export const MEDIUM_DOT_COLORS/, 'main.tsx ne doit exporter aucune constante non-composant (Fast Refresh)')
+  assert.match(mainSource0611, /\{icon\('panel'\)\} Barre latérale/, 'La bascule de sidebar garde son icône en mode développé')
+  assert.match(gameDomainSource0611, /\['à jouer', 'joué', 'abandonné'\]/, 'Les statuts Jeux se limitent à À jouer / Joué / Abandonné')
+  assert.match(migration14Source, /SET status = 'joué'/, 'La migration 14 remappe « en cours » et « regardé » vers « joué »')
+  assert.match(databaseSource0611, /version: 14/, 'La migration 14 est enregistrée séquentiellement')
+  const detailSources0611 = ['FilmDetail', 'SeriesDetail', 'BookDetail', 'GameDetail', 'ArtworkDetail'].map(
+    (name) => readFileSync(new URL(`../src/components/${name}.tsx`, import.meta.url), 'utf8'),
+  )
+  for (const [index, source] of detailSources0611.entries()) {
+    assert.doesNotMatch(source, /<span>Supprimer<\/span>/, `Fiche ${index + 1}/5 : la suppression est une poubelle seule`)
+  }
+  assert.doesNotMatch(detailSources0611[0], />Rafraîchir</, 'La fiche Film n’expose plus de bouton Rafraîchir')
 }
 
 console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge. Uniformisation 0.6.7 : les fiches Séries, Livres, Jeux et Art reprennent les trois boutons explicites du modèle Film, plus aucun menu caché ; l’association directe s’ouvre dans la même pop-up floutée avec recherche préremplie, fusion éditoriale bornée et données personnelles intactes ; l’Art reste sans fournisseur par règle du domaine.')

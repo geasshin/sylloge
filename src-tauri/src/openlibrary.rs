@@ -40,6 +40,10 @@ pub struct OpenLibraryBookPresentationDto {
 pub enum OpenLibraryError {
     NetworkUnavailable,
     ProviderError(u16),
+    /// La requête ne contient aucun terme indexable : lettre unique, mot vide
+    /// seul (« le », « et ») ou symboles. Open Library y répond 422 ; ce n'est
+    /// ni une panne ni un problème réseau, la recherche est vouée à l'échec.
+    UnsearchableQuery,
     InvalidProviderResponse,
     InvalidWorkKey,
 }
@@ -56,6 +60,10 @@ impl std::fmt::Display for OpenLibraryError {
                     "Le service de métadonnées a renvoyé une erreur ({status})."
                 )
             }
+            Self::UnsearchableQuery => formatter.write_str(
+                "Open Library n'a trouvé aucun terme cherchable dans cette requête : \
+                 essaie un titre plus complet, avec un mot significatif.",
+            ),
             Self::InvalidProviderResponse => {
                 formatter.write_str("La réponse du service de métadonnées est invalide.")
             }
@@ -156,6 +164,12 @@ impl OpenLibraryClient {
             .map_err(|_| OpenLibraryError::NetworkUnavailable)?;
 
         if !response.status().is_success() {
+            // Open Library répond 422 aux requêtes sans terme indexable
+            // (lettre unique, mot vide seul, symboles) : ce n'est ni une panne
+            // ni un problème réseau, on nomme la cause réelle.
+            if response.status().as_u16() == 422 {
+                return Err(OpenLibraryError::UnsearchableQuery);
+            }
             return Err(OpenLibraryError::ProviderError(response.status().as_u16()));
         }
 
@@ -275,6 +289,13 @@ pub async fn preview_openlibrary_book(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unsearchable_query_error_explains_instead_of_raw_status() {
+        let message = OpenLibraryError::UnsearchableQuery.to_string();
+        assert!(message.contains("aucun terme cherchable"), "{message}");
+        assert!(!message.contains("422"), "{message}");
+    }
 
     #[test]
     fn search_doc_without_title_or_key_is_dropped() {

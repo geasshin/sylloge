@@ -402,6 +402,8 @@ function parseGenericRow(
     isFavorite: favorite(),
     discoveredAt: date('discoveredAt', 'Date de découverte :'),
     imageUrl: value('imageUrl'), personalNote: value('personalNote'),
+    // Les imports CSV historiques ne portent pas de champs personnalisés.
+    customFields: [],
   } satisfies ArtworkFormValues)
   if (!result.success) return formFailure(line, result.errors, errors)
   for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })

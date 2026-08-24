@@ -617,6 +617,43 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 - Correctif du bug d'affichage en vue Favoris (Livres et Art) : `scrollbar-gutter: stable` réserve en permanence la place de la barre de défilement — la grille ne se recompose plus quand la liste raccourcit. Bénéfique aux cinq bibliothèques. ✓
 - Preuves dédiées 0.6.8 dans `verify.mjs` (contrat des vues, traduction SQL des groupes, interrupteur, gutter). ✓
 
+#### `0.6.9` — Pop-up d'ajout de film : recherche lisible et formulaire à sa taille
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Les deux étapes de la pop-up « Ajouter un film » sont recomposées. À l'étape recherche, la grille de suggestions passe à trois résultats par ligne (affiches plus petites, fenêtre inchangée) avec une zone bornée défilante qui réserve la place de sa barre de défilement (`scrollbar-gutter: stable`) : vingt résultats deviennent visibles en quelques roulettes au lieu de deux cartes géantes. À l'étape formulaire, la cause racine du grand blanc est corrigée : `FilmForm` était monté hors pop-up à l'intérieur de la fenêtre hôte et rendait son faux `<main>` pleine page (`min-height: 100vh`, marges latérales, barre « ← Annuler » en double sous la croix). Il expose désormais un mode intégré `embeddedInDialog` qui rend en-tête compact et formulaire directement dans la fenêtre ; le gabarit compact `.dialog-add-flow` reprend la main sur la grille affiche + verdict (spécificité doublée face à la règle générique `.editor-dialog .film-form.form-detail`).
+
+- Grille TMDB compacte : trois colonnes fixes, hauteur max `min(46vh, 420px)`, défilement interne. ✓
+- Formulaire intégré à la fenêtre hôte : plus de faux `<main>`, plus de barre redondante, hauteur calée sur le contenu. ✓
+- Preuves dédiées 0.6.9 dans `verify.mjs` (mode intégré, disparition de `compactHeading` en pop-up, grille trois colonnes, gutter). ✓
+- Critères : ajouter « Notre salut » depuis la recherche jusqu'à la fiche créée sans rencontrer ni grille à deux colonnes ni fenêtre à moitié vide. ✓
+
+#### `0.6.10` — Pop-up d'ajout des cinq médiums : le parcours des films partout
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Le parcours en deux étapes de l'ajout de film devient celui des cinq médiums : chaque bouton « Ajouter » ouvre la même pop-up floutée au-dessus de la bibliothèque, recherche fournisseur en premier (TMDB pour les Séries, Open Library pour les Livres, IGDB pour les Jeux), formulaire intégré à la fenêtre ensuite, prérempli des seuls champs éditoriaux après un clic sur un résultat. Les quatre formulaires exposent désormais le mode intégré `embeddedInDialog` des films (en-tête compact + formulaire rendus directement dans la fenêtre, sans faux `<main>` pleine page ni barre « ← Annuler » en double) ; les anciennes pages pleine page d'ajout assistée (`series-create`, `series-tmdb-search`, `book-create`, `book-ol-search`, `game-create`, `game-igdb-search`, `artwork-create`) sont supprimées du routeur, mortes depuis que la pop-up existe. L'Art reste sans fournisseur par règle du domaine : sa pop-up s'ouvre directement au stade formulaire, même gabarit visuel. La saisie manuelle reste accessible partout (« Saisir manuellement » à l'étape recherche) et aucune donnée personnelle n'est préremplie par un fournisseur.
+
+- Cinq boutons « Ajouter », cinq pop-up du même gabarit `.dialog-add-flow` ; zéro nouveau style nécessaire. ✓
+- Séries/Livres/Jeux : recherche compacte puis formulaire intégré ; sauvegarde puis ouverture directe de la fiche créée. ✓
+- Art : pop-up directement sur le formulaire, sans étape de recherche. ✓
+- Suppression des sept routes d'ajout pleine page devenues inatteignables (union `View`, rendu, sidebar nettoyés). ✓
+- Preuves dédiées 0.6.10 dans `verify.mjs` (pop-up par médium, mode intégré des cinq formulaires, disparition des routes) ; trois assertions historiques 0.4.7 mises à jour vers leur intention (le clic préremplit toujours directement). ✓
+- Diagnostic « erreur (422) » à la recherche Livres : Open Library répond 422 aux requêtes sans terme indexable (lettre unique, mot vide seul comme « le » ou « et », symboles) — fournisseurs vérifiés en ligne d'abord, pile réseau de l'app reproduite à l'identique ensuite. Le backend distingue désormais ce cas (`UnsearchableQuery`) et affiche un message qui nomme la cause et propose le remède au lieu du statut brut ; test unitaire dédié. ✓
+- Critères : ajouter une série, un livre, un jeu et une œuvre entièrement depuis les pop-up, sans jamais voir de page d'édition pleine page à la création. ✓
+
+#### `0.6.11` — Normalisation des bibliothèques : une grammaire commune aux cinq médiums
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.**
+
+- **Vues** : « Tous » réintroduite en fin de rangée sur les cinq médiums ; Films ouvrent sur **Récent** (puis À voir, Favori, Classement, Tous) ; Séries et Livres gardent leur progression ; l'Art ouvre sur **Favori** (Favori, Récent, Tous), sans watchlist ni classement. Libellés au singulier (Récent, Favori).
+- **Bug des boutons dupliqués corrigé à la racine** : `main.tsx` exportait une constante non-composant (`MEDIUM_DOT_COLORS`), ce qui désactivait le Fast Refresh et provoquait un second `createRoot()` au HMR invalidé — deux arbres React superposés. La constante est internalisée et le bootstrap réutilise désormais la racine existante (`__reactRoot`).
+- **TMDB** : `character = ""` d'un membre de casting ne fait plus échouer toute la sélection (« vide = absent » dans `validate_optional_text`, test unitaire dédié). C'était l'erreur « Le cache TMDB est invalide : personnage incorrect » constatée en recette.
+- **Visuels** : hook commun `usePosterEditor` branché sur les quatre nouveaux formulaires ; l'Art abandonne son bouton inline « Ajouter un visuel ». Crayon unique partout.
+- **Actions** : poubelle seule sur les cinq fiches ; fin du bouton « Rafraîchir » côté Films (un film associé expose Dissocier avec icône maillon brisé) ; « Saisir manuellement » désormais visible dans la pop-up compacte Films.
+- **Jeux** : statuts réduits à À jouer / Joué / Abandonné ; migration SQL 14 idempotente remappe « en cours » et « regardé » vers « joué », repli conservateur identique à la lecture des sauvegardes v2 antérieures.
+- **Art** : statut retiré de l'interface (colonne SQL conservée à valeur constante pour les imports/exports), catégorie remontée au-dessus du verdict, lieu/exposition visibles, repli renommé « Informations sur l'œuvre ».
+- **Dates conditionnelles** : plus de date demandée en watchlist (À voir / À lire) chez Séries et Livres.
+- **Sidebar** : la bascule garde son icône en mode développé.
+- **Requalification des données (scripts reproductibles, dry-run puis transaction)** : 60 séries promues en animé via TMDB (pays JP + genre Animation + score de titre ≥ seuil, zéro faux positif visible : Alice in Borderland et autres live-action JP restent séries) → 62 animés / 112 séries ; 12 mangas requalifiés par auteurs/titres certains (Urasawa, Fujimoto, Isayama…) → 67 livres / 12 mangas, aucun comics détecté. Les scripts `scripts/requalify_*.mjs` sont idempotents.
+- **Preuves dédiées 0.6.11 dans `verify.mjs`** + mise à jour des contrats de vues 0.6.8 vers la nouvelle grammaire.
+
 #### `0.7.0` — Release publique Importer depuis partout
 
 - Revoir les jalons `0.6.1…0.6.6`, recette complète sur les cinq médiums, publication signée après feu vert.

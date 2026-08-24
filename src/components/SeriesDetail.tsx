@@ -72,7 +72,6 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
             title="Supprimer cette série"
           >
             {icon('trash')}
-            <span>Supprimer</span>
           </button>
         </div>
       </header>

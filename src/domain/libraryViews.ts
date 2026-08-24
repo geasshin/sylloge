@@ -76,10 +76,12 @@ const IN_PROGRESS_VIEW: LibraryViewDefinition = {
 /**
  * Vue « Récents » (0.6.8, précisée) : uniquement ce qui a déjà été vu, lu ou
  * joué (abandonné compris), du plus récemment consommé au plus ancien.
+ * 0.6.11 : libellé au singulier (« Récent »), elle devient la vue principale
+ * des Films.
  */
 const RECENT_VIEW: LibraryViewDefinition = {
   id: 'recent',
-  name: 'Récents',
+  name: 'Récent',
   filters: { ...EMPTY_LIBRARY_FILTERS, statusGroup: 'consumed' },
   sort: { column: 'recency', direction: 'desc' },
   builtin: true,
@@ -87,7 +89,7 @@ const RECENT_VIEW: LibraryViewDefinition = {
 
 const FAVORITES_VIEW: LibraryViewDefinition = {
   id: 'favorites',
-  name: 'Favoris',
+  name: 'Favori',
   filters: { ...EMPTY_LIBRARY_FILTERS, favoritesOnly: true },
   sort: { column: 'title', direction: 'asc' },
   builtin: true,
@@ -102,30 +104,50 @@ const RANKING_VIEW: LibraryViewDefinition = {
 }
 
 /**
- * Vues intégrées d'un médium noté sans progression intermédiaire (Films,
- * Jeux) : À voir, Récents, Favoris, Classement.
+ * Vue inventaire « Tous » (réintroduite en 0.6.11) : l'intégralité de la
+ * collection, sans filtre métier. Jamais la vue principale ; elle ferme la
+ * rangée à droite après les vues sémantiques.
+ */
+export const ALL_VIEW: LibraryViewDefinition = {
+  id: 'all',
+  name: 'Tous',
+  filters: EMPTY_LIBRARY_FILTERS,
+  sort: { column: 'title', direction: 'asc' },
+  builtin: true,
+}
+
+/**
+ * Films (0.6.11) : Récent en tête comme vue principale, puis À voir, Favori,
+ * Classement, Tous.
  */
 export const RATED_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
-  WATCHLIST_VIEW,
   RECENT_VIEW,
+  WATCHLIST_VIEW,
   FAVORITES_VIEW,
   RANKING_VIEW,
+  ALL_VIEW,
 ]
 
-/** Séries et Livres ajoutent la vue « En cours », cœur de leur progression. */
+/** Séries et Livres : progression (En cours) puis le socle commun, Tous en fin. */
 export const PROGRESS_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
   WATCHLIST_VIEW,
   IN_PROGRESS_VIEW,
   RECENT_VIEW,
   FAVORITES_VIEW,
   RANKING_VIEW,
+  ALL_VIEW,
 ]
 
-/** L'Art n'a ni note ni progression : À découvrir, Récents, Favoris. */
+/**
+ * L'Art n'a ni note ni statut (0.6.11 : les pseudo-statuts « À découvrir » /
+ * « Découverte » disparaissent) : Favori en vue principale, puis Récent et
+ * Tous. La colonne SQL historique reste alimentée à valeur constante pour ne
+ * pas casser la traduction des groupes de statut.
+ */
 export const UNRATED_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
-  WATCHLIST_VIEW,
-  RECENT_VIEW,
   FAVORITES_VIEW,
+  RECENT_VIEW,
+  ALL_VIEW,
 ]
 
 /**

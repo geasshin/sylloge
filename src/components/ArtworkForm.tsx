@@ -16,6 +16,7 @@ import {
 } from '../domain/artworkForm.ts'
 import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
+import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, FavoriteHeart } from './VerdictControls.tsx'
 
 function previewableImageUrl(value: string): string | null {
@@ -29,24 +30,51 @@ function previewableImageUrl(value: string): string | null {
 
 type ArtworkFormProps = {
   artwork?: Artwork
+  /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
+      sans <main> pleine page ni barre de retour redondante. */
+  embeddedInDialog?: boolean
   onCancel: () => void
   onSave: (input: ArtworkWriteInput) => Promise<void>
 }
 
-export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
+export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSave }: ArtworkFormProps) {
   const [values, setValues] = useState<ArtworkFormValues>(() => artwork ? artworkToFormValues(artwork) : { ...EMPTY_ARTWORK_FORM })
   const [errors, setErrors] = useState<ArtworkFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  const [showVisualField, setShowVisualField] = useState(false)
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableImageUrl(values.imageUrl)
+
+  // Crayon commun sur le visuel (0.6.11) : remplace l'ancien bouton inline.
+  const posterEditor = usePosterEditor({
+    title: previewTitle,
+    label: 'Visuel',
+    currentUrl: values.imageUrl,
+    onSave: (url) => update('imageUrl', url ?? ''),
+  })
 
   const update = <Key extends keyof ArtworkFormValues>(key: Key, value: ArtworkFormValues[Key]) => {
     setValues((current) => ({ ...current, [key]: value }))
     setErrors((current) => ({ ...current, [key]: undefined }))
     setSaveError(null)
+  }
+
+  const updateCustomField = (index: number, key: 'name' | 'value', value: string) => {
+    setValues((current) => ({
+      ...current,
+      customFields: current.customFields.map((field, position) =>
+        position === index ? { ...field, [key]: value } : field,
+      ),
+    }))
+    setSaveError(null)
+  }
+
+  const removeCustomField = (index: number) => {
+    setValues((current) => ({
+      ...current,
+      customFields: current.customFields.filter((_, position) => position !== index),
+    }))
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -69,27 +97,24 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
     }
   }
 
-  return (
-    <main className="main editor-main">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
+  const heading = (
+    <div className="editor-heading">
+      <p className="eyebrow">Art</p>
+      <h1 className="display-title">{artwork ? 'Modifier la fiche' : 'Ajouter une œuvre'}</h1>
+      <p>Seul le titre est obligatoire.</p>
+    </div>
+  )
 
-      <div className="editor-heading">
-        <p className="eyebrow">Art</p>
-        <h1 className="display-title">{artwork ? 'Modifier la fiche' : 'Ajouter une œuvre'}</h1>
-        <p>Seul le titre est obligatoire.</p>
+  const form = (
+    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
+      <div className="form-side">
+        <div className="form-poster-frame">
+          <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Visuel" {...posterEditor.posterProps} />
+        </div>
+        <p className="form-poster-caption">Aperçu du visuel</p>
       </div>
 
-      <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-        <div className="form-side">
-          <div className="form-poster-frame">
-            <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Visuel" />
-          </div>
-          <p className="form-poster-caption">Aperçu du visuel</p>
-        </div>
-
-        <div className="form-body">
+      <div className="form-body">
           <div className="field field-title">
             <label htmlFor="artwork-title">Titre <span aria-hidden="true">*</span></label>
             <input
@@ -104,15 +129,10 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
             {errors.title && <p className="field-error" id="artwork-title-error">{errors.title}</p>}
           </div>
 
-          {/* Le verdict personnel : pas de note pour l'Art */}
+          {/* Le verdict personnel : pas de note ni de statut pour l'Art
+              (0.6.11) : favori, date de découverte, ressenti. */}
           <div className="verdict-block">
             <div className="verdict-row">
-              <StatusSegmented
-                statuses={ARTWORK_STATUSES}
-                labels={ARTWORK_STATUS_LABELS}
-                value={values.status}
-                onChange={(next) => update('status', next as ArtworkFormValues['status'])}
-              />
               <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
             </div>
 
@@ -144,41 +164,17 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
             </div>
           </div>
 
-          {/* Visuel de l'œuvre : modifiable directement depuis l'affiche */}
-          <button
-            type="button"
-            className="artwork-visual-edit"
-            onClick={() => setShowVisualField((value) => !value)}
-            aria-expanded={showVisualField}
-          >
-            {values.imageUrl ? 'Changer le visuel' : 'Ajouter un visuel'}
-          </button>
-          {showVisualField && (
-            <div className="field">
-              <label htmlFor="artwork-imageUrl">Visuel de l’œuvre (URL d’une image)</label>
-              <input
-                id="artwork-imageUrl"
-                type="url"
-                inputMode="url"
-                autoFocus
-                placeholder="https://…/oeuvre.jpg"
-                value={values.imageUrl}
-                onChange={(event) => update('imageUrl', event.target.value)}
-                aria-invalid={Boolean(errors.imageUrl)}
-                aria-describedby={`artwork-image-help${errors.imageUrl ? ' artwork-image-error' : ''}`}
-              />
-              <p className="field-help" id="artwork-image-help">Colle l’adresse d’une image de l’œuvre ; elle apparaît à gauche. Une image indisponible n’empêchera pas l’enregistrement.</p>
-              {errors.imageUrl && <p className="field-error" id="artwork-image-error">{errors.imageUrl}</p>}
-            </div>
-          )}
+          {/* Le crayon sur le visuel (0.6.11) remplace l'ancien bouton
+              « Ajouter un visuel » et son champ d'URL inline. */}
 
-          {/* Champs éditoriaux : repliés par défaut */}
+          {/* Informations principales visibles directement (0.6.11) :
+              la catégorie prend la place du statut supprimé. */}
           <details className="secondary-fields" open={Boolean(artwork) || undefined}>
-            <summary>Contexte de l’œuvre</summary>
+            <summary>Informations sur l’œuvre</summary>
             <div className="secondary-fields-content">
               <div className="form-row">
                 <div className="field">
-                  <label htmlFor="artwork-form">Forme</label>
+                  <label htmlFor="artwork-form">Catégorie</label>
                   <select
                     id="artwork-form"
                     name="form"
@@ -193,12 +189,6 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
                   </select>
                   {errors.form && <p className="field-error" id="artwork-form-error">{errors.form}</p>}
                 </div>
-                <div className="field">
-                  <label htmlFor="artwork-artist">Artiste</label>
-                  <input id="artwork-artist" value={values.artist} onChange={(event) => update('artist', event.target.value)} />
-                </div>
-              </div>
-              <div className="form-row">
                 <div className="field field-year">
                   <label htmlFor="artwork-year">Année</label>
                   <input
@@ -211,17 +201,59 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
                   />
                   {errors.year && <p className="field-error" id="artwork-year-error">{errors.year}</p>}
                 </div>
+              </div>
+              <div className="field">
+                <label htmlFor="artwork-artist">Artiste</label>
+                <input id="artwork-artist" value={values.artist} onChange={(event) => update('artist', event.target.value)} />
+              </div>
+              <div className="form-row">
                 <div className="field">
                   <label htmlFor="artwork-location">Lieu</label>
                   <input id="artwork-location" value={values.location} onChange={(event) => update('location', event.target.value)} />
                 </div>
-              </div>
-              <div className="field">
-                <label htmlFor="artwork-exhibition">Exposition</label>
-                <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
+                <div className="field">
+                  <label htmlFor="artwork-exhibition">Exposition</label>
+                  <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
+                </div>
               </div>
             </div>
           </details>
+
+          {/* Champs personnalisés nom → valeur (0.6.12) : autant de lignes
+              que nécessaire, une ligne sans nom est ignorée à l'enregistrement. */}
+          <div className="custom-fields">
+            {values.customFields.map((field, index) => (
+              <div className="custom-field-row" key={index}>
+                <input
+                  value={field.name}
+                  onChange={(event) => updateCustomField(index, 'name', event.target.value)}
+                  placeholder="Nom du champ"
+                  aria-label={`Nom du champ personnalisé ${index + 1}`}
+                />
+                <span className="custom-field-arrow" aria-hidden="true">→</span>
+                <input
+                  value={field.value}
+                  onChange={(event) => updateCustomField(index, 'value', event.target.value)}
+                  placeholder="Valeur"
+                  aria-label={`Valeur du champ personnalisé ${index + 1}`}
+                />
+                <button
+                  type="button"
+                  className="custom-field-remove"
+                  onClick={() => removeCustomField(index)}
+                  aria-label={`Supprimer le champ personnalisé ${index + 1}`}
+                  title="Supprimer ce champ"
+                >×</button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="link-accent custom-fields-add"
+              onClick={() => setValues((current) => ({ ...current, customFields: [...current.customFields, { name: '', value: '' }] }))}
+            >
+              Ajouter un champ personnalisé
+            </button>
+          </div>
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
 
@@ -231,8 +263,30 @@ export function ArtworkForm({ artwork, onCancel, onSave }: ArtworkFormProps) {
               {saving ? 'Enregistrement…' : artwork ? 'Enregistrer les modifications' : 'Ajouter l’œuvre'}
             </button>
           </footer>
-        </div>
-      </form>
+      </div>
+    </form>
+  )
+
+  // Pop-up hôte (0.6.10) : en-tête compact et formulaire rendus directement
+  // dans la fenêtre, sans <main> pleine page ni barre « ← Annuler » en double.
+  if (embeddedInDialog) {
+    return (
+      <div className="editor-dialog-embedded">
+        {heading}
+        {form}
+        {posterEditor.posterDialog}
+      </div>
+    )
+  }
+
+  return (
+    <main className="main editor-main">
+      <header className="page-action-bar">
+        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+      </header>
+      {heading}
+      {form}
+      {posterEditor.posterDialog}
     </main>
   )
 }

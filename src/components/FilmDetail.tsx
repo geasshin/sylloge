@@ -119,15 +119,11 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             <span>Modifier</span>
           </button>
           {tmdbCache ? (
-            <>
-              <button className="icon-action-button" type="button" onClick={onAssociateTmdb} title="Rafraîchir depuis TMDB">
-                {icon('wand')}
-                <span>Rafraîchir</span>
-              </button>
-              <button className="icon-action-button" type="button" onClick={() => void handleRemoveAssociation()} disabled={removingAssociation} title="Dissocier TMDB">
-                {removingAssociation ? 'Dissociation…' : 'Dissocier'}
-              </button>
-            </>
+            // 0.6.11 : plus de « Rafraîchir » — un film associé expose
+            // Dissocier ; le bouton baguette reste l'entrée d'association.
+            <button className="icon-action-button" type="button" onClick={() => void handleRemoveAssociation()} disabled={removingAssociation} title="Dissocier TMDB">
+              {removingAssociation ? 'Dissociation…' : `${icon('unlink')} Dissocier`}
+            </button>
           ) : (
             <button className="icon-action-button" type="button" onClick={onAssociateTmdb} title="Associer à TMDB (recherche assistée)">
               {icon('wand')}
@@ -141,7 +137,6 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             title="Supprimer ce film"
           >
             {icon('trash')}
-            <span>Supprimer</span>
           </button>
         </div>
       </header>
@@ -242,7 +237,8 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
                 <>
                   Présentation enrichie par{' '}
                   <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>
-                  <button className="link-subtle" type="button" onClick={onAssociateTmdb}>Rafraîchir</button>
+                  {/* 0.6.11 : plus de « Rafraîchir », la gestion passe
+                      exclusivement par Associer/Dissocier. */}
                   <button className="link-subtle" type="button" onClick={handleRemoveAssociation} disabled={removingAssociation}>
                     {removingAssociation ? 'Dissociation…' : 'Dissocier'}
                   </button>

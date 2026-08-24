@@ -47,8 +47,16 @@ export type Artwork = {
   discoveredAt: string | null
   imageUrl: string | null
   personalNote: string | null
+  /** Champs libres « nom → valeur » (0.6.12), ordre de saisie conservé. */
+  customFields: ArtworkCustomField[]
   createdAt: string
   updatedAt: string
+}
+
+/** Un champ personnalisé : nom obligatoire, valeur facultative. */
+export type ArtworkCustomField = {
+  name: string
+  value: string
 }
 
 /**

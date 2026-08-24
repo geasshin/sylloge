@@ -59,7 +59,6 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
             title="Supprimer cette œuvre"
           >
             {icon('trash')}
-            <span>Supprimer</span>
           </button>
         </div>
       </header>
@@ -104,6 +103,10 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
             {artwork.discoveredAt && (
               <div><dt>Découverte</dt><dd>{formatCalendarDate(artwork.discoveredAt)}</dd></div>
             )}
+            {/* Champs personnalisés nom → valeur (0.6.12). */}
+            {artwork.customFields.map((field, index) => (
+              <div key={`${field.name}-${index}`}><dt>{field.name}</dt><dd>{field.value}</dd></div>
+            ))}
           </dl>
 
           <section className="mine-block">

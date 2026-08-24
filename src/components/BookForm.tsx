@@ -17,6 +17,7 @@ import {
 } from '../domain/bookForm.ts'
 import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
+import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 import { Stepper } from './Stepper.tsx'
 
@@ -33,11 +34,14 @@ type BookFormProps = {
   book?: Book
   /** Valeurs préremplies par la recherche Open Library (création assistée, jalon 0.4.27). */
   initialValues?: BookFormValues
+  /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
+      sans <main> pleine page ni barre de retour redondante. */
+  embeddedInDialog?: boolean
   onCancel: () => void
   onSave: (input: BookWriteInput) => Promise<void>
 }
 
-export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProps) {
+export function BookForm({ book, initialValues, embeddedInDialog = false, onCancel, onSave }: BookFormProps) {
   const [values, setValues] = useState<BookFormValues>(() => book
     ? bookToFormValues(book)
     : { ...EMPTY_BOOK_FORM, ...initialValues, quotes: initialValues?.quotes ?? [] })
@@ -55,6 +59,14 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   // « À lire » : pas encore de verdict, on masque note, cœur, dates et avis.
   const verdictVisible = values.status !== 'à lire'
+
+  // Crayon commun sur la couverture (0.6.11) : modification par URL, locale.
+  const posterEditor = usePosterEditor({
+    title: previewTitle,
+    label: 'Couverture',
+    currentUrl: values.coverUrl,
+    onSave: (url) => update('coverUrl', url ?? ''),
+  })
 
   const update = <Key extends Exclude<keyof BookFormValues, 'quotes'>>(
     key: Key,
@@ -128,27 +140,24 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
     }
   }
 
-  return (
-    <main className="main editor-main">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
+  const heading = (
+    <div className="editor-heading">
+      <p className="eyebrow">Livre</p>
+      <h1 className="display-title">{book ? 'Modifier la fiche' : 'Ajouter un livre'}</h1>
+      <p>{assisted ? 'Ton livre est reconnu : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
+    </div>
+  )
 
-      <div className="editor-heading">
-        <p className="eyebrow">Livre</p>
-        <h1 className="display-title">{book ? 'Modifier la fiche' : 'Ajouter un livre'}</h1>
-        <p>{assisted ? 'Ton livre est reconnu : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
+  const form = (
+    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
+      <div className="form-side">
+        <div className="form-poster-frame">
+          <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" {...posterEditor.posterProps} />
+        </div>
+        <p className="form-poster-caption">Aperçu de la couverture</p>
       </div>
 
-      <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-        <div className="form-side">
-          <div className="form-poster-frame">
-            <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" />
-          </div>
-          <p className="form-poster-caption">Aperçu de la couverture</p>
-        </div>
-
-        <div className="form-body">
+      <div className="form-body">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
             <label htmlFor="book-title">Titre <span aria-hidden="true">*</span></label>
             <input
@@ -180,24 +189,24 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
               )}
             </div>
 
-            {!assisted && (
-              <div className="field">
-                <label htmlFor="book-category">Catégorie</label>
-                <select
-                  id="book-category"
-                  name="category"
-                  value={values.category}
-                  onChange={(event) => update('category', event.target.value as BookFormValues['category'])}
-                  aria-invalid={Boolean(errors.category)}
-                  aria-describedby={errors.category ? 'book-category-error' : undefined}
-                >
-                  {BOOK_CATEGORIES.map((category) => (
-                    <option value={category} key={category}>{BOOK_CATEGORY_LABELS[category]}</option>
-                  ))}
-                </select>
-                {errors.category && <p className="field-error" id="book-category-error">{errors.category}</p>}
-              </div>
-            )}
+          {/* Type Livre / Manga / Comics : visible en permanence (0.6.11),
+              y compris à l'ajout assisté. */}
+          <div className="field category-inline">
+            <label htmlFor="book-category">Type</label>
+            <select
+              id="book-category"
+              name="category"
+              value={values.category}
+              onChange={(event) => update('category', event.target.value as BookFormValues['category'])}
+              aria-invalid={Boolean(errors.category)}
+              aria-describedby={errors.category ? 'book-category-error' : undefined}
+            >
+              {BOOK_CATEGORIES.map((category) => (
+                <option value={category} key={category}>{BOOK_CATEGORY_LABELS[category]}</option>
+              ))}
+            </select>
+            {errors.category && <p className="field-error" id="book-category-error">{errors.category}</p>}
+          </div>
 
             {verdictVisible && progressVisible && (
               <fieldset className="progress-fields verdict-progress">
@@ -227,19 +236,21 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
               </fieldset>
             )}
 
-            <div className="date-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              <input
-                id="book-startedAt"
-                name="startedAt"
-                type="date"
-                value={values.startedAt || today}
-                onChange={(event) => update('startedAt', event.target.value)}
-                aria-label="Début de la lecture"
-                aria-invalid={Boolean(errors.startedAt)}
-              />
-            </div>
-            {errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
+            {verdictVisible && (
+              <div className="date-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <input
+                  id="book-startedAt"
+                  name="startedAt"
+                  type="date"
+                  value={values.startedAt || today}
+                  onChange={(event) => update('startedAt', event.target.value)}
+                  aria-label="Début de la lecture"
+                  aria-invalid={Boolean(errors.startedAt)}
+                />
+              </div>
+            )}
+            {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 
             {verdictVisible ? (
               <div className="review-write">
@@ -342,8 +353,30 @@ export function BookForm({ book, initialValues, onCancel, onSave }: BookFormProp
               {saving ? 'Enregistrement…' : book ? 'Enregistrer les modifications' : 'Ajouter le livre'}
             </button>
           </footer>
-        </div>
-      </form>
+      </div>
+    </form>
+  )
+
+  // Pop-up hôte (0.6.10) : en-tête compact et formulaire rendus directement
+  // dans la fenêtre, sans <main> pleine page ni barre « ← Annuler » en double.
+  if (embeddedInDialog) {
+    return (
+      <div className="editor-dialog-embedded">
+        {heading}
+        {form}
+        {posterEditor.posterDialog}
+      </div>
+    )
+  }
+
+  return (
+    <main className="main editor-main">
+      <header className="page-action-bar">
+        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+      </header>
+      {heading}
+      {form}
+      {posterEditor.posterDialog}
     </main>
   )
 }

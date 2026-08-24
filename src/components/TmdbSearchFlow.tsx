@@ -118,11 +118,11 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
           </p>
         </div>
         <div className="form-actions">
-          {!compact && (
-            <button className="secondary-button" type="button" onClick={onManual}>
-              {film ? 'Retour à la fiche' : 'Saisir manuellement'}
-            </button>
-          )}
+          {/* Toujours visible, y compris en pop-up (0.6.11) : l'issue manuelle
+              ne doit jamais dépendre d'un mode de rendu. */}
+          <button className="secondary-button" type="button" onClick={onManual}>
+            {film ? 'Retour à la fiche' : 'Saisir manuellement'}
+          </button>
         </div>
       </form>
 

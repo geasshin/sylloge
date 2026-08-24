@@ -142,6 +142,17 @@ export function PanelIcon({ size = 17 }: IconProps) {
   )
 }
 
+/** Maillon brisé : dissociation d'une fiche et de son fournisseur. */
+export function UnlinkIcon({ size = 15 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <path {...strokeProps} d="M8.5 15.5 5.7 18.3a3.6 3.6 0 0 1-5-5l2.8-2.8" transform="translate(4 -1)" />
+      <path {...strokeProps} d="M13 8.5l3.5-3.5a3.54 3.54 0 1 1 5 5L18 13.5" transform="translate(1 3)" />
+      <line {...strokeProps} x1="5.5" y1="19" x2="19" y2="5.5" />
+    </svg>
+  )
+}
+
 /** Icônes des vues de l'accueil et des sections. */
 export function CalendarIcon({ size = 17 }: IconProps) {
   return (

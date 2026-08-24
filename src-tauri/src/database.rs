@@ -82,5 +82,17 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0013_saved_views_unified_criteria.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 14,
+            description: "normalize_game_statuses",
+            sql: include_str!("../migrations/0014_normalize_game_statuses.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 15,
+            description: "artwork_custom_fields",
+            sql: include_str!("../migrations/0015_artwork_custom_fields.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

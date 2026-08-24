@@ -2,6 +2,7 @@ import {
   ARTWORK_FORMS,
   ARTWORK_STATUSES,
   type Artwork,
+  type ArtworkCustomField,
   type ArtworkForm,
   type ArtworkStatus,
 } from './artwork.ts'
@@ -18,6 +19,7 @@ export type ArtworkFormValues = {
   discoveredAt: string
   imageUrl: string
   personalNote: string
+  customFields: ArtworkCustomField[]
 }
 
 export type ArtworkWriteInput = {
@@ -32,6 +34,7 @@ export type ArtworkWriteInput = {
   discoveredAt: string | null
   imageUrl: string | null
   personalNote: string | null
+  customFields: ArtworkCustomField[]
 }
 
 export type ArtworkFormErrors = Partial<Record<keyof ArtworkFormValues, string>>
@@ -52,6 +55,7 @@ export const EMPTY_ARTWORK_FORM: ArtworkFormValues = {
   discoveredAt: '',
   imageUrl: '',
   personalNote: '',
+  customFields: [],
 }
 
 function optionalText(value: string): string | null {
@@ -95,6 +99,7 @@ export function artworkToFormValues(artwork: Artwork): ArtworkFormValues {
     discoveredAt: artwork.discoveredAt ?? '',
     imageUrl: artwork.imageUrl ?? '',
     personalNote: artwork.personalNote ?? '',
+    customFields: artwork.customFields.map((field) => ({ ...field })),
   }
 }
 
@@ -132,6 +137,15 @@ export function validateArtworkForm(values: ArtworkFormValues): ArtworkValidatio
     errors.imageUrl = 'Utilisez une URL complète commençant par http:// ou https://.'
   }
 
+  // Champs personnalisés (0.6.12) : une ligne sans nom est ignorée ; un nom
+  // sans valeur reste valide. Bornes généreuses mais réelles.
+  const customFields: ArtworkCustomField[] = []
+  for (const field of values.customFields) {
+    const name = field.name.trim()
+    if (!name) continue
+    customFields.push({ name: name.slice(0, 120), value: field.value.trim().slice(0, 500) })
+  }
+
   if (Object.keys(errors).length > 0) {
     return { success: false, errors }
   }
@@ -150,6 +164,7 @@ export function validateArtworkForm(values: ArtworkFormValues): ArtworkValidatio
       discoveredAt: optionalText(values.discoveredAt),
       imageUrl,
       personalNote: optionalText(values.personalNote),
+      customFields,
     },
   }
 }

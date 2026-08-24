@@ -1757,14 +1757,18 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 /* En pop-up, le formulaire n'a plus ses ombres/padding de page */
 .editor-dialog .film-form { padding: 0; border: none; box-shadow: none; background: transparent; }
 /* Étape « Ajouter le film » : fenêtre resserrée sur le contenu, affiche
-   compacte à gauche, formulaire dense à droite — plus aucun grand vide. */
+   compacte à gauche, formulaire dense à droite. Le formulaire est rendu
+   directement dans la fenêtre (mode intégré 0.6.9) : plus aucun faux
+   <main> pleine page, donc plus jamais le grand blanc du bas.
+   Spécificité doublée pour reprendre la main à .editor-dialog
+   .film-form.form-detail défini plus bas. */
 .editor-dialog.dialog-add-flow {
   width: min(560px, 100%);
   padding: 20px 22px 18px;
 }
 .dialog-add-flow .editor-heading h1 { font-size: clamp(19px, 1.8vw, 24px); letter-spacing: -.02em; margin: 0; }
 .dialog-add-flow .editor-heading p { margin: 4px 0 0; font-size: 12px; color: var(--color-text-muted); }
-.dialog-add-flow .film-form.form-detail {
+.editor-dialog.dialog-add-flow .film-form.form-detail {
   display: grid;
   grid-template-columns: minmax(110px, 140px) minmax(0, 1fr);
   gap: 16px;
@@ -1782,10 +1786,13 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .tmdb-search-compact .tmdb-search-form { margin-top: 14px; }
 .tmdb-search-compact .form-actions { margin-top: 10px; justify-content: flex-end; }
 .tmdb-search-compact .tmdb-candidates-grid {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  /* Trois résultats par ligne (0.6.9) : affiches plus petites, la fenêtre
+     reste à sa taille et la grille défile dans une zone bornée. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   max-height: min(46vh, 420px);
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 /* Pop-up « Modifier l'association » (Séries, Livres, Jeux) : même gabarit
    compact que l'ajout de film ; l'encart contexte reprend la largeur utile. */
@@ -2141,6 +2148,35 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .export-format-option:hover:not(:disabled) { background: var(--color-surface-muted); }
 .export-format-option:disabled { opacity: .6; cursor: default; }
 .export-format-option small { color: var(--color-text-muted); }
+
+/* Champs personnalisés de l'Art (0.6.12) : lignes nom → valeur, sobres. */
+.custom-fields { display: grid; gap: 8px; margin-top: 4px; }
+.custom-field-row { display: flex; align-items: center; gap: 10px; }
+.custom-field-row input {
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+}
+.custom-field-row input:first-child { flex: 0 1 200px; }
+.custom-field-row input:nth-child(3) { flex: 1 1 auto; }
+.custom-field-arrow { color: var(--color-text-subtle); font-size: 13px; }
+.custom-field-remove {
+  min-width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 99px;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.custom-field-remove:hover { background: var(--color-surface-muted); color: var(--color-danger); }
+.custom-fields-add { justify-self: start; font-size: 12.5px; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }

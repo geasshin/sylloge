@@ -65,7 +65,6 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
             title="Supprimer ce jeu"
           >
             {icon('trash')}
-            <span>Supprimer</span>
           </button>
         </div>
       </header>
@@ -121,7 +120,7 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
               <div><dt>Sortie</dt><dd>{game.year}</dd></div>
             )}
             {game.playedAt && (
-              <div><dt>{game.status === 'regardé' ? 'Visionnage' : 'Partie'}</dt><dd>{formatCalendarDate(game.playedAt)}</dd></div>
+              <div><dt>Partie</dt><dd>{formatCalendarDate(game.playedAt)}</dd></div>
             )}
           </dl>
 

@@ -39,11 +39,14 @@ type FilmFormProps = {
   asDialog?: boolean
   /** Titre réduit dans une pop-up hôte qui gère déjà son propre en-tête. */
   compactHeading?: boolean
+  /** Intégré à une pop-up hôte (0.6.9) : le formulaire vit dans la fenêtre,
+      sans <main> pleine page ni barre de retour redondante. */
+  embeddedInDialog?: boolean
   onCancel: () => void
   onSave: (input: FilmWriteInput, provenance: FilmMetadataProvenance | null) => Promise<void>
 }
 
-export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, onCancel, onSave }: FilmFormProps) {
+export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, onCancel, onSave }: FilmFormProps) {
   const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -288,6 +291,17 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
         </div>
         {posterEditor}
       </>
+    )
+  }
+
+  // Pop-up hôte (0.6.9) : en-tête compact et formulaire rendus directement
+  // dans la fenêtre, sans <main> pleine page ni barre « ← Annuler » en double.
+  if (embeddedInDialog) {
+    return (
+      <div className="editor-dialog-embedded">
+        {heading}
+        {form}
+      </div>
     )
   }
 

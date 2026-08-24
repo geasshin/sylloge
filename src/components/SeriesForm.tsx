@@ -17,6 +17,7 @@ import {
 } from '../domain/seriesForm.ts'
 import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
+import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 import { Stepper } from './Stepper.tsx'
 
@@ -33,11 +34,14 @@ type SeriesFormProps = {
   series?: Series
   /** Valeurs préremplies par la recherche TMDB (création assistée, jalon 0.4.26). */
   initialValues?: SeriesFormValues
+  /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
+      sans <main> pleine page ni barre de retour redondante. */
+  embeddedInDialog?: boolean
   onCancel: () => void
   onSave: (input: SeriesWriteInput) => Promise<void>
 }
 
-export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFormProps) {
+export function SeriesForm({ series, initialValues, embeddedInDialog = false, onCancel, onSave }: SeriesFormProps) {
   const [values, setValues] = useState<SeriesFormValues>(() => series ? seriesToFormValues(series) : { ...EMPTY_SERIES_FORM, ...initialValues })
   const [errors, setErrors] = useState<SeriesFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -52,6 +56,14 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   // « À voir » : pas encore de verdict, on masque note, cœur, dates et avis.
   const verdictVisible = values.status !== 'à voir'
+
+  // Crayon commun sur l'affiche (0.6.11) : modification par URL, locale.
+  const posterEditor = usePosterEditor({
+    title: previewTitle,
+    label: 'Affiche',
+    currentUrl: values.posterUrl,
+    onSave: (url) => update('posterUrl', url ?? ''),
+  })
 
   const update = <Key extends keyof SeriesFormValues>(key: Key, value: SeriesFormValues[Key]) => {
     setValues((current) => {
@@ -96,27 +108,24 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
     }
   }
 
-  return (
-    <main className="main editor-main">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
+  const heading = (
+    <div className="editor-heading">
+      <p className="eyebrow">Série</p>
+      <h1 className="display-title">{series ? 'Modifier la fiche' : 'Ajouter une série'}</h1>
+      <p>{assisted ? 'Ta série est reconnue : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
+    </div>
+  )
 
-      <div className="editor-heading">
-        <p className="eyebrow">Série</p>
-        <h1 className="display-title">{series ? 'Modifier la fiche' : 'Ajouter une série'}</h1>
-        <p>{assisted ? 'Ta série est reconnue : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
+  const form = (
+    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
+      <div className="form-side">
+        <div className="form-poster-frame">
+          <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" {...posterEditor.posterProps} />
+        </div>
+        <p className="form-poster-caption">Aperçu de l’affiche</p>
       </div>
 
-      <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-        <div className="form-side">
-          <div className="form-poster-frame">
-            <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" />
-          </div>
-          <p className="form-poster-caption">Aperçu de l’affiche</p>
-        </div>
-
-        <div className="form-body">
+      <div className="form-body">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
             <label htmlFor="series-title">Titre <span aria-hidden="true">*</span></label>
             <input
@@ -129,6 +138,22 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
               autoFocus={!assisted}
             />
             {errors.title && <p className="field-error" id="series-title-error">{errors.title}</p>}
+          </div>
+
+          {/* Catégorie Série / Animé : visible en permanence (0.6.11),
+              au-dessus du verdict, dans le même gabarit segmenté. */}
+          <div className="field category-inline">
+            <label htmlFor="series-category">Type</label>
+            <select
+              id="series-category"
+              name="category"
+              value={values.category}
+              onChange={(event) => update('category', event.target.value as SeriesFormValues['category'])}
+            >
+              {SERIES_CATEGORIES.map((category) => (
+                <option value={category} key={category}>{SERIES_CATEGORY_LABELS[category]}</option>
+              ))}
+            </select>
           </div>
 
           {/* Le verdict personnel */}
@@ -174,19 +199,21 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
               </fieldset>
             )}
 
-            <div className="date-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              <input
-                id="series-startedAt"
-                name="startedAt"
-                type="date"
-                value={values.startedAt || today}
-                onChange={(event) => update('startedAt', event.target.value)}
-                aria-label="Début du visionnage"
-                aria-invalid={Boolean(errors.startedAt)}
-              />
-            </div>
-            {errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
+            {verdictVisible && (
+              <div className="date-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                <input
+                  id="series-startedAt"
+                  name="startedAt"
+                  type="date"
+                  value={values.startedAt || today}
+                  onChange={(event) => update('startedAt', event.target.value)}
+                  aria-label="Début du visionnage"
+                  aria-invalid={Boolean(errors.startedAt)}
+                />
+              </div>
+            )}
+            {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 
             {verdictVisible ? (
               <div className="review-write">
@@ -215,19 +242,6 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
               {showEditorial && (
                 <div className="secondary-fields-content">
                   <div className="form-row">
-                    <div className="field">
-                      <label htmlFor="series-category">Catégorie</label>
-                      <select
-                        id="series-category"
-                        name="category"
-                        value={values.category}
-                        onChange={(event) => update('category', event.target.value as SeriesFormValues['category'])}
-                      >
-                        {SERIES_CATEGORIES.map((category) => (
-                          <option value={category} key={category}>{SERIES_CATEGORY_LABELS[category]}</option>
-                        ))}
-                      </select>
-                    </div>
                     <div className="field">
                       <label htmlFor="series-showrunner">Showrunner</label>
                       <input id="series-showrunner" value={values.showrunner} onChange={(event) => update('showrunner', event.target.value)} />
@@ -268,8 +282,30 @@ export function SeriesForm({ series, initialValues, onCancel, onSave }: SeriesFo
               {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : 'Ajouter la série'}
             </button>
           </footer>
-        </div>
-      </form>
+      </div>
+    </form>
+  )
+
+  // Pop-up hôte (0.6.10) : en-tête compact et formulaire rendus directement
+  // dans la fenêtre, sans <main> pleine page ni barre « ← Annuler » en double.
+  if (embeddedInDialog) {
+    return (
+      <div className="editor-dialog-embedded">
+        {heading}
+        {form}
+        {posterEditor.posterDialog}
+      </div>
+    )
+  }
+
+  return (
+    <main className="main editor-main">
+      <header className="page-action-bar">
+        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+      </header>
+      {heading}
+      {form}
+      {posterEditor.posterDialog}
     </main>
   )
 }
