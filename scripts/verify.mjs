@@ -3368,9 +3368,16 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
   const { librarySortOrderBy } = await import('../src/data/libraryViewQuery.ts')
   const { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters } = await import('../src/domain/libraryFilters.ts')
 
-  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites', 'ranking'], 'Les médiums notés doivent proposer les quatre vues intégrées')
-  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites'], 'L’Art ne doit jamais proposer de classement par note')
-  assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les quatre vues de base sont des présets intégrés du même modèle')
+  // Jalon 0.6.8 : vues sémantiques — la vue « all » disparaît au profit de « watchlist »
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'recent', 'favorites', 'ranking'], 'Les médiums notés doivent proposer les quatre vues intégrées')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'recent', 'favorites'], 'L’Art ne doit jamais proposer de classement par note')
+  assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les vues de base sont des présets intégrés du même modèle')
+
+  const watchlist = RATED_BUILTIN_VIEWS.find((view) => view.id === 'watchlist')
+  assert.equal(watchlist.filters.statusGroup, 'pending', 'La vue d’entrée filtre sur le groupe « à voir »')
+  const recent = RATED_BUILTIN_VIEWS.find((view) => view.id === 'recent')
+  assert.equal(recent.filters.statusGroup, 'consumed', 'La vue Récents n’affiche que du déjà consommé (0.6.8)')
+  assert.deepEqual(recent.sort, { column: 'recency', direction: 'desc' }, 'La vue Récents trie par récence décroissante')
 
   const favorites = RATED_BUILTIN_VIEWS.find((view) => view.id === 'favorites')
   assert.equal(favorites.filters.favoritesOnly, true, 'La vue Favoris est un préset filtré sur les coups de cœur')
@@ -3405,9 +3412,45 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
 }
 
 assert.equal((mainSource0419.match(/<LibraryViewBar/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager la même rangée de vues unifiée')
-assert.match(mainSource0419, /builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
 assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
 assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
+
+// Jalon 0.6.8 — vues intégrées sémantiques, interrupteur de catégories, gutter de scrollbar.
+{
+  const { PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID, builtinViewById } = await import('../src/domain/libraryViews.ts')
+  const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
+
+  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'in-progress', 'recent', 'favorites', 'ranking'], 'Séries et Livres ajoutent la vue En cours (0.6.8)')
+
+  const clauses = []
+  const binds = []
+  appendLibraryFilterClauses(
+    { status: 'all', statusGroup: 'consumed', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+    { rating: true, year: true, personalDateColumn: null, specificTextColumn: null, locationColumn: null, exhibitionColumn: null, progressColumn: null },
+    clauses,
+    binds,
+    (value) => value,
+  )
+  assert.ok(clauses.some((clause) => clause.startsWith('status IN (')), 'Le groupe « consommé » doit se traduire en liste blanche paramétrée')
+  assert.ok(binds.includes('terminé') && binds.includes('vue') && binds.includes('lu'), 'La traduction couvre les statuts consommés de tous les médiums')
+  assert.ok(!clauses.some((clause) => clause.startsWith('status =')), 'Un groupe actif ne doit pas coexister avec un statut exact')
+
+  assert.equal(DEFAULT_VIEW_ID, 'watchlist', 'Chaque bibliothèque s’ouvre sur sa watchlist (0.6.8)')
+  assert.equal(builtinViewById(PROGRESS_BUILTIN_VIEWS, 'in-progress').name, 'En cours', 'La vue En cours existe pour Séries et Livres')
+
+  const mainSource068 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const stylesSource068 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const categorySwitchSource068 = readFileSync(new URL('../src/components/CategorySwitch.tsx', import.meta.url), 'utf8')
+  assert.match(mainSource068, /<SeriesCategorySwitch/, 'Séries doit exposer l’interrupteur Télé|Animation')
+  assert.match(mainSource068, /<BookCategorySwitch/, 'Livres doit exposer l’interrupteur Livre|Manga|Comics')
+  assert.match(mainSource068, /categoriesToFilter\(seriesContext\.category\)/, 'La sélection de catégories pilote la recherche Séries')
+  assert.match(mainSource068, /titledBuiltinViews\(PROGRESS_BUILTIN_VIEWS, 'books'\)/, 'Livres doit titrer sa watchlist « À lire »')
+  assert.match(mainSource068, /titledBuiltinViews\(RATED_BUILTIN_VIEWS, 'games'\)/, 'Jeux doit titrer sa watchlist « À jouer »')
+  assert.doesNotMatch(mainSource068, /builtinViews=\{RATED_BUILTIN_VIEWS\}|builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'Aucune bibliothèque ne doit recevoir d’intitulés non titrés')
+  assert.match(categorySwitchSource068, /value\.length === 1\) return/, 'L’interrupteur garde toujours au moins une catégorie active')
+  assert.match(stylesSource068, /\.category-switch-segment/, 'L’interrupteur doit suivre la charte maison')
+  assert.match(stylesSource068, /scrollbar-gutter: stable/, 'La place de la barre de défilement doit rester réservée (correctif du saut Favoris)')
+}
 
 // Jalon 0.4.20 — filtres avancés combinables ; jalon 0.4.24 — popovers Filtre/Tri de la rangée unifiée.
 const libraryViewBarSource = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')

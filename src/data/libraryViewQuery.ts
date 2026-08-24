@@ -1,5 +1,26 @@
 import type { LibrarySort } from '../domain/libraryViews.ts'
-import { normalizeLibraryFilters, type LibraryFilters } from '../domain/libraryFilters.ts'
+import { normalizeLibraryFilters, type LibraryFilters, type LibraryStatusGroup } from '../domain/libraryFilters.ts'
+
+/**
+ * Traduction des groupes de statut abstraits (0.6.8) en valeurs concrètes de
+ * chaque médium, colonnes documentées incluses. La liste blanche est partagée
+ * par tous les médiums : une valeur qui n'existe pas chez un médium n'y
+ * matche jamais aucune ligne, la clause reste donc exacte partout.
+ */
+export const STATUS_GROUP_COLUMNS: Record<LibraryStatusGroup, { column: string; values: string[] }> = {
+  pending: {
+    column: 'status',
+    values: ['à découvrir', 'en attente', 'à voir', 'à lire', 'à jouer'],
+  },
+  inProgress: {
+    column: 'status',
+    values: ['en cours'],
+  },
+  consumed: {
+    column: 'status',
+    values: ['terminé', 'abandonné', 'vue', 'abandonnée', 'lu', 'joué', 'regardé', 'découverte'],
+  },
+}
 
 /**
  * Colonnes réellement utilisables d'un médium pour le filtrage et le tri.
@@ -69,6 +90,19 @@ export function appendLibraryFilterClauses(
   escapeLike: (value: string) => string,
 ): void {
   const filters = normalizeLibraryFilters(rawFilters)
+
+  // Groupe de statut d'une vue intégrée (0.6.8) : traduit en liste blanche
+  // paramétrée. Un statut précis choisi à la volée reste prioritaire.
+  if (filters.statusGroup !== null && filters.status === 'all') {
+    const group = STATUS_GROUP_COLUMNS[filters.statusGroup]
+    if (group.values.length > 0) {
+      const placeholders = group.values.map((value) => {
+        bindValues.push(value)
+        return `$${bindValues.length}`
+      })
+      clauses.push(`${group.column} IN (${placeholders.join(', ')})`)
+    }
+  }
 
   if (filters.status !== 'all') {
     bindValues.push(filters.status)

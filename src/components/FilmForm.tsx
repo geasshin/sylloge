@@ -37,11 +37,13 @@ type FilmFormProps = {
   onPosterEdit?: (url: string | null) => Promise<void> | void
   /** Rendu en pop-up modale centrée au-dessus de la bibliothèque (fond flouté). */
   asDialog?: boolean
+  /** Titre réduit dans une pop-up hôte qui gère déjà son propre en-tête. */
+  compactHeading?: boolean
   onCancel: () => void
   onSave: (input: FilmWriteInput, provenance: FilmMetadataProvenance | null) => Promise<void>
 }
 
-export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, asDialog = false, onCancel, onSave }: FilmFormProps) {
+export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, onCancel, onSave }: FilmFormProps) {
   const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -107,7 +109,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
     }
   }
 
-  const heading = (
+  const heading = compactHeading ? null : (
     <div className="editor-heading">
       <p className="eyebrow">Film</p>
       <h1 className="display-title">{film ? 'Modifier la fiche' : 'Ajouter un film'}</h1>

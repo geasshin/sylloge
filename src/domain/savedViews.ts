@@ -2,7 +2,7 @@ import { ARTWORK_FORMS, ARTWORK_STATUSES } from './artwork.ts'
 import { BOOK_CATEGORIES, BOOK_STATUSES } from './book.ts'
 import { FILM_STATUSES } from './film.ts'
 import { GAME_STATUSES } from './game.ts'
-import { normalizeLibraryFilters, type LibraryFilters } from './libraryFilters.ts'
+import { LIBRARY_STATUS_GROUPS, normalizeLibraryFilters, type LibraryFilters, type LibraryStatusGroup } from './libraryFilters.ts'
 import {
   LIBRARY_SORT_COLUMNS,
   RATED_BUILTIN_VIEWS,
@@ -102,6 +102,13 @@ function toOptionalDate(value: unknown): string | null {
   return typeof value === 'string' && DATE_PATTERN.test(value) ? value : null
 }
 
+/** Un groupe de statut inconnu retombe sur « aucun groupe ». */
+function sanitizeStatusGroup(value: unknown): LibraryStatusGroup | null {
+  return typeof value === 'string' && LIBRARY_STATUS_GROUPS.includes(value as LibraryStatusGroup)
+    ? (value as LibraryStatusGroup)
+    : null
+}
+
 function sanitizeSort(medium: SavedViewMedium, raw: unknown, fallback: LibrarySort): LibrarySort {
   const source = (raw ?? {}) as Record<string, unknown>
   const column = LIBRARY_SORT_COLUMNS.includes(source.column as LibrarySort['column'])
@@ -126,19 +133,22 @@ function fromV1Criteria(medium: SavedViewMedium, raw: Record<string, unknown>): 
   const builtin = [...RATED_BUILTIN_VIEWS, ...UNRATED_BUILTIN_VIEWS].find(
     (view) => view.id === raw.view,
   )
+  // Une vue v1 « all » (inventaire complet) devient un préset neutre : elle
+  // ne doit surtout pas hériter du filtre de la nouvelle vue par défaut.
+  const neutral = builtin === undefined && raw.view === 'all'
   const fallback: LibraryViewDefinition = medium === 'artworks'
     ? UNRATED_BUILTIN_VIEWS[0]
     : RATED_BUILTIN_VIEWS[0]
   const preset = builtin ?? fallback
   const rawFilters = (raw.filters ?? {}) as Record<string, unknown>
   return {
-    sort: preset.sort,
+    sort: neutral ? { column: 'title', direction: 'asc' } : preset.sort,
     mediumFilter: raw.mediumFilter,
     filters: {
-      ...preset.filters,
+      ...(neutral ? { ...preset.filters, statusGroup: null } : preset.filters),
       ...rawFilters,
       // En v1, la vue Favoris portait la restriction : elle survit à la conversion.
-      favoritesOnly: preset.filters.favoritesOnly || rawFilters.favoritesOnly === true,
+      favoritesOnly: (!neutral && preset.filters.favoritesOnly) || rawFilters.favoritesOnly === true,
     },
   }
 }
@@ -173,6 +183,7 @@ export function sanitizeSavedViewCriteria(medium: SavedViewMedium, raw: unknown)
 
   const filters: LibraryFilters = normalizeLibraryFilters({
     status,
+    statusGroup: sanitizeStatusGroup(rawFilters.statusGroup),
     favoritesOnly: rawFilters.favoritesOnly === true,
     minRating: medium === 'artworks' ? null : toOptionalRating(rawFilters.minRating),
     year: medium === 'series' ? null : toOptionalYear(rawFilters.year),
