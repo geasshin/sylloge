@@ -1790,6 +1790,14 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .dialog-associate .tmdb-film-context { width: 100%; margin: 0 0 18px; padding: 14px; gap: 14px; }
 .dialog-associate .tmdb-search-form .field-help { margin-top: 6px; }
 .editor-dialog .film-form.form-detail { display: grid; grid-template-columns: minmax(150px, 200px) minmax(0, 1fr); gap: 22px; align-items: start; }
+/* Dans la pop-up, le contenu occupe TOUTE la fenêtre : ni recentrage
+   700 px, ni padding vertical de page */
+.editor-dialog .editor-heading,
+.editor-dialog .film-form { width: 100%; margin-inline: 0; }
+.editor-dialog .editor-heading { padding: 0; }
+.editor-dialog .tmdb-search-form { width: 100%; margin-inline: 0; }
+/* Les boutons d'action vivent à droite, collés au contenu, pas au centre */
+.editor-dialog .form-actions { justify-content: flex-end; padding-top: 4px; }
 
 /* Fiche : trois boutons explicites Modifier / Associer / Supprimer */
 .icon-action-button {
