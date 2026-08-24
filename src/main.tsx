@@ -3613,7 +3613,7 @@ function App() {
       />
       {content}
       {addFlow && libraryState.status === 'ready' && (
-        <div className="dialog-backdrop-blur" role="presentation">
+        <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAddFlow(null) }}>
           <div
             className="editor-dialog"
             role="dialog"
@@ -3621,11 +3621,6 @@ function App() {
             aria-label="Ajouter un film"
           >
             <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAddFlow(null)} aria-label="Fermer">×</button>
-            <div className="editor-heading">
-              <p className="eyebrow">Film</p>
-              <h1 className="display-title">{addFlow.medium === 'film' && addFlow.initialValues ? 'Ajouter le film' : 'Rechercher un film'}</h1>
-              <p>{addFlow.medium === 'film' && addFlow.initialValues ? 'Ton film est reconnu : choisis juste ton verdict.' : 'Recherchez un film dans TMDB et choisissez la bonne correspondance ; le formulaire s’ouvre directement prérempli.'}</p>
-            </div>
             {addFlow.medium === 'film' && addFlow.step === 'search' && (
               <TmdbSearchFlow
                 compact
@@ -3638,9 +3633,15 @@ function App() {
               />
             )}
             {addFlow.medium === 'film' && addFlow.initialValues && (
-              <FilmForm
-                initialValues={addFlow.initialValues}
-                provenance={addFlow.provenance ?? null}
+              <>
+                <div className="editor-heading">
+                  <p className="eyebrow">Film</p>
+                  <h1 className="display-title">Ajouter le film</h1>
+                  <p>Ton film est reconnu : choisis juste ton verdict.</p>
+                </div>
+                <FilmForm
+                  initialValues={addFlow.initialValues}
+                  provenance={addFlow.provenance ?? null}
                 asDialog={false}
                 onCancel={() => setAddFlow(null)}
                 onSave={async (input, provenance) => {
@@ -3662,6 +3663,7 @@ function App() {
                   window.scrollTo({ top: 0 })
                 }}
               />
+              </>
             )}
           </div>
         </div>

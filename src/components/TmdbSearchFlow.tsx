@@ -118,9 +118,11 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
           </p>
         </div>
         <div className="form-actions">
-          <button className="secondary-button" type="button" onClick={onManual}>
-            {film ? 'Retour à la fiche' : 'Saisir manuellement'}
-          </button>
+          {!compact && (
+            <button className="secondary-button" type="button" onClick={onManual}>
+              {film ? 'Retour à la fiche' : 'Saisir manuellement'}
+            </button>
+          )}
         </div>
       </form>
 
