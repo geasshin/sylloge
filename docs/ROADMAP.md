@@ -658,6 +658,51 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 - Revoir les jalons `0.6.1…0.6.6`, recette complète sur les cinq médiums, publication signée après feu vert.
 
+## 11. Retours de recette du 24 août 2026 — feuille de route corrective
+
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **Rien de cette section n'est implémenté à ce jour.**
+
+### `0.6.13` — Purge du verdict personnel au retour en watchlist
+
+**Constat (reproduit par Aurélien, cinq médiums concernés).** À l'ajout d'un film : passer en « Terminé », saisir une note, cocher le coup de cœur, rédiger un avis, puis revenir en « À découvrir » et enregistrer. La fiche est bien créée « à découvrir » mais conserve la note, le favori et l'avis — alors que ces données n'ont de sens que pour une œuvre réellement vue.
+
+- **Règle produit** : tout retour vers un statut watchlist (« À voir / À lire / À jouer / À découvrir ») purge automatiquement les données de verdict personnel : note, coup de cœur, avis rédigé, dates de consommation. La progression (saisons, tomes) suit la même logique.
+- Implémentation attendue côté domaine (`src/domain/*Form.ts`) et comportement formulaire (masquage = remise à zéro), cohérente avec la règle existante d'affichage conditionnel.
+- Preuves dédiées : validation refuse de produire une fiche watchlist portant note/favori/avis.
+
+### `0.6.14` — Correctifs d'affichage de fiches
+
+- **« [object Object] » sur Dissocier (Films)** : bug introduit en 0.6.11 par l'orchestrateur — l'icône JSX est interpolée dans une chaîne de gabarit au lieu d'être rendue comme enfant. Correction triviale dans `FilmDetail.tsx`.
+- **Actions de fiche Jeux centrées** : sur la fiche d'un jeu, Modifier/Associer/corbeille sont centrés au lieu d'alignés à droite comme les quatre autres bibliothèques (visible capture). Investigation CSS de `.detail-actions` côté Jeux.
+- Critères : aucun texte technique visible ; les cinq fiches partagent exactement le même alignement d'actions.
+
+### `0.6.15` — Pop-up d'ajout : stabilité visuelle du verdict
+
+**Constat (cinq médiums).** Dans l'étape 2 de la pop-up, le passage d'un statut watchlist à un statut consommé fait apparaître les champs de verdict : la fenêtre grandit, les boutons sautent (le segment « Joué » se décale sous le curseur).
+
+- Ancrer les boutons d'action et stabiliser la hauteur (réserve d'espace ou transition douce) pour qu'un changement de statut ne déplace pas ce qui est sur le point d'être cliqué.
+- S'applique aux cinq pop-up d'ajout, gabarit `.dialog-add-flow`.
+
+### `0.6.16` — Refonte des pages « Modifier la fiche » (le gros chantier)
+
+**Constat (captures, tous médiums).** La page Modifier reste mal composée : fenêtre étroite non exploitable, contenu tassé, impression de page inachevée. Aurélien demande une recomposition profonde utilisant l'espace, proche de la fiche en lecture, clairement plus intuitive.
+
+- **Films, problème spécifique confirmé** : sur une fiche associée TMDB, Modifier n'affiche pas les informations enrichies (affiche, titre, année, réalisation, résumé…) — contrairement aux Séries/Livres/Jeux où les valeurs fusionnées s'affichent correctement. Cause probable : l'association Films écrit la provenance et le cache mais ne recopie pas les colonnes éditoriales ; le formulaire part des colonnes vides.
+- **Modèle cible commun** : composition pleine largeur reprenant la grammaire de la fiche (visuel à gauche avec crayon, identité enrichie affichée, verdict personnel à droite), données fournisseur visibles et corrigeables en surcharge sans jamais effacer le reste des données API à l'enregistrement.
+- S'appuie sur le diagnostic du cache TMDB (`getFilmTmdbCache`) pour Films ; fusion bornée déjà éprouvée côté Séries/Livres/Jeux.
+
+### `0.6.17` — Bibliothèque Art : vues et mise en page
+
+**Constat (capture).** En vue « Récent » : message « Aucune œuvre ne correspond » alors que 11 œuvres existent, et contenu confiné à gauche (~50 % de l'écran) avec grand vide à droite.
+
+- **Cause probable du vide sémantique** : depuis la suppression des statuts de l'interface (0.6.11), aucune œuvre ne peut plus passer en « découverte » — elles restent « à découvrir » et la vue Récent (groupe « consommé ») est structurellement vide. Migration attendue : toute œuvre présente dans la collection est découverte (règle du brief 6.1).
+- **Défaut de mise en page** : la grille/l'état vide de l'Art n'occupe pas la largeur disponible, contrairement aux autres bibliothèques. Investigation CSS dédiée.
+- Critères : Récent affiche les œuvres découvertes récemment ; la grille occupe l'espace comme ailleurs.
+
+### Journal des retours
+
+- Recette du 24 août 2026 : parcours d'ajout des cinq médiums validé (pop-up en deux étapes très appréciée), requalification animés/mangas validée (« tout est nickel »), interrupteurs de catégories et vues Séries/Livres/Jeux validés, crayon de visuel validé. Points ouverts listés ci-dessus ; priorité perçue par Aurélien : purge du verdict, [object Object], page Modifier Films puis refonte commune, Art.
+
 **Arbitrages actés par Aurélien le 23 août 2026 :**
 
 1. **Import partiel** : tout ce qui peut entrer entre, même incomplet ; les champs non trouvés restent vides dans la fiche créée. Seule fiche bloquée : titre absent (elle n'est pas créée, signalée, le reste continue). Un **résumé final** liste les œuvres impactées et leurs champs non remplis.
