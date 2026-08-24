@@ -2863,6 +2863,16 @@ function App() {
     }
   }
 
+  // Pop-up d'ajout : le fond ne défile plus tant que la fenêtre est ouverte.
+  useEffect(() => {
+    if (!addFlow) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [addFlow])
+
   if (libraryState.status === 'loading') {
     content = (
       <main className="main home-main">
@@ -3621,7 +3631,7 @@ function App() {
             aria-label="Ajouter un film"
           >
             <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAddFlow(null)} aria-label="Fermer">×</button>
-            {addFlow.medium === 'film' && addFlow.step === 'search' && (
+            {addFlow.medium === 'film' && !addFlow.initialValues && (
               <TmdbSearchFlow
                 compact
                 film={null}
