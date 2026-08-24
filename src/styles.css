@@ -1784,6 +1784,11 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   max-height: min(46vh, 420px);
   overflow-y: auto;
 }
+/* Pop-up « Modifier l'association » (Séries, Livres, Jeux) : même gabarit
+   compact que l'ajout de film ; l'encart contexte reprend la largeur utile. */
+.editor-dialog.dialog-associate { width: min(720px, 100%); }
+.dialog-associate .tmdb-film-context { width: 100%; margin: 0 0 18px; padding: 14px; gap: 14px; }
+.dialog-associate .tmdb-search-form .field-help { margin-top: 6px; }
 .editor-dialog .film-form.form-detail { display: grid; grid-template-columns: minmax(150px, 200px) minmax(0, 1fr); gap: 22px; align-items: start; }
 
 /* Fiche : trois boutons explicites Modifier / Associer / Supprimer */

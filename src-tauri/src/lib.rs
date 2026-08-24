@@ -73,7 +73,9 @@ pub fn run() {
             {
                 use tauri::Manager;
                 if let Some(window) = app.get_webview_window("main") {
-                    if let Ok(image) = tauri::image::Image::from_bytes(include_bytes!("../icons/128x128@2x.png")) {
+                    if let Ok(image) =
+                        tauri::image::Image::from_bytes(include_bytes!("../icons/128x128@2x.png"))
+                    {
                         let _ = window.set_icon(image);
                     }
                 }

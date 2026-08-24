@@ -596,8 +596,17 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 - Bouton baguette « Tout associer » : Films livré ; autres médiums après ajout des associations persistées. ✓ / différé
 - Parcours confirmation → progression annulable → résumé. ✓
-- Fiche : Modifier / Associer / Supprimer en boutons explicites. ✓ (FilmDetail ; même structure à déployer sur les autres fiches)
+- Fiche : Modifier / Associer / Supprimer en boutons explicites. ✓ (déployé aux cinq fiches en 0.6.7)
 - Critères : bibliothèque non associée traitée en lot avec progression et résumé ; données personnelles intactes ; tests verts. ✓
+
+#### `0.6.7` — Uniformisation des fiches : le parcours d'association des films partout
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Les fiches Séries, Livres, Jeux et Art abandonnent leur menu ⋯ (Modifier + Supprimer caché) pour la structure exacte de la fiche Film : trois boutons à icône **Modifier** (crayon), **Associer** (baguette, Séries/Livres/Jeux seulement) et **Supprimer** (corbeille, teinte danger), libellé de retour aligné sur les films. Le bouton **Associer** ouvre la même pop-up floutée que l'ajout de film : recherche fournisseur préremplie avec le titre de la fiche, encart « Fiche actuelle » rappelant que les données personnelles restent en place, clic direct sur un résultat = mise à jour immédiate des champs éditoriaux via les fusions partagées (`seriesWithPresentation`, `bookWithPresentation`, `gameWithPresentation`) puis retour fiche rafraîchie — aucun écran intermédiaire, aucune réécriture des statuts, notes, coups de cœur, progressions, avis, dates ou citations. Fournisseurs inchangés (TMDB TV, Open Library, IGDB) ; l'Art reste sans baguette par règle du domaine (aucun fournisseur). Nuance assumée face aux films : pas de bouton Dissocier sur ces médiums, qui ne stockent aucune association persistée — corriger une association passe par « Associer » puis un nouveau choix.
+
+- Fiches Séries/Livres/Jeux/Art : Modifier / Associer / Supprimer explicites, plus de menu caché. ✓
+- Pop-up d'association identique au parcours film : recherche préremplie, contexte, mise à jour directe, retour fiche. ✓
+- Fusion éditoriale bornée réutilisée telle quelle ; données personnelles et citations intactes (preuves dédiées). ✓
+- Critères : changer une mauvaise association depuis la fiche sans passer par Modifier ; tests verts. ✓
 
 #### `0.7.0` — Release publique Importer depuis partout
 

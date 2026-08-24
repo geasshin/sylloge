@@ -2871,6 +2871,106 @@ function App() {
     }
   }
 
+  // Association directe depuis une fiche Série/Livre/Jeu : un clic sur un
+  // résultat met à jour les champs éditoriaux de la fiche ouverte, sans
+  // écran intermédiaire — même parcours que les films. Les données
+  // personnelles (statut, note, coup de cœur, progression, avis, dates,
+  // citations) ne sont jamais modifiées.
+  const selectAssociateSeries = async (candidate: TmdbSearchCandidate) => {
+    const target = associateTarget
+    if (!target || target.medium !== 'série') return
+    if (libraryState.status !== 'ready') return
+    const profileId = libraryState.library.profile.id
+    const series = seriesCollection.find((entry) => entry.id === target.id)
+    if (!series) return
+    setCandidateSelection({ pendingId: candidate.tmdbId, error: null })
+    try {
+      const presentation = await previewTmdbSeries(candidate.tmdbId)
+      await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation))
+      const refreshed = await mediaRepository.getSeries(profileId, series.id)
+      setSeriesCollection((current) => current.map((entry) => entry.id === series.id
+        ? (refreshed ?? seriesWithPresentation(series, presentation))
+        : entry))
+      setCandidateSelection({ pendingId: null, error: null })
+      setAssociateTarget(null)
+    } catch (error) {
+      console.error('La sélection TMDB Séries a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
+        error: 'La mise à jour a échoué. Vérifiez votre connexion puis réessayez.',
+      })
+    }
+  }
+
+  const selectAssociateBook = async (candidate: OpenLibraryBookCandidate) => {
+    const target = associateTarget
+    if (!target || target.medium !== 'livre') return
+    if (libraryState.status !== 'ready') return
+    const profileId = libraryState.library.profile.id
+    const book = bookCollection.find((entry) => entry.id === target.id)
+    if (!book) return
+    setBookSelection({ pendingKey: candidate.workKey, error: null })
+    try {
+      const presentation = await previewOpenLibraryBook(candidate)
+      await mediaRepository.updateBook(
+        profileId,
+        book.id,
+        bookWithPresentation(book, {
+          author: presentation.author,
+          firstPublishYear: presentation.firstPublishYear,
+          synopsis: presentation.synopsis,
+          coverUrl: presentation.coverUrl,
+        }),
+      )
+      const refreshed = await mediaRepository.getBook(profileId, book.id)
+      setBookCollection((current) => sortBooks(current.map((entry) => entry.id === book.id
+        ? (refreshed ?? bookWithPresentation(book, presentation))
+        : entry)))
+      setBookSelection({ pendingKey: null, error: null })
+      setAssociateTarget(null)
+    } catch (error) {
+      console.error('La sélection Open Library a échoué.', error)
+      setBookSelection({
+        pendingKey: null,
+        error: 'La mise à jour a échoué. Vérifiez votre connexion puis réessayez.',
+      })
+    }
+  }
+
+  const selectAssociateGame = async (candidate: IgdbGameCandidate) => {
+    const target = associateTarget
+    if (!target || target.medium !== 'jeu') return
+    if (libraryState.status !== 'ready') return
+    const profileId = libraryState.library.profile.id
+    const game = gameCollection.find((entry) => entry.id === target.id)
+    if (!game) return
+    setCandidateSelection({ pendingId: candidate.gameId, error: null })
+    try {
+      const presentation = await previewIgdbGame(candidate.gameId, candidate.title, candidate.releaseYear, candidate.coverUrl)
+      await mediaRepository.updateGame(
+        profileId,
+        game.id,
+        gameWithPresentation(game, {
+          developer: presentation.developer,
+          releaseYear: presentation.releaseYear,
+          coverUrl: presentation.coverUrl,
+        }),
+      )
+      const refreshed = await mediaRepository.getGame(profileId, game.id)
+      setGameCollection((current) => sortGames(current.map((entry) => entry.id === game.id
+        ? (refreshed ?? gameWithPresentation(game, presentation))
+        : entry)))
+      setCandidateSelection({ pendingId: null, error: null })
+      setAssociateTarget(null)
+    } catch (error) {
+      console.error('La sélection IGDB a échoué.', error)
+      setCandidateSelection({
+        pendingId: null,
+        error: 'La mise à jour a échoué. Vérifiez votre connexion puis réessayez.',
+      })
+    }
+  }
+
   // Pop-up d'ajout : le fond ne défile plus tant que la fenêtre est ouverte.
   useEffect(() => {
     if (!addFlow) return
@@ -2880,6 +2980,26 @@ function App() {
       document.body.style.overflow = previousOverflow
     }
   }, [addFlow])
+
+  // Pop-up d'association Série/Livre/Jeu : même verrou de défilement que l'ajout.
+  useEffect(() => {
+    if (!associateTarget) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [associateTarget])
+
+  // Fiche disparue derrière la pop-up : on referme au lieu d'afficher un cadre vide.
+  useEffect(() => {
+    if (!associateTarget) return
+    const exists =
+      (associateTarget.medium === 'série' && seriesCollection.some((entry) => entry.id === associateTarget.id)) ||
+      (associateTarget.medium === 'livre' && bookCollection.some((entry) => entry.id === associateTarget.id)) ||
+      (associateTarget.medium === 'jeu' && gameCollection.some((entry) => entry.id === associateTarget.id))
+    if (!exists) setAssociateTarget(null)
+  }, [associateTarget, seriesCollection, bookCollection, gameCollection])
 
   if (libraryState.status === 'loading') {
     content = (
@@ -3185,6 +3305,10 @@ function App() {
           onBack={() => setView({ name: 'series' })}
           backLabel="← Retour aux séries"
           onEdit={() => setView({ name: 'series-edit', seriesId: view.seriesId })}
+          onAssociate={() => {
+            setCandidateSelection({ pendingId: null, error: null })
+            setAssociateTarget({ medium: 'série', id: view.seriesId })
+          }}
           onPosterEdit={async (url: string | null) => {
             await mediaRepository.updateSeries(library.profile.id, series.id, { ...series, posterUrl: url })
             setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...series, posterUrl: url } : entry)))
@@ -3299,6 +3423,10 @@ function App() {
           onBack={() => setView({ name: 'books' })}
           backLabel="← Retour aux livres"
           onEdit={() => setView({ name: 'book-edit', bookId: view.bookId })}
+          onAssociate={() => {
+            setBookSelection({ pendingKey: null, error: null })
+            setAssociateTarget({ medium: 'livre', id: view.bookId })
+          }}
           onCoverEdit={async (url: string | null) => {
             await mediaRepository.updateBook(library.profile.id, book.id, { ...book, coverUrl: url })
             setBookCollection((current) => current.map((entry) => (entry.id === book.id ? { ...book, coverUrl: url } : entry)))
@@ -3419,6 +3547,10 @@ function App() {
           onBack={() => setView({ name: 'games' })}
           backLabel="← Retour aux jeux"
           onEdit={() => setView({ name: 'game-edit', gameId: view.gameId })}
+          onAssociate={() => {
+            setCandidateSelection({ pendingId: null, error: null })
+            setAssociateTarget({ medium: 'jeu', id: view.gameId })
+          }}
           onCoverEdit={async (url: string | null) => {
             await mediaRepository.updateGame(library.profile.id, game.id, { ...game, coverUrl: url })
             setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...game, coverUrl: url } : entry)))
@@ -3686,6 +3818,64 @@ function App() {
               />
               </>
             )}
+          </div>
+        </div>
+      )}
+      {associateTarget && libraryState.status === 'ready' && (
+        <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAssociateTarget(null) }}>
+          <div
+            className="editor-dialog dialog-associate"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Modifier l’association"
+          >
+            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAssociateTarget(null)} aria-label="Fermer">×</button>
+            {(() => {
+              const target = associateTarget
+              const series = target.medium === 'série' ? seriesCollection.find((entry) => entry.id === target.id) : undefined
+              const book = target.medium === 'livre' ? bookCollection.find((entry) => entry.id === target.id) : undefined
+              const game = target.medium === 'jeu' ? gameCollection.find((entry) => entry.id === target.id) : undefined
+              if (target.medium === 'série' && series) {
+                return (
+                  <SeriesTmdbSearchFlow
+                    compact
+                    existing={{ title: series.title, posterUrl: series.posterUrl }}
+                    pendingCandidateId={candidateSelection.pendingId}
+                    selectionError={candidateSelection.error}
+                    onSelectCandidate={selectAssociateSeries}
+                    onManual={() => setAssociateTarget(null)}
+                    onCancel={() => setAssociateTarget(null)}
+                  />
+                )
+              }
+              if (target.medium === 'livre' && book) {
+                return (
+                  <BookOpenLibrarySearchFlow
+                    compact
+                    existing={{ title: book.title, coverUrl: book.coverUrl }}
+                    pendingCandidateKey={bookSelection.pendingKey}
+                    selectionError={bookSelection.error}
+                    onSelectCandidate={selectAssociateBook}
+                    onManual={() => setAssociateTarget(null)}
+                    onCancel={() => setAssociateTarget(null)}
+                  />
+                )
+              }
+              if (target.medium === 'jeu' && game) {
+                return (
+                  <GameIgdbSearchFlow
+                    compact
+                    existing={{ title: game.title, coverUrl: game.coverUrl }}
+                    pendingCandidateId={candidateSelection.pendingId}
+                    selectionError={candidateSelection.error}
+                    onSelectCandidate={selectAssociateGame}
+                    onManual={() => setAssociateTarget(null)}
+                    onCancel={() => setAssociateTarget(null)}
+                  />
+                )
+              }
+              return null
+            })()}
           </div>
         </div>
       )}
