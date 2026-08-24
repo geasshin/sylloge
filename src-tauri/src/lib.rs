@@ -66,6 +66,18 @@ pub fn run() {
             tmdb::set_film_tmdb_poster,
         ])
         .setup(|app| {
+            // En mode dev, pas de bundle .app : le dock garde l'icône générique.
+            // On applique donc explicitement l'icône de la marque via Cocoa
+            // (sans effet sur les bundles signés, qui embarquent déjà icon.icns).
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Ok(image) = tauri::image::Image::from_bytes(include_bytes!("../icons/128x128@2x.png")) {
+                        let _ = window.set_icon(image);
+                    }
+                }
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
