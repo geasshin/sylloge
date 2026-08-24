@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { FILM_STATUS_LABELS, type FilmStatus } from '../domain/film.ts'
 import {
   EMPTY_FILM_FORM,
@@ -11,6 +11,7 @@ import {
 } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import { Poster } from './Poster.tsx'
+import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
 /** Statuts proposés à la création : les trois qui ont du sens pour un film. */
@@ -29,20 +30,42 @@ type FilmFormProps = {
   film?: import('../domain/film.ts').Film
   initialValues?: FilmFormValues
   provenance?: FilmMetadataProvenance | null
+  /** Cache TMDB de la fiche en édition : pré-remplit les champs éditoriaux. */
+  tmdbCache?: import('../data/tmdbService.ts').CachedFilmTmdbPresentation | null
+  /** Modification de l'affiche par URL depuis le crayon sur l'aperçu. */
+  onPosterEdit?: (url: string | null) => Promise<void> | void
   onCancel: () => void
   onSave: (input: FilmWriteInput, provenance: FilmMetadataProvenance | null) => Promise<void>
 }
 
-export function FilmForm({ film, initialValues, provenance = null, onCancel, onSave }: FilmFormProps) {
+export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, onCancel, onSave }: FilmFormProps) {
   const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [posterDialogOpen, setPosterDialogOpen] = useState(false)
   const today = localToday()
   // Création assistée : les champs éditoriaux sont déjà portés par la recherche,
   // ils restent dans les valeurs mais ne s'affichent plus comme formulaire.
   const assisted = !film && Boolean(initialValues?.title)
-  const [showEditorial, setShowEditorial] = useState(!assisted)
+  const isAssociated = Boolean(film && (film.providerName || film.providerId))
+  // Toggle « Informations sur le film » fermé par défaut ; pré-rempli si associé.
+  const [showEditorial, setShowEditorial] = useState(!assisted && !(isAssociated || Boolean(tmdbCache)))
+
+  // Pré-remplissage éditorial depuis le cache TMDB sans toucher aux données personnelles.
+  useEffect(() => {
+    if (!tmdbCache) return
+    const p = tmdbCache.presentation
+    setValues((current) => ({
+      ...current,
+      originalTitle: current.originalTitle || p.originalTitle || '',
+      year: current.year || (p.releaseDate ? String(Number(p.releaseDate.slice(0, 4))) : ''),
+      director: current.director || p.directors.join(', '),
+      summary: current.summary || p.synopsis || '',
+    }))
+    // Une seule fois à l'ouverture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // « À découvrir » : pas encore de verdict, on masque note, cœur, date et avis.
   const verdictVisible = values.status !== 'à découvrir'
   const previewTitle = values.title.trim() || 'Titre à renseigner'
@@ -93,10 +116,15 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
       </div>
 
       <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-        {/* Colonne gauche : l'affiche choisie, comme sur la fiche */}
+        {/* Colonne gauche : l'affiche choisie, avec crayon de modification */}
         <div className="form-side">
-          <div className="form-poster-frame">
-            <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" />
+          <div className="form-poster-frame poster-container">
+            <Poster
+              title={previewTitle}
+              src={previewUrl}
+              className="form-poster-preview-lg"
+              onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined}
+            />
           </div>
           <p className="form-poster-caption">Aperçu de l’affiche</p>
         </div>
@@ -174,14 +202,18 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
             )}
           </div>
 
-          {/* Champs éditoriaux : cachés en création assistée, discrets sinon */}
+          {/* Champs éditoriaux : cachés en création assistée, discrets sinon.
+              Fermés par défaut ; pré-remplis quand la fiche est associée. */}
           {!assisted && (
             <details className="secondary-fields" open={showEditorial || undefined}>
               <summary onClick={(event) => { event.preventDefault(); setShowEditorial((value) => !value) }}>
-                Informations sur le film
+                Informations sur le film{isAssociated ? ' · associé à TMDB' : ''}
               </summary>
               {showEditorial && (
                 <div className="secondary-fields-content">
+                  {isAssociated && (
+                    <p className="import-hint">Ces informations viennent de TMDB — complète-les seulement si tu le souhaites.</p>
+                  )}
                   <div className="form-row">
                     <div className="field">
                       <label htmlFor="originalTitle">Titre original</label>
@@ -215,21 +247,6 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
                       spellCheck={false}
                     />
                   </div>
-                  <div className="field">
-                    <label htmlFor="posterUrl">URL directe de l’affiche</label>
-                    <input
-                      id="posterUrl"
-                      type="url"
-                      inputMode="url"
-                      placeholder="https://…/affiche.jpg"
-                      value={values.posterUrl}
-                      onChange={(event) => update('posterUrl', event.target.value)}
-                      aria-invalid={Boolean(errors.posterUrl)}
-                      aria-describedby={`poster-help${errors.posterUrl ? ' poster-error' : ''}`}
-                    />
-                    <p className="field-help" id="poster-help">Une image indisponible n’empêchera pas l’enregistrement.</p>
-                    {errors.posterUrl && <p className="field-error" id="poster-error">{errors.posterUrl}</p>}
-                  </div>
                 </div>
               )}
             </details>
@@ -245,6 +262,19 @@ export function FilmForm({ film, initialValues, provenance = null, onCancel, onS
           </footer>
         </div>
       </form>
+      {posterDialogOpen && (
+        <PosterUrlDialog
+          open
+          title={previewTitle}
+          label="Affiche"
+          currentUrl={values.posterUrl}
+          onClose={() => setPosterDialogOpen(false)}
+          onSave={async (url) => {
+            update('posterUrl', url ?? '')
+            await onPosterEdit?.(url)
+          }}
+        />
+      )}
     </main>
   )
 }

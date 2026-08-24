@@ -1701,6 +1701,26 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .auto-associate-percent { margin: 6px 0 0; color: var(--color-text-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 /* Dialogue d'association : largeur maîtrisée, contenu compact */
 .assistant-dialog-narrow { max-width: 460px; }
+/* Tuile « Ajouter une affiche » dans la galerie du fournisseur */
+.poster-dialog-add {
+  aspect-ratio: 2 / 3;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.poster-dialog-add:hover:not(:disabled) { border-color: var(--hover-border); color: var(--color-text); }
+.poster-dialog-add-plus {
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1;
+}
+.poster-dialog-add small { font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 
 /* Fiche : trois boutons explicites Modifier / Associer / Supprimer */
 .icon-action-button {

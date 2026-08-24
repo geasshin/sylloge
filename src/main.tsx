@@ -35,7 +35,7 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
-import { associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
+import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
 import { previewOpenLibraryBook, searchOpenLibraryBooks, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
 import { previewIgdbGame, searchIgdbGames, type IgdbGameCandidate } from './data/igdbService.ts'
 import { autoAssociateFilms } from './domain/autoAssociate.ts'
@@ -3065,6 +3065,14 @@ function App() {
         <FilmForm
           film={film}
           onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: view.returnTo })}
+          onPosterEdit={async (url) => {
+            const updated = await setFilmTmdbPoster(film.id, url)
+            const updatedLibrary: FilmLibrary = {
+              ...library,
+              films: sortFilms(library.films.map((entry) => entry.id === film.id ? { ...film, posterUrl: updated.selectedPosterUrl ?? updated.presentation.posterUrl ?? film.posterUrl } : entry)),
+            }
+            setLibraryState({ status: 'ready', library: updatedLibrary })
+          }}
           onSave={async (input: FilmWriteInput) => {
             const updatedAt = await filmsRepository.updateFilm(library.profile.id, film.id, input)
             const updatedFilm: Film = { ...film, ...input, updatedAt }

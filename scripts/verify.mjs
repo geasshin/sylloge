@@ -1954,7 +1954,7 @@ assert.match(nativePortabilityBridgeSource, /invoke\('clear_backup_settings'/, '
 assert.match(nativePortabilitySource, /pub async fn clear_backup_settings/, 'Le backend doit exposer la désactivation des snapshots')
 assert.match(tauriLibrarySource, /portability::clear_backup_settings/, 'La commande de désactivation des snapshots doit être enregistrée dans Tauri')
 assert.match(formSource, /Aperçu de l’affiche/, 'Le formulaire doit afficher un aperçu de poster_url')
-assert.match(formSource, /<Poster title={previewTitle} src={previewUrl}/, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
+assert.match(formSource, /<Poster\s+title=\{previewTitle\}\s+src=\{previewUrl\}/s, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
 assert.match(formSource, /Utiliser aujourd’hui/, 'Le statut terminé doit proposer la date du jour sans la saisir automatiquement')
 assert.match(formSource, /onCancel/, 'Le formulaire doit permettre une annulation avant toute écriture')
 assert.match(formSource, /initialValues/, 'Le formulaire doit accepter des valeurs initiales éditables')
