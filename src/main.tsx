@@ -33,6 +33,7 @@ import {
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
+import { BookCategorySwitch, SeriesCategorySwitch } from './components/CategorySwitch.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
 import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
@@ -55,6 +56,10 @@ import {
 import {
   RATED_BUILTIN_VIEWS,
   UNRATED_BUILTIN_VIEWS,
+  PROGRESS_BUILTIN_VIEWS,
+  DEFAULT_VIEW_ID,
+  builtinViewById,
+  titledBuiltinViews,
   resolveLibraryQuery,
   type LibrarySort,
   type LibraryViewDefinition,
@@ -1095,12 +1100,33 @@ type LibraryContext = {
   sortOverride: LibrarySort | null
 }
 
+const ALL_SERIES_CATEGORIES = SERIES_CATEGORIES as readonly SeriesCategory[]
+const ALL_BOOK_CATEGORIES = BOOK_CATEGORIES as readonly BookCategory[]
+
+/** Liste de catégories → valeur du filtre dépôt (vide = toutes). */
+function categoriesToFilter(categories: readonly string[]): string {
+  return categories.length === 0 ? 'all' : categories[0]
+}
+
+/** Valeur « all » ou catégorie unique → liste pour l'interrupteur. */
+function filterToCategories(value: string): string[] {
+  return value === 'all' ? [] : [value]
+}
+
+/** Libellé lisible des catégories actives d'une bibliothèque, null si toutes. */
+function categoriesLabel(categories: readonly string[], labels: Record<string, string>): string | null {
+  if (categories.length === 0) return null
+  const names = categories.map((category) => labels[category] ?? category)
+  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} et ${names[names.length - 1]}`
+}
+
 type SeriesLibraryContext = {
   query: string
   view: LibraryViewDefinition
   extraFilters: LibraryFilters
   sortOverride: LibrarySort | null
-  category: SeriesCategory | 'all'
+  /** Catégories affichées ; liste vide = toutes (équivalent « all »). */
+  category: SeriesCategory[]
 }
 
 type BookLibraryContext = {
@@ -1108,7 +1134,8 @@ type BookLibraryContext = {
   view: LibraryViewDefinition
   extraFilters: LibraryFilters
   sortOverride: LibrarySort | null
-  category: BookCategory | 'all'
+  /** Catégories affichées ; liste vide = toutes (équivalent « all »). */
+  category: BookCategory[]
 }
 
 type GameLibraryContext = {
@@ -1153,7 +1180,7 @@ function FilmsLibrary({
   onOpen,
   onLibraryChanged,
 }: FilmsLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -1210,7 +1237,7 @@ function FilmsLibrary({
             <LibraryViewBar
               profileId={library.profile.id}
               medium="films"
-              builtinViews={RATED_BUILTIN_VIEWS}
+              builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films')}
               activeView={context.view}
               onViewChange={(view) => onContextChange({ ...context, view })}
               filterConfig={FILM_FILTER_PANEL_CONFIG}
@@ -1240,7 +1267,7 @@ function FilmsLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher tous les films
               </button>
@@ -1607,7 +1634,7 @@ function SeriesLibrary({
   profileId,
   onLibraryChanged,
 }: SeriesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_SERIES_CATEGORIES.length && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -1696,21 +1723,25 @@ function SeriesLibrary({
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
               />
             </label>
+            <SeriesCategorySwitch
+              selected={context.category.length > 0 ? context.category : [...ALL_SERIES_CATEGORIES]}
+              onSelectionChange={(selected) => onContextChange({ ...context, category: selected as SeriesCategory[] })}
+            />
             <LibraryViewBar
               profileId={profileId}
               medium="series"
-              builtinViews={RATED_BUILTIN_VIEWS}
+              builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'series')}
               activeView={context.view}
               onViewChange={(view) => onContextChange({ ...context, view })}
-              filterConfig={SERIES_FILTER_PANEL_CONFIG}
-              mediumFilterValue={context.category}
-              onMediumFilterChange={(category) => onContextChange({ ...context, category: category as SeriesCategory | 'all' })}
+              filterConfig={{ ...SERIES_FILTER_PANEL_CONFIG, mediumFilter: null }}
+              mediumFilterValue="all"
+              onMediumFilterChange={() => {}}
               extraFilters={context.extraFilters}
               onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
               sortCapabilities={{ rating: true, year: false }}
               sortOverride={context.sortOverride}
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToFilter(context.category), filters: resolved.filters }}
             />
           </div>
 
@@ -1729,7 +1760,7 @@ function SeriesLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher toutes les séries
               </button>
@@ -1834,7 +1865,7 @@ function GamesLibrary({
   profileId,
   onLibraryChanged,
 }: GamesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const platforms = buildGamePlatformFilters(collection)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
@@ -1934,7 +1965,7 @@ function GamesLibrary({
             <LibraryViewBar
               profileId={profileId}
               medium="games"
-              builtinViews={RATED_BUILTIN_VIEWS}
+              builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'games')}
               activeView={context.view}
               onViewChange={(view) => onContextChange({ ...context, view })}
               filterConfig={{
@@ -1967,7 +1998,7 @@ function GamesLibrary({
             <div className="results-state empty-results">
               <h2>Aucun jeu ne correspond.</h2>
               <p>Modifiez la recherche ou revenez à tous les jeux.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
                 Afficher tous les jeux
               </button>
             </div>
@@ -2045,7 +2076,7 @@ function ArtworksLibrary({
   profileId,
   onLibraryChanged,
 }: ArtworksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
@@ -2093,7 +2124,7 @@ function ArtworksLibrary({
             <LibraryViewBar
               profileId={profileId}
               medium="artworks"
-              builtinViews={UNRATED_BUILTIN_VIEWS}
+              builtinViews={titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks')}
               activeView={context.view}
               onViewChange={(view) => onContextChange({ ...context, view })}
               filterConfig={ARTWORK_FILTER_PANEL_CONFIG}
@@ -2120,7 +2151,7 @@ function ArtworksLibrary({
             <div className="results-state empty-results">
               <h2>Aucune œuvre ne correspond.</h2>
               <p>Modifiez la recherche ou revenez à toutes les œuvres.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
                 Afficher toutes les œuvres
               </button>
             </div>
@@ -2167,7 +2198,7 @@ function BooksLibrary({
   profileId,
   onLibraryChanged,
 }: BooksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category === 'all' && context.view.id === 'all' && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_BOOK_CATEGORIES.length && context.view.id === DEFAULT_VIEW_ID && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -2264,21 +2295,25 @@ function BooksLibrary({
                 onChange={(event) => onContextChange({ ...context, query: event.target.value })}
               />
             </label>
+            <BookCategorySwitch
+              selected={context.category.length > 0 ? context.category : [...ALL_BOOK_CATEGORIES]}
+              onSelectionChange={(selected) => onContextChange({ ...context, category: selected as BookCategory[] })}
+            />
             <LibraryViewBar
               profileId={profileId}
               medium="books"
-              builtinViews={RATED_BUILTIN_VIEWS}
+              builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'books')}
               activeView={context.view}
               onViewChange={(view) => onContextChange({ ...context, view })}
-              filterConfig={BOOK_FILTER_PANEL_CONFIG}
-              mediumFilterValue={context.category}
-              onMediumFilterChange={(category) => onContextChange({ ...context, category: category as BookCategory | 'all' })}
+              filterConfig={{ ...BOOK_FILTER_PANEL_CONFIG, mediumFilter: null }}
+              mediumFilterValue="all"
+              onMediumFilterChange={() => {}}
               extraFilters={context.extraFilters}
               onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
               sortCapabilities={{ rating: true, year: true }}
               sortOverride={context.sortOverride}
               onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: context.category, filters: resolved.filters }}
+              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToFilter(context.category), filters: resolved.filters }}
             />
           </div>
 
@@ -2297,7 +2332,7 @@ function BooksLibrary({
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher tous les livres
               </button>
@@ -2445,22 +2480,22 @@ function App() {
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
-  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [seriesCollection, setSeriesCollection] = useState<Series[]>([])
   const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
-  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [bookCollection, setBookCollection] = useState<Book[]>([])
   const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
-  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [gameCollection, setGameCollection] = useState<Game[]>([])
   const [gameSearchState, setGameSearchState] = useState<GameSearchState>({ status: 'loading' })
-  const [gameContext, setGameContext] = useState<GameLibraryContext>({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [gameContext, setGameContext] = useState<GameLibraryContext>({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [gameSearchAttempt, setGameSearchAttempt] = useState(0)
   const [artworkCollection, setArtworkCollection] = useState<Artwork[]>([])
   const [artworkSearchState, setArtworkSearchState] = useState<ArtworkSearchState>({ status: 'loading' })
-  const [artworkContext, setArtworkContext] = useState<ArtworkLibraryContext>({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [artworkContext, setArtworkContext] = useState<ArtworkLibraryContext>({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [artworkSearchAttempt, setArtworkSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
@@ -2645,7 +2680,7 @@ function App() {
     setSeriesSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
       const resolved = resolveLibraryQuery(seriesContext.view, seriesContext.extraFilters, seriesContext.sortOverride)
-      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: seriesContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: categoriesToFilter(seriesContext.category) as SeriesCategory | 'all', filters: resolved.filters, sort: resolved.sort }).then(
         (series) => {
           if (!cancelled) setSeriesSearchState({ status: 'ready', series })
         },
@@ -2668,7 +2703,7 @@ function App() {
     setBookSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
       const resolved = resolveLibraryQuery(bookContext.view, bookContext.extraFilters, bookContext.sortOverride)
-      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: bookContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: categoriesToFilter(bookContext.category) as BookCategory | 'all', filters: resolved.filters, sort: resolved.sort }).then(
         (books) => {
           if (!cancelled) setBookSearchState({ status: 'ready', books })
         },
@@ -3126,15 +3161,15 @@ function App() {
         onThemePreferenceChange={setThemePreference}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
-          setLibraryContext({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setSeriesContext({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setBookContext({ query: '', category: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setGameContext({ query: '', platform: 'all', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setArtworkContext({ query: '', form: 'all', view: UNRATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setSeriesContext({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setBookContext({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setGameContext({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setArtworkContext({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: selectedLibrary })
         }}
         onImported={(importedLibrary) => {
-          setLibraryContext({ query: '', view: RATED_BUILTIN_VIEWS[0], extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: importedLibrary })
           requestAutomaticBackup(importedLibrary)
           profilesRepository.list().then(setProfiles, (error: unknown) => {
@@ -3786,15 +3821,10 @@ function App() {
               />
             )}
             {addFlow.medium === 'film' && addFlow.initialValues && (
-              <>
-                <div className="editor-heading">
-                  <p className="eyebrow">Film</p>
-                  <h1 className="display-title">Ajouter le film</h1>
-                  <p>Ton film est reconnu : choisis juste ton verdict.</p>
-                </div>
-                <FilmForm
-                  initialValues={addFlow.initialValues}
-                  provenance={addFlow.provenance ?? null}
+              <FilmForm
+                compactHeading
+                initialValues={addFlow.initialValues}
+                provenance={addFlow.provenance ?? null}
                 asDialog={false}
                 onCancel={() => setAddFlow(null)}
                 onSave={async (input, provenance) => {
@@ -3816,7 +3846,6 @@ function App() {
                   window.scrollTo({ top: 0 })
                 }}
               />
-              </>
             )}
           </div>
         </div>

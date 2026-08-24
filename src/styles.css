@@ -107,6 +107,9 @@
 * { box-sizing: border-box; }
 html, body, #root { min-height: 100%; margin: 0; }
 body { min-width: 0; overflow-x: hidden; }
+/* La largeur utile ne change jamais quand une liste raccourcit (bug « saut
+   de mise en page » en vue Favoris) : la place de la barre est réservée. */
+html { scrollbar-gutter: stable; }
 button, input, select, textarea { font: inherit; }
 button { color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, article:focus-visible {
@@ -1798,6 +1801,33 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .editor-dialog .tmdb-search-form { width: 100%; margin-inline: 0; }
 /* Les boutons d'action vivent à droite, collés au contenu, pas au centre */
 .editor-dialog .form-actions { justify-content: flex-end; padding-top: 4px; }
+
+/* Interrupteur de catégories (0.6.8) : bloc segmenté multi-sélection,
+   au moins un segment actif — deux actifs = toutes les catégories. */
+.category-switch {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.category-switch-segment {
+  padding: 6px 14px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border: none;
+  background: none;
+}
+.category-switch-segment + .category-switch-segment { border-left: 1px solid var(--color-hairline); }
+.category-switch-segment:hover { color: var(--color-text); }
+.category-switch-segment.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
 
 /* Fiche : trois boutons explicites Modifier / Associer / Supprimer */
 .icon-action-button {
