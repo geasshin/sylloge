@@ -31,10 +31,11 @@ const STATUS_SYNONYMS: Record<string, StatusSynonyms> = {
   },
   série: {
     'à voir': ['a voir', 'voir', 'to watch', 'watchlist', 'planned'],
-    'en cours': ['en cours', 'cours', 'encours', 'in progress', 'watching', 'ongoing', 'started', 'current'],
+    // « En cours » couvre aussi la mise de côté temporaire (« On Hold »),
+    // conformément au contrat produit des Séries qui n'a pas de statut « en attente ».
+    'en cours': ['en cours', 'cours', 'encours', 'in progress', 'watching', 'ongoing', 'started', 'current', 'on hold', 'onhold', 'hold', 'paused', 'pending', 'waiting'],
     'vue': ['vue', 'vues', 'vu', 'terminé', 'terminée', 'completed', 'complete', 'done', 'finished', 'watched', 'seen'],
     'abandonnée': ['abandonnee', 'abandonnée', 'abandonné', 'abandonnes', 'dropped', 'abandoned', 'stopped'],
-    'en attente': ['en attente', 'attente', 'on hold', 'onhold', 'hold', 'paused', 'pending', 'waiting'],
   },
   livre: {
     'à lire': ['a lire', 'lire', 'to read', 'readlist', 'planned'],

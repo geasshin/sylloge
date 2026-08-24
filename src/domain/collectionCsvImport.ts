@@ -354,7 +354,7 @@ function parseGenericRow(
   if (kind === 'series') {
     const result = validateSeriesForm({
       title: value('title'), showrunner: value('showrunner'), casting: value('casting'), summary: value('summary'),
-      category: (canonicalEnum(value('category'), SERIES_CATEGORIES) ?? 'série télé') as SeriesFormValues['category'],
+      category: (normalizeEnumValue(value('category'), SERIES_CATEGORIES).value ?? 'série télé') as SeriesFormValues['category'],
       status: status('série', 'à voir') as SeriesFormValues['status'],
       rating: rating()?.toString() ?? '',
       isFavorite: favorite(), seasonsSeen: count('seasonsSeen', 'Saisons vues :'), seasonsTotal: count('seasonsTotal', 'Saisons total :'),
@@ -368,7 +368,7 @@ function parseGenericRow(
     const quotes = parseQuotes(value('quotes'), line, errors, importedAt)
     const result = validateBookForm({
       title: value('title'), author: value('author'), year: count('year', 'Année :'), summary: value('summary'),
-      category: (canonicalEnum(value('category'), BOOK_CATEGORIES) ?? 'livre') as BookFormValues['category'],
+      category: (normalizeEnumValue(value('category'), BOOK_CATEGORIES).value ?? 'livre') as BookFormValues['category'],
       status: status('livre', 'à lire') as BookFormValues['status'],
       rating: rating()?.toString() ?? '',
       isFavorite: favorite(), volumesRead: count('volumesRead', 'Tomes lus :'), volumesTotal: count('volumesTotal', 'Tomes total :'),
@@ -432,12 +432,6 @@ function formFailure(line: number, formErrors: Record<string, string | undefined
     if (message) errors.push({ path: `Ligne ${line}.${field}`, message })
   }
   return null
-}
-
-function canonicalEnum(value: string, values: readonly string[]): string | null {
-  if (!value.trim()) return null
-  const normalized = normalizeCsvHeader(value)
-  return values.find((candidate) => normalizeCsvHeader(candidate) === normalized) ?? value
 }
 
 function detectMapping(kind: CollectionCsvImportKind, headers: string[]): CollectionCsvMapping {
