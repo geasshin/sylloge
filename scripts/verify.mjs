@@ -1655,22 +1655,46 @@ assert.deepEqual(
 
   for (let rating = 0.5; rating <= 5; rating += 0.5) {
     assert.equal(
-      validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Valide', rating: String(rating) }).success,
+      validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Valide', status: 'terminé', rating: String(rating) }).success,
       true,
       `La note ${rating} doit être acceptée`,
     )
   }
 
   for (const rating of ['0', '0.25', '4.75', '5.5', 'abc']) {
-    const result = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Invalide', rating })
+    const result = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Invalide', status: 'terminé', rating })
     assert.equal(result.success, false, `La note ${rating} doit être refusée`)
     if (!result.success) assert.match(result.errors.rating, /demi-points/i)
+  }
+
+  // 0.6.13 : une fiche watchlist ne porte jamais de verdict personnel.
+  const purged = validateFilmForm({
+    ...EMPTY_FILM_FORM,
+    title: 'Retour en watchlist',
+    status: 'à découvrir',
+    rating: '4',
+    isFavorite: true,
+    watchedAt: '2026-08-24',
+    personalNote: 'Avis rédigé avant le retour en à découvrir',
+  })
+  assert.equal(purged.success, true, 'La fiche watchlist purgée doit rester valide')
+  if (purged.success) {
+    assert.equal(purged.data.rating, null, 'La note est purgée au retour en « à découvrir »')
+    assert.equal(purged.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purged.data.watchedAt, null, 'La date de visionnage est purgée')
+    assert.equal(purged.data.personalNote, null, "L'avis est purgé")
+  }
+  const kept = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Vu', status: 'terminé', rating: '4', isFavorite: true, personalNote: 'Gardé' })
+  if (kept.success) {
+    assert.equal(kept.data.rating, 4, 'Un statut consommé conserve sa note')
+    assert.equal(kept.data.isFavorite, true, 'Un statut consommé conserve son coup de cœur')
+    assert.equal(kept.data.personalNote, 'Gardé', 'Un statut consommé conserve son avis')
   }
 
   const badStatus = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Statut', status: 'inconnu' })
   assert.equal(badStatus.success, false, 'Un statut hors liste doit être refusé')
 
-  const badDate = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Date', watchedAt: '2026-02-30' })
+  const badDate = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Date', status: 'terminé', watchedAt: '2026-02-30' })
   assert.equal(badDate.success, false, 'Une date inexistante doit être refusée')
 
   const badUrl = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'URL', posterUrl: 'une-page-web' })
@@ -2571,11 +2595,31 @@ assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_
     'Une série en cours ne change pas de statut à nouvelle saison',
   )
 
-  const badRating = validateSeriesForm({ ...base, rating: '4.3' })
+  const badRating = validateSeriesForm({ ...base, status: 'en cours', rating: '4.3' })
   assert.equal(badRating.success, false, 'La note doit rester par demi-points')
 
   const badPoster = validateSeriesForm({ ...base, posterUrl: 'ftp://affiche.jpg' })
   assert.equal(badPoster.success, false, 'L’affiche doit rester une URL http(s)')
+
+  // 0.6.13 : retour en « à voir » = purge du verdict personnel.
+  const purgedSeries = validateSeriesForm({
+    ...base,
+    status: 'à voir',
+    rating: '4',
+    isFavorite: true,
+    seasonsSeen: '3',
+    seasonsTotal: '8',
+    startedAt: '2026-08-01',
+    personalNote: 'Avis à purger',
+  })
+  assert.equal(purgedSeries.success, true, 'La série watchlist purgée doit rester valide')
+  if (purgedSeries.success) {
+    assert.equal(purgedSeries.data.rating, null, 'La note est purgée en « à voir »')
+    assert.equal(purgedSeries.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purgedSeries.data.seasonsSeen, null, 'La progression est purgée')
+    assert.equal(purgedSeries.data.startedAt, null, 'La date de début est purgée')
+    assert.equal(purgedSeries.data.personalNote, null, "L'avis est purgé")
+  }
 }
 
 {
@@ -2687,11 +2731,32 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   assert.equal(quotes.success, true)
   assert.deepEqual(quotes.data.quotes, ['Première citation', 'Seconde citation'], 'Les citations doivent être ordonnées, nettoyées et les lignes vides ignorées')
 
-  const badRating = validateBookForm({ ...base, rating: '4.3' })
+  const badRating = validateBookForm({ ...base, status: 'lu', rating: '4.3' })
   assert.equal(badRating.success, false, 'La note doit rester par demi-points')
 
   const badCover = validateBookForm({ ...base, coverUrl: 'file:///couverture.jpg' })
   assert.equal(badCover.success, false, 'La couverture doit rester une URL http(s)')
+
+  // 0.6.13 : retour en « à lire » = purge du verdict personnel.
+  const purgedBook = validateBookForm({
+    ...base,
+    status: 'à lire',
+    category: 'manga',
+    volumesTotal: '12',
+    rating: '4',
+    isFavorite: true,
+    volumesRead: '5',
+    startedAt: '2026-08-01',
+    personalNote: 'Avis à purger',
+  })
+  assert.equal(purgedBook.success, true, 'Le livre watchlist purgé doit rester valide')
+  if (purgedBook.success) {
+    assert.equal(purgedBook.data.rating, null, 'La note est purgée en « à lire »')
+    assert.equal(purgedBook.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purgedBook.data.volumesRead, null, 'La progression est purgée')
+    assert.equal(purgedBook.data.startedAt, null, 'La date de début est purgée')
+    assert.equal(purgedBook.data.personalNote, null, "L'avis est purgé")
+  }
 }
 
 // Jalon 0.4.6 — Livres : recherche, vues et portabilité dédiée.
@@ -2901,8 +2966,8 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
     { title: '   ' },
     { title: 'Statut', status: 'inconnu' },
     { title: 'Année', year: '0' },
-    { title: 'Note', rating: '4.3' },
-    { title: 'Date', playedAt: '2026-02-30' },
+    { title: 'Note', status: 'joué', rating: '4.3' },
+    { title: 'Date', status: 'joué', playedAt: '2026-02-30' },
     { title: 'Couverture', coverUrl: 'file:///jeu.jpg' },
   ]) {
     assert.equal(
@@ -2910,6 +2975,24 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
       false,
       `Le formulaire Jeu doit refuser la saisie invalide ${JSON.stringify(values)}`,
     )
+  }
+
+  // 0.6.13 : retour en « à jouer » = purge du verdict personnel.
+  const purgedGame = validateGameForm({
+    ...EMPTY_GAME_FORM,
+    title: 'Retour en watchlist',
+    status: 'à jouer',
+    rating: '4',
+    isFavorite: true,
+    playedAt: '2026-08-24',
+    personalNote: 'Avis à purger',
+  })
+  assert.equal(purgedGame.success, true, 'Le jeu watchlist purgé doit rester valide')
+  if (purgedGame.success) {
+    assert.equal(purgedGame.data.rating, null, 'La note est purgée en « à jouer »')
+    assert.equal(purgedGame.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purgedGame.data.playedAt, null, 'La date de partie est purgée')
+    assert.equal(purgedGame.data.personalNote, null, "L'avis est purgé")
   }
 
   const suggestions = buildGamePlatformSuggestions([

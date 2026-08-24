@@ -122,7 +122,9 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             // 0.6.11 : plus de « Rafraîchir » — un film associé expose
             // Dissocier ; le bouton baguette reste l'entrée d'association.
             <button className="icon-action-button" type="button" onClick={() => void handleRemoveAssociation()} disabled={removingAssociation} title="Dissocier TMDB">
-              {removingAssociation ? 'Dissociation…' : `${icon('unlink')} Dissocier`}
+              {removingAssociation ? 'Dissociation…' : null}
+              {!removingAssociation && icon('unlink')}
+              <span>Dissocier</span>
             </button>
           ) : (
             <button className="icon-action-button" type="button" onClick={onAssociateTmdb} title="Associer à TMDB (recherche assistée)">

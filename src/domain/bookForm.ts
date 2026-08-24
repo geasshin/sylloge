@@ -130,7 +130,17 @@ export function bookToFormValues(book: Book): BookFormValues {
   }
 }
 
-export function validateBookForm(values: BookFormValues): BookValidationResult {
+/**
+ * 0.6.13 — un livre « à lire » n'a pas encore été ouvert : note, coup de
+ * cœur, progression, dates et avis sont purgés au retour en watchlist.
+ */
+export function purgeBookVerdict(values: BookFormValues): BookFormValues {
+  if (values.status !== 'à lire') return values
+  return { ...values, rating: '', isFavorite: false, volumesRead: '', startedAt: '', personalNote: '' }
+}
+
+export function validateBookForm(rawValues: BookFormValues): BookValidationResult {
+  const values = purgeBookVerdict(rawValues)
   const errors: BookFormErrors = {}
   const title = values.title.trim()
   const ratingText = values.rating.trim()

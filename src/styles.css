@@ -1074,6 +1074,10 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 
 /* ===== Fiche détail : langage validé (maquette 09-fiche-v5) ===== */
 .detail-actions { display: flex; align-items: center; gap: 8px; }
+/* 0.6.14 : les actions vivent toujours à droite de la barre, quelle que soit
+   la largeur disponible ou le médium — le centrage observé sur Jeux est
+   structurellement impossible avec cette marge automatique. */
+.detail-actions { margin-left: auto; }
 .icon-menu-button {
   width: 34px;
   height: 34px;
@@ -1778,6 +1782,10 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .dialog-add-flow .form-poster-caption { font-size: 10px; margin-top: 6px; }
 .dialog-add-flow .field-title input { font-size: 14px; padding: 7px 10px; }
 .dialog-add-flow .verdict-block { gap: 10px; }
+/* 0.6.15 : réserver la place du verdict (note + date + avis) pour que la
+   fenêtre ne grandisse pas au changement de statut — les boutons ne sautent
+   plus sous le curseur. */
+.dialog-add-flow .verdict-block { min-height: 168px; }
 .dialog-add-flow .review-write textarea { min-height: 72px; }
 .dialog-add-flow .form-actions { margin-top: 0; }
 /* Recherche TMDB compacte dans la pop-up : titre réduit, pas de redondance */

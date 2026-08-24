@@ -76,6 +76,16 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
+/**
+ * 0.6.13 — un film « à découvrir » n'a pas encore été vu : note, coup de
+ * cœur, date de visionnage et avis n'ont pas de sens et sont purgés, quel
+ * que soit ce que le formulaire contient encore.
+ */
+export function purgeFilmVerdict(values: FilmFormValues): FilmFormValues {
+  if (values.status !== 'à découvrir') return values
+  return { ...values, rating: '', isFavorite: false, watchedAt: '', personalNote: '' }
+}
+
 export function filmToFormValues(film: Film): FilmFormValues {
   return {
     title: film.title,
@@ -92,7 +102,8 @@ export function filmToFormValues(film: Film): FilmFormValues {
   }
 }
 
-export function validateFilmForm(values: FilmFormValues): FilmValidationResult {
+export function validateFilmForm(rawValues: FilmFormValues): FilmValidationResult {
+  const values = purgeFilmVerdict(rawValues)
   const errors: FilmFormErrors = {}
   const title = values.title.trim()
   const yearText = values.year.trim()

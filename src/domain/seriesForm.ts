@@ -121,7 +121,17 @@ export function seriesToFormValues(series: Series): SeriesFormValues {
   }
 }
 
-export function validateSeriesForm(values: SeriesFormValues): SeriesValidationResult {
+/**
+ * 0.6.13 — une série « à voir » n'a pas encore été commencée : note, coup de
+ * cœur, progression, dates et avis sont purgés au retour en watchlist.
+ */
+export function purgeSeriesVerdict(values: SeriesFormValues): SeriesFormValues {
+  if (values.status !== 'à voir') return values
+  return { ...values, rating: '', isFavorite: false, seasonsSeen: '', startedAt: '', personalNote: '' }
+}
+
+export function validateSeriesForm(rawValues: SeriesFormValues): SeriesValidationResult {
+  const values = purgeSeriesVerdict(rawValues)
   const errors: SeriesFormErrors = {}
   const title = values.title.trim()
   const ratingText = values.rating.trim()
