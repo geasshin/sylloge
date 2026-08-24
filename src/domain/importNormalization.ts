@@ -119,10 +119,13 @@ export function normalizeImportRating(value: string | null): Normalized<number> 
   }
 
   // Nombre suivi d'une annotation : « 9 (Chef d'œuvre) », « 7 - Très bon ».
+  // Une valeur annotée provient d'une échelle /10 explicite (Notion…) :
+  // toujours divisée par 2, même si elle est ≤ 5 (« 5 (Moyen) » = 2,5/5).
   const annotated = /^(\d+(?:[.,]\d+)?)\b[\s(:\-–—]/.exec(normalizeLoose(raw))
   if (annotated) {
     const parsed = Number(annotated[1])
     if (parsed > 5 && parsed <= 10) return clampRating(parsed / 2)
+    if (parsed >= 1 && parsed <= 5) return clampRating(parsed / 2)
     return clampRating(parsed)
   }
 
@@ -134,6 +137,7 @@ export function normalizeImportRating(value: string | null): Normalized<number> 
     return clampRating(parsed)
   }
 
+  // Titre tronqué : espace finale retirée par le parseur CSV en amont.
   return { value: null, warning: `Note « ${raw} » illisible — champ laissé vide.` }
 }
 
