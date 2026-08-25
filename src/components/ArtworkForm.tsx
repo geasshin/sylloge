@@ -151,57 +151,54 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
             {errors.discoveredAt && <p className="field-error">{errors.discoveredAt}</p>}
           </div>
 
-          {/* Informations principales visibles directement (0.6.11) :
-              la catégorie prend la place du statut supprimé. */}
-          <details className="secondary-fields" open={Boolean(artwork) || undefined}>
-            <summary>Informations sur l’œuvre</summary>
-            <div className="secondary-fields-content">
-              <div className="form-row">
-                <div className="field">
-                  <label htmlFor="artwork-form">Catégorie</label>
-                  <select
-                    id="artwork-form"
-                    name="form"
-                    value={values.form}
-                    onChange={(event) => update('form', event.target.value as ArtworkFormValues['form'])}
-                    aria-invalid={Boolean(errors.form)}
-                    aria-describedby={errors.form ? 'artwork-form-error' : undefined}
-                  >
-                    {ARTWORK_FORMS.map((form) => (
-                      <option value={form} key={form}>{ARTWORK_FORM_LABELS[form]}</option>
-                    ))}
-                  </select>
-                  {errors.form && <p className="field-error" id="artwork-form-error">{errors.form}</p>}
-                </div>
-                <div className="field field-year">
-                  <label htmlFor="artwork-year">Année</label>
-                  <input
-                    id="artwork-year"
-                    inputMode="numeric"
-                    value={values.year}
-                    onChange={(event) => update('year', event.target.value)}
-                    aria-invalid={Boolean(errors.year)}
-                    aria-describedby={errors.year ? 'artwork-year-error' : undefined}
-                  />
-                  {errors.year && <p className="field-error" id="artwork-year-error">{errors.year}</p>}
-                </div>
-              </div>
+          {/* Informations principales toujours visibles : pas de toggle dans la
+              pop-up, même logique que les autres médiums. */}
+          <div className="secondary-fields editorial-open">
+            <div className="form-row">
               <div className="field">
-                <label htmlFor="artwork-artist">Artiste</label>
-                <input id="artwork-artist" value={values.artist} onChange={(event) => update('artist', event.target.value)} />
+                <label htmlFor="artwork-form">Catégorie</label>
+                <select
+                  id="artwork-form"
+                  name="form"
+                  value={values.form}
+                  onChange={(event) => update('form', event.target.value as ArtworkFormValues['form'])}
+                  aria-invalid={Boolean(errors.form)}
+                  aria-describedby={errors.form ? 'artwork-form-error' : undefined}
+                >
+                  {ARTWORK_FORMS.map((form) => (
+                    <option value={form} key={form}>{ARTWORK_FORM_LABELS[form]}</option>
+                  ))}
+                </select>
+                {errors.form && <p className="field-error" id="artwork-form-error">{errors.form}</p>}
               </div>
-              <div className="form-row">
-                <div className="field">
-                  <label htmlFor="artwork-location">Lieu</label>
-                  <input id="artwork-location" value={values.location} onChange={(event) => update('location', event.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="artwork-exhibition">Exposition</label>
-                  <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
-                </div>
+              <div className="field field-year">
+                <label htmlFor="artwork-year">Année</label>
+                <input
+                  id="artwork-year"
+                  inputMode="numeric"
+                  value={values.year}
+                  onChange={(event) => update('year', event.target.value)}
+                  aria-invalid={Boolean(errors.year)}
+                  aria-describedby={errors.year ? 'artwork-year-error' : undefined}
+                />
+                {errors.year && <p className="field-error" id="artwork-year-error">{errors.year}</p>}
               </div>
             </div>
-          </details>
+            <div className="field">
+              <label htmlFor="artwork-artist">Artiste</label>
+              <input id="artwork-artist" value={values.artist} onChange={(event) => update('artist', event.target.value)} />
+            </div>
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor="artwork-location">Lieu</label>
+                <input id="artwork-location" value={values.location} onChange={(event) => update('location', event.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="artwork-exhibition">Exposition</label>
+                <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
+              </div>
+            </div>
+          </div>
 
           {/* Champs personnalisés nom → valeur (0.6.12) : autant de lignes
               que nécessaire, une ligne sans nom est ignorée à l'enregistrement. */}
@@ -240,16 +237,8 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
           </div>
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
-
-          <footer className="form-actions">
-            <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-            <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? 'Enregistrement…' : artwork ? 'Enregistrer les modifications' : 'Ajouter l’œuvre'}
-            </button>
-          </footer>
       </div>
 
-      {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
       <div className="review-write review-full">
         <textarea
           id="artwork-personalNote"
@@ -262,6 +251,13 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
           spellCheck={false}
         />
       </div>
+
+      <footer className="form-actions form-actions-full">
+        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving ? 'Enregistrement…' : artwork ? 'Enregistrer les modifications' : 'Ajouter l’œuvre'}
+        </button>
+      </footer>
     </form>
   )
 

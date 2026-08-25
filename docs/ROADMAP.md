@@ -660,7 +660,7 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ## 11. Retours de recette du 24 août 2026 — feuille de route corrective
 
-Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 24 août au soir : 0.6.13 à 0.6.17 implémentés dans le code, couverts par les contrôles automatisés, committés par jalon ; validation visible restant à exercer dans `npm run tauri:dev`.**
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août au matin : 0.6.13 à 0.6.19 implémentés dans le code, couverts par les contrôles automatisés, committés par jalon ; validation visible restant à exercer dans `npm run tauri:dev`.**
 
 ### `0.6.13` — Purge du verdict personnel au retour en watchlist
 
@@ -692,7 +692,23 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 **État : implémenté.**
 
 - Migration SQL 16 : toute œuvre existante passe en « découverte », date de découverte déduite de la création quand absente ; nouvelles œuvres et imports CSV marquées « découverte » par défaut (règle 6.1 du brief). ✓
-- Grille dédiée `artwork-grid` : visuels au format paysage 4:3, auto-fill pleine largeur — plus de contenu confiné à gauche. ✓
+- Grille dédiée `artwork-grid` : visuels au format 16:10, cinq colonnes fluides sur grand écran et occupation pleine largeur — plus de contenu confiné à gauche. ✓
+
+### `0.6.18` — Pop-up commune pour l'ajout et la modification
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible restant à exercer.**
+
+- Le bouton Modifier des cinq médiums rouvre le même hôte de pop-up que l'ajout, prérempli et relié à l'update SQLite correspondante ; les anciennes routes pleine page d'édition sont supprimées. ✓
+- La note et l'avis ont été sortis de la composition précédente ; l'avis devient une rangée pleine largeur dans les formulaires partagés. ✓
+
+### `0.6.19` — Composition finale de la pop-up et grille Art cohérente
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible restant à exercer.**
+
+- Pop-up en trois zones : affiche plus grande à gauche, titre/verdict/date/note/coup de cœur à droite, avis pleine largeur puis actions alignées en bas à droite. ✓
+- Le toggle « Informations sur le film » et ses équivalents disparaît ; les champs éditoriaux sont directement modifiables dans la fiche, y compris lorsqu'une fiche existante n'est pas enrichie. ✓
+- La même composition est appliquée aux Séries, Livres, Jeux et Art, avec la règle produit conservée pour l'Art : pas de note ni de statut. ✓
+- La grille Art suit désormais le rythme des autres bibliothèques : cinq colonnes fluides sur grand écran, responsive, visuels 16:10 et occupation pleine largeur. ✓
 
 ### Journal des retours
 

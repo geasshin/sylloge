@@ -60,12 +60,6 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
   // ils restent dans les valeurs mais ne s'affichent plus comme formulaire.
   const assisted = !film && Boolean(initialValues?.title)
   const isAssociated = Boolean(film && (film.providerName || film.providerId))
-  // 0.6.16 : les champs éditoriaux sont ouverts par défaut en modification
-  // (associé ou non) — on doit voir ce que la fiche contient. Le repli reste
-  // disponible ; seule la création assistée les masque, déjà portés par la
-  // recherche.
-  const [showEditorial, setShowEditorial] = useState(!assisted)
-
   // 0.6.16 — identité enrichie en édition : le cache TMDB de la fiche est
   // chargé pour afficher durée, casting et réalisateurs sans resaisie.
   const [enrichment, setEnrichment] = useState<import('../data/tmdbService.ts').CachedFilmTmdbPresentation | null>(tmdbCache)
@@ -152,9 +146,9 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
 
   const form = (
     <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-      {/* 0.6.18 — composition pop-up : l'affiche porte son verdict (étoiles et
-          cœur dessous), le statut vit à droite du titre, l'avis s'étend sur
-          toute la largeur en bas. */}
+      {/* 0.6.19 — composition pop-up en trois zones : l'affiche seule à gauche
+          (presque la moitié), toutes les informations à droite, avis et
+          boutons sur toute la largeur en bas. */}
       <div className="form-side">
         <div className="form-poster-frame poster-container">
           <Poster
@@ -164,12 +158,6 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
             onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined}
           />
         </div>
-        {verdictVisible && (
-          <div className="poster-verdict">
-            <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-            <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-          </div>
-        )}
       </div>
 
       <div className="form-body">
@@ -187,10 +175,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           {errors.title && <p className="field-error" id="title-error">{errors.title}</p>}
         </div>
 
-        {/* 0.6.16 — identité enrichie TMDB en édition : durée, réalisateurs et
-            casting affichés tels que fournis ; ces données ne sont pas
-            éditables ici, la correction manuelle passe par les champs
-            éditoriaux du bloc « Informations sur le film ». */}
+        {/* Identité enrichie TMDB en édition : durée, réalisateurs, casting. */}
         {film && enrichment && (
           <div className="enrichment-panel">
             <p className="enrichment-source">
@@ -214,8 +199,8 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           </div>
         )}
 
-        {/* Le verdict personnel : le statut pilote ce qui est affiché ;
-            note et cœur vivent sous l'affiche (0.6.18). */}
+        {/* Le verdict personnel : statut, date, note et coup de cœur —
+            tous visibles dans la colonne droite. */}
         <div className="verdict-block">
           <div className="verdict-row">
             <StatusSegmented
@@ -242,6 +227,11 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
                 />
               </div>
               {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
+
+              <div className="poster-verdict verdict-inline">
+                <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+                <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+              </div>
             </>
           )}
           {!verdictVisible && (
@@ -249,68 +239,54 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           )}
         </div>
 
-        {/* Champs éditoriaux : cachés en création assistée, discrets sinon.
-            Fermés par défaut ; pré-remplis quand la fiche est associée. */}
+        {/* Champs éditoriaux toujours visibles en modification (0.6.19) :
+            plus de repli — on voit ce que la fiche contient, et une fiche
+            non enrichie se complète ici sans rien déplier. */}
         {!assisted && (
-          <details className="secondary-fields" open={showEditorial || undefined}>
-            <summary onClick={(event) => { event.preventDefault(); setShowEditorial((value) => !value) }}>
-              Informations sur le film{isAssociated ? ' · associé à TMDB' : ''}
-            </summary>
-            {showEditorial && (
-              <div className="secondary-fields-content">
-                {isAssociated && (
-                  <p className="import-hint">Ces informations viennent de TMDB — complète-les seulement si tu le souhaites.</p>
-                )}
-                <div className="form-row">
-                  <div className="field">
-                    <label htmlFor="originalTitle">Titre original</label>
-                    <input id="originalTitle" value={values.originalTitle} onChange={(event) => update('originalTitle', event.target.value)} />
-                  </div>
-                  <div className="field field-year">
-                    <label htmlFor="year">Année</label>
-                    <input
-                      id="year"
-                      inputMode="numeric"
-                      value={values.year}
-                      onChange={(event) => update('year', event.target.value)}
-                      aria-invalid={Boolean(errors.year)}
-                      aria-describedby={errors.year ? 'year-error' : undefined}
-                    />
-                    {errors.year && <p className="field-error" id="year-error">{errors.year}</p>}
-                  </div>
-                </div>
-                <div className="field">
-                  <label htmlFor="director">Réalisation</label>
-                  <input id="director" value={values.director} onChange={(event) => update('director', event.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="summary">Résumé</label>
-                  <textarea
-                    id="summary"
-                    rows={3}
-                    value={values.summary}
-                    onChange={(event) => update('summary', event.target.value)}
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
-              </div>
+          <div className="secondary-fields editorial-open">
+            {isAssociated && (
+              <p className="import-hint">Ces informations viennent de TMDB — complète-les seulement si tu le souhaites.</p>
             )}
-          </details>
+            <div className="form-row">
+              <div className="field">
+                <label htmlFor="originalTitle">Titre original</label>
+                <input id="originalTitle" value={values.originalTitle} onChange={(event) => update('originalTitle', event.target.value)} />
+              </div>
+              <div className="field field-year">
+                <label htmlFor="year">Année</label>
+                <input
+                  id="year"
+                  inputMode="numeric"
+                  value={values.year}
+                  onChange={(event) => update('year', event.target.value)}
+                  aria-invalid={Boolean(errors.year)}
+                  aria-describedby={errors.year ? 'year-error' : undefined}
+                />
+                {errors.year && <p className="field-error" id="year-error">{errors.year}</p>}
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="director">Réalisation</label>
+              <input id="director" value={values.director} onChange={(event) => update('director', event.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="summary">Résumé</label>
+              <textarea
+                id="summary"
+                rows={3}
+                value={values.summary}
+                onChange={(event) => update('summary', event.target.value)}
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
+          </div>
         )}
 
         {saveError && <p className="form-error" role="alert">{saveError}</p>}
-
-        <footer className="form-actions">
-          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-          <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : film ? 'Enregistrer les modifications' : 'Ajouter le film'}
-          </button>
-        </footer>
       </div>
 
-      {/* 0.6.18b — l'avis est un enfant direct de la grille : il s'étend sur
-          toute la largeur de la pop-up, sous les deux colonnes. */}
+      {/* Avis en pleine largeur, puis actions dans le coin inférieur droit. */}
       {verdictVisible && (
         <div className="review-write review-full">
           <textarea
@@ -325,6 +301,13 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           />
         </div>
       )}
+
+      <footer className="form-actions form-actions-full">
+        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving ? 'Enregistrement…' : film ? 'Enregistrer les modifications' : 'Ajouter le film'}
+        </button>
+      </footer>
     </form>
   )
 

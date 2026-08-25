@@ -46,7 +46,6 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
   const today = localToday()
   // Création assistée : les champs éditoriaux sont déjà portés par la recherche.
   const assisted = !game && Boolean(initialValues?.title)
-  const [showEditorial, setShowEditorial] = useState(!assisted)
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const ratingValue = values.rating === '' ? null : Number(values.rating)
@@ -100,12 +99,6 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" {...posterEditor.posterProps} />
         </div>
-        {verdictVisible && (
-          <div className="poster-verdict">
-            <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-            <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-          </div>
-        )}
       </div>
 
       <div className="form-body">
@@ -149,6 +142,10 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
                   />
                 </div>
                 {errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
+                <div className="poster-verdict verdict-inline">
+                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+                </div>
               </>
             )}
             {!verdictVisible && (
@@ -156,60 +153,45 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
             )}
           </div>
 
-          {/* Champs éditoriaux : cachés en création assistée */}
+          {/* Champs éditoriaux visibles sans toggle. */}
           {!assisted && (
-            <details className="secondary-fields" open={showEditorial || undefined}>
-              <summary onClick={(event) => { event.preventDefault(); setShowEditorial((value) => !value) }}>
-                Informations sur le jeu
-              </summary>
-              {showEditorial && (
-                <div className="secondary-fields-content">
-                  <div className="field">
-                    <label htmlFor="game-developer">Studio ou développeur</label>
-                    <input id="game-developer" value={values.developer} onChange={(event) => update('developer', event.target.value)} />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="game-platform">Plateforme</label>
-                    <input
-                      id="game-platform"
-                      list="game-platform-suggestions"
-                      value={values.platform}
-                      onChange={(event) => update('platform', event.target.value)}
-                      aria-describedby="game-platform-help"
-                    />
-                    <datalist id="game-platform-suggestions">
-                      {platformSuggestions.map((platform) => <option value={platform} key={platform} />)}
-                    </datalist>
-                    <p className="field-help" id="game-platform-help">Choisissez une suggestion ou saisissez librement une autre plateforme.</p>
-                  </div>
-                  <div className="field">
-                    <label htmlFor="game-year">Année de sortie</label>
-                    <input
-                      id="game-year"
-                      inputMode="numeric"
-                      value={values.year}
-                      onChange={(event) => update('year', event.target.value)}
-                      aria-invalid={Boolean(errors.year)}
-                      aria-describedby={errors.year ? 'game-year-error' : undefined}
-                    />
-                    {errors.year && <p className="field-error" id="game-year-error">{errors.year}</p>}
-                  </div>
-                </div>
-              )}
-            </details>
+            <div className="secondary-fields editorial-open">
+              <div className="field">
+                <label htmlFor="game-developer">Studio ou développeur</label>
+                <input id="game-developer" value={values.developer} onChange={(event) => update('developer', event.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="game-platform">Plateforme</label>
+                <input
+                  id="game-platform"
+                  list="game-platform-suggestions"
+                  value={values.platform}
+                  onChange={(event) => update('platform', event.target.value)}
+                  aria-describedby="game-platform-help"
+                />
+                <datalist id="game-platform-suggestions">
+                  {platformSuggestions.map((platform) => <option value={platform} key={platform} />)}
+                </datalist>
+                <p className="field-help" id="game-platform-help">Choisissez une suggestion ou saisissez librement une autre plateforme.</p>
+              </div>
+              <div className="field">
+                <label htmlFor="game-year">Année de sortie</label>
+                <input
+                  id="game-year"
+                  inputMode="numeric"
+                  value={values.year}
+                  onChange={(event) => update('year', event.target.value)}
+                  aria-invalid={Boolean(errors.year)}
+                  aria-describedby={errors.year ? 'game-year-error' : undefined}
+                />
+                {errors.year && <p className="field-error" id="game-year-error">{errors.year}</p>}
+              </div>
+            </div>
           )}
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
-
-          <footer className="form-actions">
-            <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-            <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? 'Enregistrement…' : game ? 'Enregistrer les modifications' : 'Ajouter le jeu'}
-            </button>
-          </footer>
       </div>
 
-      {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
       {verdictVisible && (
         <div className="review-write review-full">
           <textarea
@@ -224,6 +206,13 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
           />
         </div>
       )}
+
+      <footer className="form-actions form-actions-full">
+        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving ? 'Enregistrement…' : game ? 'Enregistrer les modifications' : 'Ajouter le jeu'}
+        </button>
+      </footer>
     </form>
   )
 

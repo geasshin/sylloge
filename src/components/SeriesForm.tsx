@@ -49,7 +49,6 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
   const today = localToday()
   // Création assistée : les champs éditoriaux sont déjà portés par la recherche.
   const assisted = !series && Boolean(initialValues?.title)
-  const [showEditorial, setShowEditorial] = useState(!assisted)
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewablePosterUrl(values.posterUrl)
   const progressVisible = values.status === 'en cours' || values.status === 'abandonnée' || values.status === 'vue'
@@ -121,12 +120,6 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" {...posterEditor.posterProps} />
         </div>
-        {verdictVisible && (
-          <div className="poster-verdict">
-            <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-            <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-          </div>
-        )}
       </div>
 
       <div className="form-body">
@@ -212,6 +205,12 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
               </div>
             )}
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
+            {verdictVisible && (
+              <div className="poster-verdict verdict-inline">
+                <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+                <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+              </div>
+            )}
           </div>
 
           {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
@@ -230,56 +229,63 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
             </div>
           )}
 
-          {/* Champs éditoriaux : cachés en création assistée */}
+          {/* Champs éditoriaux visibles sans toggle : la fiche reste directement
+              modifiable, qu'elle soit enrichie ou non. */}
           {!assisted && (
-            <details className="secondary-fields" open={showEditorial || undefined}>
-              <summary onClick={(event) => { event.preventDefault(); setShowEditorial((value) => !value) }}>
-                Informations sur la série
-              </summary>
-              {showEditorial && (
-                <div className="secondary-fields-content">
-                  <div className="form-row">
-                    <div className="field">
-                      <label htmlFor="series-showrunner">Showrunner</label>
-                      <input id="series-showrunner" value={values.showrunner} onChange={(event) => update('showrunner', event.target.value)} />
-                    </div>
-                  </div>
-                  <div className="field">
-                    <label htmlFor="series-casting">Casting</label>
-                    <textarea
-                      id="series-casting"
-                      rows={2}
-                      value={values.casting}
-                      onChange={(event) => update('casting', event.target.value)}
-                      autoCorrect="off"
-                      spellCheck={false}
-                    />
-                  </div>
-                  <div className="field">
-                    <label htmlFor="series-summary">Résumé</label>
-                    <textarea
-                      id="series-summary"
-                      rows={3}
-                      value={values.summary}
-                      onChange={(event) => update('summary', event.target.value)}
-                      autoCorrect="off"
-                      spellCheck={false}
-                    />
-                  </div>
-                </div>
-              )}
-            </details>
+            <div className="secondary-fields editorial-open">
+              <div className="field">
+                <label htmlFor="series-showrunner">Showrunner</label>
+                <input id="series-showrunner" value={values.showrunner} onChange={(event) => update('showrunner', event.target.value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="series-casting">Casting</label>
+                <textarea
+                  id="series-casting"
+                  rows={2}
+                  value={values.casting}
+                  onChange={(event) => update('casting', event.target.value)}
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="series-summary">Résumé</label>
+                <textarea
+                  id="series-summary"
+                  rows={3}
+                  value={values.summary}
+                  onChange={(event) => update('summary', event.target.value)}
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </div>
+            </div>
           )}
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
-
-          <footer className="form-actions">
-            <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-            <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : 'Ajouter la série'}
-            </button>
-          </footer>
       </div>
+
+      {verdictVisible && (
+        <div className="review-write review-full">
+          <textarea
+            id="series-personalNote"
+            name="personalNote"
+            rows={5}
+            placeholder="Qu’as-tu pensé de cette série ?"
+            value={values.personalNote}
+            onChange={(event) => update('personalNote', event.target.value)}
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+      )}
+
+      <footer className="form-actions form-actions-full">
+        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+        <button className="primary-button" type="submit" disabled={saving}>
+          {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : 'Ajouter la série'}
+        </button>
+      </footer>
     </form>
   )
 
