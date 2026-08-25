@@ -146,9 +146,8 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
 
   const form = (
     <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-      {/* 0.6.19 — composition pop-up en trois zones : l'affiche seule à gauche
-          (presque la moitié), toutes les informations à droite, avis et
-          boutons sur toute la largeur en bas. */}
+      {/* Scène 0.6.20 : visuel à gauche, travail personnel à droite.
+          L’avis remplit l’espace sous le verdict et les actions restent ancrées. */}
       <div className="form-side">
         <div className="form-poster-frame poster-container">
           <Poster
@@ -161,6 +160,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
       </div>
 
       <div className="form-body">
+        <div className="form-body-scroll">
         <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
           <input
             id="title"
@@ -239,6 +239,23 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           )}
         </div>
 
+        {/* L’avis occupe l’espace libre sous le verdict, dans la colonne droite.
+            Le passage à Terminé ne crée plus une rangée sous l’affiche. */}
+        {verdictVisible && (
+          <div className="review-write review-inline">
+            <textarea
+              id="personalNote"
+              name="personalNote"
+              rows={5}
+              placeholder="Qu’as-tu pensé de ce film ?"
+              value={values.personalNote}
+              onChange={(event) => update('personalNote', event.target.value)}
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </div>
+        )}
+
         {/* Champs éditoriaux toujours visibles en modification (0.6.19) :
             plus de repli — on voit ce que la fiche contient, et une fiche
             non enrichie se complète ici sans rien déplier. */}
@@ -284,30 +301,15 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
         )}
 
         {saveError && <p className="form-error" role="alert">{saveError}</p>}
-      </div>
-
-      {/* Avis en pleine largeur, puis actions dans le coin inférieur droit. */}
-      {verdictVisible && (
-        <div className="review-write review-full">
-          <textarea
-            id="personalNote"
-            name="personalNote"
-            rows={5}
-            placeholder="Qu’as-tu pensé de ce film ?"
-            value={values.personalNote}
-            onChange={(event) => update('personalNote', event.target.value)}
-            autoCorrect="off"
-            spellCheck={false}
-          />
         </div>
-      )}
 
-      <footer className="form-actions form-actions-full">
-        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-        <button className="primary-button" type="submit" disabled={saving}>
-          {saving ? 'Enregistrement…' : film ? 'Enregistrer les modifications' : 'Ajouter le film'}
-        </button>
-      </footer>
+        <footer className="form-actions form-actions-docked">
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? 'Enregistrement…' : film ? 'Enregistrer les modifications' : 'Ajouter le film'}
+          </button>
+        </footer>
+      </div>
     </form>
   )
 

@@ -123,6 +123,7 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
       </div>
 
       <div className="form-body">
+        <div className="form-body-scroll">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
             <input
               id="series-title"
@@ -164,32 +165,6 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
               />
             </div>
 
-            {verdictVisible && progressVisible && (
-              <fieldset className="progress-fields verdict-progress">
-                <div className="form-row">
-                  <Stepper
-                    id="seasonsSeen"
-                    label="Saisons vues"
-                    value={values.seasonsSeen}
-                    onChange={(value) => update('seasonsSeen', value)}
-                    max={values.seasonsTotal.trim() === '' ? null : Number(values.seasonsTotal)}
-                    error={errors.seasonsSeen}
-                    describedBy={errors.seasonsSeen ? 'seasonsSeen-error' : undefined}
-                  />
-                  <Stepper
-                    id="seasonsTotal"
-                    label="Saisons au total"
-                    value={values.seasonsTotal}
-                    readOnly
-                    hint={assisted ? 'fourni par TMDB' : undefined}
-                  />
-                </div>
-                {values.status === 'vue' && (
-                  <p className="field-help">Série à jour : si une nouvelle saison sort, la série repassera en cours.</p>
-                )}
-              </fieldset>
-            )}
-
             {verdictVisible && (
               <div className="date-row">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
@@ -213,9 +188,9 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
             )}
           </div>
 
-          {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
+          {/* L’avis suit immédiatement la note et le coup de cœur. */}
           {verdictVisible && (
-            <div className="review-write review-full">
+            <div className="review-write review-inline">
               <textarea
                 id="series-personalNote"
                 name="personalNote"
@@ -227,6 +202,34 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
                 spellCheck={false}
               />
             </div>
+          )}
+
+          {/* La progression reste accessible juste après l’avis, sans repousser
+              celui-ci hors du premier écran de la pop-up. */}
+          {verdictVisible && progressVisible && (
+            <fieldset className="progress-fields verdict-progress">
+              <div className="form-row">
+                <Stepper
+                  id="seasonsSeen"
+                  label="Saisons vues"
+                  value={values.seasonsSeen}
+                  onChange={(value) => update('seasonsSeen', value)}
+                  max={values.seasonsTotal.trim() === '' ? null : Number(values.seasonsTotal)}
+                  error={errors.seasonsSeen}
+                  describedBy={errors.seasonsSeen ? 'seasonsSeen-error' : undefined}
+                />
+                <Stepper
+                  id="seasonsTotal"
+                  label="Saisons au total"
+                  value={values.seasonsTotal}
+                  readOnly
+                  hint={assisted ? 'fourni par TMDB' : undefined}
+                />
+              </div>
+              {values.status === 'vue' && (
+                <p className="field-help">Série à jour : si une nouvelle saison sort, la série repassera en cours.</p>
+              )}
+            </fieldset>
           )}
 
           {/* Champs éditoriaux visibles sans toggle : la fiche reste directement
@@ -263,29 +266,15 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
           )}
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
-      </div>
-
-      {verdictVisible && (
-        <div className="review-write review-full">
-          <textarea
-            id="series-personalNote"
-            name="personalNote"
-            rows={5}
-            placeholder="Qu’as-tu pensé de cette série ?"
-            value={values.personalNote}
-            onChange={(event) => update('personalNote', event.target.value)}
-            autoCorrect="off"
-            spellCheck={false}
-          />
         </div>
-      )}
 
-      <footer className="form-actions form-actions-full">
-        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-        <button className="primary-button" type="submit" disabled={saving}>
-          {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : 'Ajouter la série'}
-        </button>
-      </footer>
+        <footer className="form-actions form-actions-docked">
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : 'Ajouter la série'}
+          </button>
+        </footer>
+      </div>
     </form>
   )
 

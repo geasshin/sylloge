@@ -102,6 +102,7 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
       </div>
 
       <div className="form-body">
+        <div className="form-body-scroll">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
             <input
               id="game-title"
@@ -153,6 +154,21 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
             )}
           </div>
 
+          {verdictVisible && (
+            <div className="review-write review-inline">
+              <textarea
+                id="game-personalNote"
+                name="personalNote"
+                rows={5}
+                placeholder="Qu’as-tu pensé de ce jeu ?"
+                value={values.personalNote}
+                onChange={(event) => update('personalNote', event.target.value)}
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
+          )}
+
           {/* Champs éditoriaux visibles sans toggle. */}
           {!assisted && (
             <div className="secondary-fields editorial-open">
@@ -190,29 +206,15 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
           )}
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
-      </div>
-
-      {verdictVisible && (
-        <div className="review-write review-full">
-          <textarea
-            id="game-personalNote"
-            name="personalNote"
-            rows={5}
-            placeholder="Qu’as-tu pensé de ce jeu ?"
-            value={values.personalNote}
-            onChange={(event) => update('personalNote', event.target.value)}
-            autoCorrect="off"
-            spellCheck={false}
-          />
         </div>
-      )}
 
-      <footer className="form-actions form-actions-full">
-        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-        <button className="primary-button" type="submit" disabled={saving}>
-          {saving ? 'Enregistrement…' : game ? 'Enregistrer les modifications' : 'Ajouter le jeu'}
-        </button>
-      </footer>
+        <footer className="form-actions form-actions-docked">
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? 'Enregistrement…' : game ? 'Enregistrer les modifications' : 'Ajouter le jeu'}
+          </button>
+        </footer>
+      </div>
     </form>
   )
 

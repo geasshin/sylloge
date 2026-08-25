@@ -155,6 +155,7 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
       </div>
 
       <div className="form-body">
+        <div className="form-body-scroll">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
             <input
               id="book-title"
@@ -249,41 +250,57 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
               </div>
             )}
 
-            <section className="quote-editor" aria-labelledby="quote-editor-title">
-              <div className="quote-editor-heading">
-                <div>
-                  <h2 id="quote-editor-title">Citations personnelles</h2>
-                  <p>Conservez les passages que vous souhaitez retrouver sur cette fiche.</p>
-                </div>
-                <button className="secondary-button" type="button" onClick={addQuote}>Ajouter une citation</button>
-              </div>
-              {values.quotes.length === 0 ? (
-                <p className="quote-editor-empty">Aucune citation ajoutée.</p>
-              ) : (
-                <div className="quote-editor-list">
-                  {values.quotes.map((quote, index) => (
-                    <div className="quote-editor-item" key={index}>
-                      <div className="field">
-                        <label htmlFor={`book-quote-${index}`}>Citation {index + 1}</label>
-                        <textarea
-                          id={`book-quote-${index}`}
-                          rows={3}
-                          value={quote}
-                          onChange={(event) => updateQuote(index, event.target.value)}
-                          autoCorrect="off"
-                          spellCheck={false}
-                        />
-                      </div>
-                      <button className="delete-link" type="button" onClick={() => removeQuote(index)}>
-                        Retirer cette citation
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {errors.quotes && <p className="field-error">{errors.quotes}</p>}
-            </section>
           </div>
+
+          {verdictVisible && (
+            <div className="review-write review-inline">
+              <textarea
+                id="book-personalNote"
+                name="personalNote"
+                rows={5}
+                placeholder="Qu’as-tu pensé de ce livre ?"
+                value={values.personalNote}
+                onChange={(event) => update('personalNote', event.target.value)}
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
+          )}
+
+          <section className="quote-editor" aria-labelledby="quote-editor-title">
+            <div className="quote-editor-heading">
+              <div>
+                <h2 id="quote-editor-title">Citations personnelles</h2>
+                <p>Conservez les passages que vous souhaitez retrouver sur cette fiche.</p>
+              </div>
+              <button className="secondary-button" type="button" onClick={addQuote}>Ajouter une citation</button>
+            </div>
+            {values.quotes.length === 0 ? (
+              <p className="quote-editor-empty">Aucune citation ajoutée.</p>
+            ) : (
+              <div className="quote-editor-list">
+                {values.quotes.map((quote, index) => (
+                  <div className="quote-editor-item" key={index}>
+                    <div className="field">
+                      <label htmlFor={`book-quote-${index}`}>Citation {index + 1}</label>
+                      <textarea
+                        id={`book-quote-${index}`}
+                        rows={3}
+                        value={quote}
+                        onChange={(event) => updateQuote(index, event.target.value)}
+                        autoCorrect="off"
+                        spellCheck={false}
+                      />
+                    </div>
+                    <button className="delete-link" type="button" onClick={() => removeQuote(index)}>
+                      Retirer cette citation
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {errors.quotes && <p className="field-error">{errors.quotes}</p>}
+          </section>
 
           {/* Champs éditoriaux visibles sans toggle. */}
           {!assisted && (
@@ -319,29 +336,15 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
           )}
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
-      </div>
-
-      {verdictVisible && (
-        <div className="review-write review-full">
-          <textarea
-            id="book-personalNote"
-            name="personalNote"
-            rows={5}
-            placeholder="Qu’as-tu pensé de ce livre ?"
-            value={values.personalNote}
-            onChange={(event) => update('personalNote', event.target.value)}
-            autoCorrect="off"
-            spellCheck={false}
-          />
         </div>
-      )}
 
-      <footer className="form-actions form-actions-full">
-        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-        <button className="primary-button" type="submit" disabled={saving}>
-          {saving ? 'Enregistrement…' : book ? 'Enregistrer les modifications' : 'Ajouter le livre'}
-        </button>
-      </footer>
+        <footer className="form-actions form-actions-docked">
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? 'Enregistrement…' : book ? 'Enregistrer les modifications' : 'Ajouter le livre'}
+          </button>
+        </footer>
+      </div>
     </form>
   )
 

@@ -660,7 +660,7 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ## 11. Retours de recette du 24 août 2026 — feuille de route corrective
 
-Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août au matin : 0.6.13 à 0.6.19 implémentés dans le code, couverts par les contrôles automatisés, committés par jalon ; validation visible restant à exercer dans `npm run tauri:dev`.**
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.20 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du dernier jalon restant à exercer dans `npm run tauri:dev`.**
 
 ### `0.6.13` — Purge du verdict personnel au retour en watchlist
 
@@ -701,14 +701,23 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 - Le bouton Modifier des cinq médiums rouvre le même hôte de pop-up que l'ajout, prérempli et relié à l'update SQLite correspondante ; les anciennes routes pleine page d'édition sont supprimées. ✓
 - La note et l'avis ont été sortis de la composition précédente ; l'avis devient une rangée pleine largeur dans les formulaires partagés. ✓
 
-### `0.6.19` — Composition finale de la pop-up et grille Art cohérente
+### `0.6.19` — Première composition commune et grille Art cohérente
 
-**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible restant à exercer.**
+**État : implémenté, puis recomposé par le jalon 0.6.20 après recette visible.**
 
-- Pop-up en trois zones : affiche plus grande à gauche, titre/verdict/date/note/coup de cœur à droite, avis pleine largeur puis actions alignées en bas à droite. ✓
 - Le toggle « Informations sur le film » et ses équivalents disparaît ; les champs éditoriaux sont directement modifiables dans la fiche, y compris lorsqu'une fiche existante n'est pas enrichie. ✓
-- La même composition est appliquée aux Séries, Livres, Jeux et Art, avec la règle produit conservée pour l'Art : pas de note ni de statut. ✓
+- La même structure de formulaire est appliquée aux Séries, Livres, Jeux et Art, avec la règle produit conservée pour l'Art : pas de note ni de statut. ✓
 - La grille Art suit désormais le rythme des autres bibliothèques : cinq colonnes fluides sur grand écran, responsive, visuels 16:10 et occupation pleine largeur. ✓
+- La première proposition plaçait l'avis sur une rangée pleine largeur sous l'affiche. La recette du 25 août a montré qu'elle agrandissait inutilement la fenêtre et laissait vide le bas de la colonne droite ; cette décision est remplacée par 0.6.20.
+
+### `0.6.20` — Avis intégré et pop-up géométriquement stable
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.**
+
+- La scène conserve une hauteur fixe dictée par l'affiche : passer un contenu de la watchlist à « Terminé », « Vu », « Lu » ou « Joué » ne redimensionne plus la pop-up. ✓
+- L'avis est placé immédiatement sous la date, les étoiles et le coup de cœur dans la colonne droite ; il absorbe l'espace auparavant vide jusqu'au bas de l'affiche. ✓
+- Le contenu long d'une fiche existante défile à l'intérieur de la colonne droite, tandis que les actions restent ancrées en bas ; le bouton Modifier réutilise exactement ce gabarit prérempli. ✓
+- Le contrat est commun aux Films, Séries, Livres, Jeux et Art. Pour l'Art, l'avis reste visible sans introduire de note ni de statut. ✓
 
 ### Journal des retours
 

@@ -115,6 +115,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
       </div>
 
       <div className="form-body">
+        <div className="form-body-scroll">
           <div className="field field-title">
             <label htmlFor="artwork-title">Titre <span aria-hidden="true">*</span></label>
             <input
@@ -149,6 +150,19 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               />
             </div>
             {errors.discoveredAt && <p className="field-error">{errors.discoveredAt}</p>}
+          </div>
+
+          <div className="review-write review-inline">
+            <textarea
+              id="artwork-personalNote"
+              name="personalNote"
+              rows={5}
+              placeholder="Qu’as-tu ressenti face à cette œuvre ?"
+              value={values.personalNote}
+              onChange={(event) => update('personalNote', event.target.value)}
+              autoCorrect="off"
+              spellCheck={false}
+            />
           </div>
 
           {/* Informations principales toujours visibles : pas de toggle dans la
@@ -237,27 +251,15 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
           </div>
 
           {saveError && <p className="form-error" role="alert">{saveError}</p>}
-      </div>
+        </div>
 
-      <div className="review-write review-full">
-        <textarea
-          id="artwork-personalNote"
-          name="personalNote"
-          rows={5}
-          placeholder="Qu’as-tu ressenti face à cette œuvre ?"
-          value={values.personalNote}
-          onChange={(event) => update('personalNote', event.target.value)}
-          autoCorrect="off"
-          spellCheck={false}
-        />
+        <footer className="form-actions form-actions-docked">
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="primary-button" type="submit" disabled={saving}>
+            {saving ? 'Enregistrement…' : artwork ? 'Enregistrer les modifications' : 'Ajouter l’œuvre'}
+          </button>
+        </footer>
       </div>
-
-      <footer className="form-actions form-actions-full">
-        <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
-        <button className="primary-button" type="submit" disabled={saving}>
-          {saving ? 'Enregistrement…' : artwork ? 'Enregistrer les modifications' : 'Ajouter l’œuvre'}
-        </button>
-      </footer>
     </form>
   )
 

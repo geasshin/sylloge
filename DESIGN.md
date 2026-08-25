@@ -52,6 +52,15 @@ Ordre de lecture unique, du fixe vers le personnel :
 
 Interdits de fiche : aucune donnée personnelle au milieu des données fournisseur ; aucune carte blanche autour de la partie personnelle ; aucune métadonnée technique affichée (dates d'ajout/modification restent en base, non rendues).
 
+## Composition des formulaires en pop-up
+
+- L'ajout et le bouton Modifier utilisent le même gabarit prérempli pour les cinq médiums.
+- Sur ordinateur, la pop-up garde une géométrie stable en deux colonnes. L'affiche fixe la hauteur de la scène à gauche ; le changement de statut ne doit jamais déplacer ni agrandir la fenêtre.
+- Dans la colonne droite, l'ordre visible est titre, données utiles, statut, date, note et coup de cœur, puis avis personnel. L'avis s'étire dans l'espace disponible sous le verdict au lieu de créer une rangée sous l'affiche.
+- Les informations supplémentaires d'une fiche existante défilent à l'intérieur de la colonne droite. Les actions Annuler et Enregistrer restent ancrées en bas et visibles.
+- Sur écran étroit, le formulaire repasse en une colonne et retrouve un défilement vertical classique.
+- L'Art suit la même composition sans note ni statut, conformément au domaine.
+
 ## Bibliothèques
 
 - Rangée d'outils : vues à gauche (onglets soulignés violets à l'actif), recherche pilule et actions filtre/tri à droite, séparateur vertical.

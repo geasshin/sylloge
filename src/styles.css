@@ -1791,29 +1791,8 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .dialog-add-flow .form-poster-frame { width: 100%; }
 .dialog-add-flow .form-poster-caption { font-size: 10px; margin-top: 6px; }
 .dialog-add-flow .field-title input { font-size: 14px; padding: 7px 10px; }
-/* 0.6.18 — composition pop-up : l'affiche porte son verdict, l'avis s'étend
-   en pleine largeur sous les deux colonnes. */
-.dialog-add-flow .film-form.form-detail { grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); }
-.dialog-add-flow .form-side { gap: 12px; }
-.dialog-add-flow .poster-verdict {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  min-height: 30px;
-}
-/* L'avis est un enfant direct de la grille : il occupe toute la rangée,
-   pas trois quarts de la colonne droite (correction 0.6.18b). */
-.dialog-add-flow .review-full { grid-column: 1 / -1; margin-top: 2px; }
-.dialog-add-flow .review-full textarea { width: 100%; min-height: 96px; resize: vertical; }
+/* Le titre commence au bord utile de la colonne droite. */
 .editor-dialog-embedded .field-title { margin: 0; }
-.dialog-add-flow .verdict-block { gap: 10px; }
-/* 0.6.15 : réserver la place du verdict (note + date + avis) pour que la
-   fenêtre ne grandisse pas au changement de statut — les boutons ne sautent
-   plus sous le curseur. */
-.dialog-add-flow .verdict-block { min-height: 168px; }
-.dialog-add-flow .review-write textarea { min-height: 72px; }
-.dialog-add-flow .form-actions { margin-top: 0; }
 /* Recherche TMDB compacte dans la pop-up : titre réduit, pas de redondance */
 .tmdb-search-compact .editor-heading h1 { font-size: clamp(20px, 2vw, 26px); letter-spacing: -.02em; }
 .tmdb-search-compact .editor-heading p { margin: 5px 0 0; font-size: 12.5px; color: var(--color-text-muted); }
@@ -1831,76 +1810,12 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 /* Les pop-up d'association gardent leur propre largeur de recherche. */
 .editor-dialog.dialog-associate { width: min(720px, 100%); }
 
-/* Dernière passe 0.6.19 : trois zones réellement distinctes dans la pop-up.
-   Le formulaire n'est plus une colonne étroite avec des actions au milieu :
-   affiche presque moitié, informations à droite, avis puis actions en bas. */
+/* 0.6.20 : la fenêtre garde une largeur et une hauteur stables. L’affiche
+   définit la scène ; la colonne droite absorbe les variations de contenu. */
 .editor-dialog.dialog-add-flow {
   width: min(820px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   padding: 24px 26px 22px;
-}
-.editor-dialog.dialog-add-flow .film-form.form-detail {
-  grid-template-columns: minmax(280px, .95fr) minmax(0, 1.05fr);
-  gap: 24px;
-  align-items: start;
-}
-.editor-dialog.dialog-add-flow .form-side {
-  position: static;
-  align-items: stretch;
-  gap: 0;
-}
-.editor-dialog.dialog-add-flow .form-poster-frame {
-  width: 100%;
-  max-width: none;
-}
-.editor-dialog.dialog-add-flow .form-poster-frame .form-poster-preview-lg {
-  aspect-ratio: 2 / 3;
-}
-.editor-dialog.dialog-add-flow .form-body {
-  gap: 16px;
-}
-.editor-dialog.dialog-add-flow .field-title input {
-  width: 100%;
-  box-sizing: border-box;
-  min-width: 0;
-  font-size: clamp(18px, 2vw, 24px);
-  line-height: 1.15;
-}
-.editor-dialog.dialog-add-flow .verdict-block {
-  min-height: 0;
-  gap: 13px;
-  padding-top: 16px;
-}
-.editor-dialog.dialog-add-flow .verdict-row {
-  gap: 10px;
-}
-.editor-dialog.dialog-add-flow .verdict-inline {
-  justify-content: flex-start;
-  gap: 12px;
-  min-height: 38px;
-}
-.editor-dialog.dialog-add-flow .review-full {
-  grid-column: 1 / -1;
-  margin-top: 0;
-}
-.editor-dialog.dialog-add-flow .review-full textarea {
-  width: 100%;
-  min-height: 104px;
-  box-sizing: border-box;
-  resize: vertical;
-}
-.editor-dialog.dialog-add-flow .form-actions-full {
-  grid-column: 1 / -1;
-  justify-content: flex-end;
-  margin-top: -4px;
-  padding-top: 0;
-}
-.editor-dialog.dialog-add-flow .editor-dialog-embedded { width: 100%; }
-.editor-dialog.dialog-add-flow .secondary-fields.editorial-open {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-hairline);
 }
 
 /* Art suit le même rythme de grille que les autres bibliothèques : cartes
@@ -1954,24 +1869,131 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .editor-dialog .tmdb-search-form { width: 100%; margin-inline: 0; }
 /* Les boutons d'action vivent à droite, collés au contenu, pas au centre */
 .editor-dialog .form-actions { justify-content: flex-end; padding-top: 4px; }
-/* Le gabarit générique ci-dessus arrive après le mode compact : ces règles
-   finales sont volontairement plus spécifiques pour garantir le rendu 0.6.19. */
+/* Gabarit canonique 0.6.20. La ligne de grille a la hauteur de l’affiche :
+   changer de statut ne peut donc plus modifier les dimensions de la fenêtre. */
 .editor-dialog.dialog-add-flow .film-form.form-detail {
   grid-template-columns: minmax(280px, .95fr) minmax(0, 1.05fr);
+  grid-template-rows: minmax(0, min(530px, calc(100vh - 104px)));
   gap: 24px;
+  align-items: stretch;
 }
-.editor-dialog.dialog-add-flow .form-side { position: static; align-items: stretch; gap: 0; }
-.editor-dialog.dialog-add-flow .form-poster-frame { max-width: none; }
-.editor-dialog.dialog-add-flow .form-poster-frame .form-poster-preview-lg { aspect-ratio: 2 / 3; }
-.editor-dialog.dialog-add-flow .form-body { gap: 16px; }
-.editor-dialog.dialog-add-flow .review-full,
-.editor-dialog.dialog-add-flow .form-actions-full { grid-column: 1 / -1; }
-.editor-dialog.dialog-add-flow .review-full { margin-top: 0; }
-.editor-dialog.dialog-add-flow .review-full textarea { width: 100%; min-height: 104px; box-sizing: border-box; }
-.editor-dialog.dialog-add-flow .form-actions-full { justify-content: flex-end; margin-top: -4px; padding-top: 0; }
-.editor-dialog.dialog-add-flow .verdict-block { min-height: 0; gap: 13px; padding-top: 16px; }
-.editor-dialog.dialog-add-flow .verdict-inline { justify-content: flex-start; gap: 12px; min-height: 38px; }
-.editor-dialog.dialog-add-flow .secondary-fields.editorial-open { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid var(--color-hairline); }
+.editor-dialog.dialog-add-flow .form-side {
+  position: static;
+  min-height: 0;
+  height: 100%;
+  align-items: stretch;
+  gap: 0;
+}
+.editor-dialog.dialog-add-flow .form-poster-frame {
+  max-width: none;
+  height: 100%;
+}
+.editor-dialog.dialog-add-flow .form-poster-caption {
+  display: none;
+}
+.editor-dialog.dialog-add-flow .form-poster-frame .form-poster-preview-lg {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+.editor-dialog.dialog-add-flow .form-body {
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+}
+.editor-dialog.dialog-add-flow .form-body-scroll {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 7px;
+  scrollbar-gutter: stable;
+}
+.editor-dialog.dialog-add-flow .form-body-scroll > :not(.review-inline) {
+  flex: 0 0 auto;
+}
+.editor-dialog.dialog-add-flow .field-title input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-size: clamp(18px, 2vw, 24px);
+  line-height: 1.15;
+}
+.editor-dialog.dialog-add-flow .verdict-block {
+  min-height: 0;
+  gap: 13px;
+  padding-top: 16px;
+}
+.editor-dialog.dialog-add-flow .verdict-inline {
+  justify-content: flex-start;
+  gap: 12px;
+  min-height: 38px;
+}
+.editor-dialog.dialog-add-flow .review-inline {
+  min-height: 132px;
+  flex: 1 0 132px;
+  display: flex;
+}
+.editor-dialog.dialog-add-flow .review-inline textarea {
+  width: 100%;
+  min-height: 132px;
+  height: 100%;
+  box-sizing: border-box;
+  resize: none;
+}
+.editor-dialog.dialog-add-flow .form-actions-docked {
+  min-height: 58px;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  margin: 0;
+  padding: 12px 0 2px;
+  border-top: 1px solid var(--color-hairline);
+  background: var(--color-surface);
+}
+.editor-dialog.dialog-add-flow .secondary-fields.editorial-open {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-hairline);
+}
+
+@media (max-width: 820px) {
+  .editor-dialog.dialog-add-flow .film-form.form-detail {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+  .editor-dialog.dialog-add-flow .form-side {
+    width: min(100%, 300px);
+    height: auto;
+    margin-inline: auto;
+  }
+  .editor-dialog.dialog-add-flow .form-poster-frame,
+  .editor-dialog.dialog-add-flow .form-poster-frame .form-poster-preview-lg {
+    height: auto;
+  }
+  .editor-dialog.dialog-add-flow .form-poster-frame .form-poster-preview-lg {
+    aspect-ratio: 2 / 3;
+  }
+  .editor-dialog.dialog-add-flow .form-body {
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+  .editor-dialog.dialog-add-flow .form-body-scroll {
+    display: grid;
+    gap: 16px;
+    overflow: visible;
+    padding-right: 0;
+  }
+  .editor-dialog.dialog-add-flow .review-inline { display: block; min-height: 120px; }
+  .editor-dialog.dialog-add-flow .review-inline textarea { height: auto; min-height: 120px; resize: vertical; }
+  .editor-dialog.dialog-add-flow .form-actions-docked { margin-top: 16px; }
+}
 
 /* Interrupteur de catégories (0.6.8) : bloc segmenté multi-sélection,
    au moins un segment actif — deux actifs = toutes les catégories. */
