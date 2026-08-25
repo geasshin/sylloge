@@ -8,7 +8,7 @@ Spécification appliquée :
 - Fond : dégradé vertical anthracite dessiné NATIVEMENT en AppKit
   (pas de passage par SVG/Quick Look, qui casse la transparence et
   ajoute un fond blanc — le bug constaté dans le dock).
-- Logo Sylloge centré à 72 % de la tuile, ombre douce.
+- Logo Sylloge recadré puis centré à 82 % de la tuile, ombre douce.
 
 Usage : python3 scripts/build-icons.py   (macOS requis)
 """
@@ -24,7 +24,12 @@ TMP = Path('/tmp/sylloge-icon-build')
 CANVAS = 1024          # canevas final
 ARTWORK = 824          # tuile dessinée (marges 100 px)
 RADIUS = 185           # rayon de coin du gabarit macOS
-LOGO_RATIO = 0.72      # logo = 72 % de la tuile
+LOGO_RATIO = 0.82      # cadre du logo recadré = 82 % de la tuile
+# Le PNG maître contient un large transparent autour du pictogramme. Ce carré
+# resserré conserve une respiration homogène sans déformer le symbole.
+LOGO_CROP_X_RATIO = 175 / 1024
+LOGO_CROP_Y_RATIO = 196 / 1024  # AppKit : origine en bas à gauche
+LOGO_CROP_SIZE_RATIO = 675 / 1024
 
 
 def run(cmd: list[str]) -> None:
@@ -57,6 +62,11 @@ let margin = CGFloat({margin})
 let logoPx = {logo_px}.0
 
 guard let logo = NSImage(contentsOfFile: "{logo}") else {{ fatalError("logo manquant") }}
+let cropBase = min(logo.size.width, logo.size.height)
+let logoCrop = NSRect(x: logo.size.width * {LOGO_CROP_X_RATIO},
+                      y: logo.size.height * {LOGO_CROP_Y_RATIO},
+                      width: cropBase * {LOGO_CROP_SIZE_RATIO},
+                      height: cropBase * {LOGO_CROP_SIZE_RATIO})
 
 let image = NSImage(size: NSSize(width: size, height: size))
 image.lockFocus()
@@ -89,7 +99,7 @@ shadow.shadowBlurRadius = Double(tile) * 0.02
 shadow.shadowOffset = NSSize(width: 0, height: -Double(tile) * 0.008)
 shadow.set()
 logo.draw(in: NSRect(origin: origin, size: logoSize),
-          from: .zero, operation: .sourceOver, fraction: 1.0)
+          from: logoCrop, operation: .sourceOver, fraction: 1.0)
 NSGraphicsContext.current?.restoreGraphicsState()
 
 image.unlockFocus()
