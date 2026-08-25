@@ -75,7 +75,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" \
+            --title "Sylloge ${tag#v} — Windows" \
+            --notes "Installateur Windows (NSIS) et signature de mise à jour." \
+            src-tauri/target/release/bundle/nsis/*.exe \
+            src-tauri/target/release/bundle/nsis/*.sig || \
           gh release upload "$tag" \
             src-tauri/target/release/bundle/nsis/*.exe \
-            src-tauri/target/release/bundle/nsis/*.sig \
-            --clobber
+            src-tauri/target/release/bundle/nsis/*.sig --clobber
