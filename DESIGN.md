@@ -56,7 +56,10 @@ Interdits de fiche : aucune donnée personnelle au milieu des données fournisse
 
 - L'ajout et le bouton Modifier utilisent le même gabarit prérempli pour les cinq médiums.
 - Sur ordinateur, la pop-up garde une géométrie stable en deux colonnes. L'affiche fixe la hauteur de la scène à gauche ; le changement de statut ne doit jamais déplacer ni agrandir la fenêtre.
-- Dans la colonne droite, l'ordre visible est titre, données utiles, statut, date, note et coup de cœur, puis avis personnel. L'avis s'étire dans l'espace disponible sous le verdict au lieu de créer une rangée sous l'affiche.
+- Socle partagé 0.6.20 : dans la colonne droite, l'ordre visible reste titre, données utiles, statut, date et avis personnel. Les actions demeurent ancrées en bas.
+- Prototype Film 0.6.21, en attente de validation avant extension : le champ titre réserve la place de la croix ; l’affiche est ramenée à 306 px et garde sous elle une zone stable de verdict. En « Terminé » ou « Abandonné », cette zone montre seulement cinq grandes étoiles dorées à l’activation et un cœur rouge à l’activation, sans libellé numérique visible.
+- Pour le Film assisté ou associé, une fiche technique discrète dans la colonne droite présente les faits TMDB déjà récupérés : sortie, durée, réalisation, cinq interprètes principaux et titre original pertinent. Elle ne dépend jamais du statut personnel.
+- Séries, Livres, Jeux et Art conservent intégralement le gabarit 0.6.20 tant que le prototype Film n’est pas explicitement validé.
 - Les informations supplémentaires d'une fiche existante défilent à l'intérieur de la colonne droite. Les actions Annuler et Enregistrer restent ancrées en bas et visibles.
 - Sur écran étroit, le formulaire repasse en une colonne et retrouve un défilement vertical classique.
 - L'Art suit la même composition sans note ni statut, conformément au domaine.

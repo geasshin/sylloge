@@ -660,7 +660,7 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ## 11. Retours de recette du 24 août 2026 — feuille de route corrective
 
-Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.20 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du dernier jalon restant à exercer dans `npm run tauri:dev`.**
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.21 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du prototype Film 0.6.21 restant à exercer dans `npm run tauri:dev`.**
 
 ### `0.6.13` — Purge du verdict personnel au retour en watchlist
 
@@ -718,6 +718,16 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 - L'avis est placé immédiatement sous la date, les étoiles et le coup de cœur dans la colonne droite ; il absorbe l'espace auparavant vide jusqu'au bas de l'affiche. ✓
 - Le contenu long d'une fiche existante défile à l'intérieur de la colonne droite, tandis que les actions restent ancrées en bas ; le bouton Modifier réutilise exactement ce gabarit prérempli. ✓
 - Le contrat est commun aux Films, Séries, Livres, Jeux et Art. Pour l'Art, l'avis reste visible sans introduire de note ni de statut. ✓
+
+### `0.6.21` — Prototype Film : verdict sous l’affiche et faits TMDB
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant toute extension aux autres bibliothèques.**
+
+- Le champ titre Film réserve une zone explicite à droite afin que la croix de fermeture ne le survole plus. ✓
+- En statut « Terminé » ou « Abandonné », cinq grandes étoiles et le coup de cœur sont centrés sous l’affiche. Les libellés numériques disparaissent ; les étoiles actives deviennent dorées et le cœur actif rouge. En « À découvrir », cette zone reste réservée mais invisible afin de ne pas déplacer l’affiche. ✓
+- Les données déjà récupérées par TMDB restent disponibles pendant la création assistée et alimentent une fiche technique discrète dans la colonne droite : date de sortie, durée, réalisation, cinq interprètes principaux et titre original lorsqu’il diffère. La fiche technique reste visible quel que soit le statut. ✓
+- Le bouton Modifier le film réutilise le même composant ; il recharge ces faits depuis le cache TMDB, sans toucher aux données personnelles. ✓
+- Ce prototype ne modifie ni Séries, ni Livres, ni Jeux, ni Art. Son extension est volontairement suspendue à la validation visuelle d’Aurélien. ✓
 
 ### Journal des retours
 

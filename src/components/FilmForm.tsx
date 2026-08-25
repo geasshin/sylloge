@@ -10,6 +10,10 @@ import {
   type FilmWriteInput,
 } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
+import type { TmdbFilmPresentation } from '../data/tmdbService.ts'
+import { Poster } from './Poster.tsx'
+import { PosterUrlDialog } from './PosterUrlDialog.tsx'
+import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
 /** Une URL d'affiche n'est prévisualisée que si elle est http(s) valide. */
 function previewablePosterUrl(value: string): string | null {
@@ -20,9 +24,17 @@ function previewablePosterUrl(value: string): string | null {
     return null
   }
 }
-import { Poster } from './Poster.tsx'
-import { PosterUrlDialog } from './PosterUrlDialog.tsx'
-import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
+function formatFilmReleaseDate(value: string | null): string | null {
+  if (!value) return null
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : null
+  if (!date || Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date)
+}
 
 /** Statuts proposés à la création : les trois qui ont du sens pour un film. */
 const FORM_STATUSES: FilmStatus[] = ['à découvrir', 'terminé', 'abandonné']
@@ -31,6 +43,8 @@ type FilmFormProps = {
   film?: import('../domain/film.ts').Film
   initialValues?: FilmFormValues
   provenance?: FilmMetadataProvenance | null
+  /** Présentation TMDB détaillée conservée pendant la création assistée. */
+  tmdbPresentation?: TmdbFilmPresentation | null
   /** Cache TMDB de la fiche en édition : pré-remplit les champs éditoriaux. */
   tmdbCache?: import('../data/tmdbService.ts').CachedFilmTmdbPresentation | null
   /** Modification de l'affiche par URL depuis le crayon sur l'aperçu. */
@@ -49,7 +63,7 @@ type FilmFormProps = {
   onSave: (input: FilmWriteInput, provenance: FilmMetadataProvenance | null) => Promise<void>
 }
 
-export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, fetchTmdbCache, onCancel, onSave }: FilmFormProps) {
+export function FilmForm({ film, initialValues, provenance = null, tmdbPresentation = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, fetchTmdbCache, onCancel, onSave }: FilmFormProps) {
   const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -108,6 +122,22 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
     ? FORM_STATUSES
     : [...FORM_STATUSES, values.status]
   const ratingValue = values.rating === '' ? null : Number(values.rating)
+  const providerPresentation = enrichment?.presentation ?? tmdbPresentation
+  const providerBacked = Boolean(providerPresentation || provenance || isAssociated)
+  const providerRelease = formatFilmReleaseDate(providerPresentation?.releaseDate ?? null)
+    ?? (providerBacked && values.year ? values.year : null)
+  const providerRuntime = providerPresentation?.runtimeMinutes
+    ? `${Math.floor(providerPresentation.runtimeMinutes / 60)} h ${String(providerPresentation.runtimeMinutes % 60).padStart(2, '0')}`
+    : null
+  const providerDirectors = providerPresentation?.directors.length
+    ? providerPresentation.directors.join(', ')
+    : providerBacked ? values.director.trim() : ''
+  const providerCast = providerPresentation?.cast.slice(0, 5).map((member) => member.name).filter(Boolean).join(', ') ?? ''
+  const providerOriginalTitle = providerPresentation?.originalTitle?.trim()
+    || (providerBacked ? values.originalTitle.trim() : '')
+  const hasProviderFacts = providerBacked && Boolean(
+    providerRelease || providerRuntime || providerDirectors || providerCast || providerOriginalTitle,
+  )
 
   const update = <Key extends keyof FilmFormValues>(key: Key, value: FilmFormValues[Key]) => {
     setValues((current) => ({ ...current, [key]: value }))
@@ -145,9 +175,9 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
   )
 
   const form = (
-    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-      {/* Scène 0.6.20 : visuel à gauche, travail personnel à droite.
-          L’avis remplit l’espace sous le verdict et les actions restent ancrées. */}
+    <form className="film-form form-detail film-form-film" onSubmit={handleSubmit} noValidate>
+      {/* Scène Film 0.6.21 : l’affiche porte le verdict, les informations
+          fournisseur et l’avis restent dans la colonne de travail. */}
       <div className="form-side">
         <div className="form-poster-frame poster-container">
           <Poster
@@ -156,6 +186,17 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
             className="form-poster-preview-lg"
             onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined}
           />
+        </div>
+        <div className={`film-poster-verdict ${verdictVisible ? 'is-visible' : 'is-empty'}`}>
+          {verdictVisible && (
+            <>
+              <StarRating
+                value={ratingValue}
+                onChange={(next) => update('rating', next === null ? '' : String(next))}
+              />
+              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+            </>
+          )}
         </div>
       </div>
 
@@ -175,33 +216,9 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           {errors.title && <p className="field-error" id="title-error">{errors.title}</p>}
         </div>
 
-        {/* Identité enrichie TMDB en édition : durée, réalisateurs, casting. */}
-        {film && enrichment && (
-          <div className="enrichment-panel">
-            <p className="enrichment-source">
-              Données enrichies via <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>
-            </p>
-            {(enrichment.presentation.runtimeMinutes || enrichment.presentation.directors.length > 0) && (
-              <p className="enrichment-factline">
-                {[
-                  enrichment.presentation.releaseDate ? `Sortie ${enrichment.presentation.releaseDate.slice(0, 4)}` : null,
-                  enrichment.presentation.runtimeMinutes ? `${Math.floor(enrichment.presentation.runtimeMinutes / 60)} h ${String(enrichment.presentation.runtimeMinutes % 60).padStart(2, '0')}` : null,
-                  enrichment.presentation.directors.length > 0 ? enrichment.presentation.directors.join(', ') : null,
-                ].filter(Boolean).join(' · ')}
-              </p>
-            )}
-            {enrichment.presentation.cast.length > 0 && (
-              <p className="enrichment-cast">
-                {enrichment.presentation.cast.slice(0, 5).map((member) => member.name).join(', ')}
-                {enrichment.presentation.cast.length > 5 ? '…' : ''}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Le verdict personnel : statut, date, note et coup de cœur —
-            tous visibles dans la colonne droite. */}
-        <div className="verdict-block">
+        {/* Statut et date restent dans la colonne de travail. Le verdict visuel
+            vit désormais sous l’affiche. */}
+        <div className="verdict-block film-status-block">
           <div className="verdict-row">
             <StatusSegmented
               statuses={statusSegments}
@@ -227,17 +244,27 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
                 />
               </div>
               {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
-
-              <div className="poster-verdict verdict-inline">
-                <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-                <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-              </div>
             </>
           )}
-          {!verdictVisible && (
-            <p className="verdict-hint">Passe le film en « Terminé » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
-          )}
         </div>
+
+        {hasProviderFacts && (
+          <section className="film-provider-facts" aria-label="Informations du film">
+            <header>
+              <span>Informations du film</span>
+              <small>TMDB</small>
+            </header>
+            <dl>
+              {providerRelease && <div><dt>Sortie</dt><dd>{providerRelease}</dd></div>}
+              {providerRuntime && <div><dt>Durée</dt><dd>{providerRuntime}</dd></div>}
+              {providerDirectors && <div><dt>Réalisation</dt><dd>{providerDirectors}</dd></div>}
+              {providerCast && <div><dt>Avec</dt><dd>{providerCast}</dd></div>}
+              {providerOriginalTitle && providerOriginalTitle !== values.title.trim() && (
+                <div><dt>Titre original</dt><dd>{providerOriginalTitle}</dd></div>
+              )}
+            </dl>
+          </section>
+        )}
 
         {/* L’avis occupe l’espace libre sous le verdict, dans la colonne droite.
             Le passage à Terminé ne crée plus une rangée sous l’affiche. */}

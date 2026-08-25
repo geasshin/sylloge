@@ -35,7 +35,7 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 import { BookCategorySwitch, SeriesCategorySwitch } from './components/CategorySwitch.tsx'
 
-import type { TmdbSearchCandidate, CachedFilmTmdbPresentation } from './data/tmdbService.ts'
+import type { TmdbSearchCandidate, CachedFilmTmdbPresentation, TmdbFilmPresentation } from './data/tmdbService.ts'
 import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
 import { previewOpenLibraryBook, searchOpenLibraryBooks, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
 import { previewIgdbGame, searchIgdbGames, type IgdbGameCandidate } from './data/igdbService.ts'
@@ -2522,7 +2522,7 @@ function App() {
       Cinq médiums, même parcours (0.6.10) ; l'Art, sans fournisseur, entre
       directement au stade formulaire. */
   type AddFlow =
-    | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null; editFilmId?: string }
+    | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null; tmdbPresentation?: TmdbFilmPresentation; editFilmId?: string }
     | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; editSeriesId?: string }
     | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; editBookId?: string }
     | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues; editGameId?: string }
@@ -2855,7 +2855,13 @@ function App() {
       )
       setCandidateSelection({ pendingId: null, error: null })
       if (addFlow?.medium === 'film') {
-        setAddFlow({ medium: 'film', step: 'search', initialValues: initialValues.values, provenance: initialValues.provenance ?? null })
+        setAddFlow({
+          medium: 'film',
+          step: 'search',
+          initialValues: initialValues.values,
+          provenance: initialValues.provenance ?? null,
+          tmdbPresentation: presentation,
+        })
         return
       }
       setView({
@@ -3602,6 +3608,7 @@ function App() {
                   fetchTmdbCache={editFilmId ? getFilmTmdbCache : undefined}
                   initialValues={addFlow.initialValues}
                   provenance={addFlow.provenance ?? null}
+                  tmdbPresentation={addFlow.tmdbPresentation ?? null}
                   asDialog={false}
                   onCancel={() => setAddFlow(null)}
                   onPosterEdit={async (url) => {
