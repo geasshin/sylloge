@@ -55,10 +55,13 @@ jobs:
           python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-id.txt --provider igdb --out src-tauri/src/igdb/embedded_client_id.rs
           python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-secret.txt --provider igdb --out src-tauri/src/igdb/embedded_client_secret.rs
 
+      - name: Installer les dépendances npm
+        run: npm ci
+
       - name: Construire le bundle Windows (NSIS + updater)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-        run: npm run tauri build -- --bundles nsis
+        run: npx tauri build --bundles nsis
 
       - name: Lister les artefacts produits
         shell: bash
