@@ -1397,51 +1397,53 @@ function FilmsLibrary({
         </div>
       </header>
 
+      {/* 0.6.27 : la barre d'outils reste affichée même bibliothèque vide —
+          les cinq médiums partagent exactement le même gabarit. */}
+      <div className="library-tools">
+        <button
+          className="auto-associate-button"
+          type="button"
+          onClick={() => setAutoAssociateOpen(true)}
+          title="Associer automatiquement les fiches non associées via TMDB"
+        >
+          {icon('wand')}
+          <span>Tout associer</span>
+        </button>
+        <label className="search">
+          {icon('search')}
+          <span className="visually-hidden">Rechercher par titre, titre original ou réalisation</span>
+          <input
+            type="search"
+            value={context.query}
+            placeholder="Titre, titre original ou réalisation"
+            onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </label>
+        <LibraryViewBar
+          profileId={library.profile.id}
+          medium="films"
+          builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films')}
+          activeView={context.view}
+          onViewChange={(view) => onContextChange({ ...context, view })}
+          filterConfig={FILM_FILTER_PANEL_CONFIG}
+          mediumFilterValue="all"
+          onMediumFilterChange={() => {}}
+          extraFilters={context.extraFilters}
+          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          sortCapabilities={{ rating: true, year: true }}
+          sortOverride={context.sortOverride}
+          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          currentCriteria={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
+        />
+      </div>
+
       {library.films.length === 0 && isUnfiltered ? (
         <EmptyLibrary onCreate={onCreate} />
       ) : (
         <>
-          <div className="library-tools">
-            <button
-              className="auto-associate-button"
-              type="button"
-              onClick={() => setAutoAssociateOpen(true)}
-              title="Associer automatiquement les fiches non associées via TMDB"
-            >
-              {icon('wand')}
-              <span>Tout associer</span>
-            </button>
-            <label className="search">
-              {icon('search')}
-              <span className="visually-hidden">Rechercher par titre, titre original ou réalisation</span>
-              <input
-                type="search"
-                value={context.query}
-                placeholder="Titre, titre original ou réalisation"
-                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </label>
-            <LibraryViewBar
-              profileId={library.profile.id}
-              medium="films"
-              builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films')}
-              activeView={context.view}
-              onViewChange={(view) => onContextChange({ ...context, view })}
-              filterConfig={FILM_FILTER_PANEL_CONFIG}
-              mediumFilterValue="all"
-              onMediumFilterChange={() => {}}
-              extraFilters={context.extraFilters}
-              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-              sortCapabilities={{ rating: true, year: true }}
-              sortOverride={context.sortOverride}
-              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
-            />
-          </div>
-
           {searchState.status === 'loading' ? (
             <div className="results-state" role="status">Recherche dans SQLite…</div>
           ) : searchState.status === 'error' ? (
@@ -1885,6 +1887,51 @@ function SeriesLibrary({
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
         </div>
       </header>
+      {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
+      <div className="library-tools">
+        <button
+          className="auto-associate-button"
+          type="button"
+          onClick={() => setAutoAssociateOpen(true)}
+          title="Normaliser les visuels et fiches via TMDB"
+        >
+          {icon('wand')}
+          <span>Tout associer</span>
+        </button>
+        <label className="search">
+          {icon('search')}
+          <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
+          <input
+            type="search"
+            value={context.query}
+            placeholder="Titre, showrunner ou casting"
+            onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+          />
+        </label>
+        <SeriesCategorySwitch
+          selected={context.category.length > 0 ? context.category : [...ALL_SERIES_CATEGORIES]}
+          onSelectionChange={(selected) => onContextChange({ ...context, category: selected as SeriesCategory[] })}
+        />
+        <LibraryViewBar
+          profileId={profileId}
+          medium="series"
+          builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'series')}
+          activeView={context.view}
+          onViewChange={(view) => onContextChange({ ...context, view })}
+          filterConfig={{ ...SERIES_FILTER_PANEL_CONFIG, mediumFilter: null }}
+          mediumFilterValue="all"
+          onMediumFilterChange={(stored) => {
+            const selected = storedToCategories(stored)
+            onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] })
+          }}
+          extraFilters={context.extraFilters}
+          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          sortCapabilities={{ rating: true, year: false }}
+          sortOverride={context.sortOverride}
+          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_SERIES_CATEGORIES), filters: resolved.filters }}
+        />
+      </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -1894,51 +1941,6 @@ function SeriesLibrary({
         </div>
       ) : (
         <>
-          <div className="library-tools">
-            <button
-              className="auto-associate-button"
-              type="button"
-              onClick={() => setAutoAssociateOpen(true)}
-              title="Normaliser les visuels et fiches via TMDB"
-            >
-              {icon('wand')}
-              <span>Tout associer</span>
-            </button>
-            <label className="search">
-              {icon('search')}
-              <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
-              <input
-                type="search"
-                value={context.query}
-                placeholder="Titre, showrunner ou casting"
-                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
-              />
-            </label>
-            <SeriesCategorySwitch
-              selected={context.category.length > 0 ? context.category : [...ALL_SERIES_CATEGORIES]}
-              onSelectionChange={(selected) => onContextChange({ ...context, category: selected as SeriesCategory[] })}
-            />
-            <LibraryViewBar
-              profileId={profileId}
-              medium="series"
-              builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'series')}
-              activeView={context.view}
-              onViewChange={(view) => onContextChange({ ...context, view })}
-              filterConfig={{ ...SERIES_FILTER_PANEL_CONFIG, mediumFilter: null }}
-              mediumFilterValue="all"
-              onMediumFilterChange={(stored) => {
-                const selected = storedToCategories(stored)
-                onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] })
-              }}
-              extraFilters={context.extraFilters}
-              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-              sortCapabilities={{ rating: true, year: false }}
-              sortOverride={context.sortOverride}
-              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_SERIES_CATEGORIES), filters: resolved.filters }}
-            />
-          </div>
-
           {searchState.status === 'loading' ? (
             <div className="results-state" role="status">Recherche dans SQLite…</div>
           ) : searchState.status === 'error' ? (
@@ -2128,6 +2130,50 @@ function GamesLibrary({
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
         </div>
       </header>
+      {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
+      <div className="library-tools">
+        <button
+          className="auto-associate-button"
+          type="button"
+          onClick={() => setAutoAssociateOpen(true)}
+          title="Normaliser les couvertures et fiches via IGDB"
+        >
+          {icon('wand')}
+          <span>Tout associer</span>
+        </button>
+        <label className="search">
+          {icon('search')}
+          <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
+          <input
+            type="search"
+            value={context.query}
+            placeholder="Titre, studio ou plateforme"
+            onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+          />
+        </label>
+        <LibraryViewBar
+          profileId={profileId}
+          medium="games"
+          builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'games')}
+          activeView={context.view}
+          onViewChange={(view) => onContextChange({ ...context, view })}
+          filterConfig={{
+            ...GAME_FILTER_PANEL_CONFIG,
+            mediumFilter: {
+              label: 'Plateforme',
+              options: [{ value: 'all', label: 'Toutes' }, ...platforms.map((platform) => ({ value: platform, label: platform }))],
+            },
+          }}
+          mediumFilterValue={context.platform}
+          onMediumFilterChange={(platform) => onContextChange({ ...context, platform })}
+          extraFilters={context.extraFilters}
+          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          sortCapabilities={{ rating: true, year: true }}
+          sortOverride={context.sortOverride}
+          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          currentCriteria={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
+        />
+      </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -2137,50 +2183,6 @@ function GamesLibrary({
         </div>
       ) : (
         <>
-          <div className="library-tools">
-            <button
-              className="auto-associate-button"
-              type="button"
-              onClick={() => setAutoAssociateOpen(true)}
-              title="Normaliser les couvertures et fiches via IGDB"
-            >
-              {icon('wand')}
-              <span>Tout associer</span>
-            </button>
-            <label className="search">
-              {icon('search')}
-              <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
-              <input
-                type="search"
-                value={context.query}
-                placeholder="Titre, studio ou plateforme"
-                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
-              />
-            </label>
-            <LibraryViewBar
-              profileId={profileId}
-              medium="games"
-              builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'games')}
-              activeView={context.view}
-              onViewChange={(view) => onContextChange({ ...context, view })}
-              filterConfig={{
-                ...GAME_FILTER_PANEL_CONFIG,
-                mediumFilter: {
-                  label: 'Plateforme',
-                  options: [{ value: 'all', label: 'Toutes' }, ...platforms.map((platform) => ({ value: platform, label: platform }))],
-                },
-              }}
-              mediumFilterValue={context.platform}
-              onMediumFilterChange={(platform) => onContextChange({ ...context, platform })}
-              extraFilters={context.extraFilters}
-              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-              sortCapabilities={{ rating: true, year: true }}
-              sortOverride={context.sortOverride}
-              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
-            />
-          </div>
-
           {searchState.status === 'loading' ? (
             <div className="results-state" role="status">Recherche dans SQLite…</div>
           ) : searchState.status === 'error' ? (
@@ -2296,6 +2298,35 @@ function ArtworksLibrary({
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
         </div>
       </header>
+      {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
+      <div className="library-tools">
+        <label className="search">
+          {icon('search')}
+          <span className="visually-hidden">Rechercher par titre, artiste, lieu ou exposition</span>
+          <input
+            type="search"
+            value={context.query}
+            placeholder="Titre, artiste, lieu ou exposition"
+            onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+          />
+        </label>
+        <LibraryViewBar
+          profileId={profileId}
+          medium="artworks"
+          builtinViews={titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks')}
+          activeView={context.view}
+          onViewChange={(view) => onContextChange({ ...context, view })}
+          filterConfig={ARTWORK_FILTER_PANEL_CONFIG}
+          mediumFilterValue={context.form}
+          onMediumFilterChange={(form) => onContextChange({ ...context, form: form as ArtworkSearchCriteria['form'] })}
+          extraFilters={context.extraFilters}
+          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          sortCapabilities={{ rating: false, year: true }}
+          sortOverride={context.sortOverride}
+          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          currentCriteria={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
+        />
+      </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -2305,35 +2336,6 @@ function ArtworksLibrary({
         </div>
       ) : (
         <>
-          <div className="library-tools">
-            <label className="search">
-              {icon('search')}
-              <span className="visually-hidden">Rechercher par titre, artiste, lieu ou exposition</span>
-              <input
-                type="search"
-                value={context.query}
-                placeholder="Titre, artiste, lieu ou exposition"
-                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
-              />
-            </label>
-            <LibraryViewBar
-              profileId={profileId}
-              medium="artworks"
-              builtinViews={titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks')}
-              activeView={context.view}
-              onViewChange={(view) => onContextChange({ ...context, view })}
-              filterConfig={ARTWORK_FILTER_PANEL_CONFIG}
-              mediumFilterValue={context.form}
-              onMediumFilterChange={(form) => onContextChange({ ...context, form: form as ArtworkSearchCriteria['form'] })}
-              extraFilters={context.extraFilters}
-              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-              sortCapabilities={{ rating: false, year: true }}
-              sortOverride={context.sortOverride}
-              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
-            />
-          </div>
-
           {searchState.status === 'loading' ? (
             <div className="results-state" role="status">Recherche dans SQLite…</div>
           ) : searchState.status === 'error' ? (
@@ -2462,6 +2464,51 @@ function BooksLibrary({
           <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
         </div>
       </header>
+      {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
+      <div className="library-tools">
+        <button
+          className="auto-associate-button"
+          type="button"
+          onClick={() => setAutoAssociateOpen(true)}
+          title="Normaliser les couvertures et fiches via Open Library"
+        >
+          {icon('wand')}
+          <span>Tout associer</span>
+        </button>
+        <label className="search">
+          {icon('search')}
+          <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
+          <input
+            type="search"
+            value={context.query}
+            placeholder="Titre, auteur ou résumé"
+            onChange={(event) => onContextChange({ ...context, query: event.target.value })}
+          />
+        </label>
+        <BookCategorySwitch
+          selected={context.category.length > 0 ? context.category : [...ALL_BOOK_CATEGORIES]}
+          onSelectionChange={(selected) => onContextChange({ ...context, category: selected as BookCategory[] })}
+        />
+        <LibraryViewBar
+          profileId={profileId}
+          medium="books"
+          builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'books')}
+          activeView={context.view}
+          onViewChange={(view) => onContextChange({ ...context, view })}
+          filterConfig={{ ...BOOK_FILTER_PANEL_CONFIG, mediumFilter: null }}
+          mediumFilterValue="all"
+          onMediumFilterChange={(stored) => {
+            const selected = storedToCategories(stored)
+            onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_BOOK_CATEGORIES]) as BookCategory[] })
+          }}
+          extraFilters={context.extraFilters}
+          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          sortCapabilities={{ rating: true, year: true }}
+          sortOverride={context.sortOverride}
+          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_BOOK_CATEGORIES), filters: resolved.filters }}
+        />
+      </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
           <p className="state-kicker">Collection personnelle</p>
@@ -2471,51 +2518,6 @@ function BooksLibrary({
         </div>
       ) : (
         <>
-          <div className="library-tools">
-            <button
-              className="auto-associate-button"
-              type="button"
-              onClick={() => setAutoAssociateOpen(true)}
-              title="Normaliser les couvertures et fiches via Open Library"
-            >
-              {icon('wand')}
-              <span>Tout associer</span>
-            </button>
-            <label className="search">
-              {icon('search')}
-              <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
-              <input
-                type="search"
-                value={context.query}
-                placeholder="Titre, auteur ou résumé"
-                onChange={(event) => onContextChange({ ...context, query: event.target.value })}
-              />
-            </label>
-            <BookCategorySwitch
-              selected={context.category.length > 0 ? context.category : [...ALL_BOOK_CATEGORIES]}
-              onSelectionChange={(selected) => onContextChange({ ...context, category: selected as BookCategory[] })}
-            />
-            <LibraryViewBar
-              profileId={profileId}
-              medium="books"
-              builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'books')}
-              activeView={context.view}
-              onViewChange={(view) => onContextChange({ ...context, view })}
-              filterConfig={{ ...BOOK_FILTER_PANEL_CONFIG, mediumFilter: null }}
-              mediumFilterValue="all"
-              onMediumFilterChange={(stored) => {
-                const selected = storedToCategories(stored)
-                onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_BOOK_CATEGORIES]) as BookCategory[] })
-              }}
-              extraFilters={context.extraFilters}
-              onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
-              sortCapabilities={{ rating: true, year: true }}
-              sortOverride={context.sortOverride}
-              onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-              currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_BOOK_CATEGORIES), filters: resolved.filters }}
-            />
-          </div>
-
           {searchState.status === 'loading' ? (
             <div className="results-state" role="status">Recherche dans SQLite…</div>
           ) : searchState.status === 'error' ? (
@@ -3781,7 +3783,7 @@ function App() {
       />
       {content}
       {libraryState.status === 'no-profile' && (
-        <div className="dialog-backdrop-blur onboarding-backdrop" role="presentation">
+        <div className="onboarding-backdrop" role="presentation">
           <Onboarding
             themePreference={themePreference}
             onThemePreferenceChange={setThemePreference}

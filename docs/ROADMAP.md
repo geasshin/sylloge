@@ -774,6 +774,7 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 **État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant la release.**
 
 - La rangée d’outils des cinq bibliothèques devient un gabarit fixe au-delà de 1250 px : baguette, recherche, filtres de catégorie et vues tiennent sur une seule ligne. La rangée des vues ne retombe plus sous la recherche quand la vue active, les résultats ou le contenu changent ; en dessous de 1250 px le repli reste volontaire. ✓
+- La barre d’outils est affichée dans les cinq bibliothèques même lorsqu’elles sont vides : baguette, recherche, filtres et vues restent visibles, et l’état vide prend place en dessous, exactement comme une bibliothèque remplie. ✓
 - Les états vides occupent l’espace disponible : « Votre bibliothèque … est vide » et « Aucun … ne correspond » sont centrés verticalement dans la page, sur toute sa largeur, dans les cinq bibliothèques. ✓
 - Le premier lancement occupe toute la fenêtre de l’application : plein cadre, sans marge ni arrondi, plus de « boîte dans la boîte ». La pop-up onboarding se ferme à la fin des trois étapes et laisse place à la bibliothèque. ✓
 - L’étape Profil est resserrée : l’avatar est posé à gauche du champ pseudo et la photo se choisit ou se remplace via un crayon superposé à l’avatar, sans bouton « Choisir une photo ». ✓
