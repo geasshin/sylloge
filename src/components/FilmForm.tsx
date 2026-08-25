@@ -216,21 +216,17 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
           {errors.title && <p className="field-error" id="title-error">{errors.title}</p>}
         </div>
 
-        {/* Statut et date restent dans la colonne de travail. Le verdict visuel
-            vit désormais sous l’affiche. */}
+        {/* Statut et date occupent une seule ligne stable. Le verdict visuel
+            vit sous l’affiche et les faits TMDB commencent toujours au même endroit. */}
         <div className="verdict-block film-status-block">
-          <div className="verdict-row">
+          <div className="verdict-row film-status-row">
             <StatusSegmented
               statuses={statusSegments}
               labels={FILM_STATUS_LABELS}
               value={values.status}
               onChange={(next) => update('status', next as FilmFormValues['status'])}
             />
-          </div>
-          {errors.status && <p className="field-error">{errors.status}</p>}
-
-          {verdictVisible && (
-            <>
+            {verdictVisible && (
               <div className="date-row">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                 <input
@@ -243,9 +239,10 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
                   aria-invalid={Boolean(errors.watchedAt)}
                 />
               </div>
-              {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
-            </>
-          )}
+            )}
+          </div>
+          {errors.status && <p className="field-error">{errors.status}</p>}
+          {verdictVisible && errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
         </div>
 
         {hasProviderFacts && (
@@ -280,50 +277,6 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
               autoCorrect="off"
               spellCheck={false}
             />
-          </div>
-        )}
-
-        {/* Champs éditoriaux toujours visibles en modification (0.6.19) :
-            plus de repli — on voit ce que la fiche contient, et une fiche
-            non enrichie se complète ici sans rien déplier. */}
-        {!assisted && (
-          <div className="secondary-fields editorial-open">
-            {isAssociated && (
-              <p className="import-hint">Ces informations viennent de TMDB — complète-les seulement si tu le souhaites.</p>
-            )}
-            <div className="form-row">
-              <div className="field">
-                <label htmlFor="originalTitle">Titre original</label>
-                <input id="originalTitle" value={values.originalTitle} onChange={(event) => update('originalTitle', event.target.value)} />
-              </div>
-              <div className="field field-year">
-                <label htmlFor="year">Année</label>
-                <input
-                  id="year"
-                  inputMode="numeric"
-                  value={values.year}
-                  onChange={(event) => update('year', event.target.value)}
-                  aria-invalid={Boolean(errors.year)}
-                  aria-describedby={errors.year ? 'year-error' : undefined}
-                />
-                {errors.year && <p className="field-error" id="year-error">{errors.year}</p>}
-              </div>
-            </div>
-            <div className="field">
-              <label htmlFor="director">Réalisation</label>
-              <input id="director" value={values.director} onChange={(event) => update('director', event.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="summary">Résumé</label>
-              <textarea
-                id="summary"
-                rows={3}
-                value={values.summary}
-                onChange={(event) => update('summary', event.target.value)}
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
           </div>
         )}
 

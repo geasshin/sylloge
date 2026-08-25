@@ -660,7 +660,7 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ## 11. Retours de recette du 24 août 2026 — feuille de route corrective
 
-Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.21 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du prototype Film 0.6.21 restant à exercer dans `npm run tauri:dev`.**
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.22 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du prototype Film 0.6.22 restant à exercer dans `npm run tauri:dev`.**
 
 ### `0.6.13` — Purge du verdict personnel au retour en watchlist
 
@@ -728,6 +728,16 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 - Les données déjà récupérées par TMDB restent disponibles pendant la création assistée et alimentent une fiche technique discrète dans la colonne droite : date de sortie, durée, réalisation, cinq interprètes principaux et titre original lorsqu’il diffère. La fiche technique reste visible quel que soit le statut. ✓
 - Le bouton Modifier le film réutilise le même composant ; il recharge ces faits depuis le cache TMDB, sans toucher aux données personnelles. ✓
 - Ce prototype ne modifie ni Séries, ni Livres, ni Jeux, ni Art. Son extension est volontairement suspendue à la validation visuelle d’Aurélien. ✓
+
+### `0.6.22` — Ligne de statut Film stable et formulaire éditorial allégé
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant toute extension aux autres bibliothèques.**
+
+- La date de visionnage partage désormais la même ligne que les trois statuts, à droite d’« Abandonné ». La ligne garde la même hauteur dans « À découvrir », « Terminé » et « Abandonné ». ✓
+- La fiche « Informations du film » reste le premier bloc sous cette ligne dans les trois états : elle ne descend plus lorsque la date apparaît. ✓
+- Dans la pop-up Film, le formulaire ne rend plus les champs Titre original, Année, Réalisation et Résumé sous la fiche TMDB. Ces informations restent représentées dans la fiche technique lorsque le fournisseur les fournit, sans multiplier les contrôles. ✓
+- L’ajout et Modifier le film conservent le même gabarit, avec le verdict sous l’affiche, les faits TMDB à position fixe, l’avis défilable et les actions ancrées. ✓
+- Ce jalon reste strictement limité au Film ; Séries, Livres, Jeux et Art conservent le prototype partagé précédent. ✓
 
 ### Journal des retours
 

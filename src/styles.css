@@ -2066,6 +2066,31 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .editor-dialog.dialog-add-flow .film-status-block {
   gap: 12px;
 }
+.editor-dialog.dialog-add-flow .film-status-row {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.editor-dialog.dialog-add-flow .film-status-row .seg-group-form {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 3px;
+}
+.editor-dialog.dialog-add-flow .film-status-row .seg-pill-btn {
+  min-width: 0;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+.editor-dialog.dialog-add-flow .film-status-row .date-row {
+  flex: 0 0 auto;
+  gap: 6px;
+  font-size: 11px;
+}
+.editor-dialog.dialog-add-flow .film-status-row .date-row input[type="date"] {
+  width: 106px;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 11px;
+}
 .editor-dialog.dialog-add-flow .film-provider-facts {
   display: grid;
   gap: 9px;
