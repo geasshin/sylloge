@@ -4258,6 +4258,10 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(verdictSource0624, /ariaLabel\?: string/, 'Le sélecteur segmenté partagé doit pouvoir annoncer un Type et pas seulement un Statut')
   assert.doesNotMatch(seriesSource0624, /<select[\s\S]*?id="series-category"/, 'Séries : le sélecteur Type natif doit disparaître')
   assert.match(seriesSource0624, /statuses=\{SERIES_CATEGORIES\}[\s\S]*ariaLabel="Type de série"/, 'Séries : Série télé et Animation doivent devenir des boutons segmentés accessibles')
+  assert.ok(
+    seriesSource0624.indexOf('className="progress-fields verdict-progress"') < seriesSource0624.indexOf('id="series-personalNote"'),
+    'Séries : la progression doit précéder l’avis personnel qui conclut le formulaire',
+  )
   assert.doesNotMatch(bookSource0624, /<select[\s\S]*?id="book-category"/, 'Livres : le sélecteur Type natif doit disparaître')
   assert.match(bookSource0624, /statuses=\{BOOK_CATEGORIES\}[\s\S]*ariaLabel="Type de livre"/, 'Livres : Livre, Manga et Comics doivent devenir des boutons segmentés accessibles')
   assert.match(bookSource0624, /\{verdictVisible && \([\s\S]*className="quote-editor"/, 'Livres : les citations personnelles doivent être absentes du rendu « À lire »')

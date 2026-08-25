@@ -208,24 +208,7 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
             </section>
           )}
 
-          {/* L’avis suit immédiatement la note et le coup de cœur. */}
-          {verdictVisible && (
-            <div className="review-write review-inline">
-              <textarea
-                id="series-personalNote"
-                name="personalNote"
-                rows={5}
-                placeholder="Qu’as-tu pensé de cette série ?"
-                value={values.personalNote}
-                onChange={(event) => update('personalNote', event.target.value)}
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
-          )}
-
-          {/* La progression reste accessible juste après l’avis, sans repousser
-              celui-ci hors du premier écran de la pop-up. */}
+          {/* La progression factuelle précède la conclusion personnelle. */}
           {verdictVisible && progressVisible && (
             <fieldset className="progress-fields verdict-progress">
               <div className="form-row">
@@ -250,6 +233,22 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
                 <p className="field-help">Série à jour : si une nouvelle saison sort, la série repassera en cours.</p>
               )}
             </fieldset>
+          )}
+
+          {/* L’avis conclut la fiche Série, après la progression. */}
+          {verdictVisible && (
+            <div className="review-write review-inline">
+              <textarea
+                id="series-personalNote"
+                name="personalNote"
+                rows={5}
+                placeholder="Qu’as-tu pensé de cette série ?"
+                value={values.personalNote}
+                onChange={(event) => update('personalNote', event.target.value)}
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
           )}
 
           {/* Champs éditoriaux visibles sans toggle : la fiche reste directement
