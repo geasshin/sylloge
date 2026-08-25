@@ -6,6 +6,8 @@ import {
 import { Poster } from './Poster.tsx'
 
 type SeriesTmdbSearchFlowProps = {
+  /** Fiche ouverte derrière la pop-up : contexte d'association, titre prérempli. */
+  existing?: { title: string; posterUrl: string | null } | null
   /** Candidat en cours de traitement : la liste se fige pendant la préparation. */
   pendingCandidateId?: number | null
   /** Échec de la sélection directe, annoncé sans quitter la recherche. */
@@ -13,6 +15,8 @@ type SeriesTmdbSearchFlowProps = {
   onSelectCandidate: (candidate: TmdbSearchCandidate) => void
   onManual: () => void
   onCancel: () => void
+  /** Rendu compact dans une pop-up : sans <main>, ni barre d'action, ni titre répété. */
+  compact?: boolean
 }
 
 type SearchState =
@@ -24,10 +28,12 @@ type SearchState =
 /**
  * Recherche Séries TMDB (jalon 0.4.26), même structure que le parcours Films :
  * suggestions temporisées pendant la saisie, clic direct sur un résultat,
- * issue manuelle toujours accessible.
+ * issue manuelle toujours accessible. Le mode « fiche existante » reprend
+ * le parcours d'association des films : titre prérempli, encart contexte,
+ * rendu compact dans la même pop-up floutée.
  */
-export function SeriesTmdbSearchFlow({ pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel }: SeriesTmdbSearchFlowProps) {
-  const [query, setQuery] = useState('')
+export function SeriesTmdbSearchFlow({ existing = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel, compact = false }: SeriesTmdbSearchFlowProps) {
+  const [query, setQuery] = useState(() => existing?.title ?? '')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
 
   useEffect(() => {
@@ -66,17 +72,36 @@ export function SeriesTmdbSearchFlow({ pendingCandidateId = null, selectionError
     }
   }, [query])
 
-  return (
-    <main className="main editor-main" aria-label="Recherche TMDB Séries">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
-      </header>
+  const body = (
+    <>
+      {!compact && (
+        <header className="page-action-bar">
+          <button className="back-button" type="button" onClick={onCancel}>
+            {existing ? '← Retour à la fiche' : '← Annuler'}
+          </button>
+        </header>
+      )}
 
       <div className="editor-heading">
         <p className="eyebrow">Série</p>
-        <h1 className="display-title">Rechercher une série</h1>
-        <p>Recherchez une série dans TMDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.</p>
+        <h1 className="display-title">{existing ? 'Modifier l’association' : 'Rechercher une série'}</h1>
+        <p>
+          {existing
+            ? `Recherchez une autre correspondance TMDB pour « ${existing.title} ».`
+            : 'Recherchez une série dans TMDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.'}
+        </p>
       </div>
+
+      {existing && (
+        <section className="tmdb-film-context" aria-labelledby="series-tmdb-context-title">
+          <Poster title={existing.title} src={existing.posterUrl} className="tmdb-film-context-poster" />
+          <div className="tmdb-film-context-info">
+            <p className="card-kicker">Fiche actuelle</p>
+            <h2 id="series-tmdb-context-title">{existing.title}</h2>
+            <p>Cette fiche reste le contexte de l’association. Seuls ses champs éditoriaux seront mis à jour ; tes données personnelles ne bougent pas.</p>
+          </div>
+        </section>
+      )}
 
       <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
@@ -99,7 +124,7 @@ export function SeriesTmdbSearchFlow({ pendingCandidateId = null, selectionError
         </div>
         <div className="form-actions">
           <button className="secondary-button" type="button" onClick={onManual}>
-            Saisir manuellement
+            {existing ? 'Retour à la fiche' : 'Saisir manuellement'}
           </button>
         </div>
       </form>
@@ -112,7 +137,7 @@ export function SeriesTmdbSearchFlow({ pendingCandidateId = null, selectionError
       )}
 
       {pendingCandidateId !== null && (
-        <div className="results-state" role="status">Préparation de la fiche…</div>
+        <div className="results-state" role="status">Préparation de la mise à jour…</div>
       )}
 
       {selectionError !== null && pendingCandidateId === null && (
@@ -166,6 +191,16 @@ export function SeriesTmdbSearchFlow({ pendingCandidateId = null, selectionError
           )}
         </section>
       )}
+    </>
+  )
+
+  if (compact) {
+    return <div className="tmdb-search-compact">{body}</div>
+  }
+
+  return (
+    <main className="main editor-main" aria-label="Recherche TMDB Séries">
+      {body}
     </main>
   )
 }

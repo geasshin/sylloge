@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
 import {
-  collectionCsvDestinationForSource,
-  collectionCsvFields,
+  collectionCsvFieldGroups,
   prepareCollectionCsvImport,
   previewCollectionCsvImport,
   setCollectionCsvSourceDestination,
@@ -18,7 +17,7 @@ import type { Series } from '../domain/series.ts'
 type CollectionCsvImportFlowProps = {
   kind: CollectionCsvImportKind
   contents: string
-  onReady: (items: Artwork[] | Book[] | Game[] | Series[]) => void
+  onReady: (items: Artwork[] | Book[] | Game[] | Series[], warnings: Array<{ path: string; message: string }>) => void
   onChooseAnother: () => void
 }
 
@@ -28,6 +27,7 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
   const [step, setStep] = useState<'mapping' | 'preview'>(session.sourceKind === 'sylloge-csv-v1' ? 'preview' : 'mapping')
   const preview = previewCollectionCsvImport(session, mapping)
   const mediumLabel = { series: 'Séries', books: 'Livres', games: 'Jeux', artworks: 'Art' }[kind]
+  const groups = collectionCsvFieldGroups(kind)
 
   return (
     <div className="assistant-content">
@@ -44,34 +44,51 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
       {step === 'mapping' && (
         <section className="assistant-stage">
           <p className="card-kicker">Mapping</p>
-          <h3>Choisir où importer chaque colonne</h3>
-          <p className="films-import-details">Les colonnes non mappées restent visibles dans l’aperçu, mais ne créent aucune donnée inventée.</p>
-          <div className="source-destination-mapping" aria-label="Mapping source vers Sylloge">
-            <div className="source-destination-header" aria-hidden="true"><span>Détecté dans votre fichier</span><span>→</span><span>Importer dans Sylloge</span></div>
-            {session.table.headers.map((header) => {
-              const destination = collectionCsvDestinationForSource(mapping, header)
-              return (
-                <div className="source-destination-row" key={header}>
-                  <div><b>{header}</b><small>Colonne du tableau sélectionné</small></div>
-                  <span className="mapping-arrow" aria-hidden="true">→</span>
-                  <label>
-                    <span className="visually-hidden">Destination Sylloge de {header}</span>
-                    <select
-                      value={destination ?? ''}
-                      onChange={(event) => setMapping((current) => setCollectionCsvSourceDestination(
-                        current,
-                        header,
-                        event.target.value || null,
-                      ))}
-                    >
-                      <option value="">Ne pas importer</option>
-                      {collectionCsvFields(kind).map((field) => <option key={field.key} value={field.key}>{field.label}</option>)}
-                    </select>
-                  </label>
+          <h3>Relie les colonnes de ton fichier à Sylloge</h3>
+          {groups.map((group) => {
+            const isSecondary = group.id === 'editorial'
+            return (
+              <details className="mapping-group" key={group.id} open={!isSecondary}>
+                <summary>
+                  <span className="mapping-group-label">{group.label}</span>
+                  <small>{group.summary}</small>
+                </summary>
+                <div className="mapping-rows">
+                  {group.fields.map((fieldDefinition) => {
+                    const destination = mapping[fieldDefinition.key] ?? null
+                    return (
+                      <div className="mapping-row" key={fieldDefinition.key}>
+                        <div className="mapping-field-name">
+                          <b>{fieldDefinition.label}</b>
+                          {fieldDefinition.key === 'title' && <small>Obligatoire</small>}
+                        </div>
+                        <label className="visually-hidden" htmlFor={`mapping-${fieldDefinition.key}`}>
+                          Colonne du fichier pour {fieldDefinition.label}
+                        </label>
+                        <select
+                          id={`mapping-${fieldDefinition.key}`}
+                          className="mapping-select"
+                          value={destination ?? ''}
+                          onChange={(event) => setMapping((current) => setCollectionCsvSourceDestination(
+                            current,
+                            fieldDefinition.key,
+                            event.target.value || null,
+                          ))}
+                        >
+                          <option value="">Ne pas importer</option>
+                          {session.table.headers.map((header) => (
+                            <option key={header} value={header}>
+                              {header}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
-          </div>
+              </details>
+            )
+          })}
           <div className="assistant-actions">
             <button className="primary-button" type="button" onClick={() => setStep('preview')}>Vérifier l’aperçu</button>
           </div>
@@ -84,7 +101,9 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
           preview={preview}
           onBack={() => setStep(session.sourceKind === 'sylloge-csv-v1' ? 'preview' : 'mapping')}
           onContinue={() => {
-            if (preview.items !== null && preview.errors.length === 0 && preview.items.length > 0) onReady(preview.items as Artwork[] | Book[] | Game[] | Series[])
+            if (preview.items !== null && preview.items.length > 0) {
+              onReady(preview.items as Artwork[] | Book[] | Game[] | Series[], preview.errors)
+            }
           }}
         />
       )}
@@ -103,26 +122,41 @@ function CollectionCsvPreviewPanel({
   onBack: () => void
   onContinue: () => void
 }) {
-  const valid = preview.items !== null && preview.errors.length === 0 && preview.items.length > 0
+  const blockingErrors = preview.errors.filter((error) => !error.path.endsWith('.info'))
+  const infos = preview.errors.filter((error) => error.path.endsWith('.info'))
+  const valid = preview.items !== null && preview.items.length > 0 && blockingErrors.length === 0
   const itemCount = preview.items?.length ?? 0
   return (
     <section className={`import-preview ${valid ? 'valid' : 'invalid'}`}>
       <div className="import-preview-heading">
         <div><p className="card-kicker">Aperçu avant écriture</p><h3>Import {mediumLabel}</h3></div>
-        <span>{valid ? 'Valide' : 'Import bloqué'}</span>
+        <span>{valid ? `${itemCount} fiche${itemCount > 1 ? 's prêtes' : ' prête'}` : 'Import bloqué'}</span>
       </div>
       <dl className="transfer-summary compact films-import-summary">
         <div><dt>Format</dt><dd>{preview.sourceKind === 'sylloge-csv-v1' ? 'CSV Sylloge v1' : 'CSV avec mapping'}</dd></div>
         <div><dt>Lignes lues</dt><dd>{preview.totalItemCount}</dd></div>
-        <div><dt>Convertibles</dt><dd>{preview.validItemCount}</dd></div>
-        <div><dt>Erreurs</dt><dd>{preview.errors.length}</dd></div>
+        <div><dt>Fiches prêtes</dt><dd>{preview.validItemCount}</dd></div>
+        <div><dt>Blocages</dt><dd>{blockingErrors.length}</dd></div>
       </dl>
-      {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes ignorées :</b> {preview.ignoredColumns.join(', ')}.</p>}
+      {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes non importées :</b> {preview.ignoredColumns.join(', ')}. Les métadonnées éditoriales restent récupérables via la recherche assistée.</p>}
+      {infos.length > 0 && (
+        <details className="import-warnings" open={blockingErrors.length === 0}>
+          <summary>{infos.length} champ{infos.length > 1 ? 's' : ''} laissé{infos.length > 1 ? 's' : ''} vide{infos.length > 1 ? 's' : ''} — valeur non reconnue dans ton fichier</summary>
+          <ol>{infos.map((info, index) => <li key={`${info.path}-${index}`}><code>{info.path.replace('.info', '')}</code> {info.message}</li>)}</ol>
+          <p>Ces fiches sont importées sans ces champs. Tu pourras les compléter plus tard, fiche par fiche.</p>
+        </details>
+      )}
+      {valid && (
+        <p className="import-contextual-hint">
+          <span aria-hidden="true">💡</span>
+          L’étape suivante te propose Remplacer ou Fusionner. Rien n’est encore écrit : tu pourras relire le résumé complet après l’import.
+        </p>
+      )}
       {!valid ? (
         <div className="validation-errors" role="alert">
           <p>Aucune donnée n’a été écrite. Corrige le mapping ou le fichier avant de réessayer.</p>
-          {preview.items?.length === 0 && preview.errors.length === 0 && <p>Ce fichier ne contient aucune fiche importable.</p>}
-          {preview.errors.length > 0 && <ol>{preview.errors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {error.message}</li>)}</ol>}
+          {preview.items === null && blockingErrors.length === 0 && <p>Ce fichier ne contient aucune fiche importable.</p>}
+          {blockingErrors.length > 0 && <ol>{blockingErrors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {error.message}</li>)}</ol>}
         </div>
       ) : <div className="import-confirmation"><p>{itemCount} fiche{itemCount > 1 ? 's sont prêtes' : ' est prête'} à être comparée{itemCount > 1 ? 's' : ''} à la collection du profil courant. Aucune donnée n’a encore été écrite.</p></div>}
       <div className="assistant-actions">

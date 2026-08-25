@@ -1,9 +1,9 @@
 mod books;
 mod database;
+mod igdb;
 mod openlibrary;
 mod portability;
 mod profiles;
-mod rawg;
 mod tmdb;
 mod updater_preferences;
 
@@ -41,6 +41,7 @@ pub fn run() {
             portability::import_artworks_into_profile,
             profiles::list_profiles,
             profiles::create_profile,
+            profiles::update_profile,
             profiles::rename_profile,
             profiles::delete_profile,
             profiles::select_profile,
@@ -58,14 +59,28 @@ pub fn run() {
             tmdb::preview_tmdb_series,
             openlibrary::search_openlibrary_books,
             openlibrary::preview_openlibrary_book,
-            rawg::search_rawg_games,
-            rawg::preview_rawg_game,
+            igdb::search_igdb_games,
+            igdb::preview_igdb_game,
             tmdb::associate_film_with_tmdb,
             tmdb::refresh_film_tmdb_cache,
             tmdb::remove_tmdb_association,
             tmdb::set_film_tmdb_poster,
         ])
         .setup(|app| {
+            // En mode dev, pas de bundle .app : le dock garde l'icône générique.
+            // On applique donc explicitement l'icône de la marque via Cocoa
+            // (sans effet sur les bundles signés, qui embarquent déjà icon.icns).
+            #[cfg(all(debug_assertions, target_os = "macos"))]
+            {
+                use tauri::Manager;
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Ok(image) =
+                        tauri::image::Image::from_bytes(include_bytes!("../icons/128x128@2x.png"))
+                    {
+                        let _ = window.set_icon(image);
+                    }
+                }
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

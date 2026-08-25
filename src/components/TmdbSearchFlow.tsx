@@ -15,6 +15,8 @@ type TmdbSearchFlowProps = {
   onSelectCandidate: (candidate: TmdbSearchCandidate) => void
   onManual: () => void
   onCancel: () => void
+  /** Rendu compact dans une pop-up : sans <main>, ni barre d'action, ni titre répété. */
+  compact?: boolean
 }
 
 type SearchState =
@@ -23,7 +25,7 @@ type SearchState =
   | { status: 'results'; candidates: TmdbSearchCandidate[] }
   | { status: 'error'; message: string }
 
-export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel }: TmdbSearchFlowProps) {
+export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel, compact = false }: TmdbSearchFlowProps) {
   const [query, setQuery] = useState(() => film?.title ?? '')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
 
@@ -65,13 +67,15 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
     }
   }, [query])
 
-  return (
-    <main className="main editor-main" aria-label="Recherche TMDB">
-      <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>
-          {film ? '← Retour à la fiche' : '← Annuler'}
-        </button>
-      </header>
+  const body = (
+    <>
+      {!compact && (
+        <header className="page-action-bar">
+          <button className="back-button" type="button" onClick={onCancel}>
+            {film ? '← Retour à la fiche' : '← Annuler'}
+          </button>
+        </header>
+      )}
 
       <div className="editor-heading">
         <p className="eyebrow">Film</p>
@@ -114,6 +118,8 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
           </p>
         </div>
         <div className="form-actions">
+          {/* Toujours visible, y compris en pop-up (0.6.11) : l'issue manuelle
+              ne doit jamais dépendre d'un mode de rendu. */}
           <button className="secondary-button" type="button" onClick={onManual}>
             {film ? 'Retour à la fiche' : 'Saisir manuellement'}
           </button>
@@ -182,6 +188,16 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
           )}
         </section>
       )}
+    </>
+  )
+
+  if (compact) {
+    return <div className="tmdb-search-compact">{body}</div>
+  }
+
+  return (
+    <main className="main editor-main" aria-label="Recherche TMDB">
+      {body}
     </main>
   )
 }

@@ -1,4 +1,4 @@
-import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
+import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkCustomField, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
 import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
@@ -14,6 +14,31 @@ import {
   type NativeBookDeleter,
   type NativeBookWriter,
 } from './nativeBooks.ts'
+
+export type MediaProviderMedium = 'series' | 'books' | 'games'
+
+export type MediaProviderReference = {
+  providerName: 'TMDB' | 'Open Library' | 'IGDB'
+  providerId: string
+}
+
+export type MediaProviderLink = MediaProviderReference & {
+  profileId: string
+  medium: MediaProviderMedium
+  mediaId: string
+  createdAt: string
+  updatedAt: string
+}
+
+type MediaProviderLinkRow = {
+  profile_id: string
+  medium: MediaProviderMedium
+  media_id: string
+  provider_name: MediaProviderLink['providerName']
+  provider_id: string
+  created_at: string
+  updated_at: string
+}
 
 type SeriesRow = {
   id: string
@@ -96,6 +121,7 @@ type ArtworkRow = {
   discovered_at: string | null
   image_url: string | null
   personal_note: string | null
+  custom_fields?: string | null
   created_at: string
   updated_at: string
 }
@@ -170,6 +196,7 @@ const ARTWORK_COLUMNS = `
   discovered_at,
   image_url,
   personal_note,
+  custom_fields,
   created_at,
   updated_at`
 
@@ -198,6 +225,10 @@ function toBookStatus(value: string): BookStatus {
 }
 
 function toGameStatus(value: string): GameStatus {
+  // 0.6.11 : « en cours » et « regardé » sont remappés par la migration 14,
+  // mais une sauvegarde JSON/ZIP antérieure peut en contenir encore. Repli
+  // conservateur au lieu d'une exception : ces fiches deviennent « joué ».
+  if (value === 'en cours' || value === 'regardé') return 'joué'
   return toEnumValue(GAME_STATUSES, value, 'Statut Jeu')
 }
 
@@ -300,21 +331,55 @@ export function toArtwork(row: ArtworkRow): Artwork {
     discoveredAt: row.discovered_at,
     imageUrl: row.image_url,
     personalNote: row.personal_note,
+    customFields: parseArtworkCustomFields(row.custom_fields),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })
 }
 
+/**
+ * Champs personnalisés stockés en JSON texte (0.6.12). Toute valeur illisible
+ * ou hors contrat est jetée silencieusement : ces métadonnées sont
+ * facultatives et ne doivent jamais empêcher l'ouverture d'une fiche.
+ */
+function parseArtworkCustomFields(raw: string | null | undefined): ArtworkCustomField[] {
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    const fields: ArtworkCustomField[] = []
+    for (const entry of parsed) {
+      if (typeof entry === 'object' && entry !== null) {
+        const candidate = entry as { name?: unknown; value?: unknown }
+        if (typeof candidate.name === 'string' && typeof candidate.value === 'string') {
+          fields.push({ name: candidate.name, value: candidate.value })
+        }
+      }
+    }
+    return fields
+  } catch {
+    return []
+  }
+}
+
+/** Sérialise les champs personnalisés ; une liste vide (ou absente) reste NULL. */
+function serializeArtworkCustomFields(fields: ArtworkCustomField[] | null | undefined): string | null {
+  if (!fields || fields.length === 0) return null
+  return JSON.stringify(fields)
+}
+
 export type SeriesSearchCriteria = {
   query: string
-  category: SeriesCategory | 'all'
+  /** Une catégorie, plusieurs (interrupteur 0.6.8), ou 'all'. */
+  category: SeriesCategory | readonly SeriesCategory[] | 'all'
   filters?: LibraryFilters
   sort: LibrarySort
 }
 
 export type BookSearchCriteria = {
   query: string
-  category: BookCategory | 'all'
+  /** Une catégorie, plusieurs (interrupteur 0.6.8), ou 'all'. */
+  category: BookCategory | readonly BookCategory[] | 'all'
   filters?: LibraryFilters
   sort: LibrarySort
 }
@@ -398,6 +463,56 @@ export class SqliteMediaRepository {
     this.deleteBookNative = deleteBookNative
   }
 
+  async getMediaProviderLink(
+    profileId: string,
+    medium: MediaProviderMedium,
+    mediaId: string,
+  ): Promise<MediaProviderLink | null> {
+    const database = await this.loadDatabase()
+    const rows = await database.select<MediaProviderLinkRow[]>(
+      `SELECT profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at
+       FROM media_provider_links
+       WHERE profile_id = $1 AND medium = $2 AND media_id = $3
+       LIMIT 1`,
+      [profileId, medium, mediaId],
+    )
+    const row = rows[0]
+    if (!row) return null
+    return {
+      profileId: row.profile_id,
+      medium: row.medium,
+      mediaId: row.media_id,
+      providerName: row.provider_name,
+      providerId: row.provider_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  }
+
+  async setMediaProviderLink(input: {
+    profileId: string
+    medium: MediaProviderMedium
+    mediaId: string
+    providerName: MediaProviderLink['providerName']
+    providerId: string
+  }): Promise<MediaProviderLink> {
+    const database = await this.loadDatabase()
+    const timestamp = this.now()
+    await database.execute(
+      `INSERT INTO media_provider_links (
+         profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $6)
+       ON CONFLICT(profile_id, medium, media_id) DO UPDATE SET
+         provider_name = excluded.provider_name,
+         provider_id = excluded.provider_id,
+         updated_at = excluded.updated_at`,
+      [input.profileId, input.medium, input.mediaId, input.providerName, input.providerId, timestamp],
+    )
+    const saved = await this.getMediaProviderLink(input.profileId, input.medium, input.mediaId)
+    if (!saved) throw new Error('L’association fournisseur n’a pas pu être relue après son enregistrement.')
+    return saved
+  }
+
   async listSeries(profileId: string): Promise<Series[]> {
     const database = await this.loadDatabase()
     const rows = await database.select<SeriesRow[]>(
@@ -428,8 +543,18 @@ export class SqliteMediaRepository {
     }
 
     if (criteria.category !== 'all') {
-      bindValues.push(criteria.category)
-      clauses.push(`category = $${bindValues.length}`)
+      // Interrupteur 0.6.8 : la sélection peut compter plusieurs catégories.
+      const selected = Array.isArray(criteria.category) ? criteria.category : [criteria.category]
+      if (selected.length === 1) {
+        bindValues.push(selected[0])
+        clauses.push(`category = $${bindValues.length}`)
+      } else if (selected.length > 1) {
+        const placeholders = selected.map((value) => {
+          bindValues.push(value)
+          return `$${bindValues.length}`
+        })
+        clauses.push(`category IN (${placeholders.join(', ')})`)
+      }
     }
 
     appendLibraryFilterClauses(criteria.filters, SERIES_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
@@ -646,8 +771,18 @@ export class SqliteMediaRepository {
     }
 
     if (criteria.category !== 'all') {
-      bindValues.push(criteria.category)
-      clauses.push(`category = $${bindValues.length}`)
+      // Interrupteur 0.6.8 : la sélection peut compter plusieurs catégories.
+      const selected = Array.isArray(criteria.category) ? criteria.category : [criteria.category]
+      if (selected.length === 1) {
+        bindValues.push(selected[0])
+        clauses.push(`category = $${bindValues.length}`)
+      } else if (selected.length > 1) {
+        const placeholders = selected.map((value) => {
+          bindValues.push(value)
+          return `$${bindValues.length}`
+        })
+        clauses.push(`category IN (${placeholders.join(', ')})`)
+      }
     }
 
     appendLibraryFilterClauses(criteria.filters, BOOK_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
@@ -1029,9 +1164,10 @@ export class SqliteMediaRepository {
          discovered_at,
          image_url,
          personal_note,
+         custom_fields,
          created_at,
          updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         artwork.id,
         artwork.profileId,
@@ -1046,6 +1182,7 @@ export class SqliteMediaRepository {
         artwork.discoveredAt,
         artwork.imageUrl,
         artwork.personalNote,
+        serializeArtworkCustomFields(artwork.customFields),
         artwork.createdAt,
         artwork.updatedAt,
       ],
@@ -1086,8 +1223,9 @@ export class SqliteMediaRepository {
          discovered_at = $9,
          image_url = $10,
          personal_note = $11,
-         updated_at = $12
-       WHERE id = $13 AND profile_id = $14`,
+         custom_fields = $12,
+         updated_at = $13
+       WHERE id = $14 AND profile_id = $15`,
       [
         artwork.title,
         artwork.artist,
@@ -1100,6 +1238,7 @@ export class SqliteMediaRepository {
         artwork.discoveredAt,
         artwork.imageUrl,
         artwork.personalNote,
+        serializeArtworkCustomFields(artwork.customFields),
         artwork.updatedAt,
         id,
         profileId,

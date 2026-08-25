@@ -677,9 +677,9 @@ const completeExport = createLibraryExport({
 
   const externalSeries = prepareCollectionCsvImport('series', 'Nom,État,Préféré\nSérie externe,Vue,oui\n')
   let externalMapping = externalSeries.initialMapping
-  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Nom', 'title')
-  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'État', 'status')
-  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'Préféré', 'isFavorite')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'title', 'Nom')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'status', 'État')
+  externalMapping = setCollectionCsvSourceDestination(externalMapping, 'isFavorite', 'Préféré')
   const externalPreview = previewCollectionCsvImport(externalSeries, externalMapping, exportedAt)
   assert.deepEqual(
     [externalPreview.items?.[0]?.title, externalPreview.items?.[0]?.status, externalPreview.items?.[0]?.isFavorite],
@@ -688,11 +688,16 @@ const completeExport = createLibraryExport({
   )
 
   const invalidGames = prepareCollectionCsvImport('games', 'Nom,Statut\nJeu valide,Joué\n,En cours\n')
-  const invalidMapping = setCollectionCsvSourceDestination(invalidGames.initialMapping, 'Nom', 'title')
+  const invalidMapping = setCollectionCsvSourceDestination(invalidGames.initialMapping, 'title', 'Nom')
   const invalidPreview = previewCollectionCsvImport(invalidGames, invalidMapping, exportedAt)
-  assert.equal(invalidPreview.items, null, 'Une seule ligne CSV invalide doit bloquer l’import entier avant écriture')
-  assert.equal(invalidPreview.validItemCount, 1, 'L’aperçu peut compter les lignes convertibles sans autoriser une écriture partielle')
-  assert.ok(invalidPreview.errors.some((error) => /titre est obligatoire/i.test(error.message)), 'La ligne CSV invalide doit signaler son titre manquant')
+  assert.equal(invalidPreview.items?.length, 1, 'La ligne sans titre n’est pas créée, mais l’import entier ne bloque plus (0.6.3)')
+  assert.deepEqual(
+    [invalidPreview.items?.[0]?.title, invalidPreview.items?.[0]?.status, invalidPreview.items?.[0]?.rating],
+    ['Jeu valide', 'joué', null],
+    'La fiche valide est importée avec sa normalisation (statut « Joué » → « joué », note absente)',
+  )
+  assert.equal(invalidPreview.validItemCount, 1, 'Le compteur reflète les fiches réellement prêtes')
+  assert.ok(invalidPreview.errors.some((error) => /titre est obligatoire/i.test(error.message)), 'La ligne CSV invalide signale son titre manquant comme blocage de fiche')
 }
 
 {
@@ -1650,22 +1655,46 @@ assert.deepEqual(
 
   for (let rating = 0.5; rating <= 5; rating += 0.5) {
     assert.equal(
-      validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Valide', rating: String(rating) }).success,
+      validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Valide', status: 'terminé', rating: String(rating) }).success,
       true,
       `La note ${rating} doit être acceptée`,
     )
   }
 
   for (const rating of ['0', '0.25', '4.75', '5.5', 'abc']) {
-    const result = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Invalide', rating })
+    const result = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Invalide', status: 'terminé', rating })
     assert.equal(result.success, false, `La note ${rating} doit être refusée`)
     if (!result.success) assert.match(result.errors.rating, /demi-points/i)
+  }
+
+  // 0.6.13 : une fiche watchlist ne porte jamais de verdict personnel.
+  const purged = validateFilmForm({
+    ...EMPTY_FILM_FORM,
+    title: 'Retour en watchlist',
+    status: 'à découvrir',
+    rating: '4',
+    isFavorite: true,
+    watchedAt: '2026-08-24',
+    personalNote: 'Avis rédigé avant le retour en à découvrir',
+  })
+  assert.equal(purged.success, true, 'La fiche watchlist purgée doit rester valide')
+  if (purged.success) {
+    assert.equal(purged.data.rating, null, 'La note est purgée au retour en « à découvrir »')
+    assert.equal(purged.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purged.data.watchedAt, null, 'La date de visionnage est purgée')
+    assert.equal(purged.data.personalNote, null, "L'avis est purgé")
+  }
+  const kept = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Vu', status: 'terminé', rating: '4', isFavorite: true, personalNote: 'Gardé' })
+  if (kept.success) {
+    assert.equal(kept.data.rating, 4, 'Un statut consommé conserve sa note')
+    assert.equal(kept.data.isFavorite, true, 'Un statut consommé conserve son coup de cœur')
+    assert.equal(kept.data.personalNote, 'Gardé', 'Un statut consommé conserve son avis')
   }
 
   const badStatus = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Statut', status: 'inconnu' })
   assert.equal(badStatus.success, false, 'Un statut hors liste doit être refusé')
 
-  const badDate = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Date', watchedAt: '2026-02-30' })
+  const badDate = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'Date', status: 'terminé', watchedAt: '2026-02-30' })
   assert.equal(badDate.success, false, 'Une date inexistante doit être refusée')
 
   const badUrl = validateFilmForm({ ...EMPTY_FILM_FORM, title: 'URL', posterUrl: 'une-page-web' })
@@ -1937,7 +1966,7 @@ assert.match(mainSource, /libraryContext/, 'Le contexte de recherche et de filtr
 assert.match(mainSource, /libraryScrollPosition/, 'La position de consultation doit être restaurée au retour')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
 assert.match(posterSource, /alt={`\$\{label\} de/, 'Un visuel chargé doit conserver un texte alternatif pertinent pour son médium')
-assert.match(stylesSource, /\.film-card-info b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre d’une carte doit pouvoir couper une suite de caractères sans espace')
+assert.match(stylesSource, /\.home-entry-info b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre d’une carte d’accueil doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.poster-fallback b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre du fallback d’affiche doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.reading-section p \{[^}]*overflow-wrap: anywhere;/s, 'Le texte personnel de détail doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.profile-card > \.primary-button \{[^}]*margin-top:/s, 'Le bouton de création de profil doit rester séparé de la dernière ligne')
@@ -1948,9 +1977,8 @@ assert.match(portabilitySource, /directoryAvailable/, 'Un dossier supprimé hors
 assert.match(nativePortabilityBridgeSource, /invoke\('clear_backup_settings'/, 'Le frontend doit appeler la commande native de désactivation des snapshots')
 assert.match(nativePortabilitySource, /pub async fn clear_backup_settings/, 'Le backend doit exposer la désactivation des snapshots')
 assert.match(tauriLibrarySource, /portability::clear_backup_settings/, 'La commande de désactivation des snapshots doit être enregistrée dans Tauri')
-assert.match(formSource, /Aperçu de l’affiche/, 'Le formulaire doit afficher un aperçu de poster_url')
-assert.match(formSource, /<Poster title={previewTitle} src={previewUrl}/, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
-assert.match(formSource, /Utiliser aujourd’hui/, 'Le statut terminé doit proposer la date du jour sans la saisir automatiquement')
+assert.match(formSource, /<Poster\s+title=\{previewTitle\}\s+src=\{previewUrl\}/s, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
+assert.match(formSource, /values\.watchedAt \|\| today/, 'La date de visionnage est préremplie avec la date du jour (0.6.0 : plus de bouton « Utiliser aujourd’hui »)')
 assert.match(formSource, /onCancel/, 'Le formulaire doit permettre une annulation avant toute écriture')
 assert.match(formSource, /initialValues/, 'Le formulaire doit accepter des valeurs initiales éditables')
 assert.match(formSource, /onSave\(result\.data, provenance\)/, 'Le formulaire doit transmettre la provenance interne seulement à la validation finale')
@@ -2244,7 +2272,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
       developer: 'Studio',
       platform: 'Dreamcast',
       year: 2001,
-      status: 'regardé',
+      status: 'joué',
       rating: 3.5,
       isFavorite: false,
       playedAt: '2026-02-01',
@@ -2566,11 +2594,31 @@ assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_
     'Une série en cours ne change pas de statut à nouvelle saison',
   )
 
-  const badRating = validateSeriesForm({ ...base, rating: '4.3' })
+  const badRating = validateSeriesForm({ ...base, status: 'en cours', rating: '4.3' })
   assert.equal(badRating.success, false, 'La note doit rester par demi-points')
 
   const badPoster = validateSeriesForm({ ...base, posterUrl: 'ftp://affiche.jpg' })
   assert.equal(badPoster.success, false, 'L’affiche doit rester une URL http(s)')
+
+  // 0.6.13 : retour en « à voir » = purge du verdict personnel.
+  const purgedSeries = validateSeriesForm({
+    ...base,
+    status: 'à voir',
+    rating: '4',
+    isFavorite: true,
+    seasonsSeen: '3',
+    seasonsTotal: '8',
+    startedAt: '2026-08-01',
+    personalNote: 'Avis à purger',
+  })
+  assert.equal(purgedSeries.success, true, 'La série watchlist purgée doit rester valide')
+  if (purgedSeries.success) {
+    assert.equal(purgedSeries.data.rating, null, 'La note est purgée en « à voir »')
+    assert.equal(purgedSeries.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purgedSeries.data.seasonsSeen, null, 'La progression est purgée')
+    assert.equal(purgedSeries.data.startedAt, null, 'La date de début est purgée')
+    assert.equal(purgedSeries.data.personalNote, null, "L'avis est purgé")
+  }
 }
 
 {
@@ -2682,11 +2730,32 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   assert.equal(quotes.success, true)
   assert.deepEqual(quotes.data.quotes, ['Première citation', 'Seconde citation'], 'Les citations doivent être ordonnées, nettoyées et les lignes vides ignorées')
 
-  const badRating = validateBookForm({ ...base, rating: '4.3' })
+  const badRating = validateBookForm({ ...base, status: 'lu', rating: '4.3' })
   assert.equal(badRating.success, false, 'La note doit rester par demi-points')
 
   const badCover = validateBookForm({ ...base, coverUrl: 'file:///couverture.jpg' })
   assert.equal(badCover.success, false, 'La couverture doit rester une URL http(s)')
+
+  // 0.6.13 : retour en « à lire » = purge du verdict personnel.
+  const purgedBook = validateBookForm({
+    ...base,
+    status: 'à lire',
+    category: 'manga',
+    volumesTotal: '12',
+    rating: '4',
+    isFavorite: true,
+    volumesRead: '5',
+    startedAt: '2026-08-01',
+    personalNote: 'Avis à purger',
+  })
+  assert.equal(purgedBook.success, true, 'Le livre watchlist purgé doit rester valide')
+  if (purgedBook.success) {
+    assert.equal(purgedBook.data.rating, null, 'La note est purgée en « à lire »')
+    assert.equal(purgedBook.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purgedBook.data.volumesRead, null, 'La progression est purgée')
+    assert.equal(purgedBook.data.startedAt, null, 'La date de début est purgée')
+    assert.equal(purgedBook.data.personalNote, null, "L'avis est purgé")
+  }
 }
 
 // Jalon 0.4.6 — Livres : recherche, vues et portabilité dédiée.
@@ -2881,7 +2950,7 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
     developer: '  Studio local  ',
     platform: '  Steam Deck  ',
     year: '2026',
-    status: 'regardé',
+    status: 'joué',
     rating: '4.5',
     isFavorite: true,
     playedAt: '2026-07-22',
@@ -2890,14 +2959,14 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
   })
   assert.equal(complete.success, true, 'Tous les champs Jeu contractuels valides doivent être acceptés')
   assert.equal(complete.data.platform, 'Steam Deck', 'La plateforme libre doit être normalisée sans être remplacée')
-  assert.equal(complete.data.status, 'regardé', 'Le statut Regardé doit couvrir les jeux suivis en vidéo')
+  assert.equal(complete.data.status, 'joué', 'Le statut Joué couvre le suivi réel du jeu')
 
   for (const values of [
     { title: '   ' },
     { title: 'Statut', status: 'inconnu' },
     { title: 'Année', year: '0' },
-    { title: 'Note', rating: '4.3' },
-    { title: 'Date', playedAt: '2026-02-30' },
+    { title: 'Note', status: 'joué', rating: '4.3' },
+    { title: 'Date', status: 'joué', playedAt: '2026-02-30' },
     { title: 'Couverture', coverUrl: 'file:///jeu.jpg' },
   ]) {
     assert.equal(
@@ -2905,6 +2974,24 @@ assert.doesNotMatch(gameFormSource, /temps de jeu|sessions? de jeu/i, 'Le formul
       false,
       `Le formulaire Jeu doit refuser la saisie invalide ${JSON.stringify(values)}`,
     )
+  }
+
+  // 0.6.13 : retour en « à jouer » = purge du verdict personnel.
+  const purgedGame = validateGameForm({
+    ...EMPTY_GAME_FORM,
+    title: 'Retour en watchlist',
+    status: 'à jouer',
+    rating: '4',
+    isFavorite: true,
+    playedAt: '2026-08-24',
+    personalNote: 'Avis à purger',
+  })
+  assert.equal(purgedGame.success, true, 'Le jeu watchlist purgé doit rester valide')
+  if (purgedGame.success) {
+    assert.equal(purgedGame.data.rating, null, 'La note est purgée en « à jouer »')
+    assert.equal(purgedGame.data.isFavorite, false, 'Le coup de cœur est purgé')
+    assert.equal(purgedGame.data.playedAt, null, 'La date de partie est purgée')
+    assert.equal(purgedGame.data.personalNote, null, "L'avis est purgé")
   }
 
   const suggestions = buildGamePlatformSuggestions([
@@ -3022,12 +3109,31 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     form: 'autre',
     location: null,
     exhibition: null,
-    status: 'à découvrir',
+    status: 'découverte',
     isFavorite: false,
     discoveredAt: null,
     imageUrl: null,
     personalNote: null,
-  }, 'Les champs Art facultatifs vides doivent rester null sans donnée inventée')
+    customFields: [],
+  }, 'Une œuvre ajoutée est découverte, les champs facultatifs vides restent null')
+
+  // 0.6.12 : les champs personnalisés nom → valeur sont normalisés (trim,
+  // bornes), une ligne sans nom est jetée.
+  const withFields = validateArtworkForm({
+    ...EMPTY_ARTWORK_FORM,
+    title: 'Œuvre documentée',
+    customFields: [
+      { name: '  Exposition  ', value: '  Musée d’Orsay  ' },
+      { name: '   ', value: 'sans nom, ignoré' },
+      { name: 'Provenance', value: '' },
+    ],
+  })
+  assert.equal(withFields.success, true, 'Les champs personnalisés valides doivent être acceptés')
+  assert.deepEqual(
+    withFields.data.customFields,
+    [{ name: 'Exposition', value: 'Musée d’Orsay' }, { name: 'Provenance', value: '' }],
+    'Un champ sans nom est ignoré, nom et valeur sont normalisés',
+  )
 
   const complete = validateArtworkForm({
     ...EMPTY_ARTWORK_FORM,
@@ -3128,7 +3234,7 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
   const updatedAt = await repository.updateArtwork('default', 'artwork-local', { ...input, status: 'à découvrir' })
   assert.equal(updatedAt, timestamp, 'La modification doit restituer son horodatage local')
   const update = calls.at(-1)
-  assert.match(update.query, /WHERE id = \$13 AND profile_id = \$14/, 'La modification doit cibler l’œuvre et son profil')
+  assert.match(update.query, /WHERE id = \$14 AND profile_id = \$15/, 'La modification doit cibler l’œuvre et son profil (custom_fields ajouté en 0.6.12)')
   assert.deepEqual(update.bindValues.slice(-2), ['artwork-local', 'default'], 'La modification doit rester isolée au profil courant')
 
   await repository.deleteArtwork('default', 'artwork-local')
@@ -3345,7 +3451,8 @@ assert.match(tauriLibrarySource, /portability::import_games_into_profile/, 'La c
 assert.match(tauriLibrarySource, /portability::import_artworks_into_profile/, 'La commande Tauri Art doit être enregistrée')
 
 assert.doesNotMatch(mainSource047, /create-choice|FilmCreationChoice/, 'La création Film ne doit plus passer par un écran de choix intermédiaire')
-assert.match(mainSource047, /onCreate=\{\(\) => \{[\s\S]*setAssociatingFilm\(null\)[\s\S]*leaveLibrary\(\{ name: 'tmdb-search' \}\)/, 'Ajouter un film doit ouvrir directement la recherche TMDB sans conserver un ancien contexte')
+// 0.6.0 : l'ajout de film s'ouvre en pop-up modale (addFlow) au-dessus de la bibliothèque
+assert.match(mainSource, /onCreate=\{\(\) => setAddFlow\(\{ medium: 'film', step: 'search' \}\)\}/, 'Ajouter un film doit ouvrir la pop-up de recherche TMDB au-dessus de la bibliothèque')
 assert.match(tmdbSearchFlowSource, /setTimeout\(\(\) =>/, 'La recherche TMDB doit être temporisée pendant la saisie')
 assert.match(tmdbSearchFlowSource, /useState\(\(\) => film\?\.title \?\? ''\)/, 'Une association existante doit préremplir la recherche avec son titre')
 assert.match(tmdbSearchFlowSource, /className="tmdb-film-context"/, 'La recherche TMDB doit conserver la fiche existante comme contexte visuel')
@@ -3362,9 +3469,17 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
   const { librarySortOrderBy } = await import('../src/data/libraryViewQuery.ts')
   const { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters } = await import('../src/domain/libraryFilters.ts')
 
-  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites', 'ranking'], 'Les médiums notés doivent proposer les quatre vues intégrées')
-  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites'], 'L’Art ne doit jamais proposer de classement par note')
-  assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les quatre vues de base sont des présets intégrés du même modèle')
+  // Jalon 0.6.11 : « all » revient en fin de rangée ; Films ouvrent sur Récent,
+  // l'Art sur Favori. Les vues restent des présets du même modèle unifié.
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['recent', 'watchlist', 'favorites', 'ranking', 'all'], 'Les médiums notés proposent les cinq vues intégrées, Récent en tête')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['favorites', 'recent', 'all'], 'L’Art ouvre sur Favori, sans classement par note ni watchlist')
+  assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les vues de base sont des présets intégrés du même modèle')
+
+  const watchlist = RATED_BUILTIN_VIEWS.find((view) => view.id === 'watchlist')
+  assert.equal(watchlist.filters.statusGroup, 'pending', 'La vue d’entrée filtre sur le groupe « à voir »')
+  const recent = RATED_BUILTIN_VIEWS.find((view) => view.id === 'recent')
+  assert.equal(recent.filters.statusGroup, 'consumed', 'La vue Récents n’affiche que du déjà consommé (0.6.8)')
+  assert.deepEqual(recent.sort, { column: 'recency', direction: 'desc' }, 'La vue Récents trie par récence décroissante')
 
   const favorites = RATED_BUILTIN_VIEWS.find((view) => view.id === 'favorites')
   assert.equal(favorites.filters.favoritesOnly, true, 'La vue Favoris est un préset filtré sur les coups de cœur')
@@ -3399,9 +3514,51 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
 }
 
 assert.equal((mainSource0419.match(/<LibraryViewBar/g) ?? []).length, 5, 'Les cinq bibliothèques doivent partager la même rangée de vues unifiée')
-assert.match(mainSource0419, /builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'La bibliothèque Art ne doit recevoir que les vues sans note')
 assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
 assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
+
+// Jalon 0.6.8 — vues intégrées sémantiques, interrupteur de catégories, gutter de scrollbar.
+{
+  const { PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID, builtinViewById } = await import('../src/domain/libraryViews.ts')
+  const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
+
+  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'in-progress', 'recent', 'favorites', 'ranking', 'all'], 'Séries et Livres : progression, socle commun et vue Tous (0.6.8 + 0.6.11)')
+
+  const clauses = []
+  const binds = []
+  appendLibraryFilterClauses(
+    { status: 'all', statusGroup: 'consumed', favoritesOnly: false, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' },
+    { rating: true, year: true, personalDateColumn: null, specificTextColumn: null, locationColumn: null, exhibitionColumn: null, progressColumn: null },
+    clauses,
+    binds,
+    (value) => value,
+  )
+  assert.ok(clauses.some((clause) => clause.startsWith('status IN (')), 'Le groupe « consommé » doit se traduire en liste blanche paramétrée')
+  assert.ok(binds.includes('terminé') && binds.includes('vue') && binds.includes('lu'), 'La traduction couvre les statuts consommés de tous les médiums')
+  assert.ok(!clauses.some((clause) => clause.startsWith('status =')), 'Un groupe actif ne doit pas coexister avec un statut exact')
+
+  assert.equal(DEFAULT_VIEW_ID, 'watchlist', 'Chaque bibliothèque s’ouvre sur sa watchlist (0.6.8)')
+  assert.equal(builtinViewById(PROGRESS_BUILTIN_VIEWS, 'in-progress').name, 'En cours', 'La vue En cours existe pour Séries et Livres')
+
+  const mainSource068 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const stylesSource068 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const categorySwitchSource068 = readFileSync(new URL('../src/components/CategorySwitch.tsx', import.meta.url), 'utf8')
+  assert.match(mainSource068, /<SeriesCategorySwitch/, 'Séries doit exposer l’interrupteur Télé|Animation')
+  assert.match(mainSource068, /<BookCategorySwitch/, 'Livres doit exposer l’interrupteur Livre|Manga|Comics')
+  assert.match(mainSource068, /category: seriesContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Séries')
+  assert.match(mainSource068, /category: bookContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Livres')
+  assert.match(mainSource068, /titledBuiltinViews\(PROGRESS_BUILTIN_VIEWS, 'books'\)/, 'Livres doit titrer sa watchlist « À lire »')
+  assert.match(mainSource068, /titledBuiltinViews\(RATED_BUILTIN_VIEWS, 'games'\)/, 'Jeux doit titrer sa watchlist « À jouer »')
+  assert.doesNotMatch(mainSource068, /builtinViews=\{RATED_BUILTIN_VIEWS\}|builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'Aucune bibliothèque ne doit recevoir d’intitulés non titrés')
+  assert.match(categorySwitchSource068, /role="group"/, 'L’interrupteur annonce un groupe multi-sélection')
+  assert.match(categorySwitchSource068, /aria-pressed=/, 'Chaque segment expose son état coché')
+  assert.match(categorySwitchSource068, /effective\.length === 1\) return/, 'L’interrupteur garde toujours au moins une catégorie active')
+  const mediaRepositorySource068 = readFileSync(new URL('../src/data/mediaRepository.ts', import.meta.url), 'utf8')
+  assert.match(mediaRepositorySource068, /category IN \(/, 'Le dépôt doit filtrer les sélections de catégories multiples en SQL paramétré')
+  assert.match(mainSource068, /categoriesToStored\(context\.category/, 'La vue enregistrée doit stocker la sélection partielle sans perte')
+  assert.match(stylesSource068, /\.category-switch-segment/, 'L’interrupteur doit suivre la charte maison')
+  assert.match(stylesSource068, /scrollbar-gutter: stable/, 'La place de la barre de défilement doit rester réservée (correctif du saut Favoris)')
+}
 
 // Jalon 0.4.20 — filtres avancés combinables ; jalon 0.4.24 — popovers Filtre/Tri de la rangée unifiée.
 const libraryViewBarSource = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
@@ -3716,7 +3873,7 @@ const tmdbClientSource0426 = readFileSync(new URL('../src-tauri/src/tmdb/client.
 const tauriLibrarySource0426 = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 
 assert.match(tmdbClientSource0426, /"\/search\/tv"/, 'La recherche Séries doit viser l’endpoint TV de TMDB')
-assert.match(tmdbClientSource0426, /\/tv\/\{tmdb_id\}\/aggregate_credits/, 'La présentation TV doit lire les crédits agrégés')
+assert.match(tmdbClientSource0426, /\/tv\/\{tmdb_id\}\/credits/, 'La présentation TV doit lire les crédits (endpoint léger, sans timeout)')
 assert.match(tmdbClientSource0426, /number_of_seasons/, 'Le total de saisons connu doit être lu depuis TMDB')
 assert.match(tmdbClientSource0426, /validate_series_presentation/, 'La présentation TV doit être validée et bornée')
 assert.match(tmdbClientSource0426, /series_fake_client_returns_bounded_presentation/, 'Une preuve Rust doit couvrir la présentation TV bornée')
@@ -3726,7 +3883,7 @@ assert.match(tmdbServiceSource, /invoke\('search_tmdb_series'/, 'Le frontend doi
 assert.match(tmdbServiceSource, /invoke\('preview_tmdb_series'/, 'Le frontend doit appeler la prévisualisation Séries')
 assert.doesNotMatch(seriesMetadataAssistanceSource, /status:|rating:|isFavorite:/, 'Le préremplissage Séries ne doit toucher ni statut, ni note, ni favori')
 assert.match(seriesFormComponentSource, /\.\.\.EMPTY_SERIES_FORM, \.\.\.initialValues/, 'Le formulaire Séries doit accepter des valeurs préremplies')
-assert.match(mainSource047, /series-tmdb-search/, 'L’ajout de Série doit ouvrir la recherche TMDB')
+assert.match(mainSource047, /selectTmdbSeriesCandidate/, 'Le clic sur un résultat Séries doit préremplir directement le formulaire')
 assert.match(mainSource047, /seriesPresentationToInitialValues/, 'Le clic sur un résultat Séries doit préremplir directement le formulaire')
 assert.match(seriesTmdbSearchFlowSource, /setTimeout\(\(\) =>/, 'La recherche Séries doit être temporisée pendant la saisie')
 assert.match(seriesTmdbSearchFlowSource, /Saisir manuellement/, 'La recherche Séries doit proposer une issue manuelle')
@@ -3774,7 +3931,6 @@ assert.match(tauriLibrarySource0426, /openlibrary::preview_openlibrary_book/, 'L
 assert.match(openLibraryServiceSource, /invoke\('search_openlibrary_books'/, 'Le frontend doit appeler la recherche Livres')
 assert.doesNotMatch(bookMetadataAssistanceSource, /status:|rating:|isFavorite:|volumesRead/, 'Le préremplissage Livres ne doit toucher ni statut, ni note, ni favori, ni tomes lus')
 assert.match(bookFormComponentSource, /\.\.\.EMPTY_BOOK_FORM, \.\.\.initialValues/, 'Le formulaire Livres doit accepter des valeurs préremplies')
-assert.match(mainSource047, /book-ol-search/, 'L’ajout de Livre doit ouvrir la recherche Open Library')
 assert.match(mainSource047, /bookPresentationToInitialValues/, 'Le clic sur un résultat Livres doit préremplir directement le formulaire')
 assert.match(bookOpenLibraryFlowSource, /setTimeout\(\(\) =>/, 'La recherche Livres doit être temporisée pendant la saisie')
 assert.match(bookOpenLibraryFlowSource, /Saisir manuellement/, 'La recherche Livres doit proposer une issue manuelle')
@@ -3798,46 +3954,434 @@ assert.match(bookOpenLibraryFlowSource, /Saisir manuellement/, 'La recherche Liv
   assert.deepEqual(initial.quotes, [], 'Les citations personnelles ne doivent jamais être préremplies')
 }
 
-// Jalon 0.4.28 — Jeux assistés RAWG, clé embarquée obfusquée hors dépôt.
-const rawgServiceSource = readFileSync(new URL('../src/data/rawgService.ts', import.meta.url), 'utf8')
-const gameMetadataAssistanceSource = readFileSync(new URL('../src/domain/gameMetadataAssistance.ts', import.meta.url), 'utf8')
-const gameRawgFlowSource = readFileSync(new URL('../src/components/GameRawgSearchFlow.tsx', import.meta.url), 'utf8')
+// Jalon 0.4.28 puis IGDB — Jeux assistés, identifiants embarqués obfusqués hors dépôt.
 const gameFormComponentSource = readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8')
-const rawgRustSource = readFileSync(new URL('../src-tauri/src/rawg/mod.rs', import.meta.url), 'utf8')
 const gitignoreSource = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
 
-assert.match(rawgRustSource, /https:\/\/api\.rawg\.io\/api/, 'Le client Jeux doit viser l’API RAWG')
-assert.match(rawgRustSource, /embedded_key::embedded_api_key\(\)/, 'La clé RAWG doit être lue depuis le fichier obfusqué embarqué')
-assert.match(gitignoreSource, /src-tauri\/src\/rawg\/embedded_key\.rs/, 'La clé RAWG obfusquée doit être exclue du dépôt')
-assert.doesNotMatch(rawgRustSource, /println!|eprintln!|dbg!/, 'La clé RAWG ne doit jamais passer par un log')
-assert.match(rawgRustSource, /exclude_additions/, 'La recherche Jeux doit exclure les DLC pour rester lisible')
-assert.match(rawgRustSource, /developers_are_bounded_and_joined/, 'Une preuve Rust doit borner et joindre les développeurs')
-assert.match(tauriLibrarySource0426, /rawg::search_rawg_games/, 'La commande de recherche Jeux doit être enregistrée')
-assert.match(tauriLibrarySource0426, /rawg::preview_rawg_game/, 'La commande de prévisualisation Jeux doit être enregistrée')
-assert.match(rawgServiceSource, /invoke\('search_rawg_games'/, 'Le frontend doit appeler la recherche Jeux')
-assert.doesNotMatch(gameMetadataAssistanceSource, /status:|rating:|isFavorite:|platform/, 'Le préremplissage Jeux ne doit toucher ni statut, ni note, ni favori, ni plateforme')
 assert.match(gameFormComponentSource, /\.\.\.EMPTY_GAME_FORM, \.\.\.initialValues/, 'Le formulaire Jeux doit accepter des valeurs préremplies')
-assert.match(mainSource047, /game-rawg-search/, 'L’ajout de Jeu doit ouvrir la recherche RAWG')
-assert.match(mainSource047, /gamePresentationToInitialValues/, 'Le clic sur un résultat Jeux doit préremplir directement le formulaire')
-assert.match(gameRawgFlowSource, /setTimeout\(\(\) =>/, 'La recherche Jeux doit être temporisée pendant la saisie')
-assert.match(gameRawgFlowSource, /Saisir manuellement/, 'La recherche Jeux doit proposer une issue manuelle')
-assert.match(gameRawgFlowSource, /Données : <a href="https:\/\/rawg\.io"/, 'L’attribution RAWG exigée par leurs conditions doit être visible')
+
+// Jalon IGDB : couvertures verticales pour les Jeux, jeton Twitch renouvelé côté backend.
+const igdbRustSource = readFileSync(new URL('../src-tauri/src/igdb/mod.rs', import.meta.url), 'utf8')
+const igdbServiceSource = readFileSync(new URL('../src/data/igdbService.ts', import.meta.url), 'utf8')
+const gitignoreSourceIgdb = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
+const gameIgdbAssistanceSource = readFileSync(new URL('../src/domain/gameIgdbAssistance.ts', import.meta.url), 'utf8')
+
+assert.match(igdbRustSource, /https:\/\/id\.twitch\.tv\/oauth2\/token/, 'IGDB doit obtenir son jeton via Twitch OAuth client credentials')
+assert.match(igdbRustSource, /TOKEN_CACHE/, 'Le jeton IGDB doit être mis en cache et renouvelé avant expiration')
+assert.match(igdbRustSource, /embedded_client_id::embedded_api_key/, 'Le Client ID IGDB doit être embarqué obfusqué hors dépôt')
+assert.match(igdbRustSource, /embedded_client_secret::embedded_api_key/, 'Le Client Secret IGDB doit être embarqué obfusqué hors dépôt')
+assert.match(gitignoreSourceIgdb, /src-tauri\/src\/igdb\/embedded_client_id\.rs/, 'Le Client ID IGDB doit être exclu du dépôt')
+assert.match(gitignoreSourceIgdb, /src-tauri\/src\/igdb\/embedded_client_secret\.rs/, 'Le Client Secret IGDB doit être exclu du dépôt')
+assert.doesNotMatch(igdbRustSource, /println!|eprintln!|dbg!/, 'Les identifiants IGDB ne doivent jamais passer par un log')
+assert.match(igdbRustSource, /t_cover_big/, 'Les couvertures IGDB doivent être servies verticales (cover_big)')
+assert.match(igdbServiceSource, /invoke\('search_igdb_games'/, 'Le frontend doit appeler la recherche IGDB')
+assert.match(gameIgdbAssistanceSource, /igdbPresentationToInitialValues/, 'Le préremplissage IGDB doit exister')
+assert.doesNotMatch(gameIgdbAssistanceSource, /status:|rating:|isFavorite:|platform/, 'Le préremplissage IGDB ne doit toucher ni statut, ni note, ni favori, ni plateforme')
+assert.match(mainSource047, /igdbPresentationToInitialValues/, 'Le clic sur un résultat Jeux doit préremplir directement le formulaire')
 
 {
-  const { gamePresentationToInitialValues } = await import('../src/domain/gameMetadataAssistance.ts')
-  const initial = gamePresentationToInitialValues({
-    gameId: 3328,
-    title: 'The Witcher 3: Wild Hunt',
-    developer: 'CD Projekt Red',
-    releaseYear: 2015,
-    coverUrl: 'https://media.rawg.io/media/games/witcher3.jpg',
+  const { igdbPresentationToInitialValues } = await import('../src/domain/gameIgdbAssistance.ts')
+  const initial = igdbPresentationToInitialValues({
+    gameId: 237895,
+    title: 'The Legend of Zelda: Breath of the Wild',
+    developer: 'Nintendo EPD',
+    releaseYear: 2017,
+    coverUrl: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co67oa.jpg',
   })
-  assert.equal(initial.title, 'The Witcher 3: Wild Hunt', 'Le titre doit être prérempli')
-  assert.equal(initial.developer, 'CD Projekt Red', 'Le développeur doit être prérempli')
-  assert.equal(initial.year, '2015', 'L’année doit être préremplie')
+  assert.equal(initial.title, 'The Legend of Zelda: Breath of the Wild', 'Le titre doit être prérempli')
+  assert.equal(initial.developer, 'Nintendo EPD', 'Le développeur doit être prérempli')
+  assert.equal(initial.year, '2017', 'L’année doit être préremplie')
   assert.equal(initial.platform, '', 'La plateforme reste un choix personnel, jamais préremplie')
   assert.equal(initial.status, 'à jouer', 'Le statut personnel doit rester au neutre')
   assert.equal(initial.rating, '', 'La note personnelle ne doit jamais être préremplie')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge.')
+// 0.6.7 — Uniformisation des fiches : Modifier / Associer / Supprimer partout,
+// pop-up d'association directe identique au parcours Films (Séries, Livres, Jeux).
+const mainSource067 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+const appStylesSource067 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+const gameIgdbSearchFlowSource067 = readFileSync(new URL('../src/components/GameIgdbSearchFlow.tsx', import.meta.url), 'utf8')
+
+for (const [source, label] of [[seriesDetailSource, 'Séries'], [bookDetailSource, 'Livres'], [gameDetailSource, 'Jeux'], [artworkDetailSource, 'Art']]) {
+  assert.match(source, /icon-action-button/, `${label} : la fiche doit utiliser les boutons icône du modèle Film`)
+  assert.match(source, /icon-action-danger/, `${label} : la suppression doit porter la teinte danger explicite`)
+  assert.doesNotMatch(source, /menu-wrap|detail-menu/, `${label} : plus de menu ⋯, trois actions explicites à la place`)
+}
+assert.match(seriesDetailSource, /onAssociate/, 'La fiche Série doit exposer le bouton Associer')
+assert.match(bookDetailSource, /onAssociate/, 'La fiche Livre doit exposer le bouton Associer')
+assert.match(gameDetailSource, /onAssociate/, 'La fiche Jeu doit exposer le bouton Associer')
+assert.doesNotMatch(artworkDetailSource, /icon\('wand'\)/, 'L’Art n’a aucun fournisseur d’association : pas de baguette sur sa fiche')
+assert.match(artworkDetailSource, /backLabel/, 'La fiche Art suit le même contrat de retour que les autres fiches')
+
+for (const [source, label] of [
+  [seriesTmdbSearchFlowSource, 'Séries'],
+  [bookOpenLibraryFlowSource, 'Livres'],
+  [gameIgdbSearchFlowSource067, 'Jeux'],
+]) {
+  assert.match(source, /compact/, `${label} : le flow doit offrir le rendu compact en pop-up`)
+  assert.match(source, /existing/, `${label} : le flow doit accepter une fiche existante comme contexte`)
+  assert.match(source, /Modifier l’association/, `${label} : le titre doit annoncer la modification d’association`)
+}
+
+assert.match(mainSource067, /type AssociateTarget/, 'La cible d’association directe doit être typée par médium')
+assert.match(mainSource067, /selectAssociateSeries/, 'Le clic sur un résultat Séries doit mettre à jour la fiche ouverte')
+assert.match(mainSource067, /selectAssociateBook/, 'Le clic sur un résultat Livres doit mettre à jour la fiche ouverte')
+assert.match(mainSource067, /selectAssociateGame/, 'Le clic sur un résultat Jeux doit mettre à jour la fiche ouverte')
+assert.match(mainSource067, /dialog-associate/, 'L’association Série/Livre/Jeu doit s’ouvrir dans la même pop-up floutée que les films')
+assert.match(mainSource067, /existing=\{\{ title: series\.title, posterUrl: series\.posterUrl \}\}/, 'La pop-up Séries préremplit la recherche avec le titre de la fiche')
+assert.match(mainSource067, /seriesWithPresentation\(series, presentation\)/, 'La mise à jour Séries passe par la fusion éditoriale partagée')
+assert.match(mainSource067, /bookWithPresentation\(book,/, 'La mise à jour Livres passe par la fusion éditoriale partagée')
+assert.match(mainSource067, /gameWithPresentation\(game,/, 'La mise à jour Jeux passe par la fusion éditoriale partagée')
+assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up d’association doit suivre le gabarit compact maison')
+
+{
+  const { seriesWithPresentation, bookWithPresentation, gameWithPresentation } = await import('../src/domain/autoAssociateMedia.ts')
+  const series = { status: 'en cours', rating: 4, isFavorite: true, seasonsSeen: 3, showrunner: null, summary: null }
+  const mergedSeries = seriesWithPresentation(series, { showrunners: ['S. Knight'], cast: [], synopsis: null, seasonsTotal: 8, posterUrl: 'https://x/p.jpg' })
+  assert.equal(mergedSeries.status, 'en cours', 'L’association ne touche jamais le statut personnel')
+  assert.equal(mergedSeries.rating, 4, 'L’association ne touche jamais la note personnelle')
+  assert.equal(mergedSeries.isFavorite, true, 'L’association ne touche jamais le coup de cœur')
+  assert.equal(mergedSeries.seasonsSeen, 3, 'L’association ne touche jamais la progression personnelle')
+  assert.equal(mergedSeries.showrunner, 'S. Knight', 'Le champ éditorial vide est enrichi')
+  assert.equal(mergedSeries.summary, null, 'Un résumé absent côté fournisseur ne remplace pas la valeur existante')
+  const book = { status: 'à lire', rating: null, quotes: [{ body: 'citation' }] }
+  const mergedBook = bookWithPresentation(book, { author: 'A. Christie', firstPublishYear: 1939, synopsis: 'Dix petits indiens.', coverUrl: 'https://x/c.jpg' })
+  assert.deepEqual(mergedBook.quotes, [{ body: 'citation' }], 'Les citations personnelles traversent la réassociation intactes')
+  assert.equal(mergedBook.status, 'à lire', 'L’association ne touche jamais le statut personnel')
+}
+
+// Jalon 0.6.9 — pop-up d'ajout de film : recherche à trois colonnes défilante,
+// formulaire intégré à la fenêtre sans faux <main> pleine page.
+{
+  const mainSource069 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const formSource069 = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
+  const appStylesSource069 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  assert.match(mainSource069, /embeddedInDialog/, 'Le formulaire d’ajout doit être intégré à la pop-up hôte (plus de faux <main> pleine page)')
+  assert.doesNotMatch(mainSource069, /<FilmForm\s+compactHeading/, 'Le rendu pop-up ne passe plus par compactHeading')
+  assert.match(formSource069, /embeddedInDialog\?: boolean/, 'Le formulaire expose le mode intégré à la pop-up')
+  assert.match(formSource069, /className="editor-dialog-embedded"/, 'Le mode intégré rend le formulaire directement dans la fenêtre')
+  assert.match(appStylesSource069, /\.tmdb-search-compact \.tmdb-candidates-grid[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/, 'La recherche en pop-up affiche trois résultats par ligne')
+  assert.match(appStylesSource069, /\.tmdb-search-compact \.tmdb-candidates-grid[\s\S]*?scrollbar-gutter: stable/, 'La grille de suggestions réserve la place de la barre de défilement')
+}
+
+// Jalon 0.6.10 — pop-up d'ajout des cinq médiums : même parcours en deux étapes
+// (recherche fournisseur → formulaire intégré) que les films.
+{
+  const mainSource0610 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const formLabels0610 = ['Films', 'Séries', 'Livres', 'Jeux', 'Art']
+  const formSources0610 = [
+    readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
+  ]
+  assert.match(mainSource0610, /medium: 'série', step: 'search' \}/, 'Le bouton Ajouter une série doit ouvrir la pop-up de recherche TMDB')
+  assert.match(mainSource0610, /medium: 'livre', step: 'search' \}/, 'Le bouton Ajouter un livre doit ouvrir la pop-up de recherche Open Library')
+  assert.match(mainSource0610, /medium: 'jeu', step: 'search' \}/, 'Le bouton Ajouter un jeu doit ouvrir la pop-up de recherche IGDB')
+  assert.match(mainSource0610, /medium: 'artwork', step: 'form'/, 'L’Art, sans fournisseur par règle du domaine, ouvre la pop-up directement au stade formulaire')
+  assert.match(mainSource0610, /<SeriesTmdbSearchFlow\s+compact/, 'La recherche Séries doit vivre dans la pop-up, sans page pleine page')
+  assert.match(mainSource0610, /<BookOpenLibrarySearchFlow\s+compact/, 'La recherche Livres doit vivre dans la pop-up, sans page pleine page')
+  assert.match(mainSource0610, /<GameIgdbSearchFlow\s+compact/, 'La recherche Jeux doit vivre dans la pop-up, sans page pleine page')
+  assert.doesNotMatch(mainSource0610, /name: '(series-create|series-tmdb-search|book-create|book-ol-search|game-create|game-igdb-search|artwork-create)'/, 'Les anciennes pages d’ajout assistée doivent disparaître au profit de la pop-up unique')
+  for (const [index, source] of formSources0610.entries()) {
+    assert.match(source, /embeddedInDialog\?: boolean/, `${formLabels0610[index]} : le formulaire doit exposer le mode intégré à la pop-up`)
+    assert.match(source, /className="editor-dialog-embedded"/, `${formLabels0610[index]} : le mode intégré rend le formulaire directement dans la fenêtre hôte`)
+  }
+}
+
+// Jalon 0.6.11 — normalisation des bibliothèques : vues Tous/Récent/Favori,
+// statuts Jeux réduits à trois états, crayon de visuel commun aux cinq médiums.
+{
+  const mainSource0611 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const gameDomainSource0611 = readFileSync(new URL('../src/domain/game.ts', import.meta.url), 'utf8')
+  const migration14Source = readFileSync(new URL('../src-tauri/migrations/0014_normalize_game_statuses.sql', import.meta.url), 'utf8')
+  const databaseSource0611 = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
+  assert.match(mainSource0611, /__reactRoot/, 'Le montage React doit réutiliser la racine existante : plus de double rendu au HMR invalidé')
+  assert.doesNotMatch(mainSource0611, /export const MEDIUM_DOT_COLORS/, 'main.tsx ne doit exporter aucune constante non-composant (Fast Refresh)')
+  assert.match(mainSource0611, /\{icon\('panel'\)\} Barre latérale/, 'La bascule de sidebar garde son icône en mode développé')
+  assert.match(gameDomainSource0611, /\['à jouer', 'joué', 'abandonné'\]/, 'Les statuts Jeux se limitent à À jouer / Joué / Abandonné')
+  assert.match(migration14Source, /SET status = 'joué'/, 'La migration 14 remappe « en cours » et « regardé » vers « joué »')
+  assert.match(databaseSource0611, /version: 14/, 'La migration 14 est enregistrée séquentiellement')
+  const detailSources0611 = ['FilmDetail', 'SeriesDetail', 'BookDetail', 'GameDetail', 'ArtworkDetail'].map(
+    (name) => readFileSync(new URL(`../src/components/${name}.tsx`, import.meta.url), 'utf8'),
+  )
+  for (const [index, source] of detailSources0611.entries()) {
+    assert.doesNotMatch(source, /<span>Supprimer<\/span>/, `Fiche ${index + 1}/5 : la suppression est une poubelle seule`)
+  }
+  assert.doesNotMatch(detailSources0611[0], />Rafraîchir</, 'La fiche Film n’expose plus de bouton Rafraîchir')
+}
+
+// Jalon 0.6.19 — pop-up commune d'ajout et de modification, champs éditoriaux
+// sans toggle, grille Art 16:10.
+{
+  const mainSource0619 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const stylesSource0619 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const formSources0619 = [
+    readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
+  ]
+  const labels0619 = ['Films', 'Séries', 'Livres', 'Jeux', 'Art']
+  for (const [index, source] of formSources0619.entries()) {
+    assert.doesNotMatch(source, /<details className="secondary-fields"/, `${labels0619[index]} : le toggle Informations doit disparaître`)
+  }
+  assert.match(mainSource0619, /editFilmId/, 'Modifier Film doit réutiliser le formulaire intégré de la pop-up')
+  assert.match(mainSource0619, /editSeriesId/, 'Modifier Série doit réutiliser le formulaire intégré de la pop-up')
+  assert.match(mainSource0619, /editBookId/, 'Modifier Livre doit réutiliser le formulaire intégré de la pop-up')
+  assert.match(mainSource0619, /editGameId/, 'Modifier Jeu doit réutiliser le formulaire intégré de la pop-up')
+  assert.match(mainSource0619, /editArtworkId/, 'Modifier Art doit réutiliser le formulaire intégré de la pop-up')
+  assert.match(stylesSource0619, /\.library-main \.artwork-card \.poster[\s\S]*?aspect-ratio: 16 \/ 10/, 'Les visuels Art doivent suivre le format 16:10')
+  assert.match(stylesSource0619, /\.library-main \.artwork-grid[\s\S]*?repeat\(5, minmax\(0, 1fr\)\)/, 'La grille Art doit occuper la largeur avec cinq colonnes')
+}
+
+// Jalon 0.6.20 — composition stable : l’avis remplit la colonne droite sous le
+// verdict, les actions restent ancrées et l’édition longue défile sans agrandir.
+{
+  const stylesSource0620 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const formSources0620 = [
+    readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
+  ]
+  const labels0620 = ['Films', 'Séries', 'Livres', 'Jeux', 'Art']
+  for (const [index, source] of formSources0620.entries()) {
+    assert.equal(source.match(/className="review-write review-inline"/g)?.length, 1, `${labels0620[index]} : une seule zone d’avis doit vivre dans la colonne droite`)
+    assert.match(source, /className="form-body-scroll"[\s\S]*className="review-write review-inline"[\s\S]*className="form-actions form-actions-docked"/, `${labels0620[index]} : l’avis et les actions doivent partager la colonne droite`)
+    assert.doesNotMatch(source, /review-full|form-actions-full/, `${labels0620[index]} : aucune rangée pleine largeur ne doit subsister sous l’affiche`)
+  }
+  assert.match(stylesSource0620, /grid-template-rows: minmax\(0, min\(530px, calc\(100vh - 104px\)\)\)/, 'La scène doit garder une hauteur indépendante du statut')
+  assert.match(stylesSource0620, /\.editor-dialog\.dialog-add-flow \.form-body[\s\S]*?grid-template-rows: minmax\(0, 1fr\) auto/, 'La colonne droite doit séparer contenu défilable et actions fixes')
+  assert.match(stylesSource0620, /\.editor-dialog\.dialog-add-flow \.form-body-scroll[\s\S]*?overflow-y: auto/, 'Une fiche enrichie doit défiler sans agrandir la pop-up')
+  assert.match(stylesSource0620, /\.editor-dialog\.dialog-add-flow \.form-body-scroll > :not\(\.review-inline\)[\s\S]*?flex: 0 0 auto/, 'Le verdict et les champs ne doivent jamais se comprimer derrière l’avis')
+  assert.match(stylesSource0620, /\.editor-dialog\.dialog-add-flow \.review-inline[\s\S]*?flex: 1 0 132px/, 'L’avis doit absorber l’espace disponible sous le verdict')
+  assert.match(stylesSource0620, /\.editor-dialog\.dialog-add-flow \.form-poster-caption[\s\S]*?display: none/, 'Le libellé redondant du visuel Art ne doit pas rompre l’alignement de la scène')
+}
+
+// Jalon 0.6.21 — prototype Film isolé : verdict sous l’affiche, champ titre
+// dégagé de la croix et faits TMDB visibles quel que soit le statut.
+{
+  const filmSource0621 = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
+  const mainSource0621 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const stylesSource0621 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const otherFormSources0621 = [
+    readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
+  ]
+
+  assert.match(filmSource0621, /className="film-form form-detail film-form-film"[\s\S]*className="form-side(?:\s[^"]*)?"[\s\S]*film-poster-verdict[\s\S]*className="form-body"/, 'Film : le verdict doit vivre sous le visuel, avant la colonne de travail')
+  assert.match(filmSource0621, /film-poster-verdict[\s\S]*<StarRating[\s\S]*<FavoriteHeart/, 'Film : les cinq étoiles et le cœur doivent partager la zone sous l’affiche')
+  assert.match(filmSource0621, /film-status-block[\s\S]*hasProviderFacts[\s\S]*film-provider-facts[\s\S]*providerRelease[\s\S]*providerRuntime[\s\S]*providerDirectors[\s\S]*providerCast/, 'Film : les faits fournisseur doivent suivre le statut et rester indépendants du verdict personnel')
+  assert.match(filmSource0621, /providerPresentation = enrichment\?\.presentation \?\? tmdbPresentation/, 'Film : ajout assisté et modification doivent alimenter le même bloc de faits')
+  assert.match(mainSource0621, /tmdbPresentation\?: TmdbFilmPresentation/, 'Le flux Film doit conserver temporairement la présentation TMDB détaillée')
+  assert.match(mainSource0621, /tmdbPresentation: presentation/, 'La sélection TMDB doit transmettre sa présentation au formulaire d’ajout')
+  assert.match(mainSource0621, /tmdbPresentation=\{addFlow\.tmdbPresentation \?\? null\}/, 'La pop-up Film doit recevoir la présentation TMDB conservée')
+  assert.match(stylesSource0621, /\.film-form-film \.field-title[\s\S]*?padding-right: 34px/, 'Film : le champ titre doit libérer la zone de la croix')
+  assert.match(stylesSource0621, /\.film-form-film \.form-poster-frame[\s\S]*?width: min\(100%, 306px\)/, 'Film : l’affiche doit réserver la place du grand verdict sous elle')
+  assert.match(stylesSource0621, /\.film-poster-verdict \.rate-value[\s\S]*?display: none/, 'Film : aucun libellé numérique de note ne doit être visible')
+  assert.match(stylesSource0621, /\.film-poster-verdict \.star-fill[\s\S]*?color: var\(--color-star-active\)/, 'Film : les étoiles actives doivent prendre la couleur dorée dédiée')
+  assert.match(stylesSource0621, /\.film-poster-verdict \.heart-input\.on[\s\S]*?color: var\(--color-heart-active\)/, 'Film : le cœur actif doit prendre la couleur rouge dédiée')
+  for (const source of otherFormSources0621) {
+    assert.doesNotMatch(source, /film-form-film|film-poster-verdict|film-provider-facts/, 'Le prototype 0.6.21 doit rester strictement limité au Film')
+  }
+}
+
+// Jalon 0.6.22 — la date reste dans la ligne de statut et les champs
+// éditoriaux redondants disparaissent de la pop-up Film.
+{
+  const filmSource0622 = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
+  const stylesSource0622 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  assert.match(filmSource0622, /className="verdict-row film-status-row(?:\s[^"]*)?"[\s\S]*\{verdictVisible && \([\s\S]*className="date-row"/, 'Film : la date doit partager la ligne des statuts')
+  assert.match(filmSource0622, /className="verdict-row film-status-row(?:\s[^"]*)?"[\s\S]*className="date-row"[\s\S]*className="film-provider-facts"/, 'Film : les faits TMDB doivent suivre directement la ligne statut/date')
+  assert.doesNotMatch(filmSource0622, /secondary-fields|id="originalTitle"|id="year"|id="director"|id="summary"/, 'Film : les champs éditoriaux redondants ne doivent plus être rendus sous la fiche')
+  assert.match(stylesSource0622, /\.film-status-row[\s\S]*?flex-wrap: nowrap[\s\S]*?gap: 8px/, 'Film : la ligne statut/date ne doit pas passer à la ligne')
+  assert.match(stylesSource0622, /\.film-status-row \.seg-pill-btn[\s\S]*?padding: 7px 9px[\s\S]*?font-size: 11px/, 'Film : les statuts doivent laisser une place compacte à la date')
+  assert.match(stylesSource0622, /\.film-status-row \.date-row input\[type="date"\][\s\S]*?width: 106px/, 'Film : la date doit occuper une largeur compacte à droite des statuts')
+}
+
+// Jalon 0.6.23 — extension du gabarit Film aux cinq bibliothèques et
+// correction du fond segmenté qui ne doit jamais s'étirer après les statuts.
+{
+  const formSources0623 = [
+    readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8'),
+    readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
+  ]
+  const labels0623 = ['Films', 'Séries', 'Livres', 'Jeux', 'Art']
+
+  assert.match(formSources0623[0], /form-side form-side-with-verdict[\s\S]*film-poster-verdict/, 'Films : le verdict reste sous l’affiche')
+  for (const [index, source] of formSources0623.slice(1).entries()) {
+    assert.match(source, /form-medium-(?:series|book|game|artwork)/, `${labels0623[index + 1]} : le formulaire doit porter son gabarit médium explicite`)
+    assert.match(source, /form-side form-side-with-verdict[\s\S]*form-poster-verdict/, `${labels0623[index + 1]} : la zone de verdict doit vivre sous le visuel`)
+  }
+  for (const [index, source] of formSources0623.slice(0, 4).entries()) {
+    assert.match(source, /status-date-row[\s\S]*StatusSegmented[\s\S]*date-row/, `${labels0623[index]} : statut et date doivent partager une ligne`)
+  }
+  assert.match(formSources0623[4], /form-side-artwork[\s\S]*artwork-poster-verdict[\s\S]*FavoriteHeart[\s\S]*date-row/, 'Art : le cœur et la date restent sous le visuel sans introduire de statut')
+
+  const stylesSource0623 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  assert.match(stylesSource0623, /\.form-side-with-verdict[\s\S]*grid-template-rows: minmax\(0, 1fr\) 58px/, 'Les cinq médiums doivent réserver la même zone de verdict sous le visuel')
+  assert.match(stylesSource0623, /\.status-date-row \.seg-group-form[\s\S]*flex: 0 0 auto/, 'Le fond gris des statuts ne doit pas s’étirer dans l’espace restant')
+  assert.match(stylesSource0623, /\.form-poster-verdict \.rate-value[\s\S]*display: none/, 'Les verdicts sous visuel ne doivent pas afficher de valeur numérique')
+  assert.match(stylesSource0623, /\.form-poster-verdict \.heart-input\.on[\s\S]*color: var\(--color-heart-active\)/, 'Les cœurs actifs doivent conserver la couleur rouge dédiée')
+}
+
+// Jalon 0.6.24 — modifications fidèles, types segmentés, informations fournisseur
+// explicites et bibliothèque Art réellement étendue.
+{
+  const mainSource0624 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+  const seriesSource0624 = readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8')
+  const bookSource0624 = readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8')
+  const gameSource0624 = readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8')
+  const verdictSource0624 = readFileSync(new URL('../src/components/VerdictControls.tsx', import.meta.url), 'utf8')
+  const repositorySource0624 = readFileSync(new URL('../src/data/mediaRepository.ts', import.meta.url), 'utf8')
+  const stylesSource0624 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const migrationSource0624 = readFileSync(new URL('../src-tauri/migrations/0017_media_provider_links.sql', import.meta.url), 'utf8')
+  const backfillMigrationSource0624 = readFileSync(new URL('../src-tauri/migrations/0018_backfill_media_provider_links.sql', import.meta.url), 'utf8')
+  const databaseSource0624 = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
+
+  assert.match(mainSource0624, /const refreshedFilm = await filmsRepository\.getFilm/, 'Film : une modification doit être relue depuis SQLite avant de rafraîchir l’interface')
+  assert.match(mainSource0624, /detailRevision=\{library\.films\.find[\s\S]*?updatedAt \?\? ''\}/, 'Film : la fiche doit dépendre de la révision du film courant')
+  assert.match(mainSource0624, /detailRevision: string/, 'Film : le lecteur SQLite doit exposer une révision explicite')
+  assert.match(mainSource0624, /\[attempt, detailRevision, filmId, profileId\]/, 'Film : la relecture doit être déclenchée lorsque updatedAt change')
+
+  assert.match(verdictSource0624, /ariaLabel\?: string/, 'Le sélecteur segmenté partagé doit pouvoir annoncer un Type et pas seulement un Statut')
+  assert.doesNotMatch(seriesSource0624, /<select[\s\S]*?id="series-category"/, 'Séries : le sélecteur Type natif doit disparaître')
+  assert.match(seriesSource0624, /statuses=\{SERIES_CATEGORIES\}[\s\S]*ariaLabel="Type de série"/, 'Séries : Série télé et Animation doivent devenir des boutons segmentés accessibles')
+  assert.ok(
+    seriesSource0624.indexOf('className="progress-fields verdict-progress"') < seriesSource0624.indexOf('id="series-personalNote"'),
+    'Séries : la progression doit précéder l’avis personnel qui conclut le formulaire',
+  )
+  assert.doesNotMatch(bookSource0624, /<select[\s\S]*?id="book-category"/, 'Livres : le sélecteur Type natif doit disparaître')
+  assert.match(bookSource0624, /statuses=\{BOOK_CATEGORIES\}[\s\S]*ariaLabel="Type de livre"/, 'Livres : Livre, Manga et Comics doivent devenir des boutons segmentés accessibles')
+  assert.match(bookSource0624, /\{verdictVisible && \([\s\S]*className="quote-editor"/, 'Livres : les citations personnelles doivent être absentes du rendu « À lire »')
+
+  for (const [source, provider] of [[seriesSource0624, 'TMDB'], [bookSource0624, 'Open Library'], [gameSource0624, 'IGDB']]) {
+    assert.match(source, /providerLink\?: MediaProviderReference \| null/, `${provider} : le formulaire doit connaître l’association persistante`)
+    assert.match(source, /className="provider-information-card"/, `${provider} : les informations fournisseur doivent vivre dans un encadré commun`)
+  }
+  assert.match(repositorySource0624, /getMediaProviderLink/, 'Le repository doit relire la provenance exacte des fiches enrichies')
+  assert.match(repositorySource0624, /setMediaProviderLink/, 'Le repository doit enregistrer la provenance exacte des associations')
+  assert.match(migrationSource0624, /CREATE TABLE(?: IF NOT EXISTS)? media_provider_links/, 'La provenance fournisseur doit être persistée sans heuristique sur les champs éditoriaux')
+  assert.match(backfillMigrationSource0624, /poster_url LIKE 'https:\/\/image\.tmdb\.org\/%'/, 'Les anciennes Séries TMDB démontrables par leur affiche doivent être reprises')
+  assert.match(backfillMigrationSource0624, /cover_url LIKE 'https:\/\/covers\.openlibrary\.org\/%'/, 'Les anciens Livres Open Library démontrables par leur couverture doivent être repris')
+  assert.match(backfillMigrationSource0624, /cover_url LIKE 'https:\/\/images\.igdb\.com\/%'/, 'Les anciens Jeux IGDB démontrables par leur couverture doivent être repris')
+  assert.match(databaseSource0624, /version: 17/, 'La migration 17 doit être enregistrée séquentiellement')
+  assert.match(databaseSource0624, /version: 18/, 'La reprise historique doit passer par une nouvelle migration additive')
+
+  assert.match(mainSource0624, /className="main library-main artwork-library-main"/, 'Art : la page doit porter une classe de largeur explicite')
+  assert.match(stylesSource0624, /\.artwork-library-main[\s\S]*?flex: 1 1 auto[\s\S]*?width: auto/, 'Art : la page doit absorber tout l’espace restant à droite du rail')
+
+  const providerCalls0624 = []
+  const providerRow0624 = {
+    profile_id: 'default',
+    medium: 'series',
+    media_id: 'series-1',
+    provider_name: 'TMDB',
+    provider_id: '1234',
+    created_at: '2026-08-25T10:00:00.000Z',
+    updated_at: '2026-08-25T10:00:00.000Z',
+  }
+  const providerDatabase0624 = {
+    async execute(query, bindValues) {
+      providerCalls0624.push({ kind: 'execute', query, bindValues })
+      return { rowsAffected: 1 }
+    },
+    async select(query, bindValues) {
+      providerCalls0624.push({ kind: 'select', query, bindValues })
+      return [providerRow0624]
+    },
+  }
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const providerRepository0624 = new SqliteMediaRepository(async () => providerDatabase0624, () => 'unused-id', () => '2026-08-25T10:00:00.000Z')
+  await providerRepository0624.setMediaProviderLink({
+    profileId: 'default',
+    medium: 'series',
+    mediaId: 'series-1',
+    providerName: 'TMDB',
+    providerId: '1234',
+  })
+  const providerLink0624 = await providerRepository0624.getMediaProviderLink('default', 'series', 'series-1')
+  assert.deepEqual(providerCalls0624[0].bindValues.slice(0, 5), ['default', 'series', 'series-1', 'TMDB', '1234'], 'L’association fournisseur doit être écrite avec des paramètres liés')
+  assert.deepEqual(providerCalls0624[1].bindValues, ['default', 'series', 'series-1'], 'La provenance doit être relue par profil, médium et fiche')
+  assert.deepEqual(providerLink0624, {
+    profileId: 'default',
+    medium: 'series',
+    mediaId: 'series-1',
+    providerName: 'TMDB',
+    providerId: '1234',
+    createdAt: '2026-08-25T10:00:00.000Z',
+    updatedAt: '2026-08-25T10:00:00.000Z',
+  }, 'La provenance SQLite doit revenir sous sa forme domaine exacte')
+}
+
+// Jalon 0.6.25 — Paramètres dédiés, identité locale et premier lancement réel.
+{
+  const mainSource0625 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const settingsSource0625 = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
+  const avatarSource0625 = readFileSync(new URL('../src/components/ProfileAvatar.tsx', import.meta.url), 'utf8')
+  const nativeProfilesSource0625 = readFileSync(new URL('../src-tauri/src/profiles.rs', import.meta.url), 'utf8')
+  const migrationSource0625 = readFileSync(new URL('../src-tauri/migrations/0019_profile_identity_and_first_run.sql', import.meta.url), 'utf8')
+  const databaseSource0625 = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
+  const stylesSource0625 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  assert.match(mainSource0625, /const effectiveExpanded = settingsOpen \|\| expanded/, 'Paramètres : la barre latérale doit rester déployée indépendamment du réglage bibliothèque')
+  assert.doesNotMatch(mainSource0625, /settingsOpen \? \([\s\S]{0,500}className="sidebar-toggle"/, 'Paramètres : le bouton de réduction de la barre latérale doit disparaître')
+  assert.match(settingsSource0625, /className="settings-hero"[\s\S]*Local et privé/, 'Paramètres : chaque section doit avoir un en-tête professionnel et rappeler la confidentialité locale')
+  assert.match(settingsSource0625, /ProfileAvatarPicker[\s\S]*profilesRepository\.update/, 'Profils : la photo locale doit être réellement modifiable et persistée')
+
+  assert.match(mainSource0625, /Étape 1 sur 3[\s\S]*Étape 2 sur 3[\s\S]*Étape 3 sur 3/, 'Onboarding : identité, apparence et bibliothèque doivent former un parcours ordonné')
+  assert.match(mainSource0625, /ProfileAvatarPicker[\s\S]*THEME_OPTIONS[\s\S]*Restaurer Sylloge/, 'Onboarding : pseudo, photo, thème et restauration doivent être proposés')
+  assert.match(mainSource0625, /validateLibraryDocument\(picked\.contents\)/, 'Onboarding : une sauvegarde complète doit être validée avant toute création de profil')
+  assert.match(mainSource0625, /selectAfterCreation: true[\s\S]*importLibraryDocumentIntoEmptyProfile/, 'Onboarding : le profil créé doit être sélectionné puis restauré uniquement dans son état vide')
+  assert.match(mainSource0625, /finish\('empty'\)[\s\S]*Plus tard/, 'Onboarding : le choix Plus tard doit créer une bibliothèque vide explicite')
+
+  assert.match(avatarSource0625, /AVATAR_SIZE = 256/, 'Avatar : la photo doit être normalisée à une taille locale bornée')
+  assert.match(avatarSource0625, /MAX_SOURCE_BYTES = 8 \* 1024 \* 1024/, 'Avatar : la photo source doit être bornée avant décodage')
+  assert.match(nativeProfilesSource0625, /validate_avatar_data_url/, 'Avatar : la commande Rust doit valider la donnée avant persistance')
+  assert.match(nativeProfilesSource0625, /UPDATE profiles[\s\S]*?SET name = \$1,[\s\S]*?avatar_data_url = \$2/, 'Profils : nom et photo doivent être mis à jour par une requête paramétrée')
+
+  assert.match(migrationSource0625, /ADD COLUMN avatar_data_url TEXT/, 'Migration 19 : l’identité locale doit disposer d’un avatar facultatif')
+  assert.match(migrationSource0625, /DELETE FROM profiles[\s\S]*id = 'default'/, 'Migration 19 : le profil historique vierge doit laisser place au premier lancement')
+  assert.match(migrationSource0625, /NOT EXISTS \(SELECT 1 FROM films/, 'Migration 19 : un profil Default utilisé ne doit jamais être supprimé')
+  assert.match(databaseSource0625, /version: 19/, 'La migration 19 doit être enregistrée séquentiellement')
+  assert.match(databaseSource0625, /profile_identity_migration_only_removes_the_untouched_default_profile/, 'La migration de premier lancement doit être couverte par un test Rust ciblé')
+
+  assert.match(stylesSource0625, /\.onboarding-shell[\s\S]*grid-template-columns: 310px minmax\(0, 1fr\)/, 'Onboarding : le gabarit desktop doit séparer progression et contenu')
+  assert.match(stylesSource0625, /\.sidebar-settings\.sidebar-expanded[\s\S]*width: 232px/, 'Paramètres : la navigation dédiée doit avoir une largeur stable')
+}
+
+// Jalon 0.6.26 — gabarits de bibliothèque stables et onboarding en fenêtre.
+{
+  const mainSource0626 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const avatarSource0626 = readFileSync(new URL('../src/components/ProfileAvatar.tsx', import.meta.url), 'utf8')
+  const stylesSource0626 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  assert.match(stylesSource0626, /@media \(min-width: 1251px\) \{[\s\S]*\.library-tools \{[\s\S]*flex-wrap: nowrap/, 'Bibliothèques : au-delà de 1250 px la rangée d’outils doit rester sur une seule ligne')
+  assert.match(stylesSource0626, /\.library-tools \.view-bar \.library-views \{[\s\S]*flex-wrap: nowrap/, 'Bibliothèques : la rangée des vues ne doit plus se replier sous la recherche')
+  assert.match(stylesSource0626, /\.empty-library \{[\s\S]*flex: 1 1 auto[\s\S]*justify-content: center/, 'Bibliothèques : l’état vide doit occuper l’espace restant et rester centré')
+  const toolsBeforeEmpty = mainSource0626.match(/className="library-tools"[\s\S]*?(?:library\.films|collection)\.length === 0 && isUnfiltered/g) ?? []
+  assert.strictEqual(toolsBeforeEmpty.length, 5, 'Bibliothèques : la barre d’outils doit précéder l’état vide dans les cinq médiums, elle reste visible même vide')
+  assert.match(mainSource0626, /className="onboarding-backdrop"/, 'Onboarding : le premier lancement doit occuper la fenêtre entière, sans gabarit de pop-up')
+  assert.match(stylesSource0626, /\.onboarding-backdrop \{[\s\S]*?position: fixed;[\s\S]*?inset: 0/, 'Onboarding : le conteneur plein cadre doit couvrir la fenêtre sans marge')
+  assert.match(stylesSource0626, /\.onboarding-shell \{[\s\S]*?height: 100vh/, 'Onboarding : la fenêtre de premier lancement doit remplir toute la hauteur')
+  assert.match(mainSource0626, /onboarding-identity-row[\s\S]*ProfileAvatarPicker[\s\S]*compact/, 'Onboarding : l’avatar compact doit précéder le champ pseudo à l’étape Profil')
+  const compactAvatarBranch = avatarSource0626.match(/compact \? \(([\s\S]*?)\) : \(/)?.[1] ?? ''
+  assert.match(compactAvatarBranch, /profile-avatar-pencil/, 'Onboarding : le crayon superposé doit ouvrir le sélecteur de photo')
+  assert.doesNotMatch(compactAvatarBranch, /secondary-button/, 'Onboarding : le mode compact ne doit pas afficher de bouton « Choisir une photo »')
+  assert.match(stylesSource0626, /\.theme-preview-light \{ background: #F6F6F7; \}/, 'Onboarding : la vignette claire doit reprendre le canevas réel de l’application')
+  assert.match(stylesSource0626, /\.theme-preview-dark \{ background: #161618; \}/, 'Onboarding : la vignette sombre doit reprendre l’anthracite réel de l’application')
+  assert.doesNotMatch(stylesSource0626, /theme-preview-[\s\S]{0,400}#5[bB]3[aA]68/, 'Onboarding : aucune couleur d’accent inventée ne doit rester dans les vignettes')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge. Uniformisation 0.6.7 : les fiches Séries, Livres, Jeux et Art reprennent les trois boutons explicites du modèle Film, plus aucun menu caché ; l’association directe s’ouvre dans la même pop-up floutée avec recherche préremplie, fusion éditoriale bornée et données personnelles intactes ; l’Art reste sans fournisseur par règle du domaine. Pop-up 0.6.19 : pop-up commune d’ajout et de modification, champs éditoriaux sans toggle et grille Art 16:10 pleine largeur. Composition 0.6.20 : hauteur stable dictée par l’affiche, avis intégré sous le verdict, contenu long défilable et actions ancrées dans la colonne droite. Prototype Film 0.6.21 : champ titre dégagé, verdict doré/rouge sous l’affiche, faits TMDB conservés en ajout et modification. Correction Film 0.6.22 : date compacte sur la ligne des statuts, fiche TMDB immobile et formulaire éditorial allégé. Extension 0.6.23 : gabarit de verdict sous visuel et ligne statut/date partagés par les cinq médiums, fond segmenté Film borné à ses boutons, ajout et modification alignés. Fidélité 0.6.24 : modifications relues depuis SQLite, verdicts purgés au retour en liste d’attente, types Série/Livre segmentés, provenance fournisseur persistante, informations enrichies encadrées et Art étendu sur toute la largeur. Paramètres 0.6.25 : navigation dédiée verrouillée, identité locale avec avatar borné, thème persistant et onboarding en trois étapes avec restauration validée avant écriture. Gabarits 0.6.26 : outils de bibliothèque fixes sur une ligne et toujours visibles même bibliothèque vide, états vides centrés pleine largeur, onboarding plein cadre avec crayon d’avatar et vignettes de thème fidèles.')

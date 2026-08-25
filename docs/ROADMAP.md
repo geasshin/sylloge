@@ -1,6 +1,6 @@
 # Sylloge — feuille de route vers la V1 publique
 
-> **Statut :** feuille de route active. Les releases `0.2.0`, `0.3.0`, `0.4.0` et `0.5.0` sont livrées. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le prochain train prépare la release publique `0.6.0` (front-end définitif).
+> **Statut :** feuille de route active. Les releases `0.2.0`, `0.3.0`, `0.4.0` et `0.5.0` sont livrées. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le train actif prépare la release publique `0.6.0` (front-end définitif) ; sa spécification détaillée vit dans [`plans/roadmap-future.md`](plans/roadmap-future.md), consultée à l'ouverture du train, et les jalons concernés sont réintégrés ici au fur et à mesure.
 >
 > Les releases publiques sont des hypothèses de séquencement, pas des promesses de calendrier. Elles sont construites par plusieurs jalons d’intégration étroits, chacun validé et commité avant le suivant.
 
@@ -429,21 +429,378 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ### `0.5.0` — Release publique Extension culturelle
 
-**État : publiée le 2 août 2026 — tag `v0.5.0`, artefacts signés et `latest.json` sur GitHub Releases.** La recette native a été exercée par Aurélien pendant la stabilisation ; les corrections remontées sont intégrées (jalons `0.4.23` à `0.4.29` + fix recette). La checklist consolidée reste dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md) pour la suite.
+**État : publiée le 2 août 2026 — tag `v0.5.0`, artefacts signés et `latest.json` sur GitHub Releases.** Les corrections remontées par la première passe de recette (interrompue le 22 juillet 2026) sont intégrées (jalons `0.4.23` à `0.4.29` + fix recette) et couvertes par les contrôles automatisés. La recette complète n'a pas été rejouée de bout en bout après la stabilisation : la preuve consolidée reste à consigner. Une recette courte de remise en état, sur profil de test, est prévue avant l'ouverture du jalon `0.5.1` ; protocole et verdict dans [`RECETTE_COURTE_REPRISE.md`](RECETTE_COURTE_REPRISE.md). La checklist consolidée reste dans [`QA_MANUELLE_0.5.0.md`](QA_MANUELLE_0.5.0.md) pour la suite.
 
 - Revoir, intégrer et valider les cinq verticales du contrat V1 ; ne publier que des médiums complets, documentés et migrables.
 - Vérifier que recherche, filtres, profils, exports, imports, sauvegardes et fallbacks visuels se comportent pour Films, Séries, Livres, Jeux et Art.
 - Ne changer manifestes, tag et artefacts qu’après fermeture de tous les jalons internes et validation humaine de la recette.
 
-## 8. Trains suivants — document dédié
+## 8. Train `0.6.0` — Design desktop de V1 (train actif)
 
-Les trains `0.6.0` (front-end définitif), `0.7.0` (fiabilité et confidentialité), `0.8.0` (distribution macOS et Windows), `0.9.0` (bêta publique contrôlée), les conditions de sortie de la `1.0.0` et les perspectives V2 / V3 sont décrits dans `docs/plans/roadmap-future.md`. Ce document fait partie de la feuille de route : il est consulté à l'ouverture de chaque nouveau train, et les jalons concernés y sont réintégrés ici au moment où ils deviennent actifs.
+**But de la release :** appliquer partout le langage visuel validé (voir [`../DESIGN.md`](../DESIGN.md)) sans ajouter aucune capacité produit. La direction a été arbitrée par Aurélien le 22 août 2026 sur les maquettes `sylloge-design-051` : structure sobre de la bibliothèque, habillage chaleureux papier/violet, fiche réinventée autour de deux voix (encyclopédie / personnel).
 
-## 9. Backlog non priorisé
+**Mode de livraison acté avec Aurélien :** un jalon = une page ou une famille de surfaces = un commit ; point GO explicite d'Aurélien après chaque jalon avant de relancer ; pas de recette intermédiaire, les vérifications automatisées doivent rester vertes à chaque fois. Les maquettes HTML restent la référence visuelle (`~/Documents/Hermes/sylloge-design-051/`).
+
+### `0.5.1` — Direction visuelle et contrat DESIGN.md
+
+**État : livré.** Trois variantes comparées (Encre sobre, Galerie lumineuse, Index dense), arbitrage « structure V1 × habillage V2 », puis fiche film co-conçue en cinq itérations jusqu'à validation finale (statut et verdict sous l'affiche, métadonnées techniques masquées, critique en serif prune). Le contrat complet est écrit dans [`../DESIGN.md`](../DESIGN.md) : tokens papier/violet/prune, deux typographies de voix, formes pilules, composition de fiche, sidebar, bibliothèques, accessibilité et anti-directions. Écrans de référence : bibliothèque (`04-direction-validee`) et fiche film (`09-fiche-v5`).
+
+### `0.5.2` — Fondations du langage visuel
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les tokens papier/violet/prune remplacent l'ancien système (police Syne supprimée, `--font-personal` serif ajouté, ombres douces tokenisées), les boutons et la recherche passent en pilules, la sidebar perd sa bordure au profit du fond papier avec marque Sylloge + surtitre et items actifs en encre pleine, les affiches gagnent ombre et soulèvement au survol. Les assertions de style de `verify.mjs` restent vertes.
+
+- Remplacer les tokens actuels par le système validé : papier `#FAF9F6`, cartes blanches, bordures chaudes, violet encre `#5B3A68`, prune personnel `#473952`, rayons pilule et cartes.
+- Refondre `src/styles.css` : boutons principal/secondaire/tertiaire, segmented control, champ de recherche pilule, libellés de section en capitales espacées, ombres douces sous visuels uniquement.
+- Redessiner la sidebar : même fond que le contenu, marque Sylloge + surtitre, items pilules avec compteurs, actif en encre pleine, Paramètres ancré en bas.
+- Vérifier typecheck, verify, build, Cargo : verts sans exception.
+
+### `0.5.3` — Bibliothèques des cinq médiums
+
+- Appliquer la rangée d'outils validée aux cinq bibliothèques : vues intégrées et enregistrées en onglets soulignés violets, recherche pilule, actions filtre/tri, séparateur vertical.
+- Unifier les cartes : affiche arrondie avec ombre douce, titre, sous-titre, étoiles et pastille de statut dessous, survol par soulèvement ; fallback neutre inchangé.
+- Ajouter le sous-titre éditorial sous chaque titre de page (compte réel de la collection, coups de cœur quand la note existe, jamais pour l'Art).
+- Soigner les états vides : sobres, honnêtes, avec issue claire vers la création.
+
+### `0.5.4` — Fiches Films et Séries
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** FilmDetail et SeriesDetail adoptent la composition validée : colonne gauche collante (visuel avec ombre, statut en segmented control statique, note étoilée et coup de cœur dessous), bloc œuvre (surtitre du médium ou de la catégorie, titre, ligne de faits, grille d'informations à filets fins adaptée au médium, résumé en voix encyclopédie avec « Lire la suite » quand il est long, attribution TMDB en subtil avec actions Rafraîchir/Dissocier), puis partie personnelle immédiate après un simple filet (date de visionnage seule, critique en serif prune à filet violet, issue Modifier). La suppression déménage dans le menu ⋯ avec confirmation en dialogue centré ; les comportements TMDB existants sont conservés et les assertions de `verify.mjs` restent vertes.
+
+- Reconstruire FilmDetail et SeriesDetail selon la composition de référence : colonne gauche collante (visuel, statut, note/coup de cœur, action d'affiche), bloc œuvre (titre, faits, grille d'informations adaptée au médium, résumé avec Lire la suite, attribution TMDB), partie personnelle immédiate (date de visionnage seule, critique en serif prune, édition en place).
+- Séries : showrunner, casting, catégories Série télé/Animation et compteur de saisons intégrés à la grille d'informations, jamais mélangés aux données personnelles.
+- Conserver tous les comportements existants : association TMDB, rafraîchissement, dissociation, choix d'affiche.
+
+### `0.5.5` — Fiches Livres, Jeux et Art
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les trois fiches adoptent la composition validée des fiches Films et Séries : colonne gauche collante (visuel, statut segmenté propre au médium, note/coup de cœur — le cœur seul pour l'Art, jamais de note), bloc œuvre avec ligne de faits et grille d'informations adaptée (auteur/parution/avancement pour les Livres, développeur/plateforme/jeu ou visionnage pour les Jeux, artiste/année/lieu/exposition/découverte pour l'Art), partie personnelle en serif prune avec citations des Livres dans leur espace escamotable conservé. Menus ⋯ et dialogues de suppression alignés sur les autres fiches.
+
+- Décliner la composition validée : Livres avec auteur, année, catégorie et citations personnelles en voix serif-prune ; Jeux avec développeur, plateforme et statuts étendus (Regardé compris) ; Art sans aucune note, avec lieu, exposition et formes.
+- Vérifier que la voix personnelle reste unique : citations et avis en prune serif, données éditoriales en sans-serif neutre, sur les cinq médiums.
+
+### `0.5.6` — Formulaires et création assistée
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les cinq formulaires gagnent le langage pilule : champs sur carte blanche, focus violet en anneau doux, survols chauds, textarea héritant de la police. Les quatre recherches fournisseur affichent leur champ de saisie en pilule et leurs candidats en cartes arrondies à ombre douce au survol ; attribution RAWG et issues manuelles inchangées. Le blanc brut est remplacé par `--color-surface` sur toutes les surfaces restantes (imports, résolution de doublons, profils). Aucune logique modifiée : préremplissage éditorial uniquement, données personnelles jamais touchées.
+
+- Reprendre les cinq formulaires dans le langage pilule : champs blancs arrondis, labels sobres, sections éditoriales/personnelles distinguées, bouton principal violet.
+- Habiller les quatre flows de recherche fournisseur (TMDB films, TMDB TV, Open Library, RAWG) : suggestions, préparation, erreur sur place avec message réel, attribution visible.
+- Ne rien changer au contrat : données personnelles jamais préremplies, saisie manuelle toujours accessible.
+
+### `0.5.7` — Page Accueil éditoriale
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les quatre modules de l'accueil (Vus récemment, Favoris, module contextuel En attente ou Ajoutés récemment, calendrier Films vus) adoptent le langage validé : cartes blanches arrondies à ombre discrète sur papier, libellés de section en capitales espacées sans-serif, titres en graisse 700 sans capitales forcées, affiches arrondies qui se soulèvent au survol avec leur ombre, calendrier aux cases adoucies et chiffres tabulaires. Les données restent exclusivement les films locaux réels ; aucune métrique ni widget ajouté.
+
+- Recomposer l'accueil selon la direction validée : rythme éditorial fondé sur les œuvres locales réelles, reprise des modules existants (vus récemment, favoris, module contextuel) sans dashboard ni métriques.
+- Détacher visuellement chaque section avec les libellés capitales du langage ; aucune donnée inventée.
+
+### `0.5.8` — Paramètres, portabilité et dialogues
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Les quatre sections de Paramètres passent aux filets hairline, kickers en capitales espacées et titres en graisse 700 ; les cartes de portabilité gagnent une ombre discrète, les choix de transfert se soulèvent au survol avec l'état actif en teinte violette, les étapes de l'assistant d'import deviennent des pastules arrondies, la notice de sauvegarde est tokenisée (bordure chaude, rayon carte). L'onboarding reste centré sur son fond papier. Tous les libellés contractuels (Sauvegarde Sylloge, Importer et exporter, Oublier ce dossier) sont inchangés, assertions vertes.
+
+- Refonder les Paramètres (Profils, Données et sauvegardes, Application, À propos) en pages calmes du même langage.
+- Habiller les parcours Importer/Exporter, dialogues de formats, aperçus d'import, résolution de doublons et confirmations destructrices (danger prune).
+- Onboarding de premier lancement aligné sur la marque.
+
+### `0.5.9` — Mouvement, clavier et QA visuelle
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Le focus clavier est unifié dans tout le langage : anneau violet `--color-accent` de 3 px accompagné d'un halo `accent-soft`, appliqué au global comme aux contrôles import/doublons/updater (l'ancien violet grisâtre `#8c64a0` disparaît). Les transitions sont harmonisées en 0,12-0,16 s sur élévation et couleurs uniquement, et le rideau `prefers-reduced-motion` existant neutralise le tout. Cibles interactives vérifiées ≥ 34 px.
+
+- Transitions courtes (élévation, couleurs) avec respect strict de `prefers-reduced-motion`.
+- Parcours clavier complets : focus visible partout (anneau violet doux), ordre de tabulation, dialogues piégés correctement.
+- Captures de référence avant/après des surfaces principales ; vérification des contrastes documentée dans DESIGN.md.
+
+### `0.6.0` — Release publique Design desktop de V1
+
+- Revoir l'ensemble des jalons `0.5.1…0.5.9`, exercer les parcours principaux sur build natif, corriger les frictions remontées par Aurélien.
+- Mettre à jour manifestes, notes de release et tag après feu vert explicite ; publication signée via le processus existant.
+
+**Exclusions du train :** aucun nouveau médium, fournisseur, format, champ produit ni changement de modèle de données. Le design ne touche jamais aux règles : Art sans note, données personnelles jamais préremplies, fallback neutre obligatoire.
+
+### `0.5.10` — Accueil vivant et corrections de composition
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible en cours avec Aurélien.** La page d'accueil passe à une composition modulaire validée par Aurélien : deux rangées de modules demi-largeur (Derniers ajouts, Vus lus et joués, Favoris et mieux notés, calendrier discret), affiches côte à côte par trois, puis trois ajouts : **Jour pour jour** (œuvres consommées exactement il y a X ans, avec note en étoiles et aperçu de l'avis personnel ; le module disparaît quand aucun anniversaire n'existe), **À découvrir** (file d'attente réelle par statuts « à voir/à lire/à jouer/à découvrir », puces par médium, tirage aléatoire re-lançable de trois propositions), et un **bandeau de fin de page** comptant l'année en cours par médium (masqué si zéro). Corrections structurelles livrées dans la même passe : réservation de deux lignes de titre sous chaque carte des cinq bibliothèques (les sommets d'affiches ne bougent plus quel que soit le contenu), hauteur de calendrier stable entre mois de cinq et six semaines, espace restauré entre la barre d'outils et la grille, focus unique sur la pilule de recherche (l'anneau global clavier ne s'y applique plus en double), rail de navigation compact avec réapparition au survol, logo agrandi, et accent provisoirement déplacé du violet vers l'émeraude encre `#2E7D5B` (arbitrage définitif attendu avant mise à jour de DESIGN.md).
+
+**Différés actés avec Aurélien pendant ce lot :**
+
+- **Imports, exports et bibliothèques** : refonte à mener APRÈS la stabilisation de l'accueil et la clôture du train design. Ne pas ouvrir avant.
+- **Second avis / journal de décisions** : possibilité de re-noter une œuvre lors d'un anniversaire (« contre-avis » consigné dans un journal). Idée issue du module Jour pour jour, à spécifier plus tard.
+- **Indicateur de médium sur les cartes d'accueil** : conservé pour l'instant, suppression envisagée par Aurélien à terme.
+
+
+## 9. Trains suivants — document dédié
+
+### Train `0.7.0` — Importer depuis partout (refonte du processus d'import)
+
+**Décision de priorisation actée par Aurélien le 23 août 2026 :** ce train devient le suivant après la clôture de `0.6.0`, avant la thématique fiabilité/confidentialité jusqu'ici associée à `0.7.0` dans `roadmap-future.md`. Les anciens contenus glissent : fiabilité et confidentialité passent en `0.8.0`, la distribution macOS et Windows en `0.9.0`. Le document `roadmap-future.md` sera révisé à l'ouverture effective du train.
+
+**Constat issu de l'audit du code existant (23 août 2026) et du premier import réel d'Aurélien (401 films via export Notion ZIP) :**
+
+1. L'import Films fonctionne de bout en bout ; les quatre autres médiums échouent sur un export Notion réel non calibré sur le contrat Sylloge.
+2. Le dialogue d'import propose trois boutons (« Annuler », « Choisir un dossier », « Chooser un fichier ou ZIP ») et un texte long ; la compréhension repose sur l'utilisateur, pas sur l'interface. Le filtre natif Rust accepte pourtant déjà JSON, CSV et ZIP en une seule boîte.
+3. Le mapping est orienté « colonnes détectées » (une ligne par colonne du fichier, sélecteur de destination à droite). La bonne grille mentale est l'inverse : une ligne par champ Sylloge que l'on souhaite remplir, avec sélecteur « quelle colonne de mon fichier l'alimente », défaut « Ne pas importer ».
+4. La validation est tout-ou-rien : une seule valeur hors contrat (« statut indisponible », note hors bornes) bloque 100 % de l'import, sans explication exploitable ni issue.
+5. Les métadonnées éditoriales sont déjà couvrables par les fournisseurs assistés (TMDB, Open Library, IGDB) ; l'import ne devrait se concentrer que sur ce qui est personnel : statut, notes, coup de cœur, progression, dates, avis, citations.
+
+**Invariants conservés :** aperçu bloquant avant toute écriture, écriture atomique en une transaction, jamais d'écrasement silencieux, formats publiés JSON v1/v2 et CSV v1 inchangés, aucune donnée inventée. Ce train modifie la tolérance de lecture et l'interface, pas les contrats de données.
+
+#### `0.6.1` — Un seul bouton, un dialogue compréhensible
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Le dialogue d'import de chaque bibliothèque n'expose plus qu'un seul bouton principal « Choisir un fichier » (le sélecteur natif filtre déjà JSON, CSV et ZIP côté Rust) ; « Annuler » et « Choisir un dossier » disparaissent au profit de la croix × du dialogue. La croix de fermeture des assistants devient un bouton rond à filet, cohérent avec le langage pilule. Le texte d'accueil tient en une phrase de formats et une ligne d'engagement (« rien n'est modifié sans ton choix final »). Aucun changement de pipeline.
+
+- Remplacer les trois boutons du dialogue par **un unique bouton principal « Choisir un fichier »** ouvrant le sélecteur natif filtré JSON/CSV/ZIP (le filtre existe déjà côté Rust) ; supprimer le bouton dédié « dossier » de l'écran principal.
+- Supprimer le bouton « Annuler » ; fermeture par **croix × en haut à droite** du dialogue (plus Échap), désactivée pendant une écriture.
+- Réécrire le texte d'accueil sur une phrase de formats et une ligne d'engagement.
+- Critères : un utilisateur nouveau comprend en moins de dix secondes quoi cliquer ; aucun changement de pipeline derrière ; tests existants verts. ✓ (typecheck, verify, build, cargo check)
+
+#### `0.6.2` — Mapping inversé : les champs Sylloge d'abord
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** L'écran de mapping des quatre médiums non-Films est inversé : une ligne par champ Sylloge, groupés en « Éditorial » puis « Personnel », chaque champ portant un sélecteur pilule listant les colonnes réellement détectées (auto-sélection par aliasing conservée, colonnes déjà utilisées désactivées) avec « Ne pas importer » par défaut pour tout champ non reconnu. Le titre porte la mention Obligatoire. Les colonnes non mappées sont regroupées dans une zone repliable expliquant qu'elles ne sont pas importées et que l'éditorial reste récupérable via la recherche assistée. Moteur de mapping inchangé (`CollectionCsvMapping`, auto-détection, unicité des colonnes).
+
+- Refondre l'écran de mapping : **une ligne par champ Sylloge**, groupés « Éditorial » / « Personnel ». ✓
+- Chaque champ porte un sélecteur des colonnes détectées + **« Ne pas importer »** par défaut. ✓
+- Redessiner les sélecteurs dans le langage actuel (pilules, focus accent). ✓
+- Zone secondaire des colonnes non mappées avec mention recherche assistée. ✓
+- Appliquer la même grille au flux Films existant — reporté au jalon 0.6.5 (le moteur Films garde ses spécificités Notion/Markdown).
+- Critères : sur l'export Notion réel d'Aurélien, chaque champ personnel trouvable et mappable en trois clics ; zéro colonne mystérieuse non expliquée ; tests domaine verts. ✓
+
+#### `0.6.3` — Validation tolérante : normaliser d'abord, bloquer rarement
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Nouveau module domaine `importNormalization.ts` : statuts résolus par synonymes (casse, accents, pluriels, anglais courant « completed/watching/dropped »), notes multi-formats (« 4 », « 4,5 », « 4/5 », « 8/10 » converti, « 80 % », « ★★★★ »), coups de cœur étendus (✓, x, oui…), compteurs tolérants, dates ISO/FR/textuelles FR et EN (formats Notion compris). Toute valeur non résolue laisse le champ vide avec un avertissement `.info` non bloquant ; seule une ligne sans titre ne produit pas de fiche, sans empêcher les autres. L'aperçu affiche « N fiches prêtes · Blocages » séparément des avertissements regroupés dans une zone repliable expliquant que ces fiches partent sans ces champs.
+
+- **Statuts** : correspondance souple multilingue → champ vide + mention si non résolu. ✓
+- **Notes** : toutes écritures courantes acceptées, /10 → /5 automatique. ✓
+- **Coup de cœur**, **compteurs**, **dates** : tolérants. ✓
+- Seule situation bloquante pour UNE fiche : titre absent — le reste continue. ✓
+- Critères : fixtures sales passent en avertissements ; assertion `verify.mjs` mise à jour vers le nouveau contrat (fiche valide importée, ligne sans titre ignorée). ✓
+
+#### `0.6.4` — Aperçu honnête, import complet, résumé final lisible
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** L'aperçu des quatre médiums non-Films affiche désormais « N fiches prêtes · Blocages » et regroupe les champs laissés vides dans une zone jaune repliable (mécanisme 0.6.3). Après écriture, le **Rapport final** devient le résumé complet du parcours : lignes ignorées sans titre, puis liste repliable « Champs laissés vides sur N fiches — à compléter quand tu veux » nommant chaque œuvre et ses champs manquants (note, avis, affiche, couverture, visuel selon le médium), ou la mention « toutes les données reconnues ont été importées ». Les avertissements de mapping transitent maintenant du flow CSV vers le bouton d'import via `onReady(items, warnings)`.
+
+- Aperçu tout-ou-rien remplacé : fiches prêtes comptées séparément des blocages. ✓
+- Tout ce qui peut être importé entre, même incomplet ; champs introuvables laissés vides. ✓
+- **Résumé final lisible** : lignes ignorées + œuvres impactées avec leurs champs non remplis. ✓
+- Écriture atomique unique inchangée, doublons toujours via le résolveur. ✓
+- Critères : un CSV à 30 % de défauts produit ses 70 % de fiches avec le détail de ce qui manque ; tests verts. ✓
+
+#### `0.6.5` — Prendre la main : assistant d'import et documentation
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer.** Chaque étape du dialogue d'import embarque désormais son encart contextuel court (composant `ImportHint`, fond accent doux) : au choix du fichier (export Notion/Excel reconnu, vérification avant écriture), au mapping (pré-sélection automatique des colonnes reconnues), à l'aperçu (ce que fait l'étape suivante, rien n'est encore écrit), et au choix Remplacer/Fusionner (recommandation Fusionner en cas de doute). La documentation du dépôt reste à compléter avec la recette dédiée lors de la validation.
+
+- Parcours guidé : **encarts contextuels dans le dialogue**, jamais une page séparée. ✓
+- Textes d'erreur pédagogiques : livrés avec 0.6.3/0.6.4. ✓
+- Documentation README + recette dédiée sur les cinq médiums avec l'export Notion réel d'Aurélien : à faire pendant la recette de fin de train.
+- Critères : Aurélien réimporte ses séries/livres/jeux/art depuis son export Notion sans aide extérieure ; verdict consigné dans le dépôt.
+
+#### `0.6.6` — Baguette magique : association automatique des métadonnées
+
+**État : implémenté côté Films dans le code et couvert par les contrôles automatisés ; extension aux autres médiums et validation visible à exercer.** La bibliothèque Films gagne le bouton **« Tout associer »** (baguette magique) en tête de la barre d'outils, avant le champ de recherche. Le dialogue en trois temps : confirmation (« Associer toutes les fiches non associées via TMDB ? » avec compteur), progression n/total avec barre et bouton Arrêter, puis résumé (associées / sans correspondance sûre / arrêtée). Nouveau domaine `autoAssociate.ts` : score de correspondance titre normalisé + année (seuil 0,8), requêtes séquencées espacées de 250 ms, association via la commande TMDB existante, fiches déjà associées jamais retouchées, données personnelles intactes. La fiche Film remplace son menu ⋯ par **trois boutons explicites à icône** : Modifier (crayon), Associer ou Rafraîchir/Dissocier selon l'état (baguette), Supprimer (corbeille, teinte danger). L'extension du bouton aux Séries/Livres/Jeux attend leurs services d'association dédiés (Open Library et IGDB n'exposent pas encore d'association persistée) — noté pour le train suivant.
+
+- Bouton baguette « Tout associer » : Films livré ; autres médiums après ajout des associations persistées. ✓ / différé
+- Parcours confirmation → progression annulable → résumé. ✓
+- Fiche : Modifier / Associer / Supprimer en boutons explicites. ✓ (déployé aux cinq fiches en 0.6.7)
+- Critères : bibliothèque non associée traitée en lot avec progression et résumé ; données personnelles intactes ; tests verts. ✓
+
+#### `0.6.7` — Uniformisation des fiches : le parcours d'association des films partout
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Les fiches Séries, Livres, Jeux et Art abandonnent leur menu ⋯ (Modifier + Supprimer caché) pour la structure exacte de la fiche Film : trois boutons à icône **Modifier** (crayon), **Associer** (baguette, Séries/Livres/Jeux seulement) et **Supprimer** (corbeille, teinte danger), libellé de retour aligné sur les films. Le bouton **Associer** ouvre la même pop-up floutée que l'ajout de film : recherche fournisseur préremplie avec le titre de la fiche, encart « Fiche actuelle » rappelant que les données personnelles restent en place, clic direct sur un résultat = mise à jour immédiate des champs éditoriaux via les fusions partagées (`seriesWithPresentation`, `bookWithPresentation`, `gameWithPresentation`) puis retour fiche rafraîchie — aucun écran intermédiaire, aucune réécriture des statuts, notes, coups de cœur, progressions, avis, dates ou citations. Fournisseurs inchangés (TMDB TV, Open Library, IGDB) ; l'Art reste sans baguette par règle du domaine (aucun fournisseur). Nuance assumée face aux films : pas de bouton Dissocier sur ces médiums, qui ne stockent aucune association persistée — corriger une association passe par « Associer » puis un nouveau choix.
+
+- Fiches Séries/Livres/Jeux/Art : Modifier / Associer / Supprimer explicites, plus de menu caché. ✓
+- Pop-up d'association identique au parcours film : recherche préremplie, contexte, mise à jour directe, retour fiche. ✓
+- Fusion éditoriale bornée réutilisée telle quelle ; données personnelles et citations intactes (preuves dédiées). ✓
+- Critères : changer une mauvaise association depuis la fiche sans passer par Modifier ; tests verts. ✓
+
+#### `0.6.8` — Vues intégrées sémantiques, interrupteur de catégories, correctif Favoris
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Les vues intégrées deviennent sémantiques et la vue inventaire « Tous » disparaît. Chaque bibliothèque s'ouvre désormais sur sa **watchlist** (« À voir » Films/Séries, « À lire » Livres, « À jouer » Jeux, « À découvrir » Art) : uniquement les éléments pas encore consommés, triés par titre. **Récents** n'affiche plus que du déjà consommé (terminé/abandonné/vue/lu/joué/découverte selon le médium), du plus récemment vu au plus ancien — plus aucun élément « à découvrir » ne s'y glisse. **Favoris** (coups de cœur) et **Classement** (note décroissante, jamais sur l'Art) restent inchangés dans leur principe mais suivent la même mécanique. Séries et Livres gagnent une vue **En cours** dédiée (séries attendues, lectures en cours). Mécanique : nouveau filtre abstrait `statusGroup` ('pending' / 'inProgress' / 'consumed') porté par les présets de vue, traduit en liste blanche SQL paramétrée (`status IN (…)`) par médium ; un statut précis choisi à la volée raffine la vue au lieu de la contredire ; les vues enregistrées peuvent capturer un groupe, et les anciennes vues v1 « Tous » survivent comme présets neutres.
+
+- Interrupteur de catégories (Séries : Télé | Animation ; Livres : Livre | Manga | Comics) : bloc segmenté multi-sélection placé à gauche des icônes Filtrer/Trier/Enregistrer, au moins une catégorie toujours active, deux actives = toutes. Il pilote le filtre catégorie existant : la sélection conditionne TOUTES les vues et se combine avec elles (ex. Animation seule dans Récents = animés récents). ✓
+- L'Art reste sans interrupteur (neuf formes) : ses formes vivent dans le panneau Filtre ; ses vues intégrées sont À découvrir / Récents / Favoris, et des vues enregistrées par forme prennent le relais. ✓
+- Correctif du bug d'affichage en vue Favoris (Livres et Art) : `scrollbar-gutter: stable` réserve en permanence la place de la barre de défilement — la grille ne se recompose plus quand la liste raccourcit. Bénéfique aux cinq bibliothèques. ✓
+- Preuves dédiées 0.6.8 dans `verify.mjs` (contrat des vues, traduction SQL des groupes, interrupteur, gutter). ✓
+
+#### `0.6.9` — Pop-up d'ajout de film : recherche lisible et formulaire à sa taille
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Les deux étapes de la pop-up « Ajouter un film » sont recomposées. À l'étape recherche, la grille de suggestions passe à trois résultats par ligne (affiches plus petites, fenêtre inchangée) avec une zone bornée défilante qui réserve la place de sa barre de défilement (`scrollbar-gutter: stable`) : vingt résultats deviennent visibles en quelques roulettes au lieu de deux cartes géantes. À l'étape formulaire, la cause racine du grand blanc est corrigée : `FilmForm` était monté hors pop-up à l'intérieur de la fenêtre hôte et rendait son faux `<main>` pleine page (`min-height: 100vh`, marges latérales, barre « ← Annuler » en double sous la croix). Il expose désormais un mode intégré `embeddedInDialog` qui rend en-tête compact et formulaire directement dans la fenêtre ; le gabarit compact `.dialog-add-flow` reprend la main sur la grille affiche + verdict (spécificité doublée face à la règle générique `.editor-dialog .film-form.form-detail`).
+
+- Grille TMDB compacte : trois colonnes fixes, hauteur max `min(46vh, 420px)`, défilement interne. ✓
+- Formulaire intégré à la fenêtre hôte : plus de faux `<main>`, plus de barre redondante, hauteur calée sur le contenu. ✓
+- Preuves dédiées 0.6.9 dans `verify.mjs` (mode intégré, disparition de `compactHeading` en pop-up, grille trois colonnes, gutter). ✓
+- Critères : ajouter « Notre salut » depuis la recherche jusqu'à la fiche créée sans rencontrer ni grille à deux colonnes ni fenêtre à moitié vide. ✓
+
+#### `0.6.10` — Pop-up d'ajout des cinq médiums : le parcours des films partout
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.** Le parcours en deux étapes de l'ajout de film devient celui des cinq médiums : chaque bouton « Ajouter » ouvre la même pop-up floutée au-dessus de la bibliothèque, recherche fournisseur en premier (TMDB pour les Séries, Open Library pour les Livres, IGDB pour les Jeux), formulaire intégré à la fenêtre ensuite, prérempli des seuls champs éditoriaux après un clic sur un résultat. Les quatre formulaires exposent désormais le mode intégré `embeddedInDialog` des films (en-tête compact + formulaire rendus directement dans la fenêtre, sans faux `<main>` pleine page ni barre « ← Annuler » en double) ; les anciennes pages pleine page d'ajout assistée (`series-create`, `series-tmdb-search`, `book-create`, `book-ol-search`, `game-create`, `game-igdb-search`, `artwork-create`) sont supprimées du routeur, mortes depuis que la pop-up existe. L'Art reste sans fournisseur par règle du domaine : sa pop-up s'ouvre directement au stade formulaire, même gabarit visuel. La saisie manuelle reste accessible partout (« Saisir manuellement » à l'étape recherche) et aucune donnée personnelle n'est préremplie par un fournisseur.
+
+- Cinq boutons « Ajouter », cinq pop-up du même gabarit `.dialog-add-flow` ; zéro nouveau style nécessaire. ✓
+- Séries/Livres/Jeux : recherche compacte puis formulaire intégré ; sauvegarde puis ouverture directe de la fiche créée. ✓
+- Art : pop-up directement sur le formulaire, sans étape de recherche. ✓
+- Suppression des sept routes d'ajout pleine page devenues inatteignables (union `View`, rendu, sidebar nettoyés). ✓
+- Preuves dédiées 0.6.10 dans `verify.mjs` (pop-up par médium, mode intégré des cinq formulaires, disparition des routes) ; trois assertions historiques 0.4.7 mises à jour vers leur intention (le clic préremplit toujours directement). ✓
+- Diagnostic « erreur (422) » à la recherche Livres : Open Library répond 422 aux requêtes sans terme indexable (lettre unique, mot vide seul comme « le » ou « et », symboles) — fournisseurs vérifiés en ligne d'abord, pile réseau de l'app reproduite à l'identique ensuite. Le backend distingue désormais ce cas (`UnsearchableQuery`) et affiche un message qui nomme la cause et propose le remède au lieu du statut brut ; test unitaire dédié. ✓
+- Critères : ajouter une série, un livre, un jeu et une œuvre entièrement depuis les pop-up, sans jamais voir de page d'édition pleine page à la création. ✓
+
+#### `0.6.11` — Normalisation des bibliothèques : une grammaire commune aux cinq médiums
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation visible à exercer dans `npm run tauri:dev`.**
+
+- **Vues** : « Tous » réintroduite en fin de rangée sur les cinq médiums ; Films ouvrent sur **Récent** (puis À voir, Favori, Classement, Tous) ; Séries et Livres gardent leur progression ; l'Art ouvre sur **Favori** (Favori, Récent, Tous), sans watchlist ni classement. Libellés au singulier (Récent, Favori).
+- **Bug des boutons dupliqués corrigé à la racine** : `main.tsx` exportait une constante non-composant (`MEDIUM_DOT_COLORS`), ce qui désactivait le Fast Refresh et provoquait un second `createRoot()` au HMR invalidé — deux arbres React superposés. La constante est internalisée et le bootstrap réutilise désormais la racine existante (`__reactRoot`).
+- **TMDB** : `character = ""` d'un membre de casting ne fait plus échouer toute la sélection (« vide = absent » dans `validate_optional_text`, test unitaire dédié). C'était l'erreur « Le cache TMDB est invalide : personnage incorrect » constatée en recette.
+- **Visuels** : hook commun `usePosterEditor` branché sur les quatre nouveaux formulaires ; l'Art abandonne son bouton inline « Ajouter un visuel ». Crayon unique partout.
+- **Actions** : poubelle seule sur les cinq fiches ; fin du bouton « Rafraîchir » côté Films (un film associé expose Dissocier avec icône maillon brisé) ; « Saisir manuellement » désormais visible dans la pop-up compacte Films.
+- **Jeux** : statuts réduits à À jouer / Joué / Abandonné ; migration SQL 14 idempotente remappe « en cours » et « regardé » vers « joué », repli conservateur identique à la lecture des sauvegardes v2 antérieures.
+- **Art** : statut retiré de l'interface (colonne SQL conservée à valeur constante pour les imports/exports), catégorie remontée au-dessus du verdict, lieu/exposition visibles, repli renommé « Informations sur l'œuvre ».
+- **Dates conditionnelles** : plus de date demandée en watchlist (À voir / À lire) chez Séries et Livres.
+- **Sidebar** : la bascule garde son icône en mode développé.
+- **Requalification des données (scripts reproductibles, dry-run puis transaction)** : 60 séries promues en animé via TMDB (pays JP + genre Animation + score de titre ≥ seuil, zéro faux positif visible : Alice in Borderland et autres live-action JP restent séries) → 62 animés / 112 séries ; 12 mangas requalifiés par auteurs/titres certains (Urasawa, Fujimoto, Isayama…) → 67 livres / 12 mangas, aucun comics détecté. Les scripts `scripts/requalify_*.mjs` sont idempotents.
+- **Preuves dédiées 0.6.11 dans `verify.mjs`** + mise à jour des contrats de vues 0.6.8 vers la nouvelle grammaire.
+
+#### `0.7.0` — Release publique Importer depuis partout
+
+- Revoir les jalons `0.6.1…0.6.6`, recette complète sur les cinq médiums, publication signée après feu vert.
+
+## 11. Retours de recette du 24 août 2026 — feuille de route corrective
+
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.24 implémentés dans le code et couverts par les contrôles automatisés ; validation native visible du jalon 0.6.24 à exercer dans `npm run tauri:dev`.**
+
+### `0.6.13` — Purge du verdict personnel au retour en watchlist
+
+**État : implémenté.** Les quatre validateurs (`filmForm`, `seriesForm`, `bookForm`, `gameForm`) appliquent la purge : tout statut watchlist remet à zéro note, coup de cœur, progression, dates et avis avant validation, quel que soit le contenu du formulaire.
+
+- Preuves dédiées par médium dans `verify.mjs` (purge constatée + conservation sur statut consommé) ; tests historiques alignés sur la règle. ✓
+
+### `0.6.14` — Correctifs d'affichage de fiches
+
+**État : implémenté.**
+
+- « [object Object] » corrigé : l'icône est rendue comme enfant JSX, plus d'interpolation dans une chaîne. ✓
+- `.detail-actions { margin-left: auto }` : actions ancrées à droite sur les cinq fiches, le centrage Jeux devient structurellement impossible. ✓
+
+### `0.6.15` — Pop-up d'ajout : stabilité visuelle du verdict
+
+**État : implémenté.** Hauteur minimale réservée au bloc verdict dans le gabarit `.dialog-add-flow` (168 px) : la fenêtre ne grandit plus au changement de statut, les boutons ne sautent plus sous le curseur. ✓
+
+### `0.6.16` — Refonte des pages « Modifier la fiche »
+
+**État : socle implémenté ; recomposition fine à valider en recette.**
+
+- Films : le cache TMDB est chargé en édition via `fetchTmdbCache` — panneau d'identité enrichie affiché (année, durée, réalisateurs, casting, source), affiche enrichie montrée même si la colonne locale est vide. ✓
+- Champs éditoriaux ouverts par défaut en modification (tous médiums concernés suivent la même structure). Films livré ; l'alignement des trois autres formulaires sur ce gabarit reste à exercer en recette. ◐
+- Composition pleine largeur : la page Modifier reprend le gabarit centré de la fiche en lecture (1150 px), affiche plus présente. ✓
+
+### `0.6.17` — Bibliothèque Art : vues et mise en page
+
+**État : implémenté.**
+
+- Migration SQL 16 : toute œuvre existante passe en « découverte », date de découverte déduite de la création quand absente ; nouvelles œuvres et imports CSV marquées « découverte » par défaut (règle 6.1 du brief). ✓
+- Grille dédiée `artwork-grid` : visuels au format 16:10, cinq colonnes fluides sur grand écran et occupation pleine largeur — plus de contenu confiné à gauche. ✓
+
+### `0.6.18` — Pop-up commune pour l'ajout et la modification
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible restant à exercer.**
+
+- Le bouton Modifier des cinq médiums rouvre le même hôte de pop-up que l'ajout, prérempli et relié à l'update SQLite correspondante ; les anciennes routes pleine page d'édition sont supprimées. ✓
+- La note et l'avis ont été sortis de la composition précédente ; l'avis devient une rangée pleine largeur dans les formulaires partagés. ✓
+
+### `0.6.19` — Première composition commune et grille Art cohérente
+
+**État : implémenté, puis recomposé par le jalon 0.6.20 après recette visible.**
+
+- Le toggle « Informations sur le film » et ses équivalents disparaît ; les champs éditoriaux sont directement modifiables dans la fiche, y compris lorsqu'une fiche existante n'est pas enrichie. ✓
+- La même structure de formulaire est appliquée aux Séries, Livres, Jeux et Art, avec la règle produit conservée pour l'Art : pas de note ni de statut. ✓
+- La grille Art suit désormais le rythme des autres bibliothèques : cinq colonnes fluides sur grand écran, responsive, visuels 16:10 et occupation pleine largeur. ✓
+- La première proposition plaçait l'avis sur une rangée pleine largeur sous l'affiche. La recette du 25 août a montré qu'elle agrandissait inutilement la fenêtre et laissait vide le bas de la colonne droite ; cette décision est remplacée par 0.6.20.
+
+### `0.6.20` — Avis intégré et pop-up géométriquement stable
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.**
+
+- La scène conserve une hauteur fixe dictée par l'affiche : passer un contenu de la watchlist à « Terminé », « Vu », « Lu » ou « Joué » ne redimensionne plus la pop-up. ✓
+- L'avis est placé immédiatement sous la date, les étoiles et le coup de cœur dans la colonne droite ; il absorbe l'espace auparavant vide jusqu'au bas de l'affiche. ✓
+- Le contenu long d'une fiche existante défile à l'intérieur de la colonne droite, tandis que les actions restent ancrées en bas ; le bouton Modifier réutilise exactement ce gabarit prérempli. ✓
+- Le contrat est commun aux Films, Séries, Livres, Jeux et Art. Pour l'Art, l'avis reste visible sans introduire de note ni de statut. ✓
+
+### `0.6.21` — Prototype Film : verdict sous l’affiche et faits TMDB
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant toute extension aux autres bibliothèques.**
+
+- Le champ titre Film réserve une zone explicite à droite afin que la croix de fermeture ne le survole plus. ✓
+- En statut « Terminé » ou « Abandonné », cinq grandes étoiles et le coup de cœur sont centrés sous l’affiche. Les libellés numériques disparaissent ; les étoiles actives deviennent dorées et le cœur actif rouge. En « À découvrir », cette zone reste réservée mais invisible afin de ne pas déplacer l’affiche. ✓
+- Les données déjà récupérées par TMDB restent disponibles pendant la création assistée et alimentent une fiche technique discrète dans la colonne droite : date de sortie, durée, réalisation, cinq interprètes principaux et titre original lorsqu’il diffère. La fiche technique reste visible quel que soit le statut. ✓
+- Le bouton Modifier le film réutilise le même composant ; il recharge ces faits depuis le cache TMDB, sans toucher aux données personnelles. ✓
+- Ce prototype ne modifie ni Séries, ni Livres, ni Jeux, ni Art. Son extension est volontairement suspendue à la validation visuelle d’Aurélien. ✓
+
+### `0.6.22` — Ligne de statut Film stable et formulaire éditorial allégé
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant toute extension aux autres bibliothèques.**
+
+- La date de visionnage partage désormais la même ligne que les trois statuts, à droite d’« Abandonné ». La ligne garde la même hauteur dans « À découvrir », « Terminé » et « Abandonné ». ✓
+- La fiche « Informations du film » reste le premier bloc sous cette ligne dans les trois états : elle ne descend plus lorsque la date apparaît. ✓
+- Dans la pop-up Film, le formulaire ne rend plus les champs Titre original, Année, Réalisation et Résumé sous la fiche TMDB. Ces informations restent représentées dans la fiche technique lorsque le fournisseur les fournit, sans multiplier les contrôles. ✓
+- L’ajout et Modifier le film conservent le même gabarit, avec le verdict sous l’affiche, les faits TMDB à position fixe, l’avis défilable et les actions ancrées. ✓
+- Ce jalon reste strictement limité au Film ; Séries, Livres, Jeux et Art conservent le prototype partagé précédent. ✓
+
+### `0.6.23` — Gabarit de verdict partagé par les cinq bibliothèques
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.**
+
+- Le fond gris du groupe de statuts Film reste borné à la largeur intrinsèque des trois boutons « À découvrir », « Terminé » et « Abandonné » ; il ne remplit plus l’espace libre de la ligne lorsque la date est masquée. ✓
+- Le gabarit de l’ajout Film est étendu aux Séries, Livres, Jeux et Art : affiche ou visuel à gauche, zone réservée de verdict sous le visuel, titre dégagé à droite, contrôles métier conservés. ✓
+- Séries, Livres et Jeux placent leur date sur la même ligne que leur groupe de statuts. L’Art conserve sa subtilité de domaine : aucun statut ni note, cœur et date sous le visuel. ✓
+- Le bouton Modifier de chaque bibliothèque réutilise exactement le même composant et la même composition que l’ajout, avec les données éditoriales propres au médium préremplies. ✓
+- Les positions mesurées dans le harness réel sont stables : affiche 306 × 459 px, zone de verdict 58 px, aucun débordement horizontal sur les cinq formulaires en ajout et modification. ✓
+
+### `0.6.24` — Modifications fidèles et informations fournisseur explicites
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.**
+
+- Modifier un Film relit désormais l’écriture SQLite avant de rafraîchir la collection, puis la fiche de détail se recharge lorsque `updatedAt` change. Un retour en « À découvrir » ne peut donc plus laisser à l’écran l’ancien statut, la note, le coup de cœur, la date ou l’avis. ✓
+- Les formulaires Film, Série, Livre et Jeu effacent immédiatement leur verdict personnel lorsque la personne choisit le statut de liste d’attente ; les validateurs de domaine restent le second garde-fou avant l’écriture. Les citations Livre sont conservées en base mais ne sont pas rendues en « À lire ». ✓
+- Les types Série télé / Animation et Livre / Manga / Comics utilisent le même contrôle segmenté accessible que les statuts, sans sélecteur natif. ✓
+- Les fiches enrichies par TMDB, Open Library ou IGDB enregistrent maintenant une provenance exacte dans les migrations 17 et 18. Les anciennes associations dont l’origine est démontrable par le domaine officiel de leur image sont reprises sans déduire quoi que ce soit de leurs champs éditoriaux. En ajout comme en modification, elles affichent un encadré d’informations propre au médium ; une fiche manuelle conserve ses champs éditoriaux complets. ✓
+- La bibliothèque Art porte une largeur flexible explicite et absorbe tout l’espace disponible à droite du rail, y compris lorsque la vue courante ne contient aucune œuvre. ✓
+
+### `0.6.25` — Paramètres professionnels et premier lancement
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant la release.**
+
+- La vue Paramètres possède une navigation dédiée toujours déployée. Le contrôle de réduction disparaît dans ce contexte et chaque section devient une page exclusive avec un en-tête contextualisé. ✓
+- Les sections Profils, Importer et exporter, Sauvegardes, Application et À propos reprennent une hiérarchie de cartes plus lisible. Aucun interrupteur décoratif n’est ajouté : profil, photo, thème, mises à jour, sauvegardes et portabilité gardent chacun un comportement réel. ✓
+- L’identité d’un profil accepte une photo locale facultative, recadrée à 256 px, bornée avant décodage et validée côté Rust. Elle reste hors du format portable Sylloge afin de ne pas alourdir ou modifier silencieusement les sauvegardes existantes. ✓
+- Une installation neuve retire uniquement l’ancien profil `Default` strictement vierge. Un profil qui contient la moindre fiche, vue ou configuration de sauvegarde n’est jamais supprimé par la migration 19. ✓
+- Le premier lancement se déroule en trois étapes : pseudo et photo, thème système/clair/sombre, puis bibliothèque vide, restauration d’une sauvegarde Sylloge complète validée avant écriture, ou accès aux imports par collection. « Plus tard » crée explicitement un profil vide. ✓
+
+### `0.6.26` — Gabarits de bibliothèque stables et onboarding en fenêtre
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant la release.**
+
+- La rangée d’outils des cinq bibliothèques devient un gabarit fixe au-delà de 1250 px : baguette, recherche, filtres de catégorie et vues tiennent sur une seule ligne. La rangée des vues ne retombe plus sous la recherche quand la vue active, les résultats ou le contenu changent ; en dessous de 1250 px le repli reste volontaire. ✓
+- La barre d’outils est affichée dans les cinq bibliothèques même lorsqu’elles sont vides : baguette, recherche, filtres et vues restent visibles, et l’état vide prend place en dessous, exactement comme une bibliothèque remplie. ✓
+- Les états vides occupent l’espace disponible : « Votre bibliothèque … est vide » et « Aucun … ne correspond » sont centrés verticalement dans la page, sur toute sa largeur, dans les cinq bibliothèques. ✓
+- Le premier lancement occupe toute la fenêtre de l’application : plein cadre, sans marge ni arrondi, plus de « boîte dans la boîte ». La pop-up onboarding se ferme à la fin des trois étapes et laisse place à la bibliothèque. ✓
+- L’étape Profil est resserrée : l’avatar est posé à gauche du champ pseudo et la photo se choisit ou se remplace via un crayon superposé à l’avatar, sans bouton « Choisir une photo ». ✓
+- Les vignettes Système, Clair et Sombre reprennent les couleurs réelles de l’application (canevas gris clair, anthracite profond, accent encre), sans couleur d’accent inventée. ✓
+
+### Journal des retours
+
+- Recette du 24 août 2026 : parcours d'ajout des cinq médiums validé (pop-up en deux étapes très appréciée), requalification animés/mangas validée (« tout est nickel »), interrupteurs de catégories et vues Séries/Livres/Jeux validés, crayon de visuel validé. Points ouverts listés ci-dessus ; priorité perçue par Aurélien : purge du verdict, [object Object], page Modifier Films puis refonte commune, Art.
+
+**Arbitrages actés par Aurélien le 23 août 2026 :**
+
+1. **Import partiel** : tout ce qui peut entrer entre, même incomplet ; les champs non trouvés restent vides dans la fiche créée. Seule fiche bloquée : titre absent (elle n'est pas créée, signalée, le reste continue). Un **résumé final** liste les œuvres impactées et leurs champs non remplis.
+2. **Notes /10** : conversion automatique systématique dès qu'une échelle /10 est détectée, sans demande.
+3. **Statuts synonymes** : normalisation silencieuse ; valeur non résolue → champ vide + mention au résumé final.
+4. **Onboarding** : encarts contextuels dans le dialogue, étape par étape, jamais une page d'aide séparée.
+
+#### Journal de décisions — import depuis fournisseurs externes (23 août 2026)
+
+Après stabilisation du train courant, l'import évoluera vers un parcours par fournisseur connu : TV Time, Letterboxd, Allociné, SensCritique, etc. À l'onboarding de création de profil, l'utilisateur choisira son fournisseur ; un tutoriel pas-à-pas lui montrera uniquement ce qu'il doit faire manuellement (exporter depuis le fournisseur), tout le reste (détection, mapping, validation) étant automatisé. Pour garantir un mapping sans erreur, Sylloge s'entraînera sur des jeux de données réels de chaque fournisseur classique : chaque mapping validé sera conservé comme preset dédié. Les presets fournisseurs rejoindront le moteur de mapping existant (aliasing), sans format propriétaire imposé aux utilisateurs d'applications non couvertes.
+
+
+
+## 10. Backlog non priorisé
 
 Les éléments suivants peuvent être utiles, mais n’entrent dans une version que lorsqu’un besoin concret les justifie :
 
-- thème sombre ;
 - tags, collections éditoriales ou listes personnelles ;
 - localisation anglaise et autres langues ;
 - statistiques personnelles sobres ;

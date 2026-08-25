@@ -63,6 +63,10 @@ export function ImportModeChoice({ mediumLabel, importedCount, existingCount, on
           <small>Garde vos {mediumLabel}s actuels, ajoute les nouveautés et préserve vos notes et favoris.</small>
         </button>
       </div>
+      <p className="import-contextual-hint">
+        <span aria-hidden="true">💡</span>
+        En cas de doute, choisissez Fusionner : rien n’est supprimé et les fiches en double vous seront proposées une par une.
+      </p>
       <div className="assistant-actions">
         <button className="secondary-button" type="button" onClick={onCancel}>Annuler</button>
       </div>

@@ -88,7 +88,17 @@ export function gameToFormValues(game: Game): GameFormValues {
   }
 }
 
-export function validateGameForm(values: GameFormValues): GameValidationResult {
+/**
+ * 0.6.13 — un jeu « à jouer » n'a pas encore été lancé : note, coup de cœur,
+ * date de partie et avis sont purgés au retour en watchlist.
+ */
+export function purgeGameVerdict(values: GameFormValues): GameFormValues {
+  if (values.status !== 'à jouer') return values
+  return { ...values, rating: '', isFavorite: false, playedAt: '', personalNote: '' }
+}
+
+export function validateGameForm(rawValues: GameFormValues): GameValidationResult {
+  const values = purgeGameVerdict(rawValues)
   const errors: GameFormErrors = {}
   const title = values.title.trim()
   const yearText = values.year.trim()

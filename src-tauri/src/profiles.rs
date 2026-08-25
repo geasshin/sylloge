@@ -14,6 +14,7 @@ pub const MAX_PROFILES: i64 = 5;
 pub struct ProfileSummary {
     id: String,
     name: String,
+    avatar_data_url: Option<String>,
     created_at: String,
     updated_at: String,
     film_count: i64,
@@ -28,6 +29,9 @@ pub struct ProfileSummary {
 pub struct CreateProfileInput {
     id: String,
     name: String,
+    avatar_data_url: Option<String>,
+    #[serde(default)]
+    select_after_creation: bool,
 }
 
 #[derive(Deserialize)]
@@ -35,6 +39,14 @@ pub struct CreateProfileInput {
 pub struct RenameProfileInput {
     profile_id: String,
     name: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProfileInput {
+    profile_id: String,
+    name: String,
+    avatar_data_url: Option<String>,
 }
 
 fn validate_profile_name(name: &str) -> Result<String, String> {
@@ -48,6 +60,31 @@ fn validate_profile_name(name: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
+fn validate_avatar_data_url(value: Option<&str>) -> Result<Option<String>, String> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    if value.len() > 400_000 {
+        return Err("La photo de profil dépasse la taille locale autorisée.".to_string());
+    }
+    let body = [
+        "data:image/jpeg;base64,",
+        "data:image/png;base64,",
+        "data:image/webp;base64,",
+    ]
+    .iter()
+    .find_map(|prefix| value.strip_prefix(prefix))
+    .ok_or_else(|| "La photo de profil doit être une image JPEG, PNG ou WebP.".to_string())?;
+    if body.is_empty()
+        || !body
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'+' | b'/' | b'='))
+    {
+        return Err("La photo de profil locale est invalide.".to_string());
+    }
+    Ok(Some(value.to_string()))
+}
+
 #[tauri::command]
 pub async fn list_profiles(
     db_instances: State<'_, DbInstances>,
@@ -57,6 +94,7 @@ pub async fn list_profiles(
         "SELECT
             p.id,
             p.name,
+            p.avatar_data_url,
             p.created_at,
             p.updated_at,
             (SELECT COUNT(*) FROM films WHERE profile_id = p.id) AS film_count,
@@ -76,6 +114,7 @@ pub async fn list_profiles(
         .map(|row| ProfileSummary {
             id: row.get("id"),
             name: row.get("name"),
+            avatar_data_url: row.get("avatar_data_url"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
             film_count: row.get("film_count"),
@@ -93,6 +132,7 @@ pub async fn create_profile(
     input: CreateProfileInput,
 ) -> Result<(), String> {
     let name = validate_profile_name(&input.name)?;
+    let avatar_data_url = validate_avatar_data_url(input.avatar_data_url.as_deref())?;
     if input.id.trim().is_empty() {
         return Err("L'identifiant du profil est invalide.".to_string());
     }
@@ -109,15 +149,38 @@ pub async fn create_profile(
         ));
     }
 
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer la création du profil : {error}"))?;
+
     sqlx::query(
-        "INSERT INTO profiles (id, name, created_at, updated_at)
-         VALUES ($1, $2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
+        "INSERT INTO profiles (id, name, avatar_data_url, created_at, updated_at)
+         VALUES ($1, $2, $3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
     )
     .bind(&input.id)
     .bind(&name)
-    .execute(&pool)
+    .bind(avatar_data_url)
+    .execute(&mut *transaction)
     .await
     .map_err(|error| format!("Impossible de créer le profil : {error}"))?;
+
+    if input.select_after_creation {
+        sqlx::query(
+            "UPDATE current_profile
+             SET profile_id = $1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+             WHERE singleton = 1",
+        )
+        .bind(&input.id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible d’ouvrir le nouveau profil : {error}"))?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser la création du profil : {error}"))?;
 
     Ok(())
 }
@@ -141,6 +204,36 @@ pub async fn rename_profile(
 
     if result.rows_affected() != 1 {
         return Err("Le profil à renommer est introuvable.".to_string());
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_profile(
+    db_instances: State<'_, DbInstances>,
+    input: UpdateProfileInput,
+) -> Result<(), String> {
+    let name = validate_profile_name(&input.name)?;
+    let avatar_data_url = validate_avatar_data_url(input.avatar_data_url.as_deref())?;
+    let pool = sqlite_pool(&db_instances).await?;
+
+    let result = sqlx::query(
+        "UPDATE profiles
+         SET name = $1,
+             avatar_data_url = $2,
+             updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = $3",
+    )
+    .bind(name)
+    .bind(avatar_data_url)
+    .bind(&input.profile_id)
+    .execute(&pool)
+    .await
+    .map_err(|error| format!("Impossible de modifier le profil : {error}"))?;
+
+    if result.rows_affected() != 1 {
+        return Err("Le profil à modifier est introuvable.".to_string());
     }
 
     Ok(())

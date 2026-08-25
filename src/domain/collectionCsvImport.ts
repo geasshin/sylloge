@@ -1,14 +1,23 @@
 import { parseCsv, normalizeCsvHeader, type CsvRow, type CsvTable } from './csv.ts'
+import {
+  isRecognizableFavorite,
+  normalizeEnumValue,
+  normalizeImportCount,
+  normalizeImportDate,
+  normalizeImportFavorite,
+  normalizeImportRating,
+  normalizeImportStatus,
+} from './importNormalization.ts'
 import { COLLECTION_CSV_CONTRACTS, type CsvCollectionMedium } from './collectionCsvTransfer.ts'
 import { validateSeriesForm, type SeriesFormValues } from './seriesForm.ts'
 import { validateBookForm, type BookFormValues } from './bookForm.ts'
 import { validateGameForm, type GameFormValues } from './gameForm.ts'
 import { validateArtworkForm, type ArtworkFormValues } from './artworkForm.ts'
-import { ARTWORK_FORMS, ARTWORK_STATUSES, type Artwork } from './artwork.ts'
-import { BOOK_CATEGORIES, BOOK_STATUSES, type Book, type BookQuote } from './book.ts'
-import { GAME_STATUSES, type Game } from './game.ts'
+import { ARTWORK_FORMS, type Artwork } from './artwork.ts'
+import { BOOK_CATEGORIES, type Book, type BookQuote } from './book.ts'
+import type { Game } from './game.ts'
 import type { ImportValidationError } from './libraryTransfer.ts'
-import { SERIES_CATEGORIES, SERIES_STATUSES, type Series } from './series.ts'
+import { SERIES_CATEGORIES, type Series } from './series.ts'
 
 export type CollectionCsvImportKind = Exclude<CsvCollectionMedium, 'films'>
 export type CollectionCsvItem = Artwork | Book | Game | Series
@@ -108,6 +117,42 @@ export function collectionCsvFields(kind: CollectionCsvImportKind): readonly Col
   return FIELDS[kind]
 }
 
+/** Groupes du mapping inversé : champs éditoriaux puis personnels, par médium. */
+const FIELD_GROUPS: Array<{ id: string; label: string; summary: string; keys: Record<CollectionCsvImportKind, readonly string[]> }> = [
+  {
+    id: 'editorial',
+    label: 'Éditorial',
+    summary: 'titre et description de l’œuvre — optionnel, récupérable plus tard via la recherche assistée',
+    keys: {
+      series: ['title', 'showrunner', 'casting', 'summary', 'category', 'posterUrl'],
+      books: ['title', 'author', 'year', 'summary', 'category', 'coverUrl'],
+      games: ['title', 'developer', 'platform', 'year', 'coverUrl'],
+      artworks: ['title', 'artist', 'year', 'form', 'location', 'exhibition', 'imageUrl'],
+    },
+  },
+  {
+    id: 'personal',
+    label: 'Personnel',
+    summary: 'statut, note, coup de cœur, progression, dates et avis — l’essentiel de ton import',
+    keys: {
+      series: ['status', 'rating', 'isFavorite', 'seasonsSeen', 'seasonsTotal', 'startedAt', 'personalNote'],
+      books: ['status', 'rating', 'isFavorite', 'volumesRead', 'volumesTotal', 'startedAt', 'personalNote', 'quotes'],
+      games: ['status', 'rating', 'isFavorite', 'playedAt', 'personalNote'],
+      artworks: ['status', 'isFavorite', 'discoveredAt', 'personalNote'],
+    },
+  },
+]
+
+export function collectionCsvFieldGroups(kind: CollectionCsvImportKind): Array<{ id: string; label: string; summary: string; fields: readonly CollectionCsvField[] }> {
+  const all = FIELDS[kind]
+  return FIELD_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    summary: group.summary,
+    fields: group.keys[kind].map((key) => all.find((fieldDefinition) => fieldDefinition.key === key)).filter((fieldDefinition): fieldDefinition is CollectionCsvField => fieldDefinition !== undefined),
+  }))
+}
+
 export function prepareCollectionCsvImport(kind: CollectionCsvImportKind, contents: string): CollectionCsvImportSession {
   const table = parseCsv(contents)
   const sourceKind = isSyllogeCollectionCsv(kind, table.headers) ? 'sylloge-csv-v1' : 'csv'
@@ -123,14 +168,17 @@ export function prepareCollectionCsvImport(kind: CollectionCsvImportKind, conten
 
 export function setCollectionCsvSourceDestination(
   configuration: CollectionCsvMapping,
-  source: string,
-  destination: string | null,
+  fieldKey: string,
+  column: string | null,
 ): CollectionCsvMapping {
-  const mapping = { ...configuration }
-  for (const [fieldKey, column] of Object.entries(mapping)) {
-    if (column === source || fieldKey === destination) mapping[fieldKey] = null
+  // Mapping inversé (0.6.2) : mapping[champSylloge] = nomDeColonne.
+  // Affecte `column` au champ `fieldKey`, en retirant cette colonne de tout
+  // autre champ qui la détenait (une colonne ne peut alimenter qu'un champ).
+  const mapping: CollectionCsvMapping = { ...configuration }
+  for (const [otherField, otherColumn] of Object.entries(mapping)) {
+    if (otherColumn === column && otherField !== fieldKey) mapping[otherField] = null
   }
-  if (destination !== null) mapping[destination] = source
+  mapping[fieldKey] = column
   return mapping
 }
 
@@ -156,11 +204,14 @@ export function previewCollectionCsvImport(
     const before = errors.length
     const values = mappedValues(configuration, row, indexByHeader)
     const item = parseGenericRow(session.kind, values, row.line, importedAt, errors)
-    if (item !== null && errors.length === before) items.push(item)
+    // Les avertissements de normalisation (chemin `.info`) n'empêchent plus la
+    // fiche d'entrer : seules les vraies erreurs restent bloquantes (0.6.3).
+    const blocking = errors.slice(before).some((entry) => !entry.path.endsWith('.info'))
+    if (item !== null && !blocking) items.push(item)
   }
 
   return {
-    items: errors.length === 0 ? items : null,
+    items: items.length > 0 ? items : null,
     validItemCount: items.length,
     totalItemCount: session.table.rows.length,
     errors,
@@ -272,25 +323,59 @@ function parseGenericRow(
   errors: ImportValidationError[],
 ): CollectionCsvItem | null {
   const value = (key: string) => values[key] ?? ''
+  // Normalisation tolérante (0.6.3) : les valeurs illisibles deviennent des
+  // avertissements non bloquants, la fiche part avec le champ vide.
+  const warnings: string[] = []
+  const status = (medium: 'film' | 'série' | 'livre' | 'jeu' | 'art', fallback: string) => {
+    const normalized = normalizeImportStatus(medium, value('status'))
+    if (normalized.warning) warnings.push(`Statut ${normalized.warning}`)
+    return normalized.value ?? fallback
+  }
+  const rating = () => {
+    const normalized = normalizeImportRating(value('rating'))
+    if (normalized.warning) warnings.push(`Note ${normalized.warning}`)
+    return normalized.value
+  }
+  const favorite = (): boolean => {
+    const raw = value('isFavorite')
+    if (!isRecognizableFavorite(raw)) warnings.push('Coup de cœur illisible — laissé vide.')
+    return normalizeImportFavorite(raw)
+  }
+  const count = (key: string, label: string): string => {
+    const normalized = normalizeImportCount(value(key))
+    if (normalized.warning) warnings.push(`${label} ${normalized.warning}`)
+    return normalized.value?.toString() ?? ''
+  }
+  const date = (key: string, label: string): string => {
+    const normalized = normalizeImportDate(value(key))
+    if (normalized.warning) warnings.push(`${label} ${normalized.warning}`)
+    return normalized.value ?? ''
+  }
   if (kind === 'series') {
     const result = validateSeriesForm({
       title: value('title'), showrunner: value('showrunner'), casting: value('casting'), summary: value('summary'),
-      category: (canonicalEnum(value('category'), SERIES_CATEGORIES) ?? 'série télé') as SeriesFormValues['category'], status: (canonicalEnum(value('status'), SERIES_STATUSES) ?? 'à voir') as SeriesFormValues['status'], rating: value('rating'),
-      isFavorite: parseFavorite(value('isFavorite'), line, errors), seasonsSeen: value('seasonsSeen'), seasonsTotal: value('seasonsTotal'),
-      startedAt: value('startedAt'), posterUrl: value('posterUrl'), personalNote: value('personalNote'),
+      category: (normalizeEnumValue(value('category'), SERIES_CATEGORIES).value ?? 'série télé') as SeriesFormValues['category'],
+      status: status('série', 'à voir') as SeriesFormValues['status'],
+      rating: rating()?.toString() ?? '',
+      isFavorite: favorite(), seasonsSeen: count('seasonsSeen', 'Saisons vues :'), seasonsTotal: count('seasonsTotal', 'Saisons total :'),
+      startedAt: date('startedAt', 'Début de visionnage :'), posterUrl: value('posterUrl'), personalNote: value('personalNote'),
     } satisfies SeriesFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)
+    for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
     return { id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data, progressUpdatedAt: null, createdAt: importedAt, updatedAt: importedAt }
   }
   if (kind === 'books') {
     const quotes = parseQuotes(value('quotes'), line, errors, importedAt)
     const result = validateBookForm({
-      title: value('title'), author: value('author'), year: value('year'), summary: value('summary'),
-      category: (canonicalEnum(value('category'), BOOK_CATEGORIES) ?? 'livre') as BookFormValues['category'], status: (canonicalEnum(value('status'), BOOK_STATUSES) ?? 'à lire') as BookFormValues['status'], rating: value('rating'),
-      isFavorite: parseFavorite(value('isFavorite'), line, errors), volumesRead: value('volumesRead'), volumesTotal: value('volumesTotal'),
-      startedAt: value('startedAt'), coverUrl: value('coverUrl'), personalNote: value('personalNote'), quotes: quotes.map((quote) => quote.body),
+      title: value('title'), author: value('author'), year: count('year', 'Année :'), summary: value('summary'),
+      category: (normalizeEnumValue(value('category'), BOOK_CATEGORIES).value ?? 'livre') as BookFormValues['category'],
+      status: status('livre', 'à lire') as BookFormValues['status'],
+      rating: rating()?.toString() ?? '',
+      isFavorite: favorite(), volumesRead: count('volumesRead', 'Tomes lus :'), volumesTotal: count('volumesTotal', 'Tomes total :'),
+      startedAt: date('startedAt', 'Début de lecture :'), coverUrl: value('coverUrl'), personalNote: value('personalNote'), quotes: quotes.map((quote) => quote.body),
     } satisfies BookFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)
+    for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
     return {
       id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data,
       progressUpdatedAt: null, createdAt: importedAt, updatedAt: importedAt,
@@ -299,20 +384,30 @@ function parseGenericRow(
   }
   if (kind === 'games') {
     const result = validateGameForm({
-      title: value('title'), developer: value('developer'), platform: value('platform'), year: value('year'),
-      status: (canonicalEnum(value('status'), GAME_STATUSES) ?? 'à jouer') as GameFormValues['status'], rating: value('rating'), isFavorite: parseFavorite(value('isFavorite'), line, errors),
-      playedAt: value('playedAt'), coverUrl: value('coverUrl'), personalNote: value('personalNote'),
+      title: value('title'), developer: value('developer'), platform: value('platform'), year: count('year', 'Année :'),
+      status: status('jeu', 'à jouer') as GameFormValues['status'],
+      rating: rating()?.toString() ?? '',
+      isFavorite: favorite(),
+      playedAt: date('playedAt', 'Date de jeu :'), coverUrl: value('coverUrl'), personalNote: value('personalNote'),
     } satisfies GameFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)
+    for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
     return { id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data, createdAt: importedAt, updatedAt: importedAt }
   }
   const result = validateArtworkForm({
-    title: value('title'), artist: value('artist'), year: value('year'), form: (canonicalEnum(value('form'), ARTWORK_FORMS) ?? 'autre') as ArtworkFormValues['form'],
-    location: value('location'), exhibition: value('exhibition'), status: (canonicalEnum(value('status'), ARTWORK_STATUSES) ?? 'à découvrir') as ArtworkFormValues['status'],
-    isFavorite: parseFavorite(value('isFavorite'), line, errors), discoveredAt: value('discoveredAt'),
+    title: value('title'), artist: value('artist'), year: count('year', 'Année :'),
+    form: (normalizeEnumValue(value('form'), ARTWORK_FORMS).value ?? 'autre') as ArtworkFormValues['form'],
+    location: value('location'), exhibition: value('exhibition'),
+    isFavorite: favorite(),
+    discoveredAt: date('discoveredAt', 'Date de découverte :'),
     imageUrl: value('imageUrl'), personalNote: value('personalNote'),
+    // Les imports CSV historiques ne portent pas de champs personnalisés ;
+    // une œuvre importée est découverte (0.6.17).
+    status: 'découverte' as ArtworkFormValues['status'],
+    customFields: [],
   } satisfies ArtworkFormValues)
   if (!result.success) return formFailure(line, result.errors, errors)
+  for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
   return { id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data, createdAt: importedAt, updatedAt: importedAt }
 }
 
@@ -321,15 +416,17 @@ function parseQuotes(value: string, line: number, errors: ImportValidationError[
   try {
     const parsed: unknown = JSON.parse(value)
     if (!Array.isArray(parsed) || parsed.some((quote) => typeof quote !== 'string')) {
-      errors.push({ path: `Ligne ${line}.citations`, message: 'Les citations doivent être un tableau JSON de textes.' })
+      errors.push({ path: `Ligne ${line}.citations.info`, message: 'Citations dans un format inattendu — laissées vides.' })
       return []
     }
     return parsed.filter((quote) => quote.trim()).map((body, position) => ({
       id: `import-preview-${line}-quote-${position}`, bookId: `import-preview-${line}`, body, position, createdAt: importedAt,
     }))
   } catch {
-    errors.push({ path: `Ligne ${line}.citations`, message: 'Les citations doivent être un tableau JSON valide.' })
-    return []
+    // Citations libres (texte non JSON, ex. export Notion) : on garde le texte
+    // brut comme une seule citation plutôt que de bloquer quoi que ce soit.
+    errors.push({ path: `Ligne ${line}.citations.info`, message: 'Citations en texte libre — importées comme une citation unique.' })
+    return [{ id: `import-preview-${line}-quote-0`, bookId: `import-preview-${line}`, body: value.trim(), position: 0, createdAt: importedAt }]
   }
 }
 
@@ -338,21 +435,6 @@ function formFailure(line: number, formErrors: Record<string, string | undefined
     if (message) errors.push({ path: `Ligne ${line}.${field}`, message })
   }
   return null
-}
-
-function parseFavorite(value: string, line: number, errors: ImportValidationError[]): boolean {
-  const normalized = normalizeCsvHeader(value)
-  if (!normalized) return false
-  if (['true', 'yes', 'oui', '1'].includes(normalized)) return true
-  if (['false', 'no', 'non', '0'].includes(normalized)) return false
-  errors.push({ path: `Ligne ${line}.favori`, message: `La valeur favori « ${value} » doit valoir Yes, No, true, false, oui ou non.` })
-  return false
-}
-
-function canonicalEnum(value: string, values: readonly string[]): string | null {
-  if (!value.trim()) return null
-  const normalized = normalizeCsvHeader(value)
-  return values.find((candidate) => normalizeCsvHeader(candidate) === normalized) ?? value
 }
 
 function detectMapping(kind: CollectionCsvImportKind, headers: string[]): CollectionCsvMapping {

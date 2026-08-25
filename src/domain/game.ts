@@ -1,13 +1,14 @@
-export const GAME_STATUSES = ['à jouer', 'en cours', 'joué', 'abandonné', 'regardé'] as const
+// 0.6.11 : trois statuts seulement. « En cours » et « Regardé » disparaissent ;
+// la migration 15 remappe les fiches existantes (« en cours » et « regardé »
+// deviennent « joué »).
+export const GAME_STATUSES = ['à jouer', 'joué', 'abandonné'] as const
 
 export type GameStatus = (typeof GAME_STATUSES)[number]
 
 export const GAME_STATUS_LABELS: Record<GameStatus, string> = {
   'à jouer': 'À jouer',
-  'en cours': 'En cours',
   joué: 'Joué',
   abandonné: 'Abandonné',
-  regardé: 'Regardé',
 }
 
 export const DEFAULT_GAME_PLATFORMS = [

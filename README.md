@@ -29,6 +29,28 @@ open src-tauri/target/release/bundle/macos/Sylloge.app
 
 Pour un bundle signé distribuable et la publication GitHub, suivre `docs/TAURI_UPDATER_SETUP.md`. Le build release produit un DMG pour l’installation initiale et une archive `.app.tar.gz` signée pour l’updater.
 
+## Clés API embarquées
+
+Les clés TMDB et RAWG vivent chacune dans un fichier Rust ignoré par Git : `src-tauri/src/tmdb/embedded_key.rs` et `src-tauri/src/rawg/embedded_key.rs`. Un clone propre ne les contient pas et les contrôles Cargo échouent sans eux. Sur une nouvelle machine :
+
+1. Déposer chaque clé en clair dans `~/.sylloge-secrets/tmdb-api-key.txt` puis `~/.sylloge-secrets/rawg-api-key.txt`, avec un éditeur de texte ; ne jamais coller une clé dans un terminal.
+2. Générer les fichiers embarqués :
+
+~~~bash
+python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/tmdb-api-key.txt --provider tmdb --out src-tauri/src/tmdb/embedded_key.rs
+python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/rawg-api-key.txt --provider rawg --out src-tauri/src/rawg/embedded_key.rs
+~~~
+
+3. Rejouer `cd src-tauri && cargo test` : les tests du module embarqué valident la clé produite.
+
+Si un fichier embarqué existe mais que sa clé source manque, l’opération inverse restaure celle-ci sans jamais l’afficher :
+
+~~~bash
+python3 scripts/generate_embedded_key.py decode --embedded-file src-tauri/src/tmdb/embedded_key.rs --out ~/.sylloge-secrets/tmdb-api-key.txt
+~~~
+
+La clé n’apparaît ni dans le dépôt, ni dans les exports, snapshots ou journaux. L’embarcation vise un usage gratuit et non commercial diffusé à des personnes de confiance ; toute distribution publique ou commerciale impose de revoir ce modèle.
+
 ## Données et sauvegarde
 
 Les données macOS sont dans ~/Library/Application Support/com.aurelientrouble.sylloge/. La base est sylloge.db, accompagnée si nécessaire de sylloge.db-wal et sylloge.db-shm. Ne pas les copier pendant que l’application est ouverte.

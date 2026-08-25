@@ -423,6 +423,11 @@ mod tests {
                     .expect("migration SQLite de démarrage");
             }
 
+            sqlx::query("INSERT INTO profiles (id, name) VALUES ('default', 'Profil de test')")
+                .execute(&pool)
+                .await
+                .expect("profil de test TMDB");
+
             for (film_id, title) in [
                 ("film-expired-unread", "Cache expiré jamais relu"),
                 ("film-future-unread", "Cache non expiré jamais relu"),
