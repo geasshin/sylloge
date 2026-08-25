@@ -660,7 +660,7 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ## 11. Retours de recette du 24 août 2026 — feuille de route corrective
 
-Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.22 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du prototype Film 0.6.22 restant à exercer dans `npm run tauri:dev`.**
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.23 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du prototype commun 0.6.23 restant à exercer dans `npm run tauri:dev`.**
 
 ### `0.6.13` — Purge du verdict personnel au retour en watchlist
 
@@ -738,6 +738,16 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 - Dans la pop-up Film, le formulaire ne rend plus les champs Titre original, Année, Réalisation et Résumé sous la fiche TMDB. Ces informations restent représentées dans la fiche technique lorsque le fournisseur les fournit, sans multiplier les contrôles. ✓
 - L’ajout et Modifier le film conservent le même gabarit, avec le verdict sous l’affiche, les faits TMDB à position fixe, l’avis défilable et les actions ancrées. ✓
 - Ce jalon reste strictement limité au Film ; Séries, Livres, Jeux et Art conservent le prototype partagé précédent. ✓
+
+### `0.6.23` — Gabarit de verdict partagé par les cinq bibliothèques
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.**
+
+- Le fond gris du groupe de statuts Film reste borné à la largeur intrinsèque des trois boutons « À découvrir », « Terminé » et « Abandonné » ; il ne remplit plus l’espace libre de la ligne lorsque la date est masquée. ✓
+- Le gabarit de l’ajout Film est étendu aux Séries, Livres, Jeux et Art : affiche ou visuel à gauche, zone réservée de verdict sous le visuel, titre dégagé à droite, contrôles métier conservés. ✓
+- Séries, Livres et Jeux placent leur date sur la même ligne que leur groupe de statuts. L’Art conserve sa subtilité de domaine : aucun statut ni note, cœur et date sous le visuel. ✓
+- Le bouton Modifier de chaque bibliothèque réutilise exactement le même composant et la même composition que l’ajout, avec les données éditoriales propres au médium préremplies. ✓
+- Les positions mesurées dans le harness réel sont stables : affiche 306 × 459 px, zone de verdict 58 px, aucun débordement horizontal sur les cinq formulaires en ajout et modification. ✓
 
 ### Journal des retours
 

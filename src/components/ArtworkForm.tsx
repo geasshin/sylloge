@@ -106,12 +106,27 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
   )
 
   const form = (
-    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-      <div className="form-side">
+    <form className="film-form form-detail form-medium-artwork" onSubmit={handleSubmit} noValidate>
+      <div className="form-side form-side-with-verdict form-side-artwork">
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Visuel" {...posterEditor.posterProps} />
         </div>
-        <p className="form-poster-caption">Aperçu du visuel</p>
+        <div className="form-poster-verdict artwork-poster-verdict">
+          <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+          <div className="date-row">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            <input
+              id="artwork-discoveredAt"
+              name="discoveredAt"
+              type="date"
+              value={values.discoveredAt || today}
+              onChange={(event) => update('discoveredAt', event.target.value)}
+              aria-label="Date de découverte"
+              aria-invalid={Boolean(errors.discoveredAt)}
+            />
+          </div>
+          {errors.discoveredAt && <p className="field-error">{errors.discoveredAt}</p>}
+        </div>
       </div>
 
       <div className="form-body">
@@ -130,27 +145,8 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
             {errors.title && <p className="field-error" id="artwork-title-error">{errors.title}</p>}
           </div>
 
-          {/* Le verdict personnel : pas de note ni de statut pour l'Art
-              (0.6.11) : favori, date de découverte, ressenti. */}
-          <div className="verdict-block">
-            <div className="verdict-row">
-              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-            </div>
-
-            <div className="date-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-              <input
-                id="artwork-discoveredAt"
-                name="discoveredAt"
-                type="date"
-                value={values.discoveredAt || today}
-                onChange={(event) => update('discoveredAt', event.target.value)}
-                aria-label="Date de découverte"
-                aria-invalid={Boolean(errors.discoveredAt)}
-              />
-            </div>
-            {errors.discoveredAt && <p className="field-error">{errors.discoveredAt}</p>}
-          </div>
+          {/* L’Art conserve sa composition éditoriale propre : catégorie,
+              année, artiste, lieu et exposition. */}
 
           <div className="review-write review-inline">
             <textarea

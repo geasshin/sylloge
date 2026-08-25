@@ -178,7 +178,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
     <form className="film-form form-detail film-form-film" onSubmit={handleSubmit} noValidate>
       {/* Scène Film 0.6.21 : l’affiche porte le verdict, les informations
           fournisseur et l’avis restent dans la colonne de travail. */}
-      <div className="form-side">
+      <div className="form-side form-side-with-verdict">
         <div className="form-poster-frame poster-container">
           <Poster
             title={previewTitle}
@@ -219,7 +219,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
         {/* Statut et date occupent une seule ligne stable. Le verdict visuel
             vit sous l’affiche et les faits TMDB commencent toujours au même endroit. */}
         <div className="verdict-block film-status-block">
-          <div className="verdict-row film-status-row">
+          <div className="verdict-row film-status-row status-date-row">
             <StatusSegmented
               statuses={statusSegments}
               labels={FILM_STATUS_LABELS}

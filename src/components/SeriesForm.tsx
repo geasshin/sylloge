@@ -115,10 +115,18 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
   )
 
   const form = (
-    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-      <div className="form-side">
+    <form className="film-form form-detail form-medium-series" onSubmit={handleSubmit} noValidate>
+      <div className="form-side form-side-with-verdict">
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" {...posterEditor.posterProps} />
+        </div>
+        <div className={`form-poster-verdict ${verdictVisible ? 'is-visible' : 'is-empty'}`}>
+          {verdictVisible && (
+            <>
+              <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+            </>
+          )}
         </div>
       </div>
 
@@ -155,37 +163,31 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
           </div>
 
           {/* Le verdict personnel */}
-          <div className="verdict-block">
-            <div className="verdict-row">
+          <div className="verdict-block medium-status-block">
+            <div className="verdict-row status-date-row">
               <StatusSegmented
                 statuses={SERIES_STATUSES}
                 labels={SERIES_STATUS_LABELS}
                 value={values.status}
                 onChange={(next) => update('status', next as SeriesFormValues['status'])}
               />
+              {verdictVisible && (
+                <div className="date-row">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  <input
+                    id="series-startedAt"
+                    name="startedAt"
+                    type="date"
+                    value={values.startedAt || today}
+                    onChange={(event) => update('startedAt', event.target.value)}
+                    aria-label="Début du visionnage"
+                    aria-invalid={Boolean(errors.startedAt)}
+                  />
+                </div>
+              )}
             </div>
-
-            {verdictVisible && (
-              <div className="date-row">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                <input
-                  id="series-startedAt"
-                  name="startedAt"
-                  type="date"
-                  value={values.startedAt || today}
-                  onChange={(event) => update('startedAt', event.target.value)}
-                  aria-label="Début du visionnage"
-                  aria-invalid={Boolean(errors.startedAt)}
-                />
-              </div>
-            )}
+            {errors.status && <p className="field-error">{errors.status}</p>}
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
-            {verdictVisible && (
-              <div className="poster-verdict verdict-inline">
-                <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-                <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-              </div>
-            )}
           </div>
 
           {/* L’avis suit immédiatement la note et le coup de cœur. */}

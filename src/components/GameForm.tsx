@@ -94,10 +94,18 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
   )
 
   const form = (
-    <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-      <div className="form-side">
+    <form className="film-form form-detail form-medium-game" onSubmit={handleSubmit} noValidate>
+      <div className="form-side form-side-with-verdict">
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" {...posterEditor.posterProps} />
+        </div>
+        <div className={`form-poster-verdict ${verdictVisible ? 'is-visible' : 'is-empty'}`}>
+          {verdictVisible && (
+            <>
+              <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+              <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+            </>
+          )}
         </div>
       </div>
 
@@ -118,18 +126,15 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
           </div>
 
           {/* Le verdict personnel */}
-          <div className="verdict-block">
-            <div className="verdict-row">
+          <div className="verdict-block medium-status-block">
+            <div className="verdict-row status-date-row">
               <StatusSegmented
                 statuses={GAME_STATUSES}
                 labels={GAME_STATUS_LABELS}
                 value={values.status}
                 onChange={(next) => update('status', next as GameFormValues['status'])}
               />
-            </div>
-
-            {verdictVisible && (
-              <>
+              {verdictVisible && (
                 <div className="date-row">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                   <input
@@ -142,16 +147,10 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
                     aria-invalid={Boolean(errors.playedAt)}
                   />
                 </div>
-                {errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
-                <div className="poster-verdict verdict-inline">
-                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-                </div>
-              </>
-            )}
-            {!verdictVisible && (
-              <p className="verdict-hint">Passe le jeu en « Joué » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
-            )}
+              )}
+            </div>
+            {errors.status && <p className="field-error">{errors.status}</p>}
+            {verdictVisible && errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
           </div>
 
           {verdictVisible && (
