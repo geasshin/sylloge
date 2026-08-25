@@ -108,11 +108,10 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
     }
   }
 
-  const heading = (
+  const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
       <p className="eyebrow">Série</p>
       <h1 className="display-title">{series ? 'Modifier la fiche' : 'Ajouter une série'}</h1>
-      <p>{assisted ? 'Ta série est reconnue : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
     </div>
   )
 
@@ -213,15 +212,9 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
               </div>
             )}
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
-
-            {verdictVisible ? (
-              <p className="verdict-hint">Ton avis s'écrit sous l'affiche, en pleine largeur.</p>
-            ) : (
-              <p className="verdict-hint">Passe la série en « En cours » ou « Vue » pour suivre ton avancement et ajouter ta note, ta date et ton avis.</p>
-            )}
           </div>
 
-          {/* L'avis pleine largeur (0.6.18), hors du corps à deux colonnes. */}
+          {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
           {verdictVisible && (
             <div className="review-write review-full">
               <textarea

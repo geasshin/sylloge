@@ -1802,8 +1802,10 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   gap: 10px;
   min-height: 30px;
 }
-.dialog-add-flow .review-full { grid-column: 1 / -1; }
-.dialog-add-flow .review-full textarea { min-height: 84px; }
+/* L'avis est un enfant direct de la grille : il occupe toute la rangée,
+   pas trois quarts de la colonne droite (correction 0.6.18b). */
+.dialog-add-flow .review-full { grid-column: 1 / -1; margin-top: 2px; }
+.dialog-add-flow .review-full textarea { width: 100%; min-height: 96px; resize: vertical; }
 .editor-dialog-embedded .field-title { margin: 0; }
 .dialog-add-flow .verdict-block { gap: 10px; }
 /* 0.6.15 : réserver la place du verdict (note + date + avis) pour que la

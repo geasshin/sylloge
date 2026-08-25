@@ -97,7 +97,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
     }
   }
 
-  const heading = (
+  const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
       <p className="eyebrow">Art</p>
       <h1 className="display-title">{artwork ? 'Modifier la fiche' : 'Ajouter une œuvre'}</h1>
@@ -149,23 +149,6 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               />
             </div>
             {errors.discoveredAt && <p className="field-error">{errors.discoveredAt}</p>}
-          </div>
-
-          {/* Le crayon sur le visuel (0.6.11) remplace l'ancien bouton
-              « Ajouter un visuel » et son champ d'URL inline. */}
-
-          {/* L'avis pleine largeur (0.6.18), hors du corps à deux colonnes. */}
-          <div className="review-write review-full">
-            <textarea
-              id="artwork-personalNote"
-              name="personalNote"
-              rows={5}
-              placeholder="Qu’as-tu ressenti face à cette œuvre ?"
-              value={values.personalNote}
-              onChange={(event) => update('personalNote', event.target.value)}
-              autoCorrect="off"
-              spellCheck={false}
-            />
           </div>
 
           {/* Informations principales visibles directement (0.6.11) :
@@ -264,6 +247,20 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               {saving ? 'Enregistrement…' : artwork ? 'Enregistrer les modifications' : 'Ajouter l’œuvre'}
             </button>
           </footer>
+      </div>
+
+      {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
+      <div className="review-write review-full">
+        <textarea
+          id="artwork-personalNote"
+          name="personalNote"
+          rows={5}
+          placeholder="Qu’as-tu ressenti face à cette œuvre ?"
+          value={values.personalNote}
+          onChange={(event) => update('personalNote', event.target.value)}
+          autoCorrect="off"
+          spellCheck={false}
+        />
       </div>
     </form>
   )

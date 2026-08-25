@@ -141,7 +141,9 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
     }
   }
 
-  const heading = compactHeading ? null : (
+  // 0.6.18b — en pop-up, pas de titre : la fenêtre est explicite, un
+  // « Film / Ajouter un film » empilé ne fait que doubler l'information.
+  const heading = compactHeading || embeddedInDialog ? null : (
     <div className="editor-heading">
       <p className="eyebrow">Film</p>
       <h1 className="display-title">{film ? 'Modifier la fiche' : 'Ajouter un film'}</h1>
@@ -247,22 +249,6 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           )}
         </div>
 
-        {/* L'avis s'étend sur toute la largeur de la pop-up (0.6.18). */}
-        {verdictVisible && (
-          <div className="review-write review-full">
-            <textarea
-              id="personalNote"
-              name="personalNote"
-              rows={5}
-              placeholder="Qu’as-tu pensé de ce film ?"
-              value={values.personalNote}
-              onChange={(event) => update('personalNote', event.target.value)}
-              autoCorrect="off"
-              spellCheck={false}
-            />
-          </div>
-        )}
-
         {/* Champs éditoriaux : cachés en création assistée, discrets sinon.
             Fermés par défaut ; pré-remplis quand la fiche est associée. */}
         {!assisted && (
@@ -322,6 +308,23 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           </button>
         </footer>
       </div>
+
+      {/* 0.6.18b — l'avis est un enfant direct de la grille : il s'étend sur
+          toute la largeur de la pop-up, sous les deux colonnes. */}
+      {verdictVisible && (
+        <div className="review-write review-full">
+          <textarea
+            id="personalNote"
+            name="personalNote"
+            rows={5}
+            placeholder="Qu’as-tu pensé de ce film ?"
+            value={values.personalNote}
+            onChange={(event) => update('personalNote', event.target.value)}
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+      )}
     </form>
   )
 

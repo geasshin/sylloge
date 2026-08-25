@@ -140,7 +140,7 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
     }
   }
 
-  const heading = (
+  const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
       <p className="eyebrow">Livre</p>
       <h1 className="display-title">{book ? 'Modifier la fiche' : 'Ajouter un livre'}</h1>
@@ -250,28 +250,6 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
             )}
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 
-            {verdictVisible ? (
-              <p className="verdict-hint">Ton avis s'écrit sous la couverture, en pleine largeur.</p>
-            ) : (
-              <p className="verdict-hint">Passe le livre en « En cours », « Lu » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
-            )}
-
-            {/* L'avis pleine largeur (0.6.18), hors du corps à deux colonnes. */}
-            {verdictVisible && (
-              <div className="review-write review-full">
-                <textarea
-                  id="book-personalNote"
-                  name="personalNote"
-                  rows={5}
-                  placeholder="Qu’as-tu pensé de ce livre ?"
-                  value={values.personalNote}
-                  onChange={(event) => update('personalNote', event.target.value)}
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-              </div>
-            )}
-
             <section className="quote-editor" aria-labelledby="quote-editor-title">
               <div className="quote-editor-heading">
                 <div>
@@ -357,6 +335,22 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
             </button>
           </footer>
       </div>
+
+      {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
+      {verdictVisible && (
+        <div className="review-write review-full">
+          <textarea
+            id="book-personalNote"
+            name="personalNote"
+            rows={5}
+            placeholder="Qu’as-tu pensé de ce livre ?"
+            value={values.personalNote}
+            onChange={(event) => update('personalNote', event.target.value)}
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+      )}
     </form>
   )
 

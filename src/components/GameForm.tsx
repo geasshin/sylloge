@@ -87,11 +87,10 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
     }
   }
 
-  const heading = (
+  const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
       <p className="eyebrow">Jeu vidéo</p>
       <h1 className="display-title">{game ? 'Modifier la fiche' : 'Ajouter un jeu'}</h1>
-      <p>{assisted ? 'Ton jeu est reconnu : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
     </div>
   )
 
@@ -157,22 +156,6 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
             )}
           </div>
 
-          {/* L'avis pleine largeur (0.6.18), hors du corps à deux colonnes. */}
-          {verdictVisible && (
-            <div className="review-write review-full">
-              <textarea
-                id="game-personalNote"
-                name="personalNote"
-                rows={5}
-                placeholder="Qu’as-tu pensé de ce jeu ?"
-                value={values.personalNote}
-                onChange={(event) => update('personalNote', event.target.value)}
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
-          )}
-
           {/* Champs éditoriaux : cachés en création assistée */}
           {!assisted && (
             <details className="secondary-fields" open={showEditorial || undefined}>
@@ -225,6 +208,22 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
             </button>
           </footer>
       </div>
+
+      {/* L'avis pleine largeur (0.6.18b) : enfant direct de la grille. */}
+      {verdictVisible && (
+        <div className="review-write review-full">
+          <textarea
+            id="game-personalNote"
+            name="personalNote"
+            rows={5}
+            placeholder="Qu’as-tu pensé de ce jeu ?"
+            value={values.personalNote}
+            onChange={(event) => update('personalNote', event.target.value)}
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </div>
+      )}
     </form>
   )
 
