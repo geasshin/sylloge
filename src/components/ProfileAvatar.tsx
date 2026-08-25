@@ -114,10 +114,9 @@ export function ProfileAvatarPicker({
 
   return (
     <div className={`profile-avatar-picker ${compact ? 'compact' : ''}`}>
-      <ProfileAvatar name={name} avatarDataUrl={avatarDataUrl} />
       {compact ? (
-        /* 0.6.26 : pas de bouton « Choisir une photo » — le crayon superposé
-           ouvre le même sélecteur de fichier, avec retrait accessible. */
+        /* 0.6.27 : un seul avatar — le crayon superposé ouvre le sélecteur
+           de fichier ; la version pleine (Paramètres) garde son bouton. */
         <>
         <input
           ref={inputRef}
@@ -157,6 +156,8 @@ export function ProfileAvatarPicker({
         )}
         </>
       ) : (
+      <>
+      <ProfileAvatar name={name} avatarDataUrl={avatarDataUrl} />
       <div className="profile-avatar-picker-actions">
         <button
           className="secondary-button"
@@ -180,6 +181,7 @@ export function ProfileAvatarPicker({
           </button>
         )}
       </div>
+      </>
       )}
     </div>
   )
