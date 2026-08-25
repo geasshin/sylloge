@@ -181,6 +181,7 @@ export function importLibraryDocumentIntoEmptyProfile(
 export type ProfileSummary = {
   id: string
   name: string
+  avatarDataUrl: string | null
   createdAt: string
   updatedAt: string
   filmCount: number
@@ -207,8 +208,25 @@ export function listProfiles(): Promise<ProfileSummary[]> {
   return invoke('list_profiles')
 }
 
-export function createProfile(input: { id: string; name: string }): Promise<void> {
+export type CreateProfileInput = {
+  id: string
+  name: string
+  avatarDataUrl: string | null
+  selectAfterCreation: boolean
+}
+
+export type UpdateProfileInput = {
+  profileId: string
+  name: string
+  avatarDataUrl: string | null
+}
+
+export function createProfile(input: CreateProfileInput): Promise<void> {
   return invoke('create_profile', { input })
+}
+
+export function updateProfile(input: UpdateProfileInput): Promise<void> {
+  return invoke('update_profile', { input })
 }
 
 export function renameProfile(input: { profileId: string; name: string }): Promise<void> {

@@ -41,6 +41,7 @@ pub fn run() {
             portability::import_artworks_into_profile,
             profiles::list_profiles,
             profiles::create_profile,
+            profiles::update_profile,
             profiles::rename_profile,
             profiles::delete_profile,
             profiles::select_profile,

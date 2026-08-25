@@ -45,6 +45,7 @@ import type { ThemePreference } from '../domain/theme.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import { LibraryExportFlow } from './LibraryExportFlow.tsx'
 import { LibraryImportButton } from './LibraryImportButton.tsx'
+import { ProfileAvatar, ProfileAvatarPicker } from './ProfileAvatar.tsx'
 import type { AvailableUpdate } from '../data/updaterService.ts'
 
 type SelectedImport = {
@@ -64,6 +65,34 @@ type ImportKind = ActiveImport | null
 type FilmsImportStep = 'source' | 'mapping' | 'preview'
 
 export type PortabilitySection = 'profiles' | 'transfer' | 'backups' | 'application' | 'about'
+
+const SETTINGS_PAGE_COPY: Record<PortabilitySection, { eyebrow: string; title: string; description: string }> = {
+  profiles: {
+    eyebrow: 'Identités locales',
+    title: 'Profils',
+    description: 'Gérez les personnes et les bibliothèques présentes sur cet appareil.',
+  },
+  transfer: {
+    eyebrow: 'Portabilité',
+    title: 'Importer et exporter',
+    description: 'Déplacez une sauvegarde complète ou une seule collection, sans écriture invisible.',
+  },
+  backups: {
+    eyebrow: 'Protection locale',
+    title: 'Sauvegardes',
+    description: 'Conservez des snapshots datés dans le dossier local de votre choix.',
+  },
+  application: {
+    eyebrow: 'Préférences',
+    title: 'Application',
+    description: 'Choisissez l’apparence et la manière dont Sylloge recherche ses mises à jour.',
+  },
+  about: {
+    eyebrow: 'Informations',
+    title: 'À propos',
+    description: 'Retrouvez la version installée, les garanties locales et les fournisseurs de métadonnées.',
+  },
+}
 
 type SelectedFilmsImport = {
   source: PickedFilmsImportFile
@@ -297,10 +326,24 @@ export function Portability({
   return (
     <>
       <main className="main portability-main">
-        <div className="portability-heading">
-          <p className="eyebrow">Réglages locaux</p>
-          <h1 className="display-title">Paramètres</h1>
-        </div>
+        <header className="settings-hero">
+          <div className="settings-hero-copy">
+            <p className="eyebrow">{SETTINGS_PAGE_COPY[section].eyebrow}</p>
+            <h1 className="display-title">{SETTINGS_PAGE_COPY[section].title}</h1>
+            <p>{SETTINGS_PAGE_COPY[section].description}</p>
+          </div>
+          <div className="settings-hero-meta" aria-label="Contexte des paramètres">
+            <div className="settings-active-profile">
+              <ProfileAvatar
+                name={library.profile.name}
+                avatarDataUrl={profiles.find((profile) => profile.id === library.profile.id)?.avatarDataUrl ?? null}
+                className="settings-avatar"
+              />
+              <span><small>Profil actif</small><b>{library.profile.name}</b></span>
+            </div>
+            <span className="settings-local-badge">Local et privé</span>
+          </div>
+        </header>
 
         {section === 'profiles' && (
           <ProfilesSection
@@ -328,7 +371,7 @@ export function Portability({
           <section className="settings-page" aria-labelledby="backup-title">
             <div className="settings-section-heading">
               <p className="card-kicker">Copies automatiques</p>
-              <h2 id="backup-title">Sauvegardes</h2>
+              <h2 id="backup-title">Copies automatiques</h2>
               <p>Les sauvegardes automatiques restent séparées des imports et exports. Elles ne copient jamais la base SQLite active.</p>
             </div>
             <section className="portability-card backup-card">
@@ -367,7 +410,7 @@ export function Portability({
 
         {section === 'application' && (
           <section className="settings-page settings-information" aria-labelledby="application-title">
-            <div className="settings-section-heading"><p className="card-kicker">Fonctionnement local</p><h2 id="application-title">Application</h2></div>
+            <div className="settings-section-heading"><p className="card-kicker">Fonctionnement local</p><h2 id="application-title">Préférences d’application</h2></div>
             <ThemeSettings preference={themePreference} onPreferenceChange={onThemePreferenceChange} />
             <UpdaterSettings availableUpdate={availableUpdate} onUpdateAvailable={onUpdateAvailable} onUpdateHandled={onUpdateHandled} />
             <dl className="settings-facts">
@@ -379,7 +422,7 @@ export function Portability({
 
         {section === 'about' && (
           <section className="settings-page settings-information" aria-labelledby="about-title">
-            <div className="settings-section-heading"><p className="card-kicker">Sylloge</p><h2 id="about-title">À propos</h2></div>
+            <div className="settings-section-heading"><p className="card-kicker">Sylloge</p><h2 id="about-title">Informations de l’application</h2></div>
             <dl className="settings-facts">
               <div><dt>Application</dt><dd>Sylloge</dd></div>
               <div><dt>Version installée</dt><dd>{installedVersion ?? 'Indisponible'}</dd></div>
@@ -823,6 +866,9 @@ function ProfilesSection({
   const [newProfileName, setNewProfileName] = useState('')
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+  const [editingAvatarProfile, setEditingAvatarProfile] = useState<ProfileSummary | null>(null)
+  const [avatarDraft, setAvatarDraft] = useState<string | null>(null)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
   const [deletingProfile, setDeletingProfile] = useState<ProfileSummary | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -864,6 +910,22 @@ function ProfilesSection({
     }
   }
 
+  const submitAvatar = async () => {
+    if (!editingAvatarProfile || busy) return
+    setBusy(true)
+    setAvatarError(null)
+    try {
+      await profilesRepository.update(editingAvatarProfile.id, editingAvatarProfile.name, avatarDraft)
+      setEditingAvatarProfile(null)
+      onProfilesChanged()
+    } catch (cause) {
+      console.error('Impossible de modifier la photo du profil.', cause)
+      setAvatarError(cause instanceof Error ? cause.message : 'La photo du profil n’a pas pu être enregistrée.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const confirmDelete = async () => {
     if (!deletingProfile || busy) return
     setBusy(true)
@@ -886,7 +948,7 @@ function ProfilesSection({
     <section className="settings-page" aria-labelledby="profiles-title">
       <div className="settings-section-heading">
         <p className="card-kicker">Bibliothèque locale</p>
-        <h2 id="profiles-title">Profils</h2>
+        <h2 id="profiles-title">Bibliothèques locales</h2>
         <p>Un profil regroupe les cinq collections d’une même personne sur cet appareil. Ouvrez, créez, renommez ou supprimez un profil.</p>
       </div>
       <div className="portability-card profile-card">
@@ -924,8 +986,11 @@ function ProfilesSection({
                 ) : (
                   <>
                     <span className="profile-row-identity">
-                      <b>{profile.name}</b>
-                      <small>{profileWorksSummary(profile)}</small>
+                      <ProfileAvatar name={profile.name} avatarDataUrl={profile.avatarDataUrl} className="small" />
+                      <span className="profile-row-copy">
+                        <b>{profile.name}</b>
+                        <small>{profileWorksSummary(profile)}</small>
+                      </span>
                     </span>
                     <span className="profile-row-actions">
                       {active ? (
@@ -940,6 +1005,18 @@ function ProfilesSection({
                           {switchingProfileId === profile.id ? 'Ouverture…' : 'Ouvrir'}
                         </button>
                       )}
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditingAvatarProfile(profile)
+                          setAvatarDraft(profile.avatarDataUrl)
+                          setAvatarError(null)
+                        }}
+                      >
+                        Photo
+                      </button>
                       <button
                         className="secondary-button"
                         type="button"
@@ -1005,6 +1082,37 @@ function ProfilesSection({
 
         {(error ?? profileError) && <p className="inline-report error" role="alert">{error ?? profileError}</p>}
       </div>
+
+      {editingAvatarProfile && (
+        <AccessibleDialog
+          title={`Photo du profil « ${editingAvatarProfile.name} »`}
+          description="La photo est recadrée au carré et enregistrée uniquement sur cet appareil."
+          onClose={() => setEditingAvatarProfile(null)}
+          closeDisabled={busy}
+        >
+          <div className="assistant-content">
+            <section className="assistant-stage profile-avatar-dialog">
+              <p className="card-kicker">Identité locale</p>
+              <h3>Personnaliser ce profil</h3>
+              <p>JPEG, PNG ou WebP. Sylloge prépare une copie légère de 256 px et ne modifie pas le fichier original.</p>
+              <ProfileAvatarPicker
+                name={editingAvatarProfile.name}
+                avatarDataUrl={avatarDraft}
+                disabled={busy}
+                onChange={setAvatarDraft}
+                onError={setAvatarError}
+              />
+              {avatarError && <p className="inline-report error" role="alert">{avatarError}</p>}
+              <div className="assistant-actions">
+                <button className="secondary-button" type="button" disabled={busy} onClick={() => setEditingAvatarProfile(null)}>Annuler</button>
+                <button className="primary-button" type="button" disabled={busy} onClick={() => void submitAvatar()}>
+                  {busy ? 'Enregistrement…' : 'Enregistrer la photo'}
+                </button>
+              </div>
+            </section>
+          </div>
+        </AccessibleDialog>
+      )}
 
       {deletingProfile && (
         <AccessibleDialog
@@ -1150,7 +1258,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
     <section className="settings-page" aria-labelledby="transfer-title">
       <div className="settings-section-heading">
         <p className="card-kicker">Formats portables</p>
-        <h2 id="transfer-title">Importer et exporter</h2>
+        <h2 id="transfer-title">Actions de portabilité</h2>
         <p>Choisis une action locale. JSON déplace une collection ou les cinq collections ; CSV sert aux échanges tabulaires d’un médium ; Snapshots créent des copies JSON datées.</p>
       </div>
 

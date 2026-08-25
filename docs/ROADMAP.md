@@ -759,6 +759,16 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 - Les fiches enrichies par TMDB, Open Library ou IGDB enregistrent maintenant une provenance exacte dans les migrations 17 et 18. Les anciennes associations dont l’origine est démontrable par le domaine officiel de leur image sont reprises sans déduire quoi que ce soit de leurs champs éditoriaux. En ajout comme en modification, elles affichent un encadré d’informations propre au médium ; une fiche manuelle conserve ses champs éditoriaux complets. ✓
 - La bibliothèque Art porte une largeur flexible explicite et absorbe tout l’espace disponible à droite du rail, y compris lorsque la vue courante ne contient aucune œuvre. ✓
 
+### `0.6.25` — Paramètres professionnels et premier lancement
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant la release.**
+
+- La vue Paramètres possède une navigation dédiée toujours déployée. Le contrôle de réduction disparaît dans ce contexte et chaque section devient une page exclusive avec un en-tête contextualisé. ✓
+- Les sections Profils, Importer et exporter, Sauvegardes, Application et À propos reprennent une hiérarchie de cartes plus lisible. Aucun interrupteur décoratif n’est ajouté : profil, photo, thème, mises à jour, sauvegardes et portabilité gardent chacun un comportement réel. ✓
+- L’identité d’un profil accepte une photo locale facultative, recadrée à 256 px, bornée avant décodage et validée côté Rust. Elle reste hors du format portable Sylloge afin de ne pas alourdir ou modifier silencieusement les sauvegardes existantes. ✓
+- Une installation neuve retire uniquement l’ancien profil `Default` strictement vierge. Un profil qui contient la moindre fiche, vue ou configuration de sauvegarde n’est jamais supprimé par la migration 19. ✓
+- Le premier lancement se déroule en trois étapes : pseudo et photo, thème système/clair/sombre, puis bibliothèque vide, restauration d’une sauvegarde Sylloge complète validée avant écriture, ou accès aux imports par collection. « Plus tard » crée explicitement un profil vide. ✓
+
 ### Journal des retours
 
 - Recette du 24 août 2026 : parcours d'ajout des cinq médiums validé (pop-up en deux étapes très appréciée), requalification animés/mangas validée (« tout est nickel »), interrupteurs de catégories et vues Séries/Livres/Jeux validés, crayon de visuel validé. Points ouverts listés ci-dessus ; priorité perçue par Aurélien : purge du verdict, [object Object], page Modifier Films puis refonte commune, Art.
@@ -780,7 +790,6 @@ Après stabilisation du train courant, l'import évoluera vers un parcours par f
 
 Les éléments suivants peuvent être utiles, mais n’entrent dans une version que lorsqu’un besoin concret les justifie :
 
-- thème sombre ;
 - tags, collections éditoriales ou listes personnelles ;
 - localisation anglaise et autres langues ;
 - statistiques personnelles sobres ;

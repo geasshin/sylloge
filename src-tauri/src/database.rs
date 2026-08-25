@@ -112,6 +112,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0018_backfill_media_provider_links.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 19,
+            description: "profile_identity_and_first_run",
+            sql: include_str!("../migrations/0019_profile_identity_and_first_run.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -196,6 +202,97 @@ mod tests {
             .await
             .expect("read migrated legacy provider links");
             assert_eq!(legacy_count, 3);
+        });
+    }
+
+    #[test]
+    fn profile_identity_migration_only_removes_the_untouched_default_profile() {
+        tauri::async_runtime::block_on(async {
+            async fn apply_schema(connection: &mut SqliteConnection) {
+                for migration in [
+                    include_str!("../migrations/0001_create_profiles_and_films.sql"),
+                    include_str!("../migrations/0002_create_default_profile.sql"),
+                    include_str!("../migrations/0003_track_current_profile.sql"),
+                    include_str!("../migrations/0004_create_backup_settings.sql"),
+                    include_str!("../migrations/0005_create_backup_snapshots.sql"),
+                    include_str!("../migrations/0006_create_updater_preferences.sql"),
+                    include_str!("../migrations/0007_normalize_film_optional_data.sql"),
+                    include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
+                    include_str!("../migrations/0009_add_selected_poster_url.sql"),
+                    include_str!("../migrations/0010_create_cultural_media.sql"),
+                    include_str!("../migrations/0011_nullable_current_profile.sql"),
+                    include_str!("../migrations/0012_create_saved_views.sql"),
+                    include_str!("../migrations/0013_saved_views_unified_criteria.sql"),
+                    include_str!("../migrations/0014_normalize_game_statuses.sql"),
+                    include_str!("../migrations/0015_artwork_custom_fields.sql"),
+                    include_str!("../migrations/0016_artwork_discovered.sql"),
+                    include_str!("../migrations/0017_media_provider_links.sql"),
+                    include_str!("../migrations/0018_backfill_media_provider_links.sql"),
+                ] {
+                    sqlx::raw_sql(migration)
+                        .execute(&mut *connection)
+                        .await
+                        .expect("apply Sylloge schema before profile identity");
+                }
+            }
+
+            let mut empty_connection = SqliteConnection::connect("sqlite::memory:")
+                .await
+                .expect("create empty-profile database");
+            apply_schema(&mut empty_connection).await;
+            sqlx::raw_sql(include_str!(
+                "../migrations/0019_profile_identity_and_first_run.sql"
+            ))
+            .execute(&mut empty_connection)
+            .await
+            .expect("apply first-run migration to untouched profile");
+
+            let empty_profile_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM profiles")
+                .fetch_one(&mut empty_connection)
+                .await
+                .expect("count profiles after first-run migration");
+            let current_profile: Option<String> =
+                sqlx::query_scalar("SELECT profile_id FROM current_profile WHERE singleton = 1")
+                    .fetch_one(&mut empty_connection)
+                    .await
+                    .expect("read current profile after first-run migration");
+            assert_eq!(empty_profile_count, 0);
+            assert_eq!(current_profile, None);
+
+            let avatar_column_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM pragma_table_info('profiles') WHERE name = 'avatar_data_url'",
+            )
+            .fetch_one(&mut empty_connection)
+            .await
+            .expect("read avatar column");
+            assert_eq!(avatar_column_count, 1);
+
+            let mut used_connection = SqliteConnection::connect("sqlite::memory:")
+                .await
+                .expect("create used-profile database");
+            apply_schema(&mut used_connection).await;
+            sqlx::query("INSERT INTO films (id, profile_id, title) VALUES ('kept-film', 'default', 'Film conservé')")
+                .execute(&mut used_connection)
+                .await
+                .expect("seed used default profile");
+            sqlx::raw_sql(include_str!(
+                "../migrations/0019_profile_identity_and_first_run.sql"
+            ))
+            .execute(&mut used_connection)
+            .await
+            .expect("apply first-run migration to used profile");
+
+            let used_profile_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM profiles")
+                .fetch_one(&mut used_connection)
+                .await
+                .expect("count preserved profiles");
+            let used_current_profile: Option<String> =
+                sqlx::query_scalar("SELECT profile_id FROM current_profile WHERE singleton = 1")
+                    .fetch_one(&mut used_connection)
+                    .await
+                    .expect("read preserved current profile");
+            assert_eq!(used_profile_count, 1);
+            assert_eq!(used_current_profile.as_deref(), Some("default"));
         });
     }
 }

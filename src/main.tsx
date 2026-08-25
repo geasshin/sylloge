@@ -23,7 +23,9 @@ import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
+import { libraryRepository } from './data/libraryRepository.ts'
 import { profilesRepository, type ProfileSummary } from './data/profilesRepository.ts'
+import { pickImportJson } from './data/nativePortability.ts'
 import {
   mediaRepository,
   type ArtworkSearchCriteria,
@@ -33,6 +35,7 @@ import {
   type SeriesSearchCriteria,
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
+import { ProfileAvatar, ProfileAvatarPicker } from './components/ProfileAvatar.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 import { BookCategorySwitch, SeriesCategorySwitch } from './components/CategorySwitch.tsx'
 
@@ -43,6 +46,7 @@ import { previewIgdbGame, searchIgdbGames, type IgdbGameCandidate } from './data
 import { autoAssociateFilms } from './domain/autoAssociate.ts'
 import { MATCH_THRESHOLD, REQUEST_DELAY_MS, delay, scoreNamedCandidate, seriesWithPresentation, bookWithPresentation, gameWithPresentation } from './domain/autoAssociateMedia.ts'
 import { useTheme, type ThemePreference } from './domain/theme.ts'
+import { validateLibraryDocument, type SyllogeLibraryDocument } from './domain/libraryDocument.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -188,6 +192,7 @@ type SidebarProps = {
   gameCount: number | null
   artworkCount: number | null
   currentProfileName: string | null
+  currentProfileAvatar: string | null
   activeItem: 'artworks' | 'books' | 'games' | 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
@@ -210,6 +215,7 @@ function Sidebar({
   gameCount,
   artworkCount,
   currentProfileName,
+  currentProfileAvatar,
   activeItem,
   onHome,
   onLibrary,
@@ -223,11 +229,12 @@ function Sidebar({
   onReturnToLibrary,
 }: SidebarProps) {
   const settingsOpen = activeItem === 'settings'
+  const effectiveExpanded = settingsOpen || expanded
   // En rail, les libellés sont masqués : l'infobulle maison prend le relais.
-  const labelFor = (label: string) => (expanded ? undefined : label)
+  const labelFor = (label: string) => (effectiveExpanded ? undefined : label)
 
   return (
-    <aside className={`sidebar ${settingsOpen ? 'sidebar-settings' : ''} ${expanded ? 'sidebar-expanded' : 'sidebar-rail'}`}>
+    <aside className={`sidebar ${settingsOpen ? 'sidebar-settings' : ''} ${effectiveExpanded ? 'sidebar-expanded' : 'sidebar-rail'}`}>
       <div className="sidebar-top">
         <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
           <img className="wordmark-logo" src={logoSylloge} alt="" width={34} height={34} />
@@ -311,23 +318,16 @@ function Sidebar({
         </nav>
       )}
       <div className="sidebar-bottom">
-        {currentProfileName && <p className="sidebar-profile" title={currentProfileName}>{currentProfileName}</p>}
+        {currentProfileName && (
+          <div className="sidebar-profile" title={currentProfileName}>
+            <ProfileAvatar name={currentProfileName} avatarDataUrl={currentProfileAvatar} className="sidebar-avatar" />
+            <span>{currentProfileName}</span>
+          </div>
+        )}
         {settingsOpen ? (
-          <>
-            <button
-              className="sidebar-toggle"
-              type="button"
-              onClick={onToggleExpanded}
-              aria-label={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
-              aria-pressed={expanded}
-            >
-              <span className="nav-item-text">{icon('panel')} Barre latérale</span>
-              <span className="nav-item-peek" aria-hidden="true">{icon('panel')}</span>
-            </button>
-            <button className="nav-item muted" type="button" onClick={onReturnToLibrary}>
-              {icon('film')} Retour à la bibliothèque
-            </button>
-          </>
+          <button className="nav-item muted" type="button" onClick={onReturnToLibrary}>
+            {icon('film')} Retour à la bibliothèque
+          </button>
         ) : (
           <>
             <button
@@ -415,27 +415,106 @@ function LoadingState() {
 }
 
 type OnboardingProps = {
-  onProfileReady: () => void
+  themePreference: ThemePreference
+  onThemePreferenceChange: (preference: ThemePreference) => void
+  onProfileReady: (destination?: 'home' | 'transfer') => void
 }
 
-/** Écran de premier lancement : créer un profil ou importer une bibliothèque. */
-function Onboarding({ onProfileReady }: OnboardingProps) {
+type OnboardingStep = 'identity' | 'appearance' | 'library'
+type OnboardingStart = 'empty' | 'backup' | 'collection'
+
+type OnboardingBackup = {
+  fileName: string
+  document: SyllogeLibraryDocument
+}
+
+const ONBOARDING_STEPS: Array<{ id: OnboardingStep; label: string }> = [
+  { id: 'identity', label: 'Profil' },
+  { id: 'appearance', label: 'Apparence' },
+  { id: 'library', label: 'Bibliothèque' },
+]
+
+const THEME_OPTIONS: Array<{ id: ThemePreference; label: string; detail: string }> = [
+  { id: 'system', label: 'Système', detail: 'Suit automatiquement le réglage de cet appareil.' },
+  { id: 'light', label: 'Clair', detail: 'Papier chaud et contrastes doux.' },
+  { id: 'dark', label: 'Sombre', detail: 'Surfaces profondes pour une lumière réduite.' },
+]
+
+/** Premier lancement réel : identité, apparence et stratégie d’import. */
+function Onboarding({ themePreference, onThemePreferenceChange, onProfileReady }: OnboardingProps) {
+  const [step, setStep] = useState<OnboardingStep>('identity')
   const [name, setName] = useState('')
+  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null)
+  const [start, setStart] = useState<OnboardingStart>('empty')
+  const [backup, setBackup] = useState<OnboardingBackup | null>(null)
+  const [choosingBackup, setChoosingBackup] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const createProfile = async (event: React.FormEvent) => {
-    event.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed || busy) return
-    setBusy(true)
+  const currentStepIndex = ONBOARDING_STEPS.findIndex((item) => item.id === step)
+
+  const chooseBackup = async () => {
+    if (choosingBackup || busy) return
+    setChoosingBackup(true)
     setError(null)
     try {
-      await profilesRepository.create(trimmed)
-      onProfileReady()
+      const picked = await pickImportJson()
+      if (!picked) return
+      const preview = validateLibraryDocument(picked.contents)
+      if (preview.document === null) {
+        const firstError = preview.errors[0]
+        setError(firstError
+          ? `Ce fichier n’est pas une sauvegarde Sylloge complète valide. ${firstError.path} : ${firstError.message}`
+          : 'Ce fichier n’est pas une sauvegarde Sylloge complète valide.')
+        return
+      }
+      setBackup({ fileName: picked.name, document: preview.document })
+      setStart('backup')
+    } catch (cause) {
+      console.error('Impossible de préparer la sauvegarde du premier lancement.', cause)
+      setError(cause instanceof Error ? cause.message : 'La sauvegarde n’a pas pu être vérifiée.')
+    } finally {
+      setChoosingBackup(false)
+    }
+  }
+
+  const finish = async (requestedStart = start) => {
+    const trimmed = name.trim()
+    if (!trimmed || busy) return
+    if (requestedStart === 'backup' && backup === null) {
+      setError('Choisis d’abord une sauvegarde Sylloge complète à restaurer.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    let createdProfileId: string | null = null
+    try {
+      const createdAt = new Date().toISOString()
+      createdProfileId = await profilesRepository.create(trimmed, {
+        avatarDataUrl,
+        selectAfterCreation: true,
+      })
+
+      if (requestedStart === 'backup' && backup) {
+        await libraryRepository.importLibraryDocumentIntoEmptyProfile({
+          id: createdProfileId,
+          name: trimmed,
+          createdAt,
+          updatedAt: createdAt,
+        }, backup.document)
+      }
+
+      onProfileReady(requestedStart === 'collection' ? 'transfer' : 'home')
     } catch (cause) {
       console.error('Impossible de créer le profil de premier lancement.', cause)
-      setError(cause instanceof Error ? cause.message : 'Le profil n’a pas pu être créé.')
+      if (createdProfileId) {
+        try {
+          await profilesRepository.delete(createdProfileId)
+        } catch (cleanupCause) {
+          console.error('Le profil vide de premier lancement n’a pas pu être nettoyé.', cleanupCause)
+        }
+      }
+      setError(cause instanceof Error ? cause.message : 'Le premier lancement n’a pas pu être finalisé.')
     } finally {
       setBusy(false)
     }
@@ -443,33 +522,125 @@ function Onboarding({ onProfileReady }: OnboardingProps) {
 
   return (
     <main className="main onboarding-main" aria-label="Premier lancement">
-      <div className="onboarding-content">
-        <p className="eyebrow">Bienvenue</p>
-        <h1 className="display-title">Sylloge</h1>
-        <p className="onboarding-intro">
-          Votre bibliothèque culturelle personnelle, locale et durable. Commencez par créer un profil :
-          il regroupera vos cinq collections (Films, Séries, Livres, Jeux et Art) sur cet appareil.
-        </p>
-        <form className="onboarding-form" onSubmit={createProfile}>
-          <label>
-            <span>Nom du profil</span>
-            <input
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Par exemple votre prénom"
-              maxLength={60}
-              autoFocus
-            />
-          </label>
-          <button className="primary-button" type="submit" disabled={busy || !name.trim()}>
-            {busy ? 'Création…' : 'Créer mon profil'}
-          </button>
-        </form>
-        {error && <p className="inline-report error" role="alert">{error}</p>}
-        <p className="onboarding-hint">
-          Vous pourrez ensuite importer une bibliothèque existante depuis les Paramètres, ou ajouter vos œuvres à la main.
-        </p>
+      <div className="onboarding-shell">
+        <aside className="onboarding-aside" aria-label="Progression du premier lancement">
+          <div>
+            <img className="onboarding-logo" src={logoSylloge} alt="" width={46} height={46} />
+            <p className="eyebrow">Bienvenue dans</p>
+            <h1 className="display-title">Sylloge</h1>
+            <p>Votre bibliothèque culturelle personnelle, locale et durable.</p>
+          </div>
+          <ol className="onboarding-progress">
+            {ONBOARDING_STEPS.map((item, index) => (
+              <li key={item.id} className={item.id === step ? 'active' : index < currentStepIndex ? 'complete' : ''}>
+                <span>{index < currentStepIndex ? '✓' : index + 1}</span>
+                {item.label}
+              </li>
+            ))}
+          </ol>
+          <p className="onboarding-local-note">Aucun compte, aucun cloud. Vos données restent sur cet appareil.</p>
+        </aside>
+
+        <section className="onboarding-panel" aria-live="polite">
+          {step === 'identity' && (
+            <div className="onboarding-step">
+              <p className="card-kicker">Étape 1 sur 3</p>
+              <h2>Créer votre profil</h2>
+              <p className="onboarding-step-intro">Ce nom identifiera votre bibliothèque sur cet appareil. La photo reste facultative et locale.</p>
+              <label className="onboarding-name-field">
+                <span>Pseudo ou prénom</span>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Par exemple Camille"
+                  maxLength={60}
+                  autoFocus
+                />
+              </label>
+              <ProfileAvatarPicker
+                name={name || 'Sylloge'}
+                avatarDataUrl={avatarDataUrl}
+                disabled={busy}
+                onChange={setAvatarDataUrl}
+                onError={setError}
+              />
+              <div className="onboarding-actions end">
+                <button className="primary-button" type="button" disabled={!name.trim()} onClick={() => { setError(null); setStep('appearance') }}>Continuer</button>
+              </div>
+            </div>
+          )}
+
+          {step === 'appearance' && (
+            <div className="onboarding-step">
+              <p className="card-kicker">Étape 2 sur 3</p>
+              <h2>Choisir l’apparence</h2>
+              <p className="onboarding-step-intro">Le choix s’applique immédiatement et pourra être modifié plus tard dans Paramètres.</p>
+              <div className="onboarding-theme-grid" role="radiogroup" aria-label="Thème de l’application">
+                {THEME_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    className={`onboarding-theme-choice ${themePreference === option.id ? 'active' : ''}`}
+                    type="button"
+                    role="radio"
+                    aria-checked={themePreference === option.id}
+                    onClick={() => onThemePreferenceChange(option.id)}
+                  >
+                    <span className={`theme-preview theme-preview-${option.id}`} aria-hidden="true"><i /><i /><i /></span>
+                    <b>{option.label}</b>
+                    <small>{option.detail}</small>
+                  </button>
+                ))}
+              </div>
+              <div className="onboarding-actions">
+                <button className="secondary-button" type="button" onClick={() => setStep('identity')}>Retour</button>
+                <button className="primary-button" type="button" onClick={() => { setError(null); setStep('library') }}>Continuer</button>
+              </div>
+            </div>
+          )}
+
+          {step === 'library' && (
+            <div className="onboarding-step">
+              <p className="card-kicker">Étape 3 sur 3</p>
+              <h2>Préparer votre bibliothèque</h2>
+              <p className="onboarding-step-intro">Commencez à vide ou réutilisez un fichier existant. Aucune donnée n’est écrite avant la validation finale.</p>
+              <div className="onboarding-start-grid" role="radiogroup" aria-label="Point de départ">
+                <button className={`onboarding-start-choice ${start === 'empty' ? 'active' : ''}`} type="button" role="radio" aria-checked={start === 'empty'} onClick={() => { setStart('empty'); setError(null) }}>
+                  <span className="onboarding-choice-mark" aria-hidden="true">＋</span>
+                  <span><b>Commencer à vide</b><small>Ajoutez vos premières œuvres à votre rythme.</small></span>
+                </button>
+                <button className={`onboarding-start-choice ${start === 'backup' ? 'active' : ''}`} type="button" role="radio" aria-checked={start === 'backup'} disabled={choosingBackup} onClick={() => void chooseBackup()}>
+                  <span className="onboarding-choice-mark" aria-hidden="true">↥</span>
+                  <span><b>Restaurer Sylloge</b><small>{backup ? `${backup.fileName} est prêt à être restauré.` : 'Choisissez une sauvegarde JSON réunissant les cinq collections.'}</small></span>
+                </button>
+                <button className={`onboarding-start-choice ${start === 'collection' ? 'active' : ''}`} type="button" role="radio" aria-checked={start === 'collection'} onClick={() => { setStart('collection'); setError(null) }}>
+                  <span className="onboarding-choice-mark" aria-hidden="true">⇢</span>
+                  <span><b>Importer une collection</b><small>Créez le profil puis choisissez l’assistant Films, Séries, Livres, Jeux ou Art.</small></span>
+                </button>
+              </div>
+              {backup && start === 'backup' && (
+                <dl className="onboarding-import-summary">
+                  <div><dt>Films</dt><dd>{backup.document.films.length}</dd></div>
+                  <div><dt>Séries</dt><dd>{backup.document.series.length}</dd></div>
+                  <div><dt>Livres</dt><dd>{backup.document.books.length}</dd></div>
+                  <div><dt>Jeux</dt><dd>{backup.document.games.length}</dd></div>
+                  <div><dt>Art</dt><dd>{backup.document.artworks.length}</dd></div>
+                </dl>
+              )}
+              <div className="onboarding-actions">
+                <button className="secondary-button" type="button" disabled={busy} onClick={() => setStep('appearance')}>Retour</button>
+                <span className="onboarding-final-actions">
+                  <button className="text-button" type="button" disabled={busy} onClick={() => void finish('empty')}>Plus tard</button>
+                  <button className="primary-button" type="button" disabled={busy || choosingBackup || (start === 'backup' && backup === null)} onClick={() => void finish()}>
+                    {busy ? 'Préparation…' : start === 'backup' ? 'Créer et restaurer' : start === 'collection' ? 'Créer et voir les imports' : 'Ouvrir ma bibliothèque'}
+                  </button>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="inline-report error onboarding-error" role="alert">{error}</p>}
+        </section>
       </div>
     </main>
   )
@@ -3108,7 +3279,21 @@ function App() {
       </main>
     )
   } else if (libraryState.status === 'no-profile') {
-    content = <Onboarding onProfileReady={() => setLoadAttempt((attempt) => attempt + 1)} />
+    content = (
+      <Onboarding
+        themePreference={themePreference}
+        onThemePreferenceChange={setThemePreference}
+        onProfileReady={(destination = 'home') => {
+          if (destination === 'transfer') {
+            setSettingsSection('transfer')
+            setView({ name: 'settings' })
+          } else {
+            setView({ name: 'home' })
+          }
+          setLoadAttempt((attempt) => attempt + 1)
+        }}
+      />
+    )
   } else if (view.name === 'home') {
     content = (
       <Home
@@ -3563,7 +3748,7 @@ function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app ${view.name === 'settings' ? 'app-settings' : ''}`}>
       <Sidebar
         expanded={sidebarExpanded}
         onToggleExpanded={() => setSidebarExpanded((value) => !value)}
@@ -3573,6 +3758,9 @@ function App() {
         gameCount={gameCount}
         artworkCount={artworkCount}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
+        currentProfileAvatar={libraryState.status === 'ready'
+          ? profiles.find((profile) => profile.id === libraryState.library.profile.id)?.avatarDataUrl ?? null
+          : null}
         activeItem={
           libraryState.status !== 'ready' || view.name === 'home'
             ? 'home'
