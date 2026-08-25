@@ -115,7 +115,10 @@ export function ProfileAvatarPicker({
   return (
     <div className={`profile-avatar-picker ${compact ? 'compact' : ''}`}>
       <ProfileAvatar name={name} avatarDataUrl={avatarDataUrl} />
-      <div className="profile-avatar-picker-actions">
+      {compact ? (
+        /* 0.6.26 : pas de bouton « Choisir une photo » — le crayon superposé
+           ouvre le même sélecteur de fichier, avec retrait accessible. */
+        <>
         <input
           ref={inputRef}
           className="visually-hidden"
@@ -124,6 +127,37 @@ export function ProfileAvatarPicker({
           disabled={disabled || preparing}
           onChange={(event) => void selectFile(event.target.files?.[0])}
         />
+        <span className="profile-avatar-compact-frame">
+          <ProfileAvatar name={name} avatarDataUrl={avatarDataUrl} />
+          <button
+            className={`profile-avatar-pencil ${preparing ? 'busy' : ''}`}
+            type="button"
+            aria-label={avatarDataUrl ? 'Modifier la photo de profil' : 'Choisir une photo de profil'}
+            title={preparing ? 'Préparation…' : avatarDataUrl ? 'Modifier la photo' : 'Choisir une photo'}
+            disabled={disabled || preparing}
+            onClick={() => inputRef.current?.click()}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+            </svg>
+          </button>
+        </span>
+        {avatarDataUrl && (
+          <button
+            className="text-button"
+            type="button"
+            disabled={disabled || preparing}
+            onClick={() => {
+              onError(null)
+              onChange(null)
+            }}
+          >
+            Retirer
+          </button>
+        )}
+        </>
+      ) : (
+      <div className="profile-avatar-picker-actions">
         <button
           className="secondary-button"
           type="button"
@@ -146,6 +180,7 @@ export function ProfileAvatarPicker({
           </button>
         )}
       </div>
+      )}
     </div>
   )
 }

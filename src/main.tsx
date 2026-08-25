@@ -521,8 +521,7 @@ function Onboarding({ themePreference, onThemePreferenceChange, onProfileReady }
   }
 
   return (
-    <main className="main onboarding-main" aria-label="Premier lancement">
-      <div className="onboarding-shell">
+    <div className="onboarding-shell">
         <aside className="onboarding-aside" aria-label="Progression du premier lancement">
           <div>
             <img className="onboarding-logo" src={logoSylloge} alt="" width={46} height={46} />
@@ -547,24 +546,26 @@ function Onboarding({ themePreference, onThemePreferenceChange, onProfileReady }
               <p className="card-kicker">Étape 1 sur 3</p>
               <h2>Créer votre profil</h2>
               <p className="onboarding-step-intro">Ce nom identifiera votre bibliothèque sur cet appareil. La photo reste facultative et locale.</p>
-              <label className="onboarding-name-field">
-                <span>Pseudo ou prénom</span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Par exemple Camille"
-                  maxLength={60}
-                  autoFocus
+              <div className="onboarding-identity-row">
+                <ProfileAvatarPicker
+                  compact
+                  name={name || 'Sylloge'}
+                  avatarDataUrl={avatarDataUrl}
+                  disabled={busy}
+                  onChange={setAvatarDataUrl}
+                  onError={setError}
                 />
-              </label>
-              <ProfileAvatarPicker
-                name={name || 'Sylloge'}
-                avatarDataUrl={avatarDataUrl}
-                disabled={busy}
-                onChange={setAvatarDataUrl}
-                onError={setError}
-              />
+                <label className="onboarding-name-field">
+                  <span>Pseudo ou prénom</span>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    placeholder="Par exemple Camille"
+                    maxLength={60}
+                  />
+                </label>
+              </div>
               <div className="onboarding-actions end">
                 <button className="primary-button" type="button" disabled={!name.trim()} onClick={() => { setError(null); setStep('appearance') }}>Continuer</button>
               </div>
@@ -642,7 +643,6 @@ function Onboarding({ themePreference, onThemePreferenceChange, onProfileReady }
           {error && <p className="inline-report error onboarding-error" role="alert">{error}</p>}
         </section>
       </div>
-    </main>
   )
 }
 
@@ -3280,19 +3280,11 @@ function App() {
     )
   } else if (libraryState.status === 'no-profile') {
     content = (
-      <Onboarding
-        themePreference={themePreference}
-        onThemePreferenceChange={setThemePreference}
-        onProfileReady={(destination = 'home') => {
-          if (destination === 'transfer') {
-            setSettingsSection('transfer')
-            setView({ name: 'settings' })
-          } else {
-            setView({ name: 'home' })
-          }
-          setLoadAttempt((attempt) => attempt + 1)
-        }}
-      />
+      <main className="main home-main">
+        <header className="home-heading">
+          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
+        </header>
+      </main>
     )
   } else if (view.name === 'home') {
     content = (
@@ -3788,6 +3780,23 @@ function App() {
         onReturnToLibrary={returnToLibrary}
       />
       {content}
+      {libraryState.status === 'no-profile' && (
+        <div className="dialog-backdrop-blur onboarding-backdrop" role="presentation">
+          <Onboarding
+            themePreference={themePreference}
+            onThemePreferenceChange={setThemePreference}
+            onProfileReady={(destination = 'home') => {
+              if (destination === 'transfer') {
+                setSettingsSection('transfer')
+                setView({ name: 'settings' })
+              } else {
+                setView({ name: 'home' })
+              }
+              setLoadAttempt((attempt) => attempt + 1)
+            }}
+          />
+        </div>
+      )}
       {addFlow && libraryState.status === 'ready' && (
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAddFlow(null) }}>
           <div

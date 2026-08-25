@@ -769,6 +769,16 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 - Une installation neuve retire uniquement l’ancien profil `Default` strictement vierge. Un profil qui contient la moindre fiche, vue ou configuration de sauvegarde n’est jamais supprimé par la migration 19. ✓
 - Le premier lancement se déroule en trois étapes : pseudo et photo, thème système/clair/sombre, puis bibliothèque vide, restauration d’une sauvegarde Sylloge complète validée avant écriture, ou accès aux imports par collection. « Plus tard » crée explicitement un profil vide. ✓
 
+### `0.6.26` — Gabarits de bibliothèque stables et onboarding en fenêtre
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer avant la release.**
+
+- La rangée d’outils des cinq bibliothèques devient un gabarit fixe au-delà de 1250 px : baguette, recherche, filtres de catégorie et vues tiennent sur une seule ligne. La rangée des vues ne retombe plus sous la recherche quand la vue active, les résultats ou le contenu changent ; en dessous de 1250 px le repli reste volontaire. ✓
+- Les états vides occupent l’espace disponible : « Votre bibliothèque … est vide » et « Aucun … ne correspond » sont centrés verticalement dans la page, sur toute sa largeur, dans les cinq bibliothèques. ✓
+- Le premier lancement devient une fenêtre flottante au-dessus de l’application, rendue en arrière-plan : la pop-up onboarding se ferme à la fin des trois étapes et laisse place à la bibliothèque. ✓
+- L’étape Profil est resserrée : l’avatar est posé à gauche du champ pseudo et la photo se choisit ou se remplace via un crayon superposé à l’avatar, sans bouton « Choisir une photo ». ✓
+- Les vignettes Système, Clair et Sombre reprennent les couleurs réelles de l’application (canevas gris clair, anthracite profond, accent encre), sans couleur d’accent inventée. ✓
+
 ### Journal des retours
 
 - Recette du 24 août 2026 : parcours d'ajout des cinq médiums validé (pop-up en deux étapes très appréciée), requalification animés/mangas validée (« tout est nickel »), interrupteurs de catégories et vues Séries/Livres/Jeux validés, crayon de visuel validé. Points ouverts listés ci-dessus ; priorité perçue par Aurélien : purge du verdict, [object Object], page Modifier Films puis refonte commune, Art.

@@ -677,7 +677,14 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 
 .poster-fallback span { font: 500 9px var(--font-label); text-transform: uppercase; letter-spacing: .06em; }
 .poster-fallback b { min-width: 0; color: var(--color-text); font-size: 16px; line-height: 1.2; overflow-wrap: anywhere; }
-.library-main { padding: 54px clamp(38px, 5vw, 88px) 80px; }
+.library-main {
+  padding: 54px clamp(38px, 5vw, 88px) 80px;
+  /* 0.6.26 : la page est une colonne pleine hauteur ; l’état vide peut
+     ainsi absorber l’espace restant et rester centré verticalement. */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 .artwork-library-main {
   flex: 1 1 auto;
   width: auto;
@@ -771,6 +778,31 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .view-bar-overflow-item { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-size: 12px; color: var(--color-text); }
 .view-bar-overflow-item:hover { background: var(--color-surface-muted); }
 .view-bar-direction { display: flex; gap: 5px; }
+/* 0.6.26 : au-delà de 1250 px la rangée d’outils est un gabarit fixe sur
+   une seule ligne. Le repli des vues sous la recherche ne peut plus être
+   déclenché par un changement de vue active ou de contenu : la largeur
+   calculée ne varie plus avec l’état. */
+@media (min-width: 1251px) {
+  .library-tools {
+    flex-wrap: nowrap;
+    gap: 14px;
+  }
+  .library-tools .view-bar {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+  }
+  .library-tools .view-bar .library-views {
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .library-tools .view-bar .library-views .filter {
+    flex: 0 0 auto;
+  }
+  .library-tools .view-bar-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+}
 .saved-views { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-top: 14px; }
 .saved-views-picker select { min-height: 34px; padding: 5px 9px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); font-size: 12px; color: var(--color-text); }
 .saved-views-picker select:focus { border-color: var(--color-accent); }
@@ -818,7 +850,19 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .state-action { margin-top: 24px; padding: 9px 13px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-accent); font-size: 13px; font-weight: 600; }
 .state-action:hover { border-color: var(--color-accent); }
 .error-state .state-kicker { color: var(--color-danger); }
-.empty-library { margin-top: 0; border-top: 0; padding-top: 66px; }
+.empty-library {
+  margin: 0;
+  border-top: 0;
+  padding: 0;
+  /* 0.6.26 : l’état vide occupe tout l’espace sous l’en-tête et centre
+     son contenu, au lieu d’être tassé dans la moitié haute de la page. */
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
 .empty-action { margin-top: 24px; }
 .results-state {
   min-height: 240px;
@@ -2584,6 +2628,43 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .profile-avatar.settings-avatar { width: 38px; height: 38px; font-size: 13px; }
 .profile-avatar-picker { display: flex; align-items: center; gap: 16px; margin-top: 22px; }
 .profile-avatar-picker-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+/* 0.6.26 : en mode compact (onboarding), l’avatar est plus grand et le
+   crayon est superposé en bas à droite ; le conteneur sert d’ancrage. */
+.profile-avatar-picker.compact {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-top: 0;
+}
+.profile-avatar-compact-frame {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+.profile-avatar-picker.compact .profile-avatar {
+  width: 72px;
+  height: 72px;
+  font-size: 26px;
+}
+.profile-avatar-pencil {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid var(--color-surface);
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+.profile-avatar-pencil:hover:not(:disabled) { filter: brightness(1.12); }
+.profile-avatar-pencil:disabled { opacity: .55; cursor: default; }
 .profile-avatar-dialog { max-width: 620px; }
 .text-button { border: 0; padding: 6px 2px; background: transparent; color: var(--color-text-muted); font-size: 12px; font-weight: 600; }
 .text-button:hover:not(:disabled) { color: var(--color-text); }
@@ -2593,16 +2674,12 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .profile-card > .primary-button { margin-top: 14px; }
 .profile-limit-note { margin-top: 10px; color: var(--color-text-muted); font-size: 12px; }
 .secondary-button.danger, .primary-button.danger { border-color: #c46; color: #a33; }
-.onboarding-main {
-  min-height: 100vh;
-  padding: clamp(22px, 4vw, 54px);
-  display: grid;
-  place-items: center;
-  background: var(--color-canvas);
-}
+/* 0.6.26 : le premier lancement est une fenêtre flottante au-dessus de
+   l’application, pas une page. L’arrière-plan reste rendu et flouté. */
+.onboarding-backdrop { z-index: 120; }
 .onboarding-shell {
-  width: min(1080px, 100%);
-  min-height: min(720px, calc(100vh - 64px));
+  width: min(960px, 100%);
+  max-height: calc(100vh - 64px);
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: 24px;
@@ -2630,6 +2707,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .onboarding-progress li.complete span { border-color: transparent; background: rgba(255, 255, 255, .15); }
 .onboarding-local-note { margin: auto 0 0; padding-top: 28px; font-size: 11px; line-height: 1.55; opacity: .68; }
 .onboarding-panel { min-width: 0; padding: clamp(38px, 5vw, 66px); display: flex; flex-direction: column; justify-content: center; }
+.onboarding-panel { overflow-y: auto; }
 .onboarding-step { width: min(680px, 100%); margin: auto; }
 .onboarding-step .card-kicker { margin-bottom: 10px; }
 .onboarding-step h2 { margin: 0; font-size: clamp(28px, 3vw, 38px); letter-spacing: -.035em; }
@@ -2637,6 +2715,16 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .onboarding-name-field { margin-top: 30px; display: grid; gap: 8px; color: var(--color-text-subtle); font: 650 9px var(--font-label); letter-spacing: .07em; text-transform: uppercase; }
 .onboarding-name-field input { width: min(480px, 100%); min-height: 48px; border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 11px 13px; background: var(--color-surface); color: var(--color-text); font: 14px var(--font-ui); letter-spacing: normal; text-transform: none; }
 .onboarding-name-field input:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; box-shadow: 0 0 0 4px var(--color-accent-soft); }
+/* 0.6.26 : étape Profil resserrée — l’avatar est posé à gauche du champ
+   pseudo ; la photo se choisit via le crayon superposé, sans bouton. */
+.onboarding-identity-row {
+  margin-top: 30px;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+.onboarding-identity-row .onboarding-name-field { flex: 1 1 auto; min-width: 0; margin-top: 0; }
+.onboarding-identity-row .onboarding-name-field input { width: 100%; }
 .onboarding-actions { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--color-hairline); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .onboarding-actions.end { justify-content: flex-end; }
 .onboarding-final-actions { display: flex; align-items: center; gap: 14px; }
@@ -2649,14 +2737,17 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .theme-preview { height: 86px; overflow: hidden; border: 1px solid rgba(0, 0, 0, .1); border-radius: 9px; display: grid; grid-template-columns: 26% 1fr; grid-template-rows: repeat(3, 1fr); gap: 5px; padding: 8px; }
 .theme-preview i { display: block; border-radius: 3px; }
 .theme-preview i:first-child { grid-row: 1 / -1; }
-.theme-preview-light { background: #faf9f6; }
-.theme-preview-light i { background: #ded8cf; }
-.theme-preview-light i:first-child { background: #5b3a68; }
-.theme-preview-dark { background: #1d1b1f; }
-.theme-preview-dark i { background: #3c3840; }
-.theme-preview-dark i:first-child { background: #876f91; }
-.theme-preview-system { background: linear-gradient(135deg, #faf9f6 0 50%, #1d1b1f 50%); }
-.theme-preview-system i { background: rgba(91, 58, 104, .58); }
+/* 0.6.26 : vignettes fidèles aux vrais thèmes — canevas gris clair,
+   anthracite profond, action primaire encre. Aucun violet inventé. */
+.theme-preview-light { background: #F6F6F7; }
+.theme-preview-light i { background: #E7E7EA; }
+.theme-preview-light i:first-child { background: #232327; }
+.theme-preview-dark { background: #161618; }
+.theme-preview-dark i { background: #2D2D31; }
+.theme-preview-dark i:first-child { background: #EDEDEF; }
+.theme-preview-system { background: linear-gradient(135deg, #F6F6F7 0 50%, #161618 50%); }
+.theme-preview-system i { background: #E7E7EA; }
+.theme-preview-system i:first-child { background: linear-gradient(135deg, #232327 0 50%, #EDEDEF 50%); }
 .onboarding-start-grid { margin-top: 26px; display: grid; gap: 10px; }
 .onboarding-start-choice { width: 100%; min-width: 0; padding: 15px 16px; border: 1px solid var(--color-border); border-radius: 14px; display: flex; align-items: center; gap: 14px; background: var(--color-surface); color: var(--color-text); text-align: left; }
 .onboarding-start-choice:hover:not(:disabled) { border-color: var(--hover-border); background: var(--color-surface-muted); }
