@@ -4235,4 +4235,90 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(stylesSource0623, /\.form-poster-verdict \.heart-input\.on[\s\S]*color: var\(--color-heart-active\)/, 'Les cœurs actifs doivent conserver la couleur rouge dédiée')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge. Uniformisation 0.6.7 : les fiches Séries, Livres, Jeux et Art reprennent les trois boutons explicites du modèle Film, plus aucun menu caché ; l’association directe s’ouvre dans la même pop-up floutée avec recherche préremplie, fusion éditoriale bornée et données personnelles intactes ; l’Art reste sans fournisseur par règle du domaine. Pop-up 0.6.19 : pop-up commune d’ajout et de modification, champs éditoriaux sans toggle et grille Art 16:10 pleine largeur. Composition 0.6.20 : hauteur stable dictée par l’affiche, avis intégré sous le verdict, contenu long défilable et actions ancrées dans la colonne droite. Prototype Film 0.6.21 : champ titre dégagé, verdict doré/rouge sous l’affiche, faits TMDB conservés en ajout et modification. Correction Film 0.6.22 : date compacte sur la ligne des statuts, fiche TMDB immobile et formulaire éditorial allégé. Extension 0.6.23 : gabarit de verdict sous visuel et ligne statut/date partagés par les cinq médiums, fond segmenté Film borné à ses boutons, ajout et modification alignés.')
+// Jalon 0.6.24 — modifications fidèles, types segmentés, informations fournisseur
+// explicites et bibliothèque Art réellement étendue.
+{
+  const mainSource0624 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+
+  const seriesSource0624 = readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8')
+  const bookSource0624 = readFileSync(new URL('../src/components/BookForm.tsx', import.meta.url), 'utf8')
+  const gameSource0624 = readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8')
+  const verdictSource0624 = readFileSync(new URL('../src/components/VerdictControls.tsx', import.meta.url), 'utf8')
+  const repositorySource0624 = readFileSync(new URL('../src/data/mediaRepository.ts', import.meta.url), 'utf8')
+  const stylesSource0624 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const migrationSource0624 = readFileSync(new URL('../src-tauri/migrations/0017_media_provider_links.sql', import.meta.url), 'utf8')
+  const backfillMigrationSource0624 = readFileSync(new URL('../src-tauri/migrations/0018_backfill_media_provider_links.sql', import.meta.url), 'utf8')
+  const databaseSource0624 = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
+
+  assert.match(mainSource0624, /const refreshedFilm = await filmsRepository\.getFilm/, 'Film : une modification doit être relue depuis SQLite avant de rafraîchir l’interface')
+  assert.match(mainSource0624, /detailRevision=\{library\.films\.find[\s\S]*?updatedAt \?\? ''\}/, 'Film : la fiche doit dépendre de la révision du film courant')
+  assert.match(mainSource0624, /detailRevision: string/, 'Film : le lecteur SQLite doit exposer une révision explicite')
+  assert.match(mainSource0624, /\[attempt, detailRevision, filmId, profileId\]/, 'Film : la relecture doit être déclenchée lorsque updatedAt change')
+
+  assert.match(verdictSource0624, /ariaLabel\?: string/, 'Le sélecteur segmenté partagé doit pouvoir annoncer un Type et pas seulement un Statut')
+  assert.doesNotMatch(seriesSource0624, /<select[\s\S]*?id="series-category"/, 'Séries : le sélecteur Type natif doit disparaître')
+  assert.match(seriesSource0624, /statuses=\{SERIES_CATEGORIES\}[\s\S]*ariaLabel="Type de série"/, 'Séries : Série télé et Animation doivent devenir des boutons segmentés accessibles')
+  assert.doesNotMatch(bookSource0624, /<select[\s\S]*?id="book-category"/, 'Livres : le sélecteur Type natif doit disparaître')
+  assert.match(bookSource0624, /statuses=\{BOOK_CATEGORIES\}[\s\S]*ariaLabel="Type de livre"/, 'Livres : Livre, Manga et Comics doivent devenir des boutons segmentés accessibles')
+  assert.match(bookSource0624, /\{verdictVisible && \([\s\S]*className="quote-editor"/, 'Livres : les citations personnelles doivent être absentes du rendu « À lire »')
+
+  for (const [source, provider] of [[seriesSource0624, 'TMDB'], [bookSource0624, 'Open Library'], [gameSource0624, 'IGDB']]) {
+    assert.match(source, /providerLink\?: MediaProviderReference \| null/, `${provider} : le formulaire doit connaître l’association persistante`)
+    assert.match(source, /className="provider-information-card"/, `${provider} : les informations fournisseur doivent vivre dans un encadré commun`)
+  }
+  assert.match(repositorySource0624, /getMediaProviderLink/, 'Le repository doit relire la provenance exacte des fiches enrichies')
+  assert.match(repositorySource0624, /setMediaProviderLink/, 'Le repository doit enregistrer la provenance exacte des associations')
+  assert.match(migrationSource0624, /CREATE TABLE(?: IF NOT EXISTS)? media_provider_links/, 'La provenance fournisseur doit être persistée sans heuristique sur les champs éditoriaux')
+  assert.match(backfillMigrationSource0624, /poster_url LIKE 'https:\/\/image\.tmdb\.org\/%'/, 'Les anciennes Séries TMDB démontrables par leur affiche doivent être reprises')
+  assert.match(backfillMigrationSource0624, /cover_url LIKE 'https:\/\/covers\.openlibrary\.org\/%'/, 'Les anciens Livres Open Library démontrables par leur couverture doivent être repris')
+  assert.match(backfillMigrationSource0624, /cover_url LIKE 'https:\/\/images\.igdb\.com\/%'/, 'Les anciens Jeux IGDB démontrables par leur couverture doivent être repris')
+  assert.match(databaseSource0624, /version: 17/, 'La migration 17 doit être enregistrée séquentiellement')
+  assert.match(databaseSource0624, /version: 18/, 'La reprise historique doit passer par une nouvelle migration additive')
+
+  assert.match(mainSource0624, /className="main library-main artwork-library-main"/, 'Art : la page doit porter une classe de largeur explicite')
+  assert.match(stylesSource0624, /\.artwork-library-main[\s\S]*?flex: 1 1 auto[\s\S]*?width: auto/, 'Art : la page doit absorber tout l’espace restant à droite du rail')
+
+  const providerCalls0624 = []
+  const providerRow0624 = {
+    profile_id: 'default',
+    medium: 'series',
+    media_id: 'series-1',
+    provider_name: 'TMDB',
+    provider_id: '1234',
+    created_at: '2026-08-25T10:00:00.000Z',
+    updated_at: '2026-08-25T10:00:00.000Z',
+  }
+  const providerDatabase0624 = {
+    async execute(query, bindValues) {
+      providerCalls0624.push({ kind: 'execute', query, bindValues })
+      return { rowsAffected: 1 }
+    },
+    async select(query, bindValues) {
+      providerCalls0624.push({ kind: 'select', query, bindValues })
+      return [providerRow0624]
+    },
+  }
+  const { SqliteMediaRepository } = await import('../src/data/mediaRepository.ts')
+  const providerRepository0624 = new SqliteMediaRepository(async () => providerDatabase0624, () => 'unused-id', () => '2026-08-25T10:00:00.000Z')
+  await providerRepository0624.setMediaProviderLink({
+    profileId: 'default',
+    medium: 'series',
+    mediaId: 'series-1',
+    providerName: 'TMDB',
+    providerId: '1234',
+  })
+  const providerLink0624 = await providerRepository0624.getMediaProviderLink('default', 'series', 'series-1')
+  assert.deepEqual(providerCalls0624[0].bindValues.slice(0, 5), ['default', 'series', 'series-1', 'TMDB', '1234'], 'L’association fournisseur doit être écrite avec des paramètres liés')
+  assert.deepEqual(providerCalls0624[1].bindValues, ['default', 'series', 'series-1'], 'La provenance doit être relue par profil, médium et fiche')
+  assert.deepEqual(providerLink0624, {
+    profileId: 'default',
+    medium: 'series',
+    mediaId: 'series-1',
+    providerName: 'TMDB',
+    providerId: '1234',
+    createdAt: '2026-08-25T10:00:00.000Z',
+    updatedAt: '2026-08-25T10:00:00.000Z',
+  }, 'La provenance SQLite doit revenir sous sa forme domaine exacte')
+}
+
+console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge. Uniformisation 0.6.7 : les fiches Séries, Livres, Jeux et Art reprennent les trois boutons explicites du modèle Film, plus aucun menu caché ; l’association directe s’ouvre dans la même pop-up floutée avec recherche préremplie, fusion éditoriale bornée et données personnelles intactes ; l’Art reste sans fournisseur par règle du domaine. Pop-up 0.6.19 : pop-up commune d’ajout et de modification, champs éditoriaux sans toggle et grille Art 16:10 pleine largeur. Composition 0.6.20 : hauteur stable dictée par l’affiche, avis intégré sous le verdict, contenu long défilable et actions ancrées dans la colonne droite. Prototype Film 0.6.21 : champ titre dégagé, verdict doré/rouge sous l’affiche, faits TMDB conservés en ajout et modification. Correction Film 0.6.22 : date compacte sur la ligne des statuts, fiche TMDB immobile et formulaire éditorial allégé. Extension 0.6.23 : gabarit de verdict sous visuel et ligne statut/date partagés par les cinq médiums, fond segmenté Film borné à ses boutons, ajout et modification alignés. Fidélité 0.6.24 : modifications relues depuis SQLite, verdicts purgés au retour en liste d’attente, types Série/Livre segmentés, provenance fournisseur persistante, informations enrichies encadrées et Art étendu sur toute la largeur.')

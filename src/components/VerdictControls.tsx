@@ -22,20 +22,22 @@ export function StatusBadge({ status, labels }: { status: string; labels: Status
   )
 }
 
-/** Segmented control de statut réutilisable dans les formulaires. */
+/** Contrôle segmenté réutilisable pour les statuts comme pour les types. */
 export function StatusSegmented({
   statuses,
   labels,
   value,
   onChange,
+  ariaLabel = 'Statut',
 }: {
   statuses: readonly string[]
   labels: StatusLabels
   value: string
   onChange: (next: string) => void
+  ariaLabel?: string
 }) {
   return (
-    <div className="seg-group seg-group-form" role="radiogroup" aria-label="Statut">
+    <div className="seg-group seg-group-form" role="radiogroup" aria-label={ariaLabel}>
       {statuses.map((status) => (
         <button
           key={status}

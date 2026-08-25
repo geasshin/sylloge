@@ -29,6 +29,7 @@ import {
   type ArtworkSearchCriteria,
   type BookSearchCriteria,
   type GameSearchCriteria,
+  type MediaProviderReference,
   type SeriesSearchCriteria,
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
@@ -1677,6 +1678,7 @@ function SeriesLibrary({
         if (scored.length > 0 && scored[0].score >= MATCH_THRESHOLD) {
           const presentation = await previewTmdbSeries(scored[0].candidate.tmdbId, 'fr-FR')
           await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation))
+          await mediaRepository.setMediaProviderLink({ profileId, medium: 'series', mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
           associatedCount += 1
         } else {
           noMatchCount += 1
@@ -1919,6 +1921,7 @@ function GamesLibrary({
               coverUrl: presentation.coverUrl,
             }),
           )
+          await mediaRepository.setMediaProviderLink({ profileId, medium: 'games', mediaId: game.id, providerName: 'IGDB', providerId: String(presentation.gameId) })
           associatedCount += 1
         } else {
           noMatchCount += 1
@@ -2101,7 +2104,7 @@ function ArtworksLibrary({
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
-    <main className="main library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
+    <main className="main library-main artwork-library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
       <header className="library-header">
         <div>
           <p className="eyebrow">Collection personnelle</p>
@@ -2252,6 +2255,7 @@ function BooksLibrary({
               coverUrl: presentation.coverUrl,
             }),
           )
+          await mediaRepository.setMediaProviderLink({ profileId, medium: 'books', mediaId: book.id, providerName: 'Open Library', providerId: presentation.workKey })
           associatedCount += 1
         } else {
           noMatchCount += 1
@@ -2419,6 +2423,7 @@ function sortArtworks(artworks: Artwork[]): Artwork[] {
 type SqliteFilmDetailProps = {
   profileId: string
   filmId: string
+  detailRevision: string
   onBack: () => void
   backLabel: string
   onEdit: () => void
@@ -2427,7 +2432,7 @@ type SqliteFilmDetailProps = {
   tmdbNotice?: string | null
 }
 
-function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, tmdbNotice }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, tmdbNotice }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -2450,7 +2455,7 @@ function SqliteFilmDetail({ profileId, filmId, onBack, backLabel, onEdit, onDele
     return () => {
       cancelled = true
     }
-  }, [attempt, filmId, profileId])
+  }, [attempt, detailRevision, filmId, profileId])
 
   if (state.status === 'ready') {
     return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} tmdbNotice={tmdbNotice} />
@@ -2523,9 +2528,9 @@ function App() {
       directement au stade formulaire. */
   type AddFlow =
     | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null; tmdbPresentation?: TmdbFilmPresentation; editFilmId?: string }
-    | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; editSeriesId?: string }
-    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; editBookId?: string }
-    | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues; editGameId?: string }
+    | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; providerLink?: MediaProviderReference | null; editSeriesId?: string }
+    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; providerLink?: MediaProviderReference | null; editBookId?: string }
+    | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues; providerLink?: MediaProviderReference | null; editGameId?: string }
     | { medium: 'artwork'; step: 'form'; editArtworkId?: string }
   const [addFlow, setAddFlow] = useState<AddFlow | null>(null)
   const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
@@ -2886,7 +2891,12 @@ function App() {
       const presentation = await previewOpenLibraryBook(candidate)
       setBookSelection({ pendingKey: null, error: null })
       if (addFlow?.medium === 'livre') {
-        setAddFlow({ medium: 'livre', step: 'search', initialValues: bookPresentationToInitialValues(presentation) })
+        setAddFlow({
+          medium: 'livre',
+          step: 'search',
+          initialValues: bookPresentationToInitialValues(presentation),
+          providerLink: { providerName: 'Open Library', providerId: presentation.workKey },
+        })
         return
       }
     } catch (error) {
@@ -2906,7 +2916,12 @@ function App() {
       const presentation = await previewIgdbGame(candidate.gameId, candidate.title, candidate.releaseYear, candidate.coverUrl)
       setCandidateSelection({ pendingId: null, error: null })
       if (addFlow?.medium === 'jeu') {
-        setAddFlow({ medium: 'jeu', step: 'search', initialValues: igdbPresentationToInitialValues(presentation) })
+        setAddFlow({
+          medium: 'jeu',
+          step: 'search',
+          initialValues: igdbPresentationToInitialValues(presentation),
+          providerLink: { providerName: 'IGDB', providerId: String(presentation.gameId) },
+        })
         return
       }
     } catch (error) {
@@ -2924,7 +2939,12 @@ function App() {
       const presentation = await previewTmdbSeries(candidate.tmdbId)
       setCandidateSelection({ pendingId: null, error: null })
       if (addFlow?.medium === 'série') {
-        setAddFlow({ medium: 'série', step: 'search', initialValues: seriesPresentationToInitialValues(presentation) })
+        setAddFlow({
+          medium: 'série',
+          step: 'search',
+          initialValues: seriesPresentationToInitialValues(presentation),
+          providerLink: { providerName: 'TMDB', providerId: String(presentation.tmdbId) },
+        })
         return
       }
     } catch (error) {
@@ -2952,6 +2972,7 @@ function App() {
     try {
       const presentation = await previewTmdbSeries(candidate.tmdbId)
       await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation))
+      await mediaRepository.setMediaProviderLink({ profileId, medium: 'series', mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
       const refreshed = await mediaRepository.getSeries(profileId, series.id)
       setSeriesCollection((current) => current.map((entry) => entry.id === series.id
         ? (refreshed ?? seriesWithPresentation(series, presentation))
@@ -2987,6 +3008,7 @@ function App() {
           coverUrl: presentation.coverUrl,
         }),
       )
+      await mediaRepository.setMediaProviderLink({ profileId, medium: 'books', mediaId: book.id, providerName: 'Open Library', providerId: presentation.workKey })
       const refreshed = await mediaRepository.getBook(profileId, book.id)
       setBookCollection((current) => sortBooks(current.map((entry) => entry.id === book.id
         ? (refreshed ?? bookWithPresentation(book, presentation))
@@ -3021,6 +3043,7 @@ function App() {
           coverUrl: presentation.coverUrl,
         }),
       )
+      await mediaRepository.setMediaProviderLink({ profileId, medium: 'games', mediaId: game.id, providerName: 'IGDB', providerId: String(presentation.gameId) })
       const refreshed = await mediaRepository.getGame(profileId, game.id)
       setGameCollection((current) => sortGames(current.map((entry) => entry.id === game.id
         ? (refreshed ?? gameWithPresentation(game, presentation))
@@ -3229,6 +3252,7 @@ function App() {
       <SqliteFilmDetail
         profileId={library.profile.id}
         filmId={view.filmId}
+        detailRevision={library.films.find((entry) => entry.id === view.filmId)?.updatedAt ?? ''}
         onBack={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}
         backLabel={view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
         onEdit={() => {
@@ -3305,11 +3329,12 @@ function App() {
           series={series}
           onBack={() => setView({ name: 'series' })}
           backLabel="← Retour aux séries"
-          onEdit={() => {
+          onEdit={async () => {
             const series = seriesCollection.find((entry) => entry.id === view.seriesId)
             if (series) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
-              setAddFlow({ medium: 'série', step: 'search', initialValues: seriesToFormValues(series), editSeriesId: series.id })
+              const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, 'series', series.id)
+              setAddFlow({ medium: 'série', step: 'search', initialValues: seriesToFormValues(series), providerLink, editSeriesId: series.id })
             }
           }}
           onAssociate={() => {
@@ -3370,11 +3395,12 @@ function App() {
           book={book}
           onBack={() => setView({ name: 'books' })}
           backLabel="← Retour aux livres"
-          onEdit={() => {
+          onEdit={async () => {
             const book = bookCollection.find((entry) => entry.id === view.bookId)
             if (book) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
-              setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), editBookId: book.id })
+              const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, 'books', book.id)
+              setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), providerLink, editBookId: book.id })
             }
           }}
           onAssociate={() => {
@@ -3436,11 +3462,12 @@ function App() {
           game={game}
           onBack={() => setView({ name: 'games' })}
           backLabel="← Retour aux jeux"
-          onEdit={() => {
+          onEdit={async () => {
             const game = gameCollection.find((entry) => entry.id === view.gameId)
             if (game) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
-              setAddFlow({ medium: 'jeu', step: 'search', initialValues: gameToFormValues(game), editGameId: game.id })
+              const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, 'games', game.id)
+              setAddFlow({ medium: 'jeu', step: 'search', initialValues: gameToFormValues(game), providerLink, editGameId: game.id })
             }
           }}
           onAssociate={() => {
@@ -3624,9 +3651,10 @@ function App() {
                   onSave={async (input, provenance) => {
                     const library = libraryState.library
                     if (editFilmId) {
-                      const updatedAt = await filmsRepository.updateFilm(library.profile.id, editFilmId, input)
-                      const updatedFilm: Film = { ...library.films.find((entry) => entry.id === editFilmId)!, ...input, updatedAt }
-                      const updatedLibrary: FilmLibrary = { ...library, films: sortFilms(library.films.map((entry) => entry.id === editFilmId ? updatedFilm : entry)) }
+                      await filmsRepository.updateFilm(library.profile.id, editFilmId, input)
+                      const refreshedFilm = await filmsRepository.getFilm(library.profile.id, editFilmId)
+                      if (!refreshedFilm) throw new Error('Le film modifié n’a pas pu être relu depuis SQLite.')
+                      const updatedLibrary: FilmLibrary = { ...library, films: sortFilms(library.films.map((entry) => entry.id === editFilmId ? refreshedFilm : entry)) }
                       setLibraryState({ status: 'ready', library: updatedLibrary })
                       requestAutomaticBackup(updatedLibrary)
                       setAddFlow(null)
@@ -3673,9 +3701,11 @@ function App() {
                   embeddedInDialog
                   series={editSeriesId ? seriesCollection.find((entry) => entry.id === editSeriesId) : undefined}
                   initialValues={initialValues}
+                  providerLink={addFlow.providerLink ?? null}
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: SeriesWriteInput) => {
                     const library = libraryState.library
+                    let targetId = editSeriesId
                     if (editSeriesId) {
                       await mediaRepository.updateSeries(library.profile.id, editSeriesId, input)
                       const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId)
@@ -3683,11 +3713,20 @@ function App() {
                       setSeriesCollection((current) => current.map((entry) => entry.id === editSeriesId ? refreshed : entry))
                     } else {
                       const series = await mediaRepository.createSeries(library.profile.id, input)
+                      targetId = series.id
+                      if (addFlow.providerLink) {
+                        await mediaRepository.setMediaProviderLink({
+                          profileId: library.profile.id,
+                          medium: 'series',
+                          mediaId: series.id,
+                          ...addFlow.providerLink,
+                        })
+                      }
                       setSeriesCollection((current) => [...current, series])
                     }
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'series-detail', seriesId: editSeriesId ?? '' })
+                    leaveLibrary({ name: 'series-detail', seriesId: targetId! })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3711,10 +3750,12 @@ function App() {
                   embeddedInDialog
                   book={editBookId ? bookCollection.find((entry) => entry.id === editBookId) : undefined}
                   initialValues={initialValues}
+                  providerLink={addFlow.providerLink ?? null}
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: BookWriteInput) => {
                     const library = libraryState.library
                     const { quotes, ...bookInput } = input
+                    let targetId = editBookId
                     if (editBookId) {
                       await mediaRepository.updateBook(library.profile.id, editBookId, bookInput, quotes)
                       const refreshed = await mediaRepository.getBook(library.profile.id, editBookId)
@@ -3722,12 +3763,21 @@ function App() {
                       setBookCollection((current) => sortBooks(current.map((entry) => entry.id === editBookId ? refreshed : entry)))
                     } else {
                       const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
+                      targetId = book.id
+                      if (addFlow.providerLink) {
+                        await mediaRepository.setMediaProviderLink({
+                          profileId: library.profile.id,
+                          medium: 'books',
+                          mediaId: book.id,
+                          ...addFlow.providerLink,
+                        })
+                      }
                       setBookCollection((current) => sortBooks([...current, book]))
                     }
                     setBookSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'book-detail', bookId: editBookId ?? '' })
+                    leaveLibrary({ name: 'book-detail', bookId: targetId! })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3751,10 +3801,12 @@ function App() {
                   embeddedInDialog
                   game={editGameId ? gameCollection.find((entry) => entry.id === editGameId) : undefined}
                   initialValues={initialValues}
+                  providerLink={addFlow.providerLink ?? null}
                   platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: GameWriteInput) => {
                     const library = libraryState.library
+                    let targetId = editGameId
                     if (editGameId) {
                       await mediaRepository.updateGame(library.profile.id, editGameId, input)
                       const refreshed = await mediaRepository.getGame(library.profile.id, editGameId)
@@ -3762,12 +3814,21 @@ function App() {
                       setGameCollection((current) => sortGames(current.map((entry) => entry.id === editGameId ? refreshed : entry)))
                     } else {
                       const game = await mediaRepository.createGame(library.profile.id, input)
+                      targetId = game.id
+                      if (addFlow.providerLink) {
+                        await mediaRepository.setMediaProviderLink({
+                          profileId: library.profile.id,
+                          medium: 'games',
+                          mediaId: game.id,
+                          ...addFlow.providerLink,
+                        })
+                      }
                       setGameCollection((current) => sortGames([...current, game]))
                     }
                     setGameSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'game-detail', gameId: editGameId ?? '' })
+                    leaveLibrary({ name: 'game-detail', gameId: targetId! })
                     window.scrollTo({ top: 0 })
                   }}
                 />

@@ -140,7 +140,16 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
   )
 
   const update = <Key extends keyof FilmFormValues>(key: Key, value: FilmFormValues[Key]) => {
-    setValues((current) => ({ ...current, [key]: value }))
+    setValues((current) => key === 'status' && value === 'à découvrir'
+      ? {
+          ...current,
+          status: value,
+          rating: '',
+          isFavorite: false,
+          watchedAt: '',
+          personalNote: '',
+        }
+      : { ...current, [key]: value })
     setErrors((current) => ({ ...current, [key]: undefined }))
     setSaveError(null)
   }

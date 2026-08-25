@@ -15,6 +15,31 @@ import {
   type NativeBookWriter,
 } from './nativeBooks.ts'
 
+export type MediaProviderMedium = 'series' | 'books' | 'games'
+
+export type MediaProviderReference = {
+  providerName: 'TMDB' | 'Open Library' | 'IGDB'
+  providerId: string
+}
+
+export type MediaProviderLink = MediaProviderReference & {
+  profileId: string
+  medium: MediaProviderMedium
+  mediaId: string
+  createdAt: string
+  updatedAt: string
+}
+
+type MediaProviderLinkRow = {
+  profile_id: string
+  medium: MediaProviderMedium
+  media_id: string
+  provider_name: MediaProviderLink['providerName']
+  provider_id: string
+  created_at: string
+  updated_at: string
+}
+
 type SeriesRow = {
   id: string
   profile_id: string
@@ -436,6 +461,56 @@ export class SqliteMediaRepository {
     this.createBookNative = createBookNative
     this.updateBookNative = updateBookNative
     this.deleteBookNative = deleteBookNative
+  }
+
+  async getMediaProviderLink(
+    profileId: string,
+    medium: MediaProviderMedium,
+    mediaId: string,
+  ): Promise<MediaProviderLink | null> {
+    const database = await this.loadDatabase()
+    const rows = await database.select<MediaProviderLinkRow[]>(
+      `SELECT profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at
+       FROM media_provider_links
+       WHERE profile_id = $1 AND medium = $2 AND media_id = $3
+       LIMIT 1`,
+      [profileId, medium, mediaId],
+    )
+    const row = rows[0]
+    if (!row) return null
+    return {
+      profileId: row.profile_id,
+      medium: row.medium,
+      mediaId: row.media_id,
+      providerName: row.provider_name,
+      providerId: row.provider_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  }
+
+  async setMediaProviderLink(input: {
+    profileId: string
+    medium: MediaProviderMedium
+    mediaId: string
+    providerName: MediaProviderLink['providerName']
+    providerId: string
+  }): Promise<MediaProviderLink> {
+    const database = await this.loadDatabase()
+    const timestamp = this.now()
+    await database.execute(
+      `INSERT INTO media_provider_links (
+         profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $6)
+       ON CONFLICT(profile_id, medium, media_id) DO UPDATE SET
+         provider_name = excluded.provider_name,
+         provider_id = excluded.provider_id,
+         updated_at = excluded.updated_at`,
+      [input.profileId, input.medium, input.mediaId, input.providerName, input.providerId, timestamp],
+    )
+    const saved = await this.getMediaProviderLink(input.profileId, input.medium, input.mediaId)
+    if (!saved) throw new Error('L’association fournisseur n’a pas pu être relue après son enregistrement.')
+    return saved
   }
 
   async listSeries(profileId: string): Promise<Series[]> {

@@ -16,6 +16,7 @@ import {
   type SeriesWriteInput,
 } from '../domain/seriesForm.ts'
 import { localToday } from '../domain/filmForm.ts'
+import type { MediaProviderReference } from '../data/mediaRepository.ts'
 import { Poster } from './Poster.tsx'
 import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
@@ -34,6 +35,7 @@ type SeriesFormProps = {
   series?: Series
   /** Valeurs préremplies par la recherche TMDB (création assistée, jalon 0.4.26). */
   initialValues?: SeriesFormValues
+  providerLink?: MediaProviderReference | null
   /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
       sans <main> pleine page ni barre de retour redondante. */
   embeddedInDialog?: boolean
@@ -41,14 +43,14 @@ type SeriesFormProps = {
   onSave: (input: SeriesWriteInput) => Promise<void>
 }
 
-export function SeriesForm({ series, initialValues, embeddedInDialog = false, onCancel, onSave }: SeriesFormProps) {
+export function SeriesForm({ series, initialValues, providerLink = null, embeddedInDialog = false, onCancel, onSave }: SeriesFormProps) {
   const [values, setValues] = useState<SeriesFormValues>(() => series ? seriesToFormValues(series) : { ...EMPTY_SERIES_FORM, ...initialValues })
   const [errors, setErrors] = useState<SeriesFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  // Création assistée : les champs éditoriaux sont déjà portés par la recherche.
-  const assisted = !series && Boolean(initialValues?.title)
+  // Une fiche liée à TMDB conserve une présentation éditoriale en lecture.
+  const assisted = providerLink !== null
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewablePosterUrl(values.posterUrl)
   const progressVisible = values.status === 'en cours' || values.status === 'abandonnée' || values.status === 'vue'
@@ -80,6 +82,13 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
       // Marquer « vue » aligne immédiatement les saisons vues sur le total connu.
       if (key === 'status' && value === 'vue' && current.seasonsTotal.trim() !== '') {
         next.seasonsSeen = current.seasonsTotal
+      }
+      if (key === 'status' && value === 'à voir') {
+        next.rating = ''
+        next.isFavorite = false
+        next.seasonsSeen = ''
+        next.startedAt = ''
+        next.personalNote = ''
       }
       return next
     })
@@ -146,20 +155,15 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
             {errors.title && <p className="field-error" id="series-title-error">{errors.title}</p>}
           </div>
 
-          {/* Catégorie Série / Animé : visible en permanence (0.6.11),
-              au-dessus du verdict, dans le même gabarit segmenté. */}
-          <div className="field category-inline">
-            <label htmlFor="series-category">Type</label>
-            <select
-              id="series-category"
-              name="category"
+          <div className="field category-segmented">
+            <span className="field-label">Type</span>
+            <StatusSegmented
+              statuses={SERIES_CATEGORIES}
+              labels={SERIES_CATEGORY_LABELS}
               value={values.category}
-              onChange={(event) => update('category', event.target.value as SeriesFormValues['category'])}
-            >
-              {SERIES_CATEGORIES.map((category) => (
-                <option value={category} key={category}>{SERIES_CATEGORY_LABELS[category]}</option>
-              ))}
-            </select>
+              onChange={(next) => update('category', next as SeriesFormValues['category'])}
+              ariaLabel="Type de série"
+            />
           </div>
 
           {/* Le verdict personnel */}
@@ -189,6 +193,20 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
             {errors.status && <p className="field-error">{errors.status}</p>}
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
           </div>
+
+          {providerLink && (
+            <section className="provider-information-card" aria-label="Informations sur la série fournies par TMDB">
+              <div className="provider-information-heading">
+                <strong>Informations sur la série</strong>
+                <small>Données : {providerLink.providerName}</small>
+              </div>
+              <dl className="provider-information-list">
+                {values.showrunner.trim() && <div><dt>Showrunner</dt><dd>{values.showrunner}</dd></div>}
+                {values.casting.trim() && <div><dt>Casting</dt><dd>{values.casting}</dd></div>}
+                {values.summary.trim() && <div className="provider-information-summary"><dt>Résumé</dt><dd>{values.summary}</dd></div>}
+              </dl>
+            </section>
+          )}
 
           {/* L’avis suit immédiatement la note et le coup de cœur. */}
           {verdictVisible && (

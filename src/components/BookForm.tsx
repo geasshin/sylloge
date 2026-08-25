@@ -16,6 +16,7 @@ import {
   type BookWriteInput,
 } from '../domain/bookForm.ts'
 import { localToday } from '../domain/filmForm.ts'
+import type { MediaProviderReference } from '../data/mediaRepository.ts'
 import { Poster } from './Poster.tsx'
 import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
@@ -34,6 +35,7 @@ type BookFormProps = {
   book?: Book
   /** Valeurs préremplies par la recherche Open Library (création assistée, jalon 0.4.27). */
   initialValues?: BookFormValues
+  providerLink?: MediaProviderReference | null
   /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
       sans <main> pleine page ni barre de retour redondante. */
   embeddedInDialog?: boolean
@@ -41,7 +43,7 @@ type BookFormProps = {
   onSave: (input: BookWriteInput) => Promise<void>
 }
 
-export function BookForm({ book, initialValues, embeddedInDialog = false, onCancel, onSave }: BookFormProps) {
+export function BookForm({ book, initialValues, providerLink = null, embeddedInDialog = false, onCancel, onSave }: BookFormProps) {
   const [values, setValues] = useState<BookFormValues>(() => book
     ? bookToFormValues(book)
     : { ...EMPTY_BOOK_FORM, ...initialValues, quotes: initialValues?.quotes ?? [] })
@@ -49,8 +51,8 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  // Création assistée : les champs éditoriaux sont déjà portés par la recherche.
-  const assisted = !book && Boolean(initialValues?.title)
+  // Une fiche liée à Open Library conserve une présentation éditoriale en lecture.
+  const assisted = providerLink !== null
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const hasVolumes = values.category === 'manga' || values.category === 'comics'
@@ -91,6 +93,14 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
 
       if (key === 'status' && value === 'lu' && current.volumesTotal.trim() !== '') {
         next.volumesRead = current.volumesTotal
+      }
+
+      if (key === 'status' && value === 'à lire') {
+        next.rating = ''
+        next.isFavorite = false
+        next.volumesRead = ''
+        next.startedAt = ''
+        next.personalNote = ''
       }
 
       return next
@@ -178,6 +188,18 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
             {errors.title && <p className="field-error" id="book-title-error">{errors.title}</p>}
           </div>
 
+          <div className="field category-segmented">
+            <span className="field-label">Type</span>
+            <StatusSegmented
+              statuses={BOOK_CATEGORIES}
+              labels={BOOK_CATEGORY_LABELS}
+              value={values.category}
+              onChange={(next) => update('category', next as BookFormValues['category'])}
+              ariaLabel="Type de livre"
+            />
+            {errors.category && <p className="field-error" id="book-category-error">{errors.category}</p>}
+          </div>
+
           {/* Le verdict personnel */}
           <div className="verdict-block medium-status-block">
             <div className="verdict-row status-date-row">
@@ -204,25 +226,6 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
             </div>
             {errors.status && <p className="field-error">{errors.status}</p>}
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
-
-          {/* Type Livre / Manga / Comics : visible en permanence (0.6.11),
-              y compris à l'ajout assisté. */}
-          <div className="field category-inline">
-            <label htmlFor="book-category">Type</label>
-            <select
-              id="book-category"
-              name="category"
-              value={values.category}
-              onChange={(event) => update('category', event.target.value as BookFormValues['category'])}
-              aria-invalid={Boolean(errors.category)}
-              aria-describedby={errors.category ? 'book-category-error' : undefined}
-            >
-              {BOOK_CATEGORIES.map((category) => (
-                <option value={category} key={category}>{BOOK_CATEGORY_LABELS[category]}</option>
-              ))}
-            </select>
-            {errors.category && <p className="field-error" id="book-category-error">{errors.category}</p>}
-          </div>
 
             {verdictVisible && progressVisible && (
               <fieldset className="progress-fields verdict-progress">
@@ -253,6 +256,20 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
             )}
           </div>
 
+          {providerLink && (
+            <section className="provider-information-card" aria-label="Informations sur le livre fournies par Open Library">
+              <div className="provider-information-heading">
+                <strong>Informations sur le livre</strong>
+                <small>Données : {providerLink.providerName}</small>
+              </div>
+              <dl className="provider-information-list">
+                {values.author.trim() && <div><dt>Auteur ou autrice</dt><dd>{values.author}</dd></div>}
+                {values.year.trim() && <div><dt>Parution</dt><dd>{values.year}</dd></div>}
+                {values.summary.trim() && <div className="provider-information-summary"><dt>Résumé</dt><dd>{values.summary}</dd></div>}
+              </dl>
+            </section>
+          )}
+
           {verdictVisible && (
             <div className="review-write review-inline">
               <textarea
@@ -268,7 +285,8 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
             </div>
           )}
 
-          <section className="quote-editor" aria-labelledby="quote-editor-title">
+          {verdictVisible && (
+            <section className="quote-editor" aria-labelledby="quote-editor-title">
             <div className="quote-editor-heading">
               <div>
                 <h2 id="quote-editor-title">Citations personnelles</h2>
@@ -301,7 +319,8 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
               </div>
             )}
             {errors.quotes && <p className="field-error">{errors.quotes}</p>}
-          </section>
+            </section>
+          )}
 
           {/* Champs éditoriaux visibles sans toggle. */}
           {!assisted && (

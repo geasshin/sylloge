@@ -13,6 +13,7 @@ import {
   type GameWriteInput,
 } from '../domain/gameForm.ts'
 import { localToday } from '../domain/filmForm.ts'
+import type { MediaProviderReference } from '../data/mediaRepository.ts'
 import { Poster } from './Poster.tsx'
 import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
@@ -30,6 +31,7 @@ type GameFormProps = {
   game?: Game
   /** Valeurs préremplies par la recherche IGDB (création assistée). */
   initialValues?: GameFormValues
+  providerLink?: MediaProviderReference | null
   platformSuggestions: readonly string[]
   /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
       sans <main> pleine page ni barre de retour redondante. */
@@ -38,14 +40,14 @@ type GameFormProps = {
   onSave: (input: GameWriteInput) => Promise<void>
 }
 
-export function GameForm({ game, initialValues, platformSuggestions, embeddedInDialog = false, onCancel, onSave }: GameFormProps) {
+export function GameForm({ game, initialValues, providerLink = null, platformSuggestions, embeddedInDialog = false, onCancel, onSave }: GameFormProps) {
   const [values, setValues] = useState<GameFormValues>(() => game ? gameToFormValues(game) : { ...EMPTY_GAME_FORM, ...initialValues })
   const [errors, setErrors] = useState<GameFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  // Création assistée : les champs éditoriaux sont déjà portés par la recherche.
-  const assisted = !game && Boolean(initialValues?.title)
+  // Une fiche liée à IGDB conserve une présentation éditoriale en lecture.
+  const assisted = providerLink !== null
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const ratingValue = values.rating === '' ? null : Number(values.rating)
@@ -61,7 +63,16 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
   })
 
   const update = <Key extends keyof GameFormValues>(key: Key, value: GameFormValues[Key]) => {
-    setValues((current) => ({ ...current, [key]: value }))
+    setValues((current) => key === 'status' && value === 'à jouer'
+      ? {
+          ...current,
+          status: value,
+          rating: '',
+          isFavorite: false,
+          playedAt: '',
+          personalNote: '',
+        }
+      : { ...current, [key]: value })
     setErrors((current) => ({ ...current, [key]: undefined }))
     setSaveError(null)
   }
@@ -152,6 +163,34 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
             {errors.status && <p className="field-error">{errors.status}</p>}
             {verdictVisible && errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
           </div>
+
+          {providerLink && (
+            <section className="provider-information-card" aria-label="Informations sur le jeu fournies par IGDB">
+              <div className="provider-information-heading">
+                <strong>Informations sur le jeu</strong>
+                <small>Données : {providerLink.providerName}</small>
+              </div>
+              <dl className="provider-information-list">
+                {values.developer.trim() && <div><dt>Studio</dt><dd>{values.developer}</dd></div>}
+                {values.year.trim() && <div><dt>Sortie</dt><dd>{values.year}</dd></div>}
+                <div className="provider-information-platform">
+                  <dt><label htmlFor="game-platform-linked">Plateforme</label></dt>
+                  <dd>
+                    <input
+                      id="game-platform-linked"
+                      list="game-platform-suggestions"
+                      value={values.platform}
+                      onChange={(event) => update('platform', event.target.value)}
+                      placeholder="À préciser"
+                    />
+                  </dd>
+                </div>
+              </dl>
+              <datalist id="game-platform-suggestions">
+                {platformSuggestions.map((platform) => <option value={platform} key={platform} />)}
+              </datalist>
+            </section>
+          )}
 
           {verdictVisible && (
             <div className="review-write review-inline">

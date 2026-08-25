@@ -660,7 +660,7 @@ Les libellés `0.4.10`, `0.4.11`, etc. sont des **jalons internes** du train ver
 
 ## 11. Retours de recette du 24 août 2026 — feuille de route corrective
 
-Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.23 implémentés dans le code et couverts par les contrôles automatisés ; validation visible du prototype commun 0.6.23 restant à exercer dans `npm run tauri:dev`.**
+Recette native menée par Aurélien sur l'ensemble des bibliothèques après les jalons 0.6.9 à 0.6.12. Constat global positif (parcours d'ajout, requalification animés/mangas, interrupteurs de catégories, vues et classement validés) ; les points ci-dessous constituent le train correctif suivant. **État au 25 août : 0.6.13 à 0.6.24 implémentés dans le code et couverts par les contrôles automatisés ; validation native visible du jalon 0.6.24 à exercer dans `npm run tauri:dev`.**
 
 ### `0.6.13` — Purge du verdict personnel au retour en watchlist
 
@@ -748,6 +748,16 @@ Recette native menée par Aurélien sur l'ensemble des bibliothèques après les
 - Séries, Livres et Jeux placent leur date sur la même ligne que leur groupe de statuts. L’Art conserve sa subtilité de domaine : aucun statut ni note, cœur et date sous le visuel. ✓
 - Le bouton Modifier de chaque bibliothèque réutilise exactement le même composant et la même composition que l’ajout, avec les données éditoriales propres au médium préremplies. ✓
 - Les positions mesurées dans le harness réel sont stables : affiche 306 × 459 px, zone de verdict 58 px, aucun débordement horizontal sur les cinq formulaires en ajout et modification. ✓
+
+### `0.6.24` — Modifications fidèles et informations fournisseur explicites
+
+**État : implémenté dans le code et couvert par les contrôles automatisés ; validation native visible à exercer.**
+
+- Modifier un Film relit désormais l’écriture SQLite avant de rafraîchir la collection, puis la fiche de détail se recharge lorsque `updatedAt` change. Un retour en « À découvrir » ne peut donc plus laisser à l’écran l’ancien statut, la note, le coup de cœur, la date ou l’avis. ✓
+- Les formulaires Film, Série, Livre et Jeu effacent immédiatement leur verdict personnel lorsque la personne choisit le statut de liste d’attente ; les validateurs de domaine restent le second garde-fou avant l’écriture. Les citations Livre sont conservées en base mais ne sont pas rendues en « À lire ». ✓
+- Les types Série télé / Animation et Livre / Manga / Comics utilisent le même contrôle segmenté accessible que les statuts, sans sélecteur natif. ✓
+- Les fiches enrichies par TMDB, Open Library ou IGDB enregistrent maintenant une provenance exacte dans les migrations 17 et 18. Les anciennes associations dont l’origine est démontrable par le domaine officiel de leur image sont reprises sans déduire quoi que ce soit de leurs champs éditoriaux. En ajout comme en modification, elles affichent un encadré d’informations propre au médium ; une fiche manuelle conserve ses champs éditoriaux complets. ✓
+- La bibliothèque Art porte une largeur flexible explicite et absorbe tout l’espace disponible à droite du rail, y compris lorsque la vue courante ne contient aucune œuvre. ✓
 
 ### Journal des retours
 
