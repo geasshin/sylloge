@@ -2201,9 +2201,12 @@ nav { display: flex; flex-direction: column; gap: 2px; }
    largeur de l'écran, comme les autres bibliothèques. */
 .artwork-card .poster { aspect-ratio: 4 / 3; }
 .artwork-card .poster img { object-fit: cover; height: 100%; }
-.artwork-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+/* Grille Art : pleine largeur garantie. Colonnes fluides ancrées sur le
+   conteneur, jamais héritées d'une autre grille ; la largeur vient du
+   conteneur lui-même (.library-main), sans limite intermédiaire. */
+.library-main .artwork-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
   gap: 34px 19px;
   margin-top: 30px;
   align-items: start;
