@@ -94,5 +94,11 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0015_artwork_custom_fields.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 16,
+            description: "artwork_discovered",
+            sql: include_str!("../migrations/0016_artwork_discovered.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }

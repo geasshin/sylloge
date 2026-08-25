@@ -42,11 +42,14 @@ type FilmFormProps = {
   /** Intégré à une pop-up hôte (0.6.9) : le formulaire vit dans la fenêtre,
       sans <main> pleine page ni barre de retour redondante. */
   embeddedInDialog?: boolean
+  /** Accès au cache TMDB en édition (0.6.16) : présent → la fiche associée
+      affiche son identité enrichie sans attendre une resaisie manuelle. */
+  fetchTmdbCache?: (filmId: string) => Promise<import('../data/tmdbService.ts').CachedFilmTmdbPresentation | null>
   onCancel: () => void
   onSave: (input: FilmWriteInput, provenance: FilmMetadataProvenance | null) => Promise<void>
 }
 
-export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, onCancel, onSave }: FilmFormProps) {
+export function FilmForm({ film, initialValues, provenance = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, fetchTmdbCache, onCancel, onSave }: FilmFormProps) {
   const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -57,8 +60,31 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
   // ils restent dans les valeurs mais ne s'affichent plus comme formulaire.
   const assisted = !film && Boolean(initialValues?.title)
   const isAssociated = Boolean(film && (film.providerName || film.providerId))
-  // Toggle « Informations sur le film » fermé par défaut ; pré-rempli si associé.
-  const [showEditorial, setShowEditorial] = useState(!assisted && !(isAssociated || Boolean(tmdbCache)))
+  // 0.6.16 : les champs éditoriaux sont ouverts par défaut en modification
+  // (associé ou non) — on doit voir ce que la fiche contient. Le repli reste
+  // disponible ; seule la création assistée les masque, déjà portés par la
+  // recherche.
+  const [showEditorial, setShowEditorial] = useState(!assisted)
+
+  // 0.6.16 — identité enrichie en édition : le cache TMDB de la fiche est
+  // chargé pour afficher durée, casting et réalisateurs sans resaisie.
+  const [enrichment, setEnrichment] = useState<import('../data/tmdbService.ts').CachedFilmTmdbPresentation | null>(tmdbCache)
+  useEffect(() => {
+    let cancelled = false
+    if (!film || !fetchTmdbCache) return
+    fetchTmdbCache(film.id).then(
+      (cache) => {
+        if (!cancelled) setEnrichment(cache)
+      },
+      (error: unknown) => {
+        console.error('Impossible de lire le cache TMDB en édition.', error)
+        if (!cancelled) setEnrichment(null)
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [film?.id, fetchTmdbCache])
 
   // Pré-remplissage éditorial depuis le cache TMDB sans toucher aux données personnelles.
   useEffect(() => {
@@ -78,7 +104,10 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
   // « À découvrir » : pas encore de verdict, on masque note, cœur, date et avis.
   const verdictVisible = values.status !== 'à découvrir'
   const previewTitle = values.title.trim() || 'Titre à renseigner'
+  // 0.6.16 : en édition, l'affiche enrichie TMDB est montrée même si la
+  // colonne locale est vide — on voit ce que la fiche a vraiment.
   const previewUrl = previewablePosterUrl(values.posterUrl)
+    ?? (film ? enrichment?.selectedPosterUrl ?? null : null)
 
   // Une fiche historique « en attente » reste affichée et modifiable.
   const statusSegments: FilmStatus[] = FORM_STATUSES.includes(values.status)
@@ -149,6 +178,33 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           />
           {errors.title && <p className="field-error" id="title-error">{errors.title}</p>}
         </div>
+
+        {/* 0.6.16 — identité enrichie TMDB en édition : durée, réalisateurs et
+            casting affichés tels que fournis ; ces données ne sont pas
+            éditables ici, la correction manuelle passe par les champs
+            éditoriaux du bloc « Informations sur le film ». */}
+        {film && enrichment && (
+          <div className="enrichment-panel">
+            <p className="enrichment-source">
+              Données enrichies via <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>
+            </p>
+            {(enrichment.presentation.runtimeMinutes || enrichment.presentation.directors.length > 0) && (
+              <p className="enrichment-factline">
+                {[
+                  enrichment.presentation.releaseDate ? `Sortie ${enrichment.presentation.releaseDate.slice(0, 4)}` : null,
+                  enrichment.presentation.runtimeMinutes ? `${Math.floor(enrichment.presentation.runtimeMinutes / 60)} h ${String(enrichment.presentation.runtimeMinutes % 60).padStart(2, '0')}` : null,
+                  enrichment.presentation.directors.length > 0 ? enrichment.presentation.directors.join(', ') : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
+            )}
+            {enrichment.presentation.cast.length > 0 && (
+              <p className="enrichment-cast">
+                {enrichment.presentation.cast.slice(0, 5).map((member) => member.name).join(', ')}
+                {enrichment.presentation.cast.length > 5 ? '…' : ''}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Le verdict personnel : statut, note, coup de cœur */}
         <div className="verdict-block">

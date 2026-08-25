@@ -3110,13 +3110,13 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     form: 'autre',
     location: null,
     exhibition: null,
-    status: 'à découvrir',
+    status: 'découverte',
     isFavorite: false,
     discoveredAt: null,
     imageUrl: null,
     personalNote: null,
     customFields: [],
-  }, 'Les champs Art facultatifs vides doivent rester null sans donnée inventée')
+  }, 'Une œuvre ajoutée est découverte, les champs facultatifs vides restent null')
 
   // 0.6.12 : les champs personnalisés nom → valeur sont normalisés (trim,
   // bornes), une ligne sans nom est jetée.

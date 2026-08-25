@@ -50,7 +50,9 @@ export const EMPTY_ARTWORK_FORM: ArtworkFormValues = {
   form: 'autre',
   location: '',
   exhibition: '',
-  status: 'à découvrir',
+  // 0.6.17 : une œuvre ajoutée est connue/découverte — le statut n'est plus
+  // une question posée à l'utilisateur.
+  status: 'découverte',
   isFavorite: false,
   discoveredAt: '',
   imageUrl: '',

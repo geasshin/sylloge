@@ -398,11 +398,12 @@ function parseGenericRow(
     title: value('title'), artist: value('artist'), year: count('year', 'Année :'),
     form: (normalizeEnumValue(value('form'), ARTWORK_FORMS).value ?? 'autre') as ArtworkFormValues['form'],
     location: value('location'), exhibition: value('exhibition'),
-    status: status('art', 'à découvrir') as ArtworkFormValues['status'],
     isFavorite: favorite(),
     discoveredAt: date('discoveredAt', 'Date de découverte :'),
     imageUrl: value('imageUrl'), personalNote: value('personalNote'),
-    // Les imports CSV historiques ne portent pas de champs personnalisés.
+    // Les imports CSV historiques ne portent pas de champs personnalisés ;
+    // une œuvre importée est découverte (0.6.17).
+    status: 'découverte' as ArtworkFormValues['status'],
     customFields: [],
   } satisfies ArtworkFormValues)
   if (!result.success) return formFailure(line, result.errors, errors)

@@ -2046,7 +2046,7 @@ function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void
     .join(' · ')
 
   return (
-    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${artwork.title}`}>
+    <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${artwork.title}`}>
       <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" />
       <span className="film-card-info">
         <span className="film-card-top">
@@ -2172,7 +2172,7 @@ function ArtworksLibrary({
               </button>
             </div>
           ) : (
-            <div className="film-grid" aria-busy="false">
+            <div className="artwork-grid" aria-busy="false">
             {searchState.artworks.map((artwork) => (
               <ArtworkCard artwork={artwork} key={artwork.id} onOpen={() => onOpen(artwork)} />
             ))}
@@ -3273,6 +3273,7 @@ function App() {
       content = (
         <FilmForm
           film={film}
+          fetchTmdbCache={getFilmTmdbCache}
           onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: view.returnTo })}
           onPosterEdit={async (url) => {
             const updated = await setFilmTmdbPoster(film.id, url)

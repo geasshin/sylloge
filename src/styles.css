@@ -850,6 +850,16 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   align-items: start;
   max-width: 1000px;
 }
+
+/* 0.6.16 — page « Modifier la fiche » : pleine largeur comme la fiche en
+   lecture (même gabarit centré), l'affiche gagne en présence et le corps
+   respire ; plus l'impression de fenêtre étroite mal remplie. */
+.editor-main .form-detail {
+  max-width: var(--editor-max-width, 1150px);
+  margin-inline: auto;
+}
+.editor-main .form-side { position: static; }
+.editor-main .form-poster-frame { max-width: 330px; margin-inline: auto; }
 .form-side { position: sticky; top: 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .form-poster-frame {
   width: 100%;
@@ -2157,7 +2167,34 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .export-format-option:disabled { opacity: .6; cursor: default; }
 .export-format-option small { color: var(--color-text-muted); }
 
+/* Identité enrichie TMDB dans le formulaire d'édition (0.6.16) : panneau
+   discret, jamais confondu avec une saisie. */
+.enrichment-panel {
+  margin: 2px 0 4px;
+  padding: 11px 14px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-muted);
+}
+.enrichment-source { margin: 0; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--color-text-subtle); }
+.enrichment-source a { color: var(--color-accent); }
+.enrichment-factline { margin: 7px 0 0; font-size: 13px; color: var(--color-text); }
+.enrichment-cast { margin: 5px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--color-text-muted); }
+
 /* Champs personnalisés de l'Art (0.6.12) : lignes nom → valeur, sobres. */
+/* 0.6.17 : la bibliothèque Art utilise une grille dédiée — visuels plus
+   larges (les œuvres ne sont pas des affiches 2:3) et occupation pleine
+   largeur de l'écran, comme les autres bibliothèques. */
+.artwork-card .poster { aspect-ratio: 4 / 3; }
+.artwork-card .poster img { object-fit: cover; height: 100%; }
+.artwork-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 34px 19px;
+  margin-top: 30px;
+  align-items: start;
+  width: 100%;
+}
 .custom-fields { display: grid; gap: 8px; margin-top: 4px; }
 .custom-field-row { display: flex; align-items: center; gap: 10px; }
 .custom-field-row input {
