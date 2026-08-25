@@ -122,17 +122,22 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" {...posterEditor.posterProps} />
         </div>
-        <p className="form-poster-caption">Aperçu de l’affiche</p>
+        {verdictVisible && (
+          <div className="poster-verdict">
+            <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+            <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+          </div>
+        )}
       </div>
 
       <div className="form-body">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
-            <label htmlFor="series-title">Titre <span aria-hidden="true">*</span></label>
             <input
               id="series-title"
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
+              aria-label="Titre de la série"
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'series-title-error' : undefined}
               autoFocus={!assisted}
@@ -165,12 +170,6 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
                 value={values.status}
                 onChange={(next) => update('status', next as SeriesFormValues['status'])}
               />
-              {verdictVisible && (
-                <>
-                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-                </>
-              )}
             </div>
 
             {verdictVisible && progressVisible && (
@@ -216,22 +215,27 @@ export function SeriesForm({ series, initialValues, embeddedInDialog = false, on
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 
             {verdictVisible ? (
-              <div className="review-write">
-                <textarea
-                  id="series-personalNote"
-                  name="personalNote"
-                  rows={5}
-                  placeholder="Qu’as-tu pensé de cette série ?"
-                  value={values.personalNote}
-                  onChange={(event) => update('personalNote', event.target.value)}
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
-              </div>
+              <p className="verdict-hint">Ton avis s'écrit sous l'affiche, en pleine largeur.</p>
             ) : (
               <p className="verdict-hint">Passe la série en « En cours » ou « Vue » pour suivre ton avancement et ajouter ta note, ta date et ton avis.</p>
             )}
           </div>
+
+          {/* L'avis pleine largeur (0.6.18), hors du corps à deux colonnes. */}
+          {verdictVisible && (
+            <div className="review-write review-full">
+              <textarea
+                id="series-personalNote"
+                name="personalNote"
+                rows={5}
+                placeholder="Qu’as-tu pensé de cette série ?"
+                value={values.personalNote}
+                onChange={(event) => update('personalNote', event.target.value)}
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
+          )}
 
           {/* Champs éditoriaux : cachés en création assistée */}
           {!assisted && (

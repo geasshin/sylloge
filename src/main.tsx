@@ -53,6 +53,11 @@ import {
   filmMetadataResultToFormInitialValues,
   tmdbPresentationToFilmMetadataResult,
 } from './domain/filmMetadataAssistance.ts'
+import { filmToFormValues } from './domain/filmForm.ts'
+import { seriesToFormValues } from './domain/seriesForm.ts'
+import { bookToFormValues } from './domain/bookForm.ts'
+import { gameToFormValues } from './domain/gameForm.ts'
+import { artworkToFormValues } from './domain/artworkForm.ts'
 import {
   RATED_BUILTIN_VIEWS,
   UNRATED_BUILTIN_VIEWS,
@@ -2387,18 +2392,13 @@ type View =
   | { name: 'tmdb-search' }
   | { name: 'tmdb-associate'; filmId: string }
   | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
-  | { name: 'edit'; filmId: string; returnTo: 'home' | 'library' }
   | { name: 'series-detail'; seriesId: string }
-  | { name: 'series-edit'; seriesId: string }
   | { name: 'books' }
   | { name: 'book-detail'; bookId: string }
-  | { name: 'book-edit'; bookId: string }
   | { name: 'games' }
   | { name: 'game-detail'; gameId: string }
-  | { name: 'game-edit'; gameId: string }
   | { name: 'artworks' }
   | { name: 'artwork-detail'; artworkId: string }
-  | { name: 'artwork-edit'; artworkId: string }
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
@@ -2522,11 +2522,11 @@ function App() {
       Cinq médiums, même parcours (0.6.10) ; l'Art, sans fournisseur, entre
       directement au stade formulaire. */
   type AddFlow =
-    | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
-    | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues }
-    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues }
-    | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues }
-    | { medium: 'artwork'; step: 'form' }
+    | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null; editFilmId?: string }
+    | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; editSeriesId?: string }
+    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; editBookId?: string }
+    | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues; editGameId?: string }
+    | { medium: 'artwork'; step: 'form'; editArtworkId?: string }
   const [addFlow, setAddFlow] = useState<AddFlow | null>(null)
   const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
   const [bookSelection, setBookSelection] = useState<{ pendingKey: string | null; error: string | null }>({ pendingKey: null, error: null })
@@ -3225,7 +3225,14 @@ function App() {
         filmId={view.filmId}
         onBack={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}
         backLabel={view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
-        onEdit={() => setView({ name: 'edit', filmId: view.filmId, returnTo: view.returnTo })}
+        onEdit={() => {
+          const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
+          if (film) {
+            // 0.6.18 : Modifier rouvre la pop-up du parcours d'ajout,
+            // préremplie — plus de page pleine page.
+            setAddFlow({ medium: 'film', step: 'search', initialValues: filmToFormValues(film), editFilmId: film.id })
+          }
+        }}
         onAssociateTmdb={() => {
           const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
           if (film) {
@@ -3251,56 +3258,6 @@ function App() {
         }}
       />
     )
-  } else if (view.name === 'edit') {
-    const { library } = libraryState
-    const film = library.films.find((entry) => entry.id === view.filmId)
-
-    if (!film) {
-      content = (
-        <main className="main detail-page-main">
-          <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}>
-              {view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
-            </button>
-          </header>
-          <div className="library-state error-state" role="alert">
-            <h2>Ce film ne peut pas être modifié.</h2>
-            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
-          </div>
-        </main>
-      )
-    } else {
-      content = (
-        <FilmForm
-          film={film}
-          fetchTmdbCache={getFilmTmdbCache}
-          onCancel={() => setView({ name: 'detail', filmId: film.id, returnTo: view.returnTo })}
-          onPosterEdit={async (url) => {
-            const updated = await setFilmTmdbPoster(film.id, url)
-            const updatedLibrary: FilmLibrary = {
-              ...library,
-              films: sortFilms(library.films.map((entry) => entry.id === film.id ? { ...film, posterUrl: updated.selectedPosterUrl ?? updated.presentation.posterUrl ?? film.posterUrl } : entry)),
-            }
-            setLibraryState({ status: 'ready', library: updatedLibrary })
-          }}
-          onSave={async (input: FilmWriteInput) => {
-            const updatedAt = await filmsRepository.updateFilm(library.profile.id, film.id, input)
-            const updatedFilm: Film = { ...film, ...input, updatedAt }
-            const updatedLibrary: FilmLibrary = {
-              ...library,
-              films: sortFilms(library.films.map((entry) => entry.id === film.id ? updatedFilm : entry)),
-            }
-            setLibraryState({
-              status: 'ready',
-              library: updatedLibrary,
-            })
-            requestAutomaticBackup(updatedLibrary)
-            setView({ name: 'detail', filmId: film.id, returnTo: view.returnTo })
-            window.scrollTo({ top: 0 })
-          }}
-        />
-      )
-    }
   } else if (view.name === 'series') {
     content = (
       <SeriesLibrary
@@ -3342,7 +3299,13 @@ function App() {
           series={series}
           onBack={() => setView({ name: 'series' })}
           backLabel="← Retour aux séries"
-          onEdit={() => setView({ name: 'series-edit', seriesId: view.seriesId })}
+          onEdit={() => {
+            const series = seriesCollection.find((entry) => entry.id === view.seriesId)
+            if (series) {
+              // 0.6.18 : Modifier rouvre la pop-up, préremplie.
+              setAddFlow({ medium: 'série', step: 'search', initialValues: seriesToFormValues(series), editSeriesId: series.id })
+            }
+          }}
           onAssociate={() => {
             setCandidateSelection({ pendingId: null, error: null })
             setAssociateTarget({ medium: 'série', id: view.seriesId })
@@ -3356,41 +3319,6 @@ function App() {
             setSeriesCollection((current) => current.filter((entry) => entry.id !== view.seriesId))
             requestAutomaticBackup(library)
             setView({ name: 'series' })
-          }}
-        />
-      )
-    }
-  } else if (view.name === 'series-edit') {
-    const { library } = libraryState
-    const series = seriesCollection.find((entry) => entry.id === view.seriesId)
-    if (!series) {
-      content = (
-        <main className="main detail-page-main">
-          <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'series' })}>
-              ← Retour aux séries
-            </button>
-          </header>
-          <div className="library-state error-state" role="alert">
-            <h2>Cette série ne peut pas être modifiée.</h2>
-            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
-          </div>
-        </main>
-      )
-    } else {
-      content = (
-        <SeriesForm
-          series={series}
-          onCancel={() => setView({ name: 'series-detail', seriesId: view.seriesId })}
-          onSave={async (input: SeriesWriteInput) => {
-            const updatedAt = await mediaRepository.updateSeries(library.profile.id, view.seriesId, input)
-            const refreshed = await mediaRepository.getSeries(library.profile.id, view.seriesId)
-            setSeriesCollection((current) => current.map((entry) => entry.id === view.seriesId
-              ? (refreshed ?? { ...entry, ...input, updatedAt })
-              : entry))
-            requestAutomaticBackup(library)
-            setView({ name: 'series-detail', seriesId: view.seriesId })
-            window.scrollTo({ top: 0 })
           }}
         />
       )
@@ -3436,7 +3364,13 @@ function App() {
           book={book}
           onBack={() => setView({ name: 'books' })}
           backLabel="← Retour aux livres"
-          onEdit={() => setView({ name: 'book-edit', bookId: view.bookId })}
+          onEdit={() => {
+            const book = bookCollection.find((entry) => entry.id === view.bookId)
+            if (book) {
+              // 0.6.18 : Modifier rouvre la pop-up, préremplie.
+              setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), editBookId: book.id })
+            }
+          }}
           onAssociate={() => {
             setBookSelection({ pendingKey: null, error: null })
             setAssociateTarget({ medium: 'livre', id: view.bookId })
@@ -3451,46 +3385,6 @@ function App() {
             setBookSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'books' })
-          }}
-        />
-      )
-    }
-  } else if (view.name === 'book-edit') {
-    const { library } = libraryState
-    const book = bookCollection.find((entry) => entry.id === view.bookId)
-    if (!book) {
-      content = (
-        <main className="main detail-page-main">
-          <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'books' })}>
-              ← Retour aux livres
-            </button>
-          </header>
-          <div className="library-state error-state" role="alert">
-            <h2>Ce livre ne peut pas être modifié.</h2>
-            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
-          </div>
-        </main>
-      )
-    } else {
-      content = (
-        <BookForm
-          book={book}
-          onCancel={() => setView({ name: 'book-detail', bookId: view.bookId })}
-          onSave={async (input: BookWriteInput) => {
-            const { quotes, ...bookInput } = input
-            await mediaRepository.updateBook(library.profile.id, view.bookId, bookInput, quotes)
-            const refreshed = await mediaRepository.getBook(library.profile.id, view.bookId)
-            if (!refreshed) {
-              throw new Error('Le livre enregistré ne peut pas être relu depuis SQLite.')
-            }
-            setBookCollection((current) => sortBooks(current.map((entry) => (
-              entry.id === view.bookId ? refreshed : entry
-            ))))
-            setBookSearchAttempt((attempt) => attempt + 1)
-            requestAutomaticBackup(library)
-            setView({ name: 'book-detail', bookId: view.bookId })
-            window.scrollTo({ top: 0 })
           }}
         />
       )
@@ -3536,7 +3430,13 @@ function App() {
           game={game}
           onBack={() => setView({ name: 'games' })}
           backLabel="← Retour aux jeux"
-          onEdit={() => setView({ name: 'game-edit', gameId: view.gameId })}
+          onEdit={() => {
+            const game = gameCollection.find((entry) => entry.id === view.gameId)
+            if (game) {
+              // 0.6.18 : Modifier rouvre la pop-up, préremplie.
+              setAddFlow({ medium: 'jeu', step: 'search', initialValues: gameToFormValues(game), editGameId: game.id })
+            }
+          }}
           onAssociate={() => {
             setCandidateSelection({ pendingId: null, error: null })
             setAssociateTarget({ medium: 'jeu', id: view.gameId })
@@ -3551,46 +3451,6 @@ function App() {
             setGameSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'games' })
-          }}
-        />
-      )
-    }
-  } else if (view.name === 'game-edit') {
-    const { library } = libraryState
-    const game = gameCollection.find((entry) => entry.id === view.gameId)
-    if (!game) {
-      content = (
-        <main className="main detail-page-main">
-          <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'games' })}>
-              ← Retour aux jeux
-            </button>
-          </header>
-          <div className="library-state error-state" role="alert">
-            <h2>Ce jeu ne peut pas être modifié.</h2>
-            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
-          </div>
-        </main>
-      )
-    } else {
-      content = (
-        <GameForm
-          game={game}
-          platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
-          onCancel={() => setView({ name: 'game-detail', gameId: view.gameId })}
-          onSave={async (input: GameWriteInput) => {
-            await mediaRepository.updateGame(library.profile.id, view.gameId, input)
-            const refreshed = await mediaRepository.getGame(library.profile.id, view.gameId)
-            if (!refreshed) {
-              throw new Error('Le jeu enregistré ne peut pas être relu depuis SQLite.')
-            }
-            setGameCollection((current) => sortGames(current.map((entry) => (
-              entry.id === view.gameId ? refreshed : entry
-            ))))
-            setGameSearchAttempt((attempt) => attempt + 1)
-            requestAutomaticBackup(library)
-            setView({ name: 'game-detail', gameId: view.gameId })
-            window.scrollTo({ top: 0 })
           }}
         />
       )
@@ -3633,7 +3493,13 @@ function App() {
           artwork={artwork}
           onBack={() => setView({ name: 'artworks' })}
           backLabel="← Retour aux œuvres"
-          onEdit={() => setView({ name: 'artwork-edit', artworkId: view.artworkId })}
+          onEdit={() => {
+            const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
+            if (artwork) {
+              // 0.6.18 : Modifier rouvre la pop-up, préremplie.
+              setAddFlow({ medium: 'artwork', step: 'form', editArtworkId: artwork.id })
+            }
+          }}
           onImageEdit={async (url: string | null) => {
             await mediaRepository.updateArtwork(library.profile.id, artwork.id, { ...artwork, imageUrl: url })
             setArtworkCollection((current) => current.map((entry) => (entry.id === artwork.id ? { ...artwork, imageUrl: url } : entry)))
@@ -3644,45 +3510,6 @@ function App() {
             setArtworkSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
             setView({ name: 'artworks' })
-          }}
-        />
-      )
-    }
-  } else if (view.name === 'artwork-edit') {
-    const { library } = libraryState
-    const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
-    if (!artwork) {
-      content = (
-        <main className="main detail-page-main">
-          <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'artworks' })}>
-              ← Retour à l’Art
-            </button>
-          </header>
-          <div className="library-state error-state" role="alert">
-            <h2>Cette œuvre ne peut pas être modifiée.</h2>
-            <p>La fiche n’est plus présente dans la bibliothèque locale.</p>
-          </div>
-        </main>
-      )
-    } else {
-      content = (
-        <ArtworkForm
-          artwork={artwork}
-          onCancel={() => setView({ name: 'artwork-detail', artworkId: view.artworkId })}
-          onSave={async (input: ArtworkWriteInput) => {
-            await mediaRepository.updateArtwork(library.profile.id, view.artworkId, input)
-            const refreshed = await mediaRepository.getArtwork(library.profile.id, view.artworkId)
-            if (!refreshed) {
-              throw new Error('L’œuvre enregistrée ne peut pas être relue depuis SQLite.')
-            }
-            setArtworkCollection((current) => sortArtworks(current.map((entry) => (
-              entry.id === view.artworkId ? refreshed : entry
-            ))))
-            setArtworkSearchAttempt((attempt) => attempt + 1)
-            requestAutomaticBackup(library)
-            setView({ name: 'artwork-detail', artworkId: view.artworkId })
-            window.scrollTo({ top: 0 })
           }}
         />
       )
@@ -3718,13 +3545,13 @@ function App() {
             ? 'home'
             : view.name === 'settings'
               ? 'settings'
-              : view.name === 'series' || view.name === 'series-detail' || view.name === 'series-edit'
+              : view.name === 'series' || view.name === 'series-detail'
                 ? 'series'
-                : view.name === 'books' || view.name === 'book-detail' || view.name === 'book-edit'
+                : view.name === 'books' || view.name === 'book-detail'
                   ? 'books'
-                  : view.name === 'games' || view.name === 'game-detail' || view.name === 'game-edit'
+                  : view.name === 'games' || view.name === 'game-detail'
                     ? 'games'
-                    : view.name === 'artworks' || view.name === 'artwork-detail' || view.name === 'artwork-edit'
+                    : view.name === 'artworks' || view.name === 'artwork-detail'
                       ? 'artworks'
                       : 'library'
         }
@@ -3766,33 +3593,59 @@ function App() {
                 onCancel={() => setAddFlow(null)}
               />
             )}
-            {addFlow.medium === 'film' && addFlow.initialValues && (
-              <FilmForm
-                embeddedInDialog
-                initialValues={addFlow.initialValues}
-                provenance={addFlow.provenance ?? null}
-                asDialog={false}
-                onCancel={() => setAddFlow(null)}
-                onSave={async (input, provenance) => {
-                  const library = libraryState.library
-                  const film = await filmsRepository.createFilm(library.profile.id, input, provenance)
-                  const updatedLibrary: FilmLibrary = { ...library, films: sortFilms([...library.films, film]) }
-                  setLibraryState({ status: 'ready', library: updatedLibrary })
-                  requestAutomaticBackup(updatedLibrary)
-                  setTmdbNotice(null)
-                  if (provenance) {
-                    try {
-                      await associateFilmWithTmdb(film.id, Number(provenance.providerId))
-                    } catch (error) {
-                      console.error('Le film a été créé mais son association TMDB a échoué.', error)
+            {addFlow.medium === 'film' && addFlow.initialValues && (() => {
+              const editFilmId = addFlow.editFilmId
+              return (
+                <FilmForm
+                  embeddedInDialog
+                  film={editFilmId ? libraryState.library.films.find((entry) => entry.id === editFilmId) : undefined}
+                  fetchTmdbCache={editFilmId ? getFilmTmdbCache : undefined}
+                  initialValues={addFlow.initialValues}
+                  provenance={addFlow.provenance ?? null}
+                  asDialog={false}
+                  onCancel={() => setAddFlow(null)}
+                  onPosterEdit={async (url) => {
+                    if (!editFilmId) return
+                    const updated = await setFilmTmdbPoster(editFilmId, url)
+                    const library = libraryState.library
+                    const updatedLibrary: FilmLibrary = {
+                      ...library,
+                      films: sortFilms(library.films.map((entry) => entry.id === editFilmId ? { ...entry, posterUrl: updated.selectedPosterUrl ?? updated.presentation.posterUrl ?? entry.posterUrl } : entry)),
                     }
-                  }
-                  setAddFlow(null)
-                  leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })
-                  window.scrollTo({ top: 0 })
-                }}
-              />
-            )}
+                    setLibraryState({ status: 'ready', library: updatedLibrary })
+                  }}
+                  onSave={async (input, provenance) => {
+                    const library = libraryState.library
+                    if (editFilmId) {
+                      const updatedAt = await filmsRepository.updateFilm(library.profile.id, editFilmId, input)
+                      const updatedFilm: Film = { ...library.films.find((entry) => entry.id === editFilmId)!, ...input, updatedAt }
+                      const updatedLibrary: FilmLibrary = { ...library, films: sortFilms(library.films.map((entry) => entry.id === editFilmId ? updatedFilm : entry)) }
+                      setLibraryState({ status: 'ready', library: updatedLibrary })
+                      requestAutomaticBackup(updatedLibrary)
+                      setAddFlow(null)
+                      leaveLibrary({ name: 'detail', filmId: editFilmId, returnTo: 'library' })
+                      window.scrollTo({ top: 0 })
+                      return
+                    }
+                    const film = await filmsRepository.createFilm(library.profile.id, input, provenance)
+                    const updatedLibrary: FilmLibrary = { ...library, films: sortFilms([...library.films, film]) }
+                    setLibraryState({ status: 'ready', library: updatedLibrary })
+                    requestAutomaticBackup(updatedLibrary)
+                    setTmdbNotice(null)
+                    if (provenance) {
+                      try {
+                        await associateFilmWithTmdb(film.id, Number(provenance.providerId))
+                      } catch (error) {
+                        console.error('Le film a été créé mais son association TMDB a échoué.', error)
+                      }
+                    }
+                    setAddFlow(null)
+                    leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'library' })
+                    window.scrollTo({ top: 0 })
+                  }}
+                />
+              )
+            })()}
             {addFlow.medium === 'série' && !addFlow.initialValues && (
               <SeriesTmdbSearchFlow
                 compact
@@ -3804,20 +3657,30 @@ function App() {
               />
             )}
             {addFlow.medium === 'série' && addFlow.initialValues && (() => {
-              // Saisie assistée (préremplie TMDB) ou manuelle (objet vide).
+              // Saisie assistée (préremplie TMDB) ou manuelle (objet vide),
+              // ou édition d'une fiche existante (editSeriesId présent).
               const initialValues = addFlow.initialValues as SeriesFormValues
+              const editSeriesId = addFlow.editSeriesId
               return (
                 <SeriesForm
                   embeddedInDialog
+                  series={editSeriesId ? seriesCollection.find((entry) => entry.id === editSeriesId) : undefined}
                   initialValues={initialValues}
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: SeriesWriteInput) => {
                     const library = libraryState.library
-                    const series = await mediaRepository.createSeries(library.profile.id, input)
-                    setSeriesCollection((current) => [...current, series])
+                    if (editSeriesId) {
+                      await mediaRepository.updateSeries(library.profile.id, editSeriesId, input)
+                      const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId)
+                      if (!refreshed) throw new Error('La série enregistrée ne peut pas être relue depuis SQLite.')
+                      setSeriesCollection((current) => current.map((entry) => entry.id === editSeriesId ? refreshed : entry))
+                    } else {
+                      const series = await mediaRepository.createSeries(library.profile.id, input)
+                      setSeriesCollection((current) => [...current, series])
+                    }
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'series-detail', seriesId: series.id })
+                    leaveLibrary({ name: 'series-detail', seriesId: editSeriesId ?? '' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3835,20 +3698,29 @@ function App() {
             )}
             {addFlow.medium === 'livre' && addFlow.initialValues && (() => {
               const initialValues = addFlow.initialValues as BookFormValues
+              const editBookId = addFlow.editBookId
               return (
                 <BookForm
                   embeddedInDialog
+                  book={editBookId ? bookCollection.find((entry) => entry.id === editBookId) : undefined}
                   initialValues={initialValues}
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: BookWriteInput) => {
                     const library = libraryState.library
                     const { quotes, ...bookInput } = input
-                    const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
-                    setBookCollection((current) => sortBooks([...current, book]))
+                    if (editBookId) {
+                      await mediaRepository.updateBook(library.profile.id, editBookId, bookInput, quotes)
+                      const refreshed = await mediaRepository.getBook(library.profile.id, editBookId)
+                      if (!refreshed) throw new Error('Le livre enregistré ne peut pas être relu depuis SQLite.')
+                      setBookCollection((current) => sortBooks(current.map((entry) => entry.id === editBookId ? refreshed : entry)))
+                    } else {
+                      const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
+                      setBookCollection((current) => sortBooks([...current, book]))
+                    }
                     setBookSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'book-detail', bookId: book.id })
+                    leaveLibrary({ name: 'book-detail', bookId: editBookId ?? '' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3866,20 +3738,29 @@ function App() {
             )}
             {addFlow.medium === 'jeu' && addFlow.initialValues && (() => {
               const initialValues = addFlow.initialValues as GameFormValues
+              const editGameId = addFlow.editGameId
               return (
                 <GameForm
                   embeddedInDialog
+                  game={editGameId ? gameCollection.find((entry) => entry.id === editGameId) : undefined}
                   initialValues={initialValues}
                   platformSuggestions={buildGamePlatformSuggestions(gameCollection)}
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: GameWriteInput) => {
                     const library = libraryState.library
-                    const game = await mediaRepository.createGame(library.profile.id, input)
-                    setGameCollection((current) => sortGames([...current, game]))
+                    if (editGameId) {
+                      await mediaRepository.updateGame(library.profile.id, editGameId, input)
+                      const refreshed = await mediaRepository.getGame(library.profile.id, editGameId)
+                      if (!refreshed) throw new Error('Le jeu enregistré ne peut pas être relu depuis SQLite.')
+                      setGameCollection((current) => sortGames(current.map((entry) => entry.id === editGameId ? refreshed : entry)))
+                    } else {
+                      const game = await mediaRepository.createGame(library.profile.id, input)
+                      setGameCollection((current) => sortGames([...current, game]))
+                    }
                     setGameSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'game-detail', gameId: game.id })
+                    leaveLibrary({ name: 'game-detail', gameId: editGameId ?? '' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3887,22 +3768,33 @@ function App() {
             })()}
             {/* L'Art n'a aucun fournisseur par règle du domaine : la pop-up
                 s'ouvre directement sur le formulaire, même gabarit. */}
-            {addFlow.medium === 'artwork' && (
-              <ArtworkForm
-                embeddedInDialog
-                onCancel={() => setAddFlow(null)}
-                onSave={async (input: ArtworkWriteInput) => {
-                  const library = libraryState.library
-                  const artwork = await mediaRepository.createArtwork(library.profile.id, input)
-                  setArtworkCollection((current) => sortArtworks([...current, artwork]))
-                  setArtworkSearchAttempt((attempt) => attempt + 1)
-                  requestAutomaticBackup(library)
-                  setAddFlow(null)
-                  leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })
-                  window.scrollTo({ top: 0 })
-                }}
-              />
-            )}
+            {addFlow.medium === 'artwork' && (() => {
+              const editArtworkId = addFlow.editArtworkId
+              return (
+                <ArtworkForm
+                  embeddedInDialog
+                  artwork={editArtworkId ? artworkCollection.find((entry) => entry.id === editArtworkId) : undefined}
+                  onCancel={() => setAddFlow(null)}
+                  onSave={async (input: ArtworkWriteInput) => {
+                    const library = libraryState.library
+                    if (editArtworkId) {
+                      await mediaRepository.updateArtwork(library.profile.id, editArtworkId, input)
+                      const refreshed = await mediaRepository.getArtwork(library.profile.id, editArtworkId)
+                      if (!refreshed) throw new Error('L’œuvre enregistrée ne peut pas être relue depuis SQLite.')
+                      setArtworkCollection((current) => sortArtworks(current.map((entry) => entry.id === editArtworkId ? refreshed : entry)))
+                    } else {
+                      const artwork = await mediaRepository.createArtwork(library.profile.id, input)
+                      setArtworkCollection((current) => sortArtworks([...current, artwork]))
+                    }
+                    setArtworkSearchAttempt((attempt) => attempt + 1)
+                    requestAutomaticBackup(library)
+                    setAddFlow(null)
+                    leaveLibrary({ name: 'artwork-detail', artworkId: editArtworkId ?? '' })
+                    window.scrollTo({ top: 0 })
+                  }}
+                />
+              )
+            })()}
           </div>
         </div>
       )}

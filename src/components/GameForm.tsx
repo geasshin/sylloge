@@ -101,17 +101,22 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" {...posterEditor.posterProps} />
         </div>
-        <p className="form-poster-caption">Aperçu de la couverture</p>
+        {verdictVisible && (
+          <div className="poster-verdict">
+            <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+            <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+          </div>
+        )}
       </div>
 
       <div className="form-body">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
-            <label htmlFor="game-title">Titre <span aria-hidden="true">*</span></label>
             <input
               id="game-title"
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
+              aria-label="Titre du jeu"
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'game-title-error' : undefined}
               autoFocus={!assisted}
@@ -128,12 +133,6 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
                 value={values.status}
                 onChange={(next) => update('status', next as GameFormValues['status'])}
               />
-              {verdictVisible && (
-                <>
-                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-                </>
-              )}
             </div>
 
             {verdictVisible && (
@@ -151,25 +150,28 @@ export function GameForm({ game, initialValues, platformSuggestions, embeddedInD
                   />
                 </div>
                 {errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
-
-                <div className="review-write">
-                  <textarea
-                    id="game-personalNote"
-                    name="personalNote"
-                    rows={5}
-                    placeholder="Qu’as-tu pensé de ce jeu ?"
-                    value={values.personalNote}
-                    onChange={(event) => update('personalNote', event.target.value)}
-                    autoCorrect="off"
-                    spellCheck={false}
-                  />
-                </div>
               </>
             )}
             {!verdictVisible && (
-              <p className="verdict-hint">Passe le jeu en « En cours », « Joué » ou « Regardé » pour ajouter ta note, ta date et ton avis.</p>
+              <p className="verdict-hint">Passe le jeu en « Joué » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
             )}
           </div>
+
+          {/* L'avis pleine largeur (0.6.18), hors du corps à deux colonnes. */}
+          {verdictVisible && (
+            <div className="review-write review-full">
+              <textarea
+                id="game-personalNote"
+                name="personalNote"
+                rows={5}
+                placeholder="Qu’as-tu pensé de ce jeu ?"
+                value={values.personalNote}
+                onChange={(event) => update('personalNote', event.target.value)}
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </div>
+          )}
 
           {/* Champs éditoriaux : cachés en création assistée */}
           {!assisted && (

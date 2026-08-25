@@ -145,13 +145,14 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
     <div className="editor-heading">
       <p className="eyebrow">Film</p>
       <h1 className="display-title">{film ? 'Modifier la fiche' : 'Ajouter un film'}</h1>
-      <p>{assisted ? 'Ton film est reconnu : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
     </div>
   )
 
   const form = (
     <form className="film-form form-detail" onSubmit={handleSubmit} noValidate>
-      {/* Colonne gauche : l'affiche choisie, avec crayon de modification */}
+      {/* 0.6.18 — composition pop-up : l'affiche porte son verdict (étoiles et
+          cœur dessous), le statut vit à droite du titre, l'avis s'étend sur
+          toute la largeur en bas. */}
       <div className="form-side">
         <div className="form-poster-frame poster-container">
           <Poster
@@ -161,17 +162,22 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
             onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined}
           />
         </div>
-        <p className="form-poster-caption">Aperçu de l’affiche</p>
+        {verdictVisible && (
+          <div className="poster-verdict">
+            <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+            <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+          </div>
+        )}
       </div>
 
       <div className="form-body">
         <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
-          <label htmlFor="title">Titre <span aria-hidden="true">*</span></label>
           <input
             id="title"
             name="title"
             value={values.title}
             onChange={(event) => update('title', event.target.value)}
+            aria-label="Titre du film"
             aria-invalid={Boolean(errors.title)}
             aria-describedby={errors.title ? 'title-error' : undefined}
             autoFocus={!assisted}
@@ -206,7 +212,8 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
           </div>
         )}
 
-        {/* Le verdict personnel : statut, note, coup de cœur */}
+        {/* Le verdict personnel : le statut pilote ce qui est affiché ;
+            note et cœur vivent sous l'affiche (0.6.18). */}
         <div className="verdict-block">
           <div className="verdict-row">
             <StatusSegmented
@@ -215,12 +222,6 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
               value={values.status}
               onChange={(next) => update('status', next as FilmFormValues['status'])}
             />
-            {verdictVisible && (
-              <>
-                <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-                <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-              </>
-            )}
           </div>
           {errors.status && <p className="field-error">{errors.status}</p>}
 
@@ -236,28 +237,31 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbCache = n
                   onChange={(event) => update('watchedAt', event.target.value)}
                   aria-label="Date de visionnage"
                   aria-invalid={Boolean(errors.watchedAt)}
-                  />
-                  </div>
-              {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
-
-              <div className="review-write">
-                <textarea
-                  id="personalNote"
-                  name="personalNote"
-                  rows={5}
-                  placeholder="Qu’as-tu pensé de ce film ?"
-                  value={values.personalNote}
-                  onChange={(event) => update('personalNote', event.target.value)}
-                  autoCorrect="off"
-                  spellCheck={false}
                 />
               </div>
+              {errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
             </>
           )}
           {!verdictVisible && (
             <p className="verdict-hint">Passe le film en « Terminé » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
           )}
         </div>
+
+        {/* L'avis s'étend sur toute la largeur de la pop-up (0.6.18). */}
+        {verdictVisible && (
+          <div className="review-write review-full">
+            <textarea
+              id="personalNote"
+              name="personalNote"
+              rows={5}
+              placeholder="Qu’as-tu pensé de ce film ?"
+              value={values.personalNote}
+              onChange={(event) => update('personalNote', event.target.value)}
+              autoCorrect="off"
+              spellCheck={false}
+            />
+          </div>
+        )}
 
         {/* Champs éditoriaux : cachés en création assistée, discrets sinon.
             Fermés par défaut ; pré-remplis quand la fiche est associée. */}

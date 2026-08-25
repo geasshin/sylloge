@@ -144,7 +144,6 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
     <div className="editor-heading">
       <p className="eyebrow">Livre</p>
       <h1 className="display-title">{book ? 'Modifier la fiche' : 'Ajouter un livre'}</h1>
-      <p>{assisted ? 'Ton livre est reconnu : choisis juste ton verdict.' : 'Seul le titre est obligatoire.'}</p>
     </div>
   )
 
@@ -154,17 +153,22 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
         <div className="form-poster-frame">
           <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Couverture" {...posterEditor.posterProps} />
         </div>
-        <p className="form-poster-caption">Aperçu de la couverture</p>
+        {verdictVisible && (
+          <div className="poster-verdict">
+            <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
+            <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
+          </div>
+        )}
       </div>
 
       <div className="form-body">
           <div className={`field field-title ${assisted ? 'field-title-read' : ''}`}>
-            <label htmlFor="book-title">Titre <span aria-hidden="true">*</span></label>
             <input
               id="book-title"
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
+              aria-label="Titre du livre"
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'book-title-error' : undefined}
               autoFocus={!assisted}
@@ -181,12 +185,6 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
                 value={values.status}
                 onChange={(next) => update('status', next as BookFormValues['status'])}
               />
-              {verdictVisible && (
-                <>
-                  <StarRating value={ratingValue} onChange={(next) => update('rating', next === null ? '' : String(next))} />
-                  <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
-                </>
-              )}
             </div>
 
           {/* Type Livre / Manga / Comics : visible en permanence (0.6.11),
@@ -253,7 +251,14 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
             {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
 
             {verdictVisible ? (
-              <div className="review-write">
+              <p className="verdict-hint">Ton avis s'écrit sous la couverture, en pleine largeur.</p>
+            ) : (
+              <p className="verdict-hint">Passe le livre en « En cours », « Lu » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
+            )}
+
+            {/* L'avis pleine largeur (0.6.18), hors du corps à deux colonnes. */}
+            {verdictVisible && (
+              <div className="review-write review-full">
                 <textarea
                   id="book-personalNote"
                   name="personalNote"
@@ -265,8 +270,6 @@ export function BookForm({ book, initialValues, embeddedInDialog = false, onCanc
                   spellCheck={false}
                 />
               </div>
-            ) : (
-              <p className="verdict-hint">Passe le livre en « En cours », « Lu » ou « Abandonné » pour ajouter ta note, ta date et ton avis.</p>
             )}
 
             <section className="quote-editor" aria-labelledby="quote-editor-title">

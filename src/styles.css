@@ -1791,6 +1791,20 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .dialog-add-flow .form-poster-frame { width: 100%; }
 .dialog-add-flow .form-poster-caption { font-size: 10px; margin-top: 6px; }
 .dialog-add-flow .field-title input { font-size: 14px; padding: 7px 10px; }
+/* 0.6.18 — composition pop-up : l'affiche porte son verdict, l'avis s'étend
+   en pleine largeur sous les deux colonnes. */
+.dialog-add-flow .film-form.form-detail { grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); }
+.dialog-add-flow .form-side { gap: 12px; }
+.dialog-add-flow .poster-verdict {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 30px;
+}
+.dialog-add-flow .review-full { grid-column: 1 / -1; }
+.dialog-add-flow .review-full textarea { min-height: 84px; }
+.editor-dialog-embedded .field-title { margin: 0; }
 .dialog-add-flow .verdict-block { gap: 10px; }
 /* 0.6.15 : réserver la place du verdict (note + date + avis) pour que la
    fenêtre ne grandisse pas au changement de statut — les boutons ne sautent
