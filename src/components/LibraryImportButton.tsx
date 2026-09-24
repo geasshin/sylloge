@@ -44,7 +44,6 @@ import {
   type PickedAnyImportFile,
 } from '../data/nativePortability.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
-import { ImportHint } from './ImportHint.tsx'
 import {
   DuplicatesResolver,
   ImportModeChoice,
@@ -424,43 +423,48 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       {open && (
         <AccessibleDialog
           title={`Importer des ${props.mediumLabel}s`}
-          description="Choisissez d’abord le format. Le fichier sera ensuite analysé avant toute écriture."
+          description="Le fichier est analysé avant toute écriture."
           onClose={close}
           closeDisabled={step === 'working' || choosingFile}
         >
           {step === 'choose-file' && (
             <div className="assistant-content">
               <section className="assistant-stage">
-                <p className="card-kicker">Formats acceptés</p>
+                {/* C2 (audit UX 22/09/2026) : une seule phrase avant l'action ;
+                    le détail des formats et des sources externes passe derrière
+                    un disclosure sobre, sans emoji. */}
                 <h3>Choisir une source à analyser</h3>
-                {props.kind === 'films' ? (
-                  <>
-                    <p>Tu peux importer un JSON, un tableau CSV UTF-8 ou un ZIP compatible contenant des données Films.</p>
-                    <ul className="import-format-list">
-                      <li><b>JSON</b> — export Films historique ou bibliothèque à cinq collections</li>
-                      <li><b>CSV</b> — export Sylloge ou tableau avec mapping explicite</li>
-                      <li><b>ZIP</b> — conteneur compatible, sans décompression manuelle</li>
-                    </ul>
-                  </>
-                ) : props.kind === 'series' ? (
-                  <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8. Un CSV externe passe toujours par un mapping et un aperçu.</p>
-                ) : props.kind === 'books' ? (
-                  <p>Tu peux importer un JSON identifié et versionné de Sylloge, citations comprises, ou un tableau CSV UTF-8. Les citations CSV sont validées avant toute écriture.</p>
-                ) : props.kind === 'games' ? (
-                  <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8. La plateforme libre, la note et les données personnelles sont validées avant toute écriture.</p>
-                ) : (
-                  <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
-                )}
+                <p>JSON, CSV ou ZIP : tout est analysé avant écriture, rien n’est modifié sans ton choix final.</p>
                 <div className="assistant-actions assistant-actions-single">
                   <button className="primary-button" type="button" disabled={choosingFile} onClick={() => void pickAndPrepare(pickImportAny)}>
                     {choosingFile ? 'Choix en cours…' : 'Choisir un fichier'}
                   </button>
-                  <p className="import-hint">JSON, CSV, ou un ZIP qui en contient. Tout est analysé avant écriture — rien n’est modifié sans ton choix final.</p>
                 </div>
-                <ImportHint>
-                  Export Notion, Excel ou autre application ? Choisis simplement le ZIP ou le CSV exporté :
-                  Sylloge reconnaît les colonnes et te laisse vérifier chaque correspondance avant d’écrire quoi que ce soit.
-                </ImportHint>
+                <details className="import-formats-details">
+                  <summary>Formats acceptés et sources externes</summary>
+                  {props.kind === 'films' ? (
+                    <>
+                      <p>Tu peux importer un JSON, un tableau CSV UTF-8 ou un ZIP compatible contenant des données Films.</p>
+                      <ul className="import-format-list">
+                        <li><b>JSON</b> — export Films historique ou bibliothèque à cinq collections</li>
+                        <li><b>CSV</b> — export Sylloge ou tableau avec mapping explicite</li>
+                        <li><b>ZIP</b> — conteneur compatible, sans décompression manuelle</li>
+                      </ul>
+                    </>
+                  ) : props.kind === 'series' ? (
+                    <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8. Un CSV externe passe toujours par un mapping et un aperçu.</p>
+                  ) : props.kind === 'books' ? (
+                    <p>Tu peux importer un JSON identifié et versionné de Sylloge, citations comprises, ou un tableau CSV UTF-8. Les citations CSV sont validées avant toute écriture.</p>
+                  ) : props.kind === 'games' ? (
+                    <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8. La plateforme libre, la note et les données personnelles sont validées avant toute écriture.</p>
+                  ) : (
+                    <p>Tu peux importer un JSON identifié et versionné de Sylloge ou un tableau CSV UTF-8, sans note chiffrée. Les champs libres de lieu et d’exposition sont conservés tels quels.</p>
+                  )}
+                  <p>
+                    Export Notion, Excel ou autre application ? Choisis simplement le ZIP ou le CSV exporté :
+                    Sylloge reconnaît les colonnes et te laisse vérifier chaque correspondance avant d’écrire quoi que ce soit.
+                  </p>
+                </details>
               </section>
             </div>
           )}

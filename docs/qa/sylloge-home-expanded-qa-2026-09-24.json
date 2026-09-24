@@ -1,0 +1,817 @@
+{
+  "base": "http://127.0.0.1:5193/qa-integration.html",
+  "results": [
+    {
+      "scenario": {
+        "name": "desktop-home",
+        "width": 1440,
+        "height": 1000,
+        "theme": "light"
+      },
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5193",
+      "h1": "Ma bibliothèque",
+      "theme": "light",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440
+      },
+      "clipped": [],
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 2332,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "En cours — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1940,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Films — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 2332,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Séries — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Livres — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Jeux — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Art — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        }
+      ],
+      "sidebarHome": {
+        "label": "Accueil",
+        "active": true,
+        "hasSvg": true,
+        "icon": {
+          "width": 18,
+          "height": 18
+        }
+      },
+      "firstRows": {
+        "firstRowTop": 87.1875,
+        "firstLaneTop": 131.1875,
+        "secondRowTop": 525.953125
+      },
+      "sectionRects": [
+        {
+          "label": "Derniers ajouts",
+          "top": 87.1875,
+          "bottom": 525.953125,
+          "height": 438.765625
+        },
+        {
+          "label": "À découvrir",
+          "top": 525.953125,
+          "bottom": 976.71875,
+          "height": 450.765625
+        },
+        {
+          "label": "En cours",
+          "top": 976.71875,
+          "bottom": 1413.484375,
+          "height": 436.765625
+        },
+        {
+          "label": "Favoris et mieux notés",
+          "top": 1413.484375,
+          "bottom": 1863.25,
+          "height": 449.765625
+        },
+        {
+          "label": "Vus, lus et joués",
+          "top": 1863.25,
+          "bottom": 2300.015625,
+          "height": 436.765625
+        },
+        {
+          "label": "Films",
+          "top": 2300.015625,
+          "bottom": 2738.78125,
+          "height": 438.765625
+        },
+        {
+          "label": "Séries",
+          "top": 2738.78125,
+          "bottom": 3175.546875,
+          "height": 436.765625
+        },
+        {
+          "label": "Livres",
+          "top": 3175.546875,
+          "bottom": 3612.3125,
+          "height": 436.765625
+        },
+        {
+          "label": "Jeux",
+          "top": 3612.3125,
+          "bottom": 4049.078125,
+          "height": 436.765625
+        },
+        {
+          "label": "Art",
+          "top": 4049.078125,
+          "bottom": 4485.84375,
+          "height": 436.765625
+        },
+        {
+          "label": "Cette année",
+          "top": 4513.84375,
+          "bottom": 4781.84375,
+          "height": 268
+        }
+      ],
+      "mobileNav": {
+        "appBar": false,
+        "bottom": false
+      },
+      "bodyText": "Accueil\nFilms\nSéries\nLivres\nJeux\nArt\nThème clair\nMa bibliothèque\nDERNIERS AJOUTS\n\nCe qui vient d'entrer dans la maison.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nÀ DÉCOUVRIR\nSix autres\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\n\nTout voir :\nFilms\n\nEN COURS\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n·\nLivres\n\nFAVORIS ET MIEUX NOTÉS\n\nCe que vous gardez près de vous.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nSéries\n·\nLivres\n·\nJeux\n·\nArt\n\nVUS, LUS ET JOUÉS\n\nVos dernières consommations datées.\n\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nJeux\n·\nArt\n\nFILMS\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nSÉRIES\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n\nLIVRES\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n\nTout voir :\nLivres\n\nJEUX\nSANS COUVERTURE\nHades\nHades\n\nTout voir :\nJeux\n\nART\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nArt\n\nCETTE ANNÉE\n\n13 œuvres ajoutées · 0 consommations datées\n\nFilms 12 · Livres 1\n\n‹\nSeptembre 2026\n›\nL\nM\nM\nJ\nV\nS\nD\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30",
+      "presentSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art",
+        "Cette année"
+      ],
+      "expectedSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art"
+      ],
+      "consoleMessages": [],
+      "screenshotPath": "/Users/aurelientrouble/Documents/Hermes/Sylloge-worktrees/mobile/docs/qa/sylloge-home-expanded-desktop-home.png"
+    },
+    {
+      "scenario": {
+        "name": "desktop-home-dark",
+        "width": 1440,
+        "height": 1000,
+        "theme": "dark"
+      },
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5193",
+      "h1": "Ma bibliothèque",
+      "theme": "dark",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440
+      },
+      "clipped": [],
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 2332,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "En cours — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1940,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Films — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 2332,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Séries — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Livres — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Jeux — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Art — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        }
+      ],
+      "sidebarHome": {
+        "label": "Accueil",
+        "active": true,
+        "hasSvg": true,
+        "icon": {
+          "width": 18,
+          "height": 18
+        }
+      },
+      "firstRows": {
+        "firstRowTop": 87.1875,
+        "firstLaneTop": 131.1875,
+        "secondRowTop": 525.953125
+      },
+      "sectionRects": [
+        {
+          "label": "Derniers ajouts",
+          "top": 87.1875,
+          "bottom": 525.953125,
+          "height": 438.765625
+        },
+        {
+          "label": "À découvrir",
+          "top": 525.953125,
+          "bottom": 976.71875,
+          "height": 450.765625
+        },
+        {
+          "label": "En cours",
+          "top": 976.71875,
+          "bottom": 1413.484375,
+          "height": 436.765625
+        },
+        {
+          "label": "Favoris et mieux notés",
+          "top": 1413.484375,
+          "bottom": 1863.25,
+          "height": 449.765625
+        },
+        {
+          "label": "Vus, lus et joués",
+          "top": 1863.25,
+          "bottom": 2300.015625,
+          "height": 436.765625
+        },
+        {
+          "label": "Films",
+          "top": 2300.015625,
+          "bottom": 2738.78125,
+          "height": 438.765625
+        },
+        {
+          "label": "Séries",
+          "top": 2738.78125,
+          "bottom": 3175.546875,
+          "height": 436.765625
+        },
+        {
+          "label": "Livres",
+          "top": 3175.546875,
+          "bottom": 3612.3125,
+          "height": 436.765625
+        },
+        {
+          "label": "Jeux",
+          "top": 3612.3125,
+          "bottom": 4049.078125,
+          "height": 436.765625
+        },
+        {
+          "label": "Art",
+          "top": 4049.078125,
+          "bottom": 4485.84375,
+          "height": 436.765625
+        },
+        {
+          "label": "Cette année",
+          "top": 4513.84375,
+          "bottom": 4781.84375,
+          "height": 268
+        }
+      ],
+      "mobileNav": {
+        "appBar": false,
+        "bottom": false
+      },
+      "bodyText": "Accueil\nFilms\nSéries\nLivres\nJeux\nArt\nThème clair\nMa bibliothèque\nDERNIERS AJOUTS\n\nCe qui vient d'entrer dans la maison.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nÀ DÉCOUVRIR\nSix autres\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\n\nTout voir :\nFilms\n\nEN COURS\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n·\nLivres\n\nFAVORIS ET MIEUX NOTÉS\n\nCe que vous gardez près de vous.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nSéries\n·\nLivres\n·\nJeux\n·\nArt\n\nVUS, LUS ET JOUÉS\n\nVos dernières consommations datées.\n\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nJeux\n·\nArt\n\nFILMS\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nSÉRIES\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n\nLIVRES\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n\nTout voir :\nLivres\n\nJEUX\nSANS COUVERTURE\nHades\nHades\n\nTout voir :\nJeux\n\nART\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nArt\n\nCETTE ANNÉE\n\n13 œuvres ajoutées · 0 consommations datées\n\nFilms 12 · Livres 1\n\n‹\nSeptembre 2026\n›\nL\nM\nM\nJ\nV\nS\nD\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30",
+      "presentSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art",
+        "Cette année"
+      ],
+      "expectedSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art"
+      ],
+      "consoleMessages": [],
+      "screenshotPath": "/Users/aurelientrouble/Documents/Hermes/Sylloge-worktrees/mobile/docs/qa/sylloge-home-expanded-desktop-home-dark.png"
+    },
+    {
+      "scenario": {
+        "name": "mobile-home",
+        "width": 390,
+        "height": 844,
+        "theme": "light"
+      },
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5193",
+      "h1": "Ma bibliothèque",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390
+      },
+      "clipped": [],
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 2208,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1098,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "En cours — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1838,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 913,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Films — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 2208,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Séries — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Livres — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Jeux — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Art — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        }
+      ],
+      "sidebarHome": {
+        "label": "Accueil",
+        "active": true,
+        "hasSvg": true,
+        "icon": {
+          "width": 0,
+          "height": 0
+        }
+      },
+      "firstRows": {
+        "firstRowTop": 132.140625,
+        "firstLaneTop": 205.140625,
+        "secondRowTop": 592.640625
+      },
+      "sectionRects": [
+        {
+          "label": "Derniers ajouts",
+          "top": 132.140625,
+          "bottom": 592.640625,
+          "height": 460.5
+        },
+        {
+          "label": "À découvrir",
+          "top": 592.640625,
+          "bottom": 1036.140625,
+          "height": 443.5
+        },
+        {
+          "label": "En cours",
+          "top": 1036.140625,
+          "bottom": 1465.640625,
+          "height": 429.5
+        },
+        {
+          "label": "Favoris et mieux notés",
+          "top": 1465.640625,
+          "bottom": 1937.140625,
+          "height": 471.5
+        },
+        {
+          "label": "Vus, lus et joués",
+          "top": 1937.140625,
+          "bottom": 2397.640625,
+          "height": 460.5
+        },
+        {
+          "label": "Films",
+          "top": 2397.640625,
+          "bottom": 2829.140625,
+          "height": 431.5
+        },
+        {
+          "label": "Séries",
+          "top": 2829.140625,
+          "bottom": 3258.640625,
+          "height": 429.5
+        },
+        {
+          "label": "Livres",
+          "top": 3258.640625,
+          "bottom": 3688.140625,
+          "height": 429.5
+        },
+        {
+          "label": "Jeux",
+          "top": 3688.140625,
+          "bottom": 4117.640625,
+          "height": 429.5
+        },
+        {
+          "label": "Art",
+          "top": 4117.640625,
+          "bottom": 4547.140625,
+          "height": 429.5
+        },
+        {
+          "label": "Cette année",
+          "top": 4571.140625,
+          "bottom": 4906.140625,
+          "height": 335
+        }
+      ],
+      "mobileNav": {
+        "appBar": true,
+        "bottom": true
+      },
+      "bodyText": "Menu\nSylloge\nAccueil\nFilms\nSéries\nLivres\nJeux\nArt\nMa bibliothèque\nDERNIERS AJOUTS\n\nCe qui vient d'entrer dans la maison.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nÀ DÉCOUVRIR\nSix autres\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\n\nTout voir :\nFilms\n\nEN COURS\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n·\nLivres\n\nFAVORIS ET MIEUX NOTÉS\n\nCe que vous gardez près de vous.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nSéries\n·\nLivres\n·\nJeux\n·\nArt\n\nVUS, LUS ET JOUÉS\n\nVos dernières consommations datées.\n\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nJeux\n·\nArt\n\nFILMS\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nSÉRIES\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n\nLIVRES\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n\nTout voir :\nLivres\n\nJEUX\nSANS COUVERTURE\nHades\nHades\n\nTout voir :\nJeux\n\nART\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nArt\n\nCETTE ANNÉE\n\n13 œuvres ajoutées · 0 consommations datées\n\nFilms 12 · Livres 1\n\n‹\nSeptembre 2026\n›\nL\nM\nM\nJ\nV\nS\nD\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30",
+      "presentSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art",
+        "Cette année"
+      ],
+      "expectedSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art"
+      ],
+      "consoleMessages": [],
+      "screenshotPath": "/Users/aurelientrouble/Documents/Hermes/Sylloge-worktrees/mobile/docs/qa/sylloge-home-expanded-mobile-home.png"
+    },
+    {
+      "scenario": {
+        "name": "mobile-home-dark",
+        "width": 390,
+        "height": 844,
+        "theme": "dark"
+      },
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5193",
+      "h1": "Ma bibliothèque",
+      "theme": "dark",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390
+      },
+      "clipped": [],
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 2208,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1098,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "En cours — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1838,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 913,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Films — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 2208,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Séries — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Livres — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Jeux — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Art — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 358,
+          "scrollable": false,
+          "tabIndex": 0
+        }
+      ],
+      "sidebarHome": {
+        "label": "Accueil",
+        "active": true,
+        "hasSvg": true,
+        "icon": {
+          "width": 0,
+          "height": 0
+        }
+      },
+      "firstRows": {
+        "firstRowTop": 132.140625,
+        "firstLaneTop": 205.140625,
+        "secondRowTop": 592.640625
+      },
+      "sectionRects": [
+        {
+          "label": "Derniers ajouts",
+          "top": 132.140625,
+          "bottom": 592.640625,
+          "height": 460.5
+        },
+        {
+          "label": "À découvrir",
+          "top": 592.640625,
+          "bottom": 1036.140625,
+          "height": 443.5
+        },
+        {
+          "label": "En cours",
+          "top": 1036.140625,
+          "bottom": 1465.640625,
+          "height": 429.5
+        },
+        {
+          "label": "Favoris et mieux notés",
+          "top": 1465.640625,
+          "bottom": 1937.140625,
+          "height": 471.5
+        },
+        {
+          "label": "Vus, lus et joués",
+          "top": 1937.140625,
+          "bottom": 2397.640625,
+          "height": 460.5
+        },
+        {
+          "label": "Films",
+          "top": 2397.640625,
+          "bottom": 2829.140625,
+          "height": 431.5
+        },
+        {
+          "label": "Séries",
+          "top": 2829.140625,
+          "bottom": 3258.640625,
+          "height": 429.5
+        },
+        {
+          "label": "Livres",
+          "top": 3258.640625,
+          "bottom": 3688.140625,
+          "height": 429.5
+        },
+        {
+          "label": "Jeux",
+          "top": 3688.140625,
+          "bottom": 4117.640625,
+          "height": 429.5
+        },
+        {
+          "label": "Art",
+          "top": 4117.640625,
+          "bottom": 4547.140625,
+          "height": 429.5
+        },
+        {
+          "label": "Cette année",
+          "top": 4571.140625,
+          "bottom": 4906.140625,
+          "height": 335
+        }
+      ],
+      "mobileNav": {
+        "appBar": true,
+        "bottom": true
+      },
+      "bodyText": "Menu\nSylloge\nAccueil\nFilms\nSéries\nLivres\nJeux\nArt\nMa bibliothèque\nDERNIERS AJOUTS\n\nCe qui vient d'entrer dans la maison.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nÀ DÉCOUVRIR\nSix autres\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\n\nTout voir :\nFilms\n\nEN COURS\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n·\nLivres\n\nFAVORIS ET MIEUX NOTÉS\n\nCe que vous gardez près de vous.\n\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nSéries\n·\nLivres\n·\nJeux\n·\nArt\n\nVUS, LUS ET JOUÉS\n\nVos dernières consommations datées.\n\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS COUVERTURE\nHades\nHades\n★\n★\n★\n★\n★\n★\n★\n★\n★\n★\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nFilms\n·\nJeux\n·\nArt\n\nFILMS\nSANS AFFICHE\nLe.Extension, la plus longue\nLe.Extension, la plus longue\nSANS AFFICHE\nLe.Extension, la plus longue 1\nLe.Extension, la plus longue 1\nSANS AFFICHE\nLe.Extension, la plus longue 6\nLe.Extension, la plus longue 6\nSANS AFFICHE\nRien à signaler\nRien à signaler\nSANS AFFICHE\nRien à signaler 4\nRien à signaler 4\nSANS AFFICHE\nRien à signaler 9\nRien à signaler 9\nSANS AFFICHE\nUne œuvre en attente\nUne œuvre en attente\nSANS AFFICHE\nUne œuvre en attente 5\nUne œuvre en attente 5\nSANS AFFICHE\nUne œuvre en attente 10\nUne œuvre en attente 10\nSANS AFFICHE\nmemories of a long afternoon\nmemories of a long afternoon\nSANS AFFICHE\nmemories of a long afternoon 2\nmemories of a long afternoon 2\nSANS AFFICHE\nmemories of a long afternoon 7\nmemories of a long afternoon 7\n\nTout voir :\nFilms\n\nSÉRIES\nSANS AFFICHE\nLe Bureau des Légendes\nLe Bureau des Légendes\n\nTout voir :\nSéries\n\nLIVRES\nSANS COUVERTURE\nA game of Thrones\nA game of Thrones\n\nTout voir :\nLivres\n\nJEUX\nSANS COUVERTURE\nHades\nHades\n\nTout voir :\nJeux\n\nART\nSANS VISUEL\nNuit vacation\nNuit vacation\n\nTout voir :\nArt\n\nCETTE ANNÉE\n\n13 œuvres ajoutées · 0 consommations datées\n\nFilms 12 · Livres 1\n\n‹\nSeptembre 2026\n›\nL\nM\nM\nJ\nV\nS\nD\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30",
+      "presentSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art",
+        "Cette année"
+      ],
+      "expectedSections": [
+        "Derniers ajouts",
+        "À découvrir",
+        "En cours",
+        "Favoris et mieux notés",
+        "Vus, lus et joués",
+        "Films",
+        "Séries",
+        "Livres",
+        "Jeux",
+        "Art"
+      ],
+      "consoleMessages": [],
+      "screenshotPath": "/Users/aurelientrouble/Documents/Hermes/Sylloge-worktrees/mobile/docs/qa/sylloge-home-expanded-mobile-home-dark.png"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import { BookForm } from './components/BookForm.tsx'
 import { GameDetail } from './components/GameDetail.tsx'
 import { GameForm } from './components/GameForm.tsx'
 import { Poster } from './components/Poster.tsx'
+import { Home, type MediumFilterKey } from './components/AtriumHome.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
 import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
@@ -37,6 +38,7 @@ import {
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { ProfileAvatar, ProfileAvatarPicker } from './components/ProfileAvatar.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
+import { MobileAppShell } from './components/MobileAppShell.tsx'
 import { BookCategorySwitch, SeriesCategorySwitch } from './components/CategorySwitch.tsx'
 
 import type { TmdbSearchCandidate, CachedFilmTmdbPresentation, TmdbFilmPresentation } from './data/tmdbService.ts'
@@ -67,7 +69,10 @@ import {
   RATED_BUILTIN_VIEWS,
   UNRATED_BUILTIN_VIEWS,
   PROGRESS_BUILTIN_VIEWS,
-  DEFAULT_VIEW_ID,
+  ALL_VIEW,
+  WATCHLIST_DEFAULT_VIEW_ID,
+  ARTWORKS_DEFAULT_VIEW_ID,
+  defaultBuiltinViewForMedium,
   builtinViewById,
   titledBuiltinViews,
   resolveLibraryQuery,
@@ -235,14 +240,6 @@ function Sidebar({
 
   return (
     <aside className={`sidebar ${settingsOpen ? 'sidebar-settings' : ''} ${effectiveExpanded ? 'sidebar-expanded' : 'sidebar-rail'}`}>
-      <div className="sidebar-top">
-        <button className="wordmark" onClick={onHome} aria-label="Ouvrir l’accueil">
-          <img className="wordmark-logo" src={logoSylloge} alt="" width={34} height={34} />
-          <span className="wordmark-text">
-            <span>Sylloge</span>
-          </span>
-        </button>
-      </div>
       {settingsOpen ? (
         <nav aria-label="Navigation des paramètres">
           <p className="nav-label">Paramètres</p>
@@ -260,6 +257,16 @@ function Sidebar({
         </nav>
       ) : (
         <nav aria-label="Navigation principale">
+          <button
+            className={`nav-item sidebar-home-item ${activeItem === 'home' ? 'active' : ''}`}
+            type="button"
+            onClick={onHome}
+            data-tooltip={labelFor('Accueil')}
+            aria-current={activeItem === 'home' ? 'page' : undefined}
+          >
+            <span className="nav-item-text">{icon('home')} Accueil</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('home')}</span>
+          </button>
           <button
             className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
             type="button"
@@ -680,601 +687,13 @@ function compareByWatchedAt(first: Film, second: Film): number {
   return (second.watchedAt ?? '').localeCompare(first.watchedAt ?? '') || compareByCreatedAt(first, second)
 }
 
-function formatCalendarDate(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-type MediumFilterKey = 'film' | 'série' | 'livre' | 'jeu' | 'art'
-
-const MEDIUM_CHIP_LABELS: Record<MediumFilterKey, string> = {
-  film: 'Films',
-  'série': 'Séries',
-  livre: 'Livres',
-  jeu: 'Jeux',
-  art: 'Art',
-}
-
-const MEDIUM_CARD_LABELS: Record<MediumFilterKey, string> = {
-  film: 'Film',
-  'série': 'Série',
-  livre: 'Livre',
-  jeu: 'Jeu',
-  art: 'Art',
-}
-
-/** Couleur du point de calendrier par médium — palette désaturée,
- * cohérente avec la direction anthracite (lisibles sur clair et sombre). */
-// Constante interne (jamais exportée : un export non-composant désactive le
-// Fast Refresh de tout main.tsx et provoque des doubles montages au HMR).
-const MEDIUM_DOT_COLORS: Record<MediumFilterKey, string> = {
-  film: '#A8645C',
-  'série': '#7D729B',
-  livre: '#B39A55',
-  jeu: '#64809B',
-  art: '#AD7288',
-}
-
-type HomeEntry = {
-  key: string
-  medium: MediumFilterKey
-  title: string
-  subtitle: string
-  poster: string | null
-  createdAt: string
-  rating: number | null
-  isFavorite: boolean
-  /** Statut du médium (libellé brut du domaine) pour les modules par statut. */
-  status?: string
-  /** Date de consommation réelle (visionnage, lecture, partie, découverte). */
-  consumedAt: string | null
-  personalNote: string | null
-  onOpen: () => void
-}
-
-/** Cartes d'activité par jour : chaque médium marque sa couleur. */
-function buildActivityMap(
-  films: Film[],
-  series: Series[],
-  books: Book[],
-  games: Game[],
-  artworks: Artwork[],
-): Map<string, MediumFilterKey[]> {
-  const map = new Map<string, MediumFilterKey[]>()
-  const add = (key: string | null | undefined, medium: MediumFilterKey) => {
-    if (!key) return
-    const day = key.slice(0, 10)
-    const list = map.get(day) ?? []
-    if (!list.includes(medium)) list.push(medium)
-    map.set(day, list)
-  }
-  films.forEach((film) => {
-    if (film.status === 'terminé') add(film.watchedAt, 'film')
-  })
-  series.forEach((entry) => {
-    if (entry.status === 'vue') add(entry.progressUpdatedAt?.slice(0, 10), 'série')
-  })
-  books.forEach((entry) => {
-    if (entry.status === 'lu') add(entry.startedAt, 'livre')
-  })
-  games.forEach((entry) => {
-    if (entry.status === 'joué') add(entry.playedAt, 'jeu')
-  })
-  artworks.forEach((entry) => {
-    if (entry.status === 'découverte') add(entry.discoveredAt, 'art')
-  })
-  return map
-}
-
-function formatWatchedDay(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
-}
-
-
-type HomeProps = {
-  library: FilmLibrary
-  seriesCollection: Series[]
-  bookCollection: Book[]
-  gameCollection: Game[]
-  artworkCollection: Artwork[]
-  onOpen: (film: Film) => void
-  onOpenSeries: (series: Series) => void
-  onOpenBook: (book: Book) => void
-  onOpenGame: (game: Game) => void
-  onOpenArtwork: (artwork: Artwork) => void
-}
-
-function Home({
-  library,
-  seriesCollection,
-  bookCollection,
-  gameCollection,
-  artworkCollection,
-  onOpen,
-  onOpenSeries,
-  onOpenBook,
-  onOpenGame,
-  onOpenArtwork,
-}: HomeProps) {
-  // Toutes les œuvres, normalisées en entrées communes pour les modules.
-  const allEntries: HomeEntry[] = [
-    ...library.films.map((film) => ({
-      key: `film-${film.id}`,
-      medium: 'film' as const,
-      title: film.title,
-      subtitle: [film.director, film.year].filter((value) => value !== null).join(' · '),
-      poster: film.posterUrl,
-      createdAt: film.createdAt,
-      rating: film.rating,
-      isFavorite: film.isFavorite,
-      status: film.status,
-      consumedAt: film.status === 'terminé' ? film.watchedAt : null,
-      personalNote: film.personalNote,
-      onOpen: () => onOpen(film),
-    })),
-    ...seriesCollection.map((entry) => ({
-      key: `series-${entry.id}`,
-      medium: 'série' as const,
-      title: entry.title,
-      subtitle: entry.showrunner ?? '',
-      poster: entry.posterUrl,
-      createdAt: entry.createdAt,
-      rating: entry.rating,
-      isFavorite: entry.isFavorite,
-      status: entry.status,
-      consumedAt: entry.status === 'vue' ? entry.progressUpdatedAt?.slice(0, 10) ?? null : null,
-      personalNote: entry.personalNote,
-      onOpen: () => onOpenSeries(entry),
-    })),
-    ...bookCollection.map((entry) => ({
-      key: `book-${entry.id}`,
-      medium: 'livre' as const,
-      title: entry.title,
-      subtitle: entry.author ?? '',
-      poster: entry.coverUrl,
-      createdAt: entry.createdAt,
-      rating: entry.rating,
-      isFavorite: entry.isFavorite,
-      status: entry.status,
-      consumedAt: entry.status === 'lu' && entry.startedAt ? entry.startedAt : null,
-      personalNote: entry.personalNote,
-      onOpen: () => onOpenBook(entry),
-    })),
-    ...gameCollection.map((entry) => ({
-      key: `game-${entry.id}`,
-      medium: 'jeu' as const,
-      title: entry.title,
-      subtitle: [entry.developer, entry.year].filter((value) => value !== null).join(' · '),
-      poster: entry.coverUrl,
-      createdAt: entry.createdAt,
-      rating: entry.rating,
-      isFavorite: entry.isFavorite,
-      status: entry.status,
-      consumedAt:
-        entry.status === 'joué' && entry.playedAt
-          ? entry.playedAt
-          : null,
-      personalNote: entry.personalNote,
-      onOpen: () => onOpenGame(entry),
-    })),
-    ...artworkCollection.map((entry) => ({
-      key: `artwork-${entry.id}`,
-      medium: 'art' as const,
-      title: entry.title,
-      subtitle: entry.artist ?? '',
-      poster: entry.imageUrl,
-      createdAt: entry.createdAt,
-      rating: null,
-      isFavorite: entry.isFavorite,
-      status: entry.status,
-      consumedAt: entry.status === 'découverte' ? entry.discoveredAt : null,
-      personalNote: entry.personalNote,
-      onOpen: () => onOpenArtwork(entry),
-    })),
-  ]
-
-  const activityMap = buildActivityMap(library.films, seriesCollection, bookCollection, gameCollection, artworkCollection)
-  return <HomeDashboard entries={allEntries} activityMap={activityMap} />
-}
-
-/** Puces de filtrage par médium d'un module. */
-function MediumChips({
-  active,
-  onChange,
-}: {
-  active: MediumFilterKey | 'tout'
-  onChange: (next: MediumFilterKey | 'tout') => void
-}) {
-  const options: Array<MediumFilterKey | 'tout'> = ['tout', 'film', 'série', 'livre', 'jeu', 'art']
-  return (
-    <div className="medium-chips" role="group" aria-label="Filtrer par médium">
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          className={`medium-chip ${active === option ? 'on' : ''}`}
-          aria-pressed={active === option}
-          onClick={() => onChange(option)}
-        >
-          {option === 'tout' ? 'Tout' : MEDIUM_CHIP_LABELS[option]}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** Carte d'une œuvre dans un module. */
-function EntryCard({ entry }: { entry: HomeEntry }) {
-  return (
-    <button type="button" className="home-entry-card" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}`}>
-      <Poster title={entry.title} src={entry.poster} className="home-entry-poster" />
-      <span className="home-entry-info">
-        <span className="home-entry-medium" style={{ color: MEDIUM_DOT_COLORS[entry.medium] }}>
-          {MEDIUM_CARD_LABELS[entry.medium]}
-        </span>
-        <b>{entry.title}</b>
-        {entry.subtitle && <small>{entry.subtitle}</small>}
-      </span>
-    </button>
-  )
-}
-
-/** Module générique : titre + puces de médium + grille filtrée, teinté par médium. */
-function FilterableModule({
-  title,
-  entries,
-  emptyMessage,
-  className,
-}: {
-  title: string
-  entries: HomeEntry[]
-  emptyMessage: string
-  className: string
-}) {
-  const [filter, setFilter] = useState<MediumFilterKey | 'tout'>('tout')
-  const visible = filter === 'tout' ? entries : entries.filter((entry) => entry.medium === filter)
-  // Teinte pastel du module dans la couleur du médium actif.
-  const tintStyle = filter === 'tout'
-    ? undefined
-    : ({
-        '--module-tint': MEDIUM_DOT_COLORS[filter],
-      } as React.CSSProperties)
-
-  return (
-    <section
-      className={`home-module ${className} ${filter !== 'tout' ? 'module-tinted' : ''}`}
-      style={tintStyle}
-      aria-labelledby={`${className}-title`}
-    >
-      <header className="home-module-heading">
-        <h2 id={`${className}-title`}>{title}</h2>
-        <MediumChips active={filter} onChange={setFilter} />
-      </header>
-      {visible.length > 0 ? (
-        <div className="home-entry-grid">
-          {visible.map((entry) => <EntryCard key={entry.key} entry={entry} />)}
-        </div>
-      ) : (
-        <p className="home-module-empty">{emptyMessage}</p>
-      )}
-    </section>
-  )
-}
-
-/** Calendrier mensuel à points colorés, navigable mois par mois. */
-function dayLabel(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
-}
-
-/** Étoiles statiques (lecture seule) pour les aperçus de note. */
-function Stars({ value }: { value: number | null }) {
-  if (value === null) return <span className="stars-none">Pas encore noté</span>
-  return (
-    <span className="stars-display stars-display-compact" aria-label={`${value.toLocaleString('fr-FR')} sur 5`}>
-      {[1, 2, 3, 4, 5].map((star) => {
-        const fill = Math.max(0, Math.min(1, value - star + 1))
-        return (
-          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-            <span className="star-glyph" aria-hidden="true">★</span>
-            <span className="star-fill" aria-hidden="true" style={{ width: `${fill * 100}%` }}>★</span>
-          </span>
-        )
-      })}
-    </span>
-  )
-}
-
-/** Anniversaires : œuvres consommées exactement il y a X ans, jour pour jour. */
-function collectAnniversaries(entries: HomeEntry[]): HomeEntry[] {
-  const today = new Date()
-  const todayKey = formatCalendarDate(today)
-  const mmdd = todayKey.slice(5)
-  return entries
-    .filter((entry) => {
-      const consumed = entry.consumedAt
-      if (!consumed || !/^\d{4}-\d{2}-\d{2}/.test(consumed)) return false
-      const day = consumed.slice(5, 10)
-      const years = today.getFullYear() - Number(consumed.slice(0, 4))
-      return day === mmdd && years >= 1
-    })
-    .sort((a, b) => a.consumedAt!.localeCompare(b.consumedAt!))
-}
-
-function AnniversariesModule({ anniversaries }: { anniversaries: HomeEntry[] }) {
-  // Interface modulable : le module disparaît quand aucun anniversaire n'existe.
-  if (anniversaries.length === 0) return null
-
-  return (
-    <section className="home-module home-module-anniversaries" aria-labelledby="anniversaries-title">
-      <header className="home-module-heading">
-        <h2 id="anniversaries-title">Jour pour jour</h2>
-        <p className="module-hint">Regarde ce que tu en pensais à l’époque</p>
-      </header>
-      <div className="home-entry-grid">
-        {anniversaries.map((entry) => {
-          const years = new Date().getFullYear() - Number(entry.consumedAt!.slice(0, 4))
-          const yearLabel = years.toLocaleString('fr-FR')
-          return (
-            <button type="button" className="home-entry-card" onClick={entry.onOpen} key={entry.key} aria-label={`Ouvrir la fiche de ${entry.title}`}>
-              <Poster title={entry.title} src={entry.poster} className="home-entry-poster" />
-              <span className="home-entry-info">
-                <span className="home-entry-years">Il y a {yearLabel} an{years > 1 ? 's' : ''}</span>
-                <b>{entry.title}</b>
-                <Stars value={entry.rating} />
-                {entry.personalNote && <small>{truncateNote(entry.personalNote)}</small>}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function truncateNote(note: string): string {
-  const clean = note.replace(/\s+/g, ' ').trim()
-  return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean
-}
-
-/** File d'attente : tout ce qui attend d'être vu, lu, joué ou découvert. */
-const QUEUE_STATUSES: Record<MediumFilterKey, string> = {
-  film: 'à découvrir',
-  'série': 'à voir',
-  livre: 'à lire',
-  jeu: 'à jouer',
-  art: 'à découvrir',
-}
-
-function DiscoverQueueModule({ entries }: { entries: HomeEntry[] }) {
-  const [filter, setFilter] = useState<MediumFilterKey | 'tout'>('tout')
-  const [seed, setSeed] = useState(0)
-  const queue = entries.filter((entry) => entry.status === QUEUE_STATUSES[entry.medium])
-  const options: Array<MediumFilterKey | 'tout'> = ['tout', 'film', 'série', 'livre', 'jeu', 'art']
-  const visibleQueue = filter === 'tout' ? queue : queue.filter((entry) => entry.medium === filter)
-  const tintStyle = filter === 'tout'
-    ? undefined
-    : ({
-        '--module-tint': MEDIUM_DOT_COLORS[filter],
-      } as React.CSSProperties)
-
-  // Tirage déterministe par graine : trois œuvres stables jusqu'au prochain clic.
-  const picked = useMemo(() => {
-    if (visibleQueue.length <= 3) return visibleQueue
-    let current = (seed + 1) * 2654435761 % 4294967296
-    const pool = [...visibleQueue]
-    for (let i = pool.length - 1; i > 0; i -= 1) {
-      current = (current * 1664525 + 1013904223) % 4294967296
-      const j = Math.floor((current / 4294967296) * (i + 1))
-      ;[pool[i], pool[j]] = [pool[j], pool[i]]
-    }
-    return pool.slice(0, 3)
-  }, [visibleQueue, seed])
-
-  return (
-    <section
-      className={`home-module home-module-discover ${filter !== 'tout' ? 'module-tinted' : ''}`}
-      style={tintStyle}
-      aria-labelledby="discover-title"
-    >
-      <header className="home-module-heading">
-        <h2 id="discover-title">À découvrir</h2>
-        <div className="medium-chips discover-chips" role="group" aria-label="Filtrer la file d'attente par médium">
-          {options.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={`medium-chip ${filter === option ? 'on' : ''}`}
-              aria-pressed={filter === option}
-              onClick={() => setFilter(option)}
-            >
-              {option === 'tout' ? 'Tout' : MEDIUM_CHIP_LABELS[option]}
-            </button>
-          ))}
-          <span className="discover-shuffle-slot">
-            <button
-              type="button"
-              className="shuffle-button"
-              onClick={() => setSeed((value) => value + 1)}
-              disabled={visibleQueue.length <= 3}
-              aria-label="Proposer trois autres œuvres au hasard"
-              title="Trois autres propositions"
-            >
-              {icon('refresh')}
-            </button>
-          </span>
-        </div>
-      </header>
-      {picked.length > 0 ? (
-        <div className="home-entry-grid">
-          {picked.map((entry) => <EntryCard key={entry.key} entry={entry} />)}
-        </div>
-      ) : (
-        <p className="home-module-empty">
-          {queue.length === 0
-            ? 'Aucune œuvre en attente : ajoute des statuts « à voir », « à lire » ou « à jouer ».'
-            : 'Rien dans cette file pour l’instant.'}
-        </p>
-      )}
-    </section>
-  )
-}
-
-/** Tableau de bord d'accueil : modules multi-bibliothèques à puces. */
-function HomeDashboard({ entries, activityMap }: { entries: HomeEntry[]; activityMap: Map<string, MediumFilterKey[]> }) {
-  const recent = [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3)
-  const consumed = entries
-    .filter((entry) => entry.consumedAt !== null)
-    .sort((a, b) => b.consumedAt!.localeCompare(a.consumedAt!))
-    .slice(0, 3)
-  const favorites = entries
-    .filter((entry) => entry.isFavorite || entry.rating !== null)
-    .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || Number(b.isFavorite) - Number(a.isFavorite))
-    .slice(0, 3)
-  const anniversaries = collectAnniversaries(entries)
-
-  return (
-    <main className="main home-main" aria-label="Accueil">
-      <div className="home-content">
-        <div className="dashboard-grid">
-          <YearHero entries={entries} activityMap={activityMap} />
-          <FilterableModule
-            title="Derniers ajouts"
-            entries={recent}
-            emptyMessage="Aucune œuvre n’a encore été ajoutée."
-            className="module-additions"
-          />
-          <FilterableModule
-            title="Vus, lus et joués"
-            entries={consumed}
-            emptyMessage="Aucune œuvre terminée et datée pour l’instant."
-            className="module-consumed"
-          />
-          <FilterableModule
-            title="Favoris et mieux notés"
-            entries={favorites}
-            emptyMessage="Ajoute des favoris ou des notes pour remplir ce module."
-            className="module-favorites"
-          />
-          <AnniversariesModule anniversaries={anniversaries} />
-          <DiscoverQueueModule entries={entries} />
-        </div>
-      </div>
-    </main>
-  )
-}
-
-const HERO_LABELS: Record<MediumFilterKey, [string, string]> = {
-  film: ['film vu', 'films vus'],
-  'série': ['série vue', 'séries vues'],
-  livre: ['livre lu', 'livres lus'],
-  jeu: ['jeu ajouté', 'jeux ajoutés'],
-  art: ['œuvre découverte', 'œuvres découvertes'],
-}
-
-/** Bandeau hero d'en-tête : l'année en cours et le calendrier, monochrome. */
-function YearHero({ entries, activityMap }: { entries: HomeEntry[]; activityMap: Map<string, MediumFilterKey[]> }) {
-  const year = new Date().getFullYear()
-  const prefix = String(year)
-  const countByMedium = (medium: MediumFilterKey) =>
-    entries.filter((entry) => entry.medium === medium && entry.createdAt.startsWith(prefix)).length
-  const counts: Array<[MediumFilterKey, number]> = [
-    ('film'),
-    ('série'),
-    ('livre'),
-    ('jeu'),
-    ('art'),
-  ].map((medium) => [medium as MediumFilterKey, countByMedium(medium as MediumFilterKey)])
-  const total = counts.reduce((sum, [, value]) => sum + value, 0)
-
-  return (
-    <section className="home-hero" aria-label={`Votre année ${year}`}>
-      <div className="hero-left">
-        <p className="hero-kicker">Votre année</p>
-        <p className="hero-year">{year}</p>
-      </div>
-      <div className="hero-stats">
-        {counts.map(([medium, value]) => (
-          <div key={medium} className="hero-stat">
-            <b>{value}</b>
-            <small>{HERO_LABELS[medium][value > 1 ? 1 : 0]}</small>
-          </div>
-        ))}
-      </div>
-      {total === 0 && (
-        <p className="hero-empty">Ajoutez votre première œuvre pour voir l’année se remplir.</p>
-      )}
-      <div className="hero-calendar">
-        <ActivityCalendarCompact activityMap={activityMap} />
-      </div>
-    </section>
-  )
-}
-
-/** Calendrier compact du hero : mêmes données, habillage sombre. */
-function ActivityCalendarCompact({ activityMap }: { activityMap: Map<string, MediumFilterKey[]> }) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const [monthOffset, setMonthOffset] = useState(0)
-  const cursor = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
-  const year = cursor.getFullYear()
-  const month = cursor.getMonth()
-  const firstWeekday = (new Date(year, month, 1).getDay() || 7) - 1
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const canGoForward = monthOffset < 0
-
-  return (
-    <>
-      <header className="calendar-nav hero-calendar-nav">
-        <button
-          type="button"
-          className="calendar-nav-button hero-calendar-button"
-          onClick={() => setMonthOffset((value) => value - 1)}
-          aria-label="Mois précédent"
-        >
-          ‹
-        </button>
-        <h2>{new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(cursor)}</h2>
-        <button
-          type="button"
-          className="calendar-nav-button hero-calendar-button"
-          onClick={() => setMonthOffset((value) => Math.min(0, value + 1))}
-          disabled={!canGoForward}
-          aria-label="Mois suivant"
-        >
-          ›
-        </button>
-      </header>
-      <div className="calendar-weekdays hero-calendar-weekdays" aria-hidden="true">
-        {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}
-      </div>
-      <ol className="calendar-days hero-calendar-days">
-        {Array.from({ length: firstWeekday }, (_, index) => <li key={`pad-${index}`} className="pad" />)}
-        {Array.from({ length: daysInMonth }, (_, index) => {
-          const day = index + 1
-          const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          const mediums = activityMap.get(key) ?? []
-          const isToday = key === formatCalendarDate(today)
-          return (
-            <li key={key} className={`calendar-day ${mediums.length > 0 ? 'active' : ''} ${isToday ? 'today' : ''}`}>
-              <time dateTime={key}>{day}</time>
-              {mediums.length > 0 && (
-                <span className="calendar-dots" aria-hidden="true">
-                  {mediums.map((medium) => (
-                    <i key={medium} style={{ background: MEDIUM_DOT_COLORS[medium] }} />
-                  ))}
-                </span>
-              )}
-              {mediums.length > 0 && <span className="visually-hidden">{`${dayLabel(key)} : ${mediums.map((m) => MEDIUM_CARD_LABELS[m]).join(', ')}`}</span>}
-            </li>
-          )
-        })}
-      </ol>
-    </>
-  )
+/** Vue de bibliothèque d'un médium : la porte de sortie des modules d'accueil. */
+function libraryViewForMedium(medium: MediumFilterKey): View {
+  if (medium === 'film') return { name: 'library' }
+  if (medium === 'série') return { name: 'series' }
+  if (medium === 'livre') return { name: 'books' }
+  if (medium === 'jeu') return { name: 'games' }
+  return { name: 'artworks' }
 }
 
 type LibraryContext = {
@@ -1370,7 +789,9 @@ function FilmsLibrary({
   onOpen,
   onLibraryChanged,
 }: FilmsLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.view.id === RATED_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  // L'ordre visible commence par Tous ; la vue d'ouverture reste la watchlist.
+  const openingView = defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'films')
+  const isUnfiltered = context.query.trim() === '' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -1454,12 +875,12 @@ function FilmsLibrary({
             </div>
           ) : searchState.films.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>Aucun film ne correspond.</h2>
-              <p>Modifiez la recherche ou revenez à tous les films.</p>
+              <h2>{isUnfiltered ? `Aucun film dans la vue « ${openingView.name} ».` : 'Aucun film ne correspond.'}</h2>
+              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à tous les films.'}</p>
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher tous les films
               </button>
@@ -1826,7 +1247,9 @@ function SeriesLibrary({
   profileId,
   onLibraryChanged,
 }: SeriesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_SERIES_CATEGORIES.length && context.view.id === PROGRESS_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  // L'ordre visible commence par Tous ; la vue d'ouverture reste la watchlist.
+  const openingView = defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'series')
+  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_SERIES_CATEGORIES.length && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -1951,12 +1374,12 @@ function SeriesLibrary({
             </div>
           ) : searchState.series.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>Aucune série ne correspond.</h2>
-              <p>Modifiez la recherche ou revenez à toutes les séries.</p>
+              <h2>{isUnfiltered ? `Aucune série dans la vue « ${openingView.name} ».` : 'Aucune série ne correspond.'}</h2>
+              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à toutes les séries.'}</p>
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher toutes les séries
               </button>
@@ -2061,7 +1484,9 @@ function GamesLibrary({
   profileId,
   onLibraryChanged,
 }: GamesLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === RATED_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  // L'ordre visible commence par Tous ; la vue d'ouverture reste la watchlist.
+  const openingView = defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'games')
+  const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const platforms = buildGamePlatformFilters(collection)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
@@ -2193,9 +1618,9 @@ function GamesLibrary({
             </div>
           ) : searchState.games.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>Aucun jeu ne correspond.</h2>
-              <p>Modifiez la recherche ou revenez à tous les jeux.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
+              <h2>{isUnfiltered ? `Aucun jeu dans la vue « ${openingView.name} ».` : 'Aucun jeu ne correspond.'}</h2>
+              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à tous les jeux.'}</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
                 Afficher tous les jeux
               </button>
             </div>
@@ -2273,7 +1698,10 @@ function ArtworksLibrary({
   profileId,
   onLibraryChanged,
 }: ArtworksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === UNRATED_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  // Tous ouvre la rangée, mais Art s'ouvre encore sur Favori : aucun statut
+  // ni progression n'existe pour cette collection.
+  const openingView = defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks')
+  const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
@@ -2346,9 +1774,9 @@ function ArtworksLibrary({
             </div>
           ) : searchState.artworks.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>Aucune œuvre ne correspond.</h2>
-              <p>Modifiez la recherche ou revenez à toutes les œuvres.</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
+              <h2>{isUnfiltered ? `Aucune œuvre dans la vue « ${openingView.name} ».` : 'Aucune œuvre ne correspond.'}</h2>
+              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à toutes les œuvres.'}</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
                 Afficher toutes les œuvres
               </button>
             </div>
@@ -2395,7 +1823,9 @@ function BooksLibrary({
   profileId,
   onLibraryChanged,
 }: BooksLibraryProps) {
-  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_BOOK_CATEGORIES.length && context.view.id === PROGRESS_BUILTIN_VIEWS[0].id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  // L'ordre visible commence par Tous ; la vue d'ouverture reste la watchlist.
+  const openingView = defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'books')
+  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_BOOK_CATEGORIES.length && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -2528,12 +1958,12 @@ function BooksLibrary({
             </div>
           ) : searchState.books.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>Aucun livre ne correspond.</h2>
-              <p>Modifiez la recherche ou revenez à tous les livres.</p>
+              <h2>{isUnfiltered ? `Aucun livre dans la vue « ${openingView.name} ».` : 'Aucun livre ne correspond.'}</h2>
+              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à tous les livres.'}</p>
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
                 Afficher tous les livres
               </button>
@@ -2670,22 +2100,22 @@ function App() {
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
-  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [seriesCollection, setSeriesCollection] = useState<Series[]>([])
   const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
-  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [bookCollection, setBookCollection] = useState<Book[]>([])
   const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
-  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [gameCollection, setGameCollection] = useState<Game[]>([])
   const [gameSearchState, setGameSearchState] = useState<GameSearchState>({ status: 'loading' })
-  const [gameContext, setGameContext] = useState<GameLibraryContext>({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [gameContext, setGameContext] = useState<GameLibraryContext>({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [gameSearchAttempt, setGameSearchAttempt] = useState(0)
   const [artworkCollection, setArtworkCollection] = useState<Artwork[]>([])
   const [artworkSearchState, setArtworkSearchState] = useState<ArtworkSearchState>({ status: 'loading' })
-  const [artworkContext, setArtworkContext] = useState<ArtworkLibraryContext>({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [artworkContext, setArtworkContext] = useState<ArtworkLibraryContext>({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [artworkSearchAttempt, setArtworkSearchAttempt] = useState(0)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
@@ -3301,6 +2731,7 @@ function App() {
         onOpenBook={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
         onOpenGame={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
         onOpenArtwork={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
+        onBrowse={(medium) => leaveLibrary(libraryViewForMedium(medium))}
       />
     )
   } else if (view.name === 'tmdb-search') {
@@ -3393,15 +2824,15 @@ function App() {
         onThemePreferenceChange={setThemePreference}
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
-          setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setSeriesContext({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setBookContext({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setGameContext({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setArtworkContext({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setSeriesContext({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setBookContext({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setGameContext({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setArtworkContext({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: selectedLibrary })
         }}
         onImported={(importedLibrary) => {
-          setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: importedLibrary })
           requestAutomaticBackup(importedLibrary)
           profilesRepository.list().then(setProfiles, (error: unknown) => {
@@ -3743,7 +3174,35 @@ function App() {
 
   return (
     <div className={`app ${view.name === 'settings' ? 'app-settings' : ''}`}>
-      <Sidebar
+        <MobileAppShell
+          activeItem={
+            libraryState.status !== 'ready' || view.name === 'home'
+              ? 'home'
+              : view.name === 'settings'
+                ? 'settings'
+                : view.name === 'series' || view.name === 'series-detail'
+                  ? 'series'
+                  : view.name === 'books' || view.name === 'book-detail'
+                    ? 'books'
+                    : view.name === 'games' || view.name === 'game-detail'
+                      ? 'games'
+                      : view.name === 'artworks' || view.name === 'artwork-detail'
+                        ? 'artworks'
+                        : 'library'
+          }
+          onHome={() => leaveLibrary({ name: 'home' })}
+          onLibrary={returnToLibrary}
+          onSeries={() => leaveLibrary({ name: 'series' })}
+          onBooks={() => leaveLibrary({ name: 'books' })}
+          onGames={() => leaveLibrary({ name: 'games' })}
+          onArtworks={() => leaveLibrary({ name: 'artworks' })}
+          onSettings={() => showSettingsSection('profiles')}
+          currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
+          currentProfileAvatar={libraryState.status === 'ready'
+            ? profiles.find((profile) => profile.id === libraryState.library.profile.id)?.avatarDataUrl ?? null
+            : null}
+        />
+        <Sidebar
         expanded={sidebarExpanded}
         onToggleExpanded={() => setSidebarExpanded((value) => !value)}
         count={count}

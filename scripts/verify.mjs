@@ -1914,6 +1914,7 @@ assert.deepEqual(
 }
 
 const mainSource = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+const atriumHomeSource = readFileSync(new URL('../src/components/AtriumHome.tsx', import.meta.url), 'utf8')
 const posterSource = readFileSync(new URL('../src/components/Poster.tsx', import.meta.url), 'utf8')
 const formSource = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
 const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', import.meta.url), 'utf8')
@@ -1966,7 +1967,20 @@ assert.match(mainSource, /libraryContext/, 'Le contexte de recherche et de filtr
 assert.match(mainSource, /libraryScrollPosition/, 'La position de consultation doit être restaurée au retour')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
 assert.match(posterSource, /alt={`\$\{label\} de/, 'Un visuel chargé doit conserver un texte alternatif pertinent pour son médium')
-assert.match(stylesSource, /\.home-entry-info b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre d’une carte d’accueil doit pouvoir couper une suite de caractères sans espace')
+assert.doesNotMatch(atriumHomeSource, /Reprendre|Aussi en cours|IN_PROGRESS|progressLabel|ProgressBar/, 'Le premier écran de l’accueil ne doit plus contenir un module de reprise ou sa colonne')
+assert.match(atriumHomeSource, /const inProgress = entries[\s\S]*status === 'en cours'/, 'La rangée En cours doit rester dérivée des statuts réels')
+assert.match(atriumHomeSource, /const byMedium = MEDIUM_ORDER\.map[\s\S]*\.filter\(\(\{ entries \}\) => entries\.length > 0\)/, 'Les rangées par médium ne doivent jamais afficher une collection vide')
+assert.match(atriumHomeSource, /<section id=\{id\} className="at-section" aria-labelledby=\{`\$\{id\}-titre`\}>/, 'Chaque file doit exposer un identifiant stable pour les ancres et la QA')
+assert.match(atriumHomeSource, /<div className="at-files">[\s\S]*<\/div>[\s\S]*\{anniversaries\.length > 0 && \([\s\S]*className="at-jour"/, 'Le souvenir « Jour pour jour » doit suivre les quatre rangées plutôt que les précéder')
+assert.match(atriumHomeSource, /<ActivityCalendar activityMap=\{activityMap\} \/>/, 'Le calendrier annuel reste porté par l’accueil')
+assert.match(atriumHomeSource, /const year = useMemo\(\(\) => yearlyCounts\(entries\), \[entries\]\)[\s\S]*\{year\.added\}[\s\S]*\{year\.consumed\}/, 'Les compteurs annuels restent alimentés par les données réelles')
+assert.match(atriumHomeSource, /<span className="at-work-title">\{entry\.title\}<\/span>[\s\S]*<\/span>\s*<\/button>/, 'La carte d’accueil doit afficher essentiellement le titre sous le visuel')
+assert.match(atriumHomeSource, /const accessibleLabel = `Ouvrir la fiche de \$\{entry\.title\}\$\{facts \? ` — \$\{facts\}` : ''\}`/, 'Les détails retirés de la carte doivent rester portés par son nom accessible')
+assert.doesNotMatch(atriumHomeSource, /formatLongDate|at-eyebrow|at-lede|voici ce que m'occupe en ce moment/, 'Le haut de l’accueil ne doit plus porter de date ni de phrase de service')
+assert.match(mainSource, /className=\{`nav-item sidebar-home-item \$\{activeItem === 'home' \? 'active' : ''\}`\}[\s\S]*<span className="nav-item-text">\{icon\('home'\)\} Accueil<\/span>/, 'La sidebar doit présenter Accueil avec le pictogramme maison dans le rail des destinations')
+assert.match(stylesSource, /\.at-files \.at-lane \{[^}]*--at-lane-count: 6;/s, 'Les rangées d’accueil doivent viser six cartes sur le bureau')
+assert.match(stylesSource, /\.at-lane \{[^}]*overflow-x: auto;[^}]*scroll-snap-type: x proximity;/s, 'Les rangées doivent défiler horizontalement avec accrochage')
+assert.match(stylesSource, /\.home-main \{[^}]*overflow-x: hidden;/s, 'La coquille de l’accueil ne doit jamais déborder horizontalement')
 assert.match(stylesSource, /\.poster-fallback b \{[^}]*overflow-wrap: anywhere;/s, 'Le titre du fallback d’affiche doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.reading-section p \{[^}]*overflow-wrap: anywhere;/s, 'Le texte personnel de détail doit pouvoir couper une suite de caractères sans espace')
 assert.match(stylesSource, /\.profile-card > \.primary-button \{[^}]*margin-top:/s, 'Le bouton de création de profil doit rester séparé de la dernière ligne')
@@ -3469,10 +3483,11 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
   const { librarySortOrderBy } = await import('../src/data/libraryViewQuery.ts')
   const { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters } = await import('../src/domain/libraryFilters.ts')
 
-  // Jalon 0.6.11 : « all » revient en fin de rangée ; Films ouvrent sur Récent,
-  // l'Art sur Favori. Les vues restent des présets du même modèle unifié.
-  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['recent', 'watchlist', 'favorites', 'ranking', 'all'], 'Les médiums notés proposent les cinq vues intégrées, Récent en tête')
-  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['favorites', 'recent', 'all'], 'L’Art ouvre sur Favori, sans classement par note ni watchlist')
+  // La présentation est normalisée : Tous ouvre la rangée, puis les vues
+  // propres au médium, puis Récent / Favori / Classement. L'ordre de la rangée
+  // reste distinct des vues d'ouverture définies plus bas.
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'recent', 'favorites', 'ranking'], 'Les médiums notés ouvrent leur rangée par Tous')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites'], 'L’Art ouvre sa rangée par Tous, sans classement ni watchlist')
   assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les vues de base sont des présets intégrés du même modèle')
 
   const watchlist = RATED_BUILTIN_VIEWS.find((view) => view.id === 'watchlist')
@@ -3517,12 +3532,22 @@ assert.equal((mainSource0419.match(/<LibraryViewBar/g) ?? []).length, 5, 'Les ci
 assert.doesNotMatch(mainSource0419, /FILM_FILTERS|FilmFilter/, 'Les anciens filtres Films par statut ne doivent plus piloter la bibliothèque')
 assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classement doit être résolu en colonnes documentées, pas en tri React')
 
-// Jalon 0.6.8 — vues intégrées sémantiques, interrupteur de catégories, gutter de scrollbar.
+// Vues intégrées harmonisées : ordre visible et vue d'ouverture sont deux
+// contrats distincts, éprouvés dans le même import réel du domaine.
 {
-  const { PROGRESS_BUILTIN_VIEWS, DEFAULT_VIEW_ID, builtinViewById } = await import('../src/domain/libraryViews.ts')
+  const {
+    RATED_BUILTIN_VIEWS,
+    UNRATED_BUILTIN_VIEWS,
+    PROGRESS_BUILTIN_VIEWS,
+    WATCHLIST_DEFAULT_VIEW_ID,
+    ARTWORKS_DEFAULT_VIEW_ID,
+    defaultBuiltinViewForMedium,
+    defaultViewIdForMedium,
+    titledBuiltinViews,
+  } = await import('../src/domain/libraryViews.ts')
   const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
 
-  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['watchlist', 'in-progress', 'recent', 'favorites', 'ranking', 'all'], 'Séries et Livres : progression, socle commun et vue Tous (0.6.8 + 0.6.11)')
+  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'in-progress', 'recent', 'favorites', 'ranking'], 'Séries et Livres : Tous, watchlist, En cours puis socle commun')
 
   const clauses = []
   const binds = []
@@ -3537,12 +3562,33 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   assert.ok(binds.includes('terminé') && binds.includes('vue') && binds.includes('lu'), 'La traduction couvre les statuts consommés de tous les médiums')
   assert.ok(!clauses.some((clause) => clause.startsWith('status =')), 'Un groupe actif ne doit pas coexister avec un statut exact')
 
-  assert.equal(DEFAULT_VIEW_ID, 'watchlist', 'Chaque bibliothèque s’ouvre sur sa watchlist (0.6.8)')
-  assert.equal(builtinViewById(PROGRESS_BUILTIN_VIEWS, 'in-progress').name, 'En cours', 'La vue En cours existe pour Séries et Livres')
+  assert.equal(WATCHLIST_DEFAULT_VIEW_ID, 'watchlist', 'Films, Séries, Livres et Jeux conservent leur vue d’ouverture watchlist')
+  assert.equal(ARTWORKS_DEFAULT_VIEW_ID, 'favorites', 'Art conserve sa vue d’ouverture Favori, distincte de Tous en tête de rangée')
+  assert.equal(defaultViewIdForMedium('series'), WATCHLIST_DEFAULT_VIEW_ID, 'Séries ouvre sur sa watchlist')
+  assert.equal(defaultViewIdForMedium('books'), WATCHLIST_DEFAULT_VIEW_ID, 'Livres ouvre sur sa watchlist')
+  assert.equal(defaultViewIdForMedium('games'), WATCHLIST_DEFAULT_VIEW_ID, 'Jeux ouvre sur sa watchlist')
+  assert.equal(defaultViewIdForMedium('artworks'), ARTWORKS_DEFAULT_VIEW_ID, 'Art ouvre sur Favori')
+  assert.equal(defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'films').id, WATCHLIST_DEFAULT_VIEW_ID, 'Films : la rangée commence par Tous, la bibliothèque par À voir')
+  assert.equal(defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'series').name, 'À voir', 'Séries : la vue d’ouverture reste la watchlist titrée')
+  assert.equal(defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'books').name, 'À lire', 'Livres : la vue d’ouverture reste la watchlist titrée')
+  assert.equal(defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'games').name, 'À jouer', 'Jeux : la vue d’ouverture reste la watchlist titrée')
+  assert.equal(defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks').id, ARTWORKS_DEFAULT_VIEW_ID, 'Art : Tous ouvre la rangée, pas la vue d’ouverture')
+  assert.equal(titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks').map((view) => view.id).join('|'), 'all|recent|favorites', 'Art conserve seulement Tous, Récent et Favori')
 
   const mainSource068 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
   const stylesSource068 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
   const categorySwitchSource068 = readFileSync(new URL('../src/components/CategorySwitch.tsx', import.meta.url), 'utf8')
+  const defaultViewInitializers = [
+    { medium: 'Films', pattern: /libraryContext.*?view: builtinViewById\(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/ },
+    { medium: 'Séries', pattern: /seriesContext.*?view: builtinViewById\(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/ },
+    { medium: 'Livres', pattern: /bookContext.*?view: builtinViewById\(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/ },
+    { medium: 'Jeux', pattern: /gameContext.*?view: builtinViewById\(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/ },
+    { medium: 'Art', pattern: /artworkContext.*?view: builtinViewById\(UNRATED_BUILTIN_VIEWS, ARTWORKS_DEFAULT_VIEW_ID\)/ },
+  ]
+  for (const initializer of defaultViewInitializers) {
+    assert.match(mainSource068, initializer.pattern, `${initializer.medium} : le contexte ouvre explicitement sur sa vue d’ouverture`)
+  }
+  assert.doesNotMatch(mainSource068, /builtinViewById\(UNRATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/, 'Art ne doit plus ouvrir sur la watchlist inexistante')
   assert.match(mainSource068, /<SeriesCategorySwitch/, 'Séries doit exposer l’interrupteur Télé|Animation')
   assert.match(mainSource068, /<BookCategorySwitch/, 'Livres doit exposer l’interrupteur Livre|Manga|Comics')
   assert.match(mainSource068, /category: seriesContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Séries')
@@ -3550,6 +3596,8 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   assert.match(mainSource068, /titledBuiltinViews\(PROGRESS_BUILTIN_VIEWS, 'books'\)/, 'Livres doit titrer sa watchlist « À lire »')
   assert.match(mainSource068, /titledBuiltinViews\(RATED_BUILTIN_VIEWS, 'games'\)/, 'Jeux doit titrer sa watchlist « À jouer »')
   assert.doesNotMatch(mainSource068, /builtinViews=\{RATED_BUILTIN_VIEWS\}|builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'Aucune bibliothèque ne doit recevoir d’intitulés non titrés')
+  assert.equal((mainSource068.match(/defaultBuiltinViewForMedium\(/g) ?? []).length, 5, 'Les cinq bibliothèques doivent résoudre explicitement leur vue d’ouverture')
+  assert.match(mainSource068, /defaultBuiltinViewForMedium\(UNRATED_BUILTIN_VIEWS, 'artworks'\)/, 'Art doit ouvrir explicitement sur Favori, pas sur la première vue de la rangée')
   assert.match(categorySwitchSource068, /role="group"/, 'L’interrupteur annonce un groupe multi-sélection')
   assert.match(categorySwitchSource068, /aria-pressed=/, 'Chaque segment expose son état coché')
   assert.match(categorySwitchSource068, /effective\.length === 1\) return/, 'L’interrupteur garde toujours au moins une catégorie active')
@@ -3864,6 +3912,14 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
 assert.match(libraryViewBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
 assert.match(libraryViewBarSource, /Enregistrer comme vue/, 'La rangée doit permettre d’enregistrer le combo courant comme vue')
 assert.match(libraryViewBarSource, /INLINE_SAVED_VIEWS/, 'Le débordement des vues enregistrées doit rester borné dans la rangée')
+assert.match(libraryViewBarSource, /debut >= pointEntree/, 'Le point médian doit déclencher l’overflow plutôt que de laisser des boutons rognés à droite')
+assert.match(libraryViewBarSource, /data-view-id=\{view\.id\}/, 'La mesure du débordement doit identifier chaque bouton de façon stable')
+assert.match(libraryViewBarSource, /aria-pressed=\{activeView\.id === view\.id\}/, 'Les vues intégrées et enregistrées doivent exposer leur état actif')
+assert.match(libraryViewBarSource, /event\.key === 'Home'[\s\S]*event\.key === 'End'/, 'La rangée doit permettre de rejoindre ses extrémités au clavier')
+assert.match(libraryViewBarSource, /aria-haspopup="menu"/, 'Le débordement doit s’annoncer comme menu')
+assert.match(libraryViewBarSource, /role="menuitem"/, 'Les entrées de débordement doivent être des éléments de menu')
+assert.match(libraryViewBarSource, /ArrowDown[\s\S]*ArrowUp/, 'Le menu de débordement doit rester navigable au clavier')
+assert.match(libraryViewBarSource, /onViewChange\(defaultBuiltinViewForMedium\(builtinViews, medium\)\)/, 'Supprimer une vue enregistrée doit revenir à la vue d’ouverture, pas au premier onglet visible')
 
 // Jalon 0.4.26 — Séries assistées TMDB, même parcours direct que Films.
 const seriesMetadataAssistanceSource = readFileSync(new URL('../src/domain/seriesMetadataAssistance.ts', import.meta.url), 'utf8')
@@ -4134,7 +4190,12 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(mainSource0619, /editGameId/, 'Modifier Jeu doit réutiliser le formulaire intégré de la pop-up')
   assert.match(mainSource0619, /editArtworkId/, 'Modifier Art doit réutiliser le formulaire intégré de la pop-up')
   assert.match(stylesSource0619, /\.library-main \.artwork-card \.poster[\s\S]*?aspect-ratio: 16 \/ 10/, 'Les visuels Art doivent suivre le format 16:10')
-  assert.match(stylesSource0619, /\.library-main \.artwork-grid[\s\S]*?repeat\(5, minmax\(0, 1fr\)\)/, 'La grille Art doit occuper la largeur avec cinq colonnes')
+  // Constat G3 (audit UX du 22/09/2026) : la grille Art est définie une seule
+  // fois, en colonnes fluides (auto-fill 240px) ; l'ancien bloc cinq colonnes
+  // et ses paliers morts ont été supprimés.
+  const defsArtworkGrid = (stylesSource0619.match(/\.library-main \.artwork-grid\s*\{/g) ?? []).length
+  assert.ok(defsArtworkGrid >= 1, 'La grille Art doit être définie dans la feuille principale')
+  assert.match(stylesSource0619, /\.library-main \.artwork-grid\s*\{[^}]*repeat\(auto-fill, minmax\(240px, 1fr\)\)/, 'La grille Art doit occuper la largeur en colonnes fluides (auto-fill 240px)')
 }
 
 // Jalon 0.6.20 — composition stable : l’avis remplit la colonne droite sous le

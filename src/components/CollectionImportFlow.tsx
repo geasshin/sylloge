@@ -64,7 +64,6 @@ export function ImportModeChoice({ mediumLabel, importedCount, existingCount, on
         </button>
       </div>
       <p className="import-contextual-hint">
-        <span aria-hidden="true">💡</span>
         En cas de doute, choisissez Fusionner : rien n’est supprimé et les fiches en double vous seront proposées une par une.
       </p>
       <div className="assistant-actions">

@@ -10,11 +10,12 @@ import { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters, type LibraryFilters } from 
  * « avant 2019 » agit à l'intérieur des favoris, et un tri explicite remplace
  * celui du préset.
  *
- * Jalon 0.6.8 : les vues intégrées deviennent sémantiques (À voir, En cours,
- * Récents consommés, Favoris, Classement) via des groupes de statut abstraits
- * traduits en valeurs propres au médium par la couche SQL. La vue inventaire
- * « Tous » disparaît : l'intégralité d'une collection reste accessible en
- * vidant les filtres ou via une vue enregistrée dédiée.
+ * Les vues intégrées conservent des groupes de statut abstraits, traduits en
+ * valeurs propres au médium par la couche SQL. Leur ordre de présentation est
+ * commun : « Tous » ouvre la rangée, puis les vues propres au médium et le
+ * socle sémantique. Cet ordre ne définit pas la vue d'ouverture de la
+ * bibliothèque, qui reste la watchlist — sauf pour l'Art, qui ouvre sur
+ * « Favori » puisque cette collection n'a ni statut ni progression.
  */
 
 export const LIBRARY_SORT_COLUMNS = ['title', 'recency', 'rating', 'year', 'personalDate', 'added'] as const
@@ -104,9 +105,9 @@ const RANKING_VIEW: LibraryViewDefinition = {
 }
 
 /**
- * Vue inventaire « Tous » (réintroduite en 0.6.11) : l'intégralité de la
- * collection, sans filtre métier. Jamais la vue principale ; elle ferme la
- * rangée à droite après les vues sémantiques.
+ * Vue inventaire « Tous » : l'intégralité de la collection, sans filtre
+ * métier. Elle ouvre toujours la rangée visible, sans être pour autant la vue
+ * sélectionnée au démarrage d'une bibliothèque.
  */
 export const ALL_VIEW: LibraryViewDefinition = {
   id: 'all',
@@ -116,38 +117,34 @@ export const ALL_VIEW: LibraryViewDefinition = {
   builtin: true,
 }
 
-/**
- * Films (0.6.11) : Récent en tête comme vue principale, puis À voir, Favori,
- * Classement, Tous.
- */
+/** Films et Jeux : Tous, puis watchlist, Récent, Favori et Classement. */
 export const RATED_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
-  RECENT_VIEW,
+  ALL_VIEW,
   WATCHLIST_VIEW,
+  RECENT_VIEW,
   FAVORITES_VIEW,
   RANKING_VIEW,
-  ALL_VIEW,
 ]
 
-/** Séries et Livres : progression (En cours) puis le socle commun, Tous en fin. */
+/** Séries et Livres : la vue En cours propre au médium reste entre la watchlist et le socle commun. */
 export const PROGRESS_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
+  ALL_VIEW,
   WATCHLIST_VIEW,
   IN_PROGRESS_VIEW,
   RECENT_VIEW,
   FAVORITES_VIEW,
   RANKING_VIEW,
-  ALL_VIEW,
 ]
 
 /**
- * L'Art n'a ni note ni statut (0.6.11 : les pseudo-statuts « À découvrir » /
- * « Découverte » disparaissent) : Favori en vue principale, puis Récent et
- * Tous. La colonne SQL historique reste alimentée à valeur constante pour ne
- * pas casser la traduction des groupes de statut.
+ * L'Art n'a ni note, ni statut, ni progression : ni « En cours », ni
+ * « Classement », ni watchlist sémantique. La rangée visible commence malgré
+ * tout par « Tous », puis suit le socle « Récent » / « Favori ».
  */
 export const UNRATED_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
-  FAVORITES_VIEW,
-  RECENT_VIEW,
   ALL_VIEW,
+  RECENT_VIEW,
+  FAVORITES_VIEW,
 ]
 
 /**
@@ -176,10 +173,26 @@ export function builtinViewsForMedium(rated: boolean): readonly LibraryViewDefin
 }
 
 /**
- * La vue par défaut d'une bibliothèque est sa watchlist (0.6.8) : on ouvre
- * sur ce qu'il reste à consommer, pas sur un inventaire.
+ * Identifiants de vue d'ouverture. Ils sont indépendants de l'ordre visible :
+ * les quatre bibliothèques avec watchlist démarrent dessus, Art démarre sur
+ * Favori. Conserver deux constantes évite qu'une réorganisation de la rangée
+ * change silencieusement la vue sélectionnée.
  */
-export const DEFAULT_VIEW_ID = 'watchlist'
+export const WATCHLIST_DEFAULT_VIEW_ID = 'watchlist'
+export const ARTWORKS_DEFAULT_VIEW_ID = 'favorites'
+
+/** Nom de la vue d'ouverture selon le médium. */
+export function defaultViewIdForMedium(medium: keyof typeof WATCHLIST_LABELS): string {
+  return medium === 'artworks' ? ARTWORKS_DEFAULT_VIEW_ID : WATCHLIST_DEFAULT_VIEW_ID
+}
+
+/** Retrouve la vue d'ouverture titrée d'un médium sans lui faire hériter de l'ordre visible. */
+export function defaultBuiltinViewForMedium(
+  views: readonly LibraryViewDefinition[],
+  medium: keyof typeof WATCHLIST_LABELS,
+): LibraryViewDefinition {
+  return builtinViewById(titledBuiltinViews(views, medium), defaultViewIdForMedium(medium))
+}
 
 /** Retrouve une vue intégrée par identifiant, avec repli sur la première. */
 export function builtinViewById(views: readonly LibraryViewDefinition[], id: string): LibraryViewDefinition {
