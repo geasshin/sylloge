@@ -45,9 +45,18 @@ const STATUS_SYNONYMS: Record<string, StatusSynonyms> = {
   },
   jeu: {
     'à jouer': ['a jouer', 'jouer', 'to play', 'backlog', 'planned'],
-    'en cours': ['en cours', 'cours', 'encours', 'in progress', 'playing', 'playing now', 'started', 'current'],
-    'joué': ['joue', 'joués', 'jouée', 'jouées', 'fini', 'terminé', 'played', 'finished', 'beaten', 'completed', 'done'],
-    'regardé': ['regarde', 'regardé', 'regardés', 'watched let s play', "watched (let's play)", 'watched lets play', 'let s play', "let's play", 'lets play', 'let us play', 'stream', 'twitch', 'youtube', 'watched as let s play'],
+    // 0.6.11 : le médium n’a plus que trois statuts. Les valeurs externes
+    // « En cours » et « Regardé » (let’s play, Twitch, YouTube) rejoignent
+    // « joué », exactement comme la migration 15 et la relecture des
+    // sauvegardes antérieures (`toGameStatus`). Un vocabulaire externe ne doit
+    // jamais produire un statut que le formulaire du médium refuse : la fiche
+    // était alors rejetée et l’aperçu bloquait tout le fichier.
+    'joué': [
+      'joue', 'joués', 'jouée', 'jouées', 'fini', 'terminé', 'played', 'finished', 'beaten', 'completed', 'done',
+      'en cours', 'cours', 'encours', 'in progress', 'playing', 'playing now', 'started', 'current',
+      'regarde', 'regardé', 'regardés', 'watched let s play', "watched (let's play)", 'watched lets play',
+      'let s play', "let's play", 'lets play', 'let us play', 'stream', 'twitch', 'youtube', 'watched as let s play',
+    ],
     'abandonné': ['abandonne', 'abandonnés', 'abandonnée', 'abandonnées', 'dropped', 'abandoned', 'stopped'],
   },
   art: {

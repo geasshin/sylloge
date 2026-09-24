@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -94,7 +95,7 @@ const KEY_PARTS: &[u8] = &[
 
 const fn mask_byte(index: usize) -> u8 {{
     let s = SEED[index % SEED.len()];
-    ((s ^ ((index * 0x9D) as u8)) ^ (s << 1)) & 0xFF
+    (s ^ ((index * 0x9D) as u8)) ^ s.wrapping_shl(1)
 }}
 
 /// Reconstruit la clé API à partir des fragments obfusqués.
@@ -173,7 +174,19 @@ def main() -> int:
             raise SystemExit("Aller-retour échoué, fichier non écrit.")
 
         args.out.write_text(rendered, encoding="utf-8")
-        print(f"{args.out} écrit ({len(key)} octets de clé, aller-retour vérifié).")
+        formatter = subprocess.run(
+            ["rustfmt", "--edition", "2021", str(args.out)],
+            capture_output=True,
+            text=True,
+        )
+        if formatter.returncode != 0:
+            raise SystemExit(
+                f"rustfmt a échoué pour {args.out} : {formatter.stderr.strip()}"
+            )
+        print(
+            f"{args.out} écrit et formaté "
+            f"({len(key)} octets de clé, aller-retour vérifié)."
+        )
         return 0
 
     source = args.embedded_file.read_text(encoding="utf-8")

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { savedViewsRepository } from '../data/savedViewsRepository.ts'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { savedViewsRepository as sqliteSavedViewsRepository } from '../data/savedViewsRepository.ts'
 import type { SavedView, SavedViewCriteria, SavedViewMedium } from '../domain/savedViews.ts'
 import {
   EMPTY_LIBRARY_FILTERS,
@@ -10,6 +10,7 @@ import {
   LIBRARY_SORT_COLUMN_LABELS,
   LIBRARY_SORT_DIRECTION_LABELS,
   sortColumnsForMedium,
+  defaultBuiltinViewForMedium,
   type LibrarySort,
   type LibrarySortCapabilities,
   type LibraryViewDefinition,
@@ -34,6 +35,7 @@ export type LibraryFilterConfig = {
 type LibraryViewBarProps = {
   profileId: string
   medium: SavedViewMedium
+  savedViewsRepository?: Pick<typeof sqliteSavedViewsRepository, 'list' | 'create' | 'rename' | 'remove'>
   builtinViews: readonly LibraryViewDefinition[]
   activeView: LibraryViewDefinition
   onViewChange: (view: LibraryViewDefinition) => void
@@ -49,6 +51,9 @@ type LibraryViewBarProps = {
 }
 
 type OpenPopover = 'filters' | 'sort' | 'save' | 'more' | null
+
+/** Entrée du menu de débordement des vues (vue intégrée rognée ou vue enregistrée). */
+type EntreeDebordement = { id: string; nom: string; appliquer: () => void }
 
 /** Nombre de vues enregistrées affichées directement dans la rangée ; le reste va au débordement. */
 const INLINE_SAVED_VIEWS = 3
@@ -80,6 +85,7 @@ const ICONS = {
 export function LibraryViewBar({
   profileId,
   medium,
+  savedViewsRepository: repository = sqliteSavedViewsRepository,
   builtinViews,
   activeView,
   onViewChange,
@@ -100,10 +106,13 @@ export function LibraryViewBar({
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const vuesRef = useRef<HTMLDivElement>(null)
+  /** Identifiants des vues dont le bouton est rogné par la rangée (gabarit fixe ≥ 1251 px). */
+  const [idsRogpes, setIdsRogpes] = useState<string[]>([])
 
   useEffect(() => {
     let cancelled = false
-    savedViewsRepository.list(profileId, medium).then(
+    repository.list(profileId, medium).then(
       (loaded) => { if (!cancelled) setSavedViews(loaded) },
       (loadError: unknown) => {
         console.error('Impossible de charger les vues enregistrées.', loadError)
@@ -113,7 +122,7 @@ export function LibraryViewBar({
     return () => {
       cancelled = true
     }
-  }, [profileId, medium])
+  }, [profileId, medium, repository, onMediumFilterChange])
 
   useEffect(() => {
     if (open === null) return
@@ -139,6 +148,72 @@ export function LibraryViewBar({
   const sortColumns = sortColumnsForMedium(sortCapabilities)
   const activeSavedView = activeView.builtin ? null : savedViews.find((view) => view.id === activeView.id) ?? null
 
+  // Grille de vues unifiée : les vues intégrées et les trois premières vues
+  // enregistrées restent sur une seule ligne. Si la place manque, le composant
+  // retire réellement de la rangée tout ce qui déborde ou commence après son
+  // point médian, puis le transfère dans le menu « +n ». Le point médian évite
+  // qu'une rangée volontairement tronquée reste visuellement rognée à droite.
+  useLayoutEffect(() => {
+    const orderedIds = [
+      ...builtinViews.map((vue) => vue.id),
+      ...savedViews.slice(0, INLINE_SAVED_VIEWS).map((vue) => vue.id),
+    ]
+    const mesurer = () => {
+      const conteneur = vuesRef.current
+      if (!conteneur) return
+      // On mesure depuis la version complète, jamais depuis un état de rognage
+      // précédent : la largeur de chaque bouton doit être stable pour retrouver
+      // le point d'entrée exact de l'overflow quand la fenêtre est agrandie.
+      const boutons = orderedIds
+        .map((id) => conteneur.querySelector<HTMLButtonElement>(`:scope > button[data-view-id="${CSS.escape(id)}"]`))
+        .filter((bouton): bouton is HTMLButtonElement => bouton !== null)
+      const rendus = boutons.map((bouton) => {
+        bouton.hidden = false
+        return { bouton, width: bouton.getBoundingClientRect().width }
+      })
+      const conteneurBounds = conteneur.getBoundingClientRect()
+      const largeursEtOrigines = rendus.map(({ bouton, width }) => ({
+        bouton,
+        width,
+        debut: bouton.getBoundingClientRect().left - conteneurBounds.left,
+      }))
+      const pointEntree = (() => {
+        const positions = largeursEtOrigines.slice(1).map(({ debut, width }, index) => debut - width / 2 - largeursEtOrigines[index].width / 2)
+        if (positions.length === 0) return conteneurBounds.width
+        const milieu = Math.floor(positions.length / 2)
+        let point = positions[milieu]
+        for (let index = milieu - 1; index >= 0; index -= 1) {
+          if (positions[index] > point) break
+          point = positions[index]
+        }
+        for (let index = milieu + 1; index < positions.length; index += 1) {
+          if (positions[index] <= point) break
+          point = positions[index]
+        }
+        return point
+      })()
+      const idsRogpes: string[] = []
+      largeursEtOrigines.forEach(({ bouton, width, debut }) => {
+        if (debut + width > conteneurBounds.width + 0.5 || debut >= pointEntree) {
+          idsRogpes.push(bouton.dataset.viewId ?? '')
+          bouton.hidden = true
+        }
+      })
+      setIdsRogpes((precedents) => (precedents.join('|') === idsRogpes.join('|') ? precedents : idsRogpes))
+    }
+    mesurer()
+    const conteneur = vuesRef.current
+    if (!conteneur) return
+    const observateur = new ResizeObserver(mesurer)
+    observateur.observe(conteneur)
+    window.addEventListener('resize', mesurer)
+    void document.fonts?.ready.then(mesurer)
+    return () => {
+      observateur.disconnect()
+      window.removeEventListener('resize', mesurer)
+    }
+  }, [builtinViews, savedViews])
+
   const toggle = (popover: Exclude<OpenPopover, null>) => {
     setError(null)
     setRenaming(false)
@@ -158,7 +233,7 @@ export function LibraryViewBar({
 
   const saveNewView = async () => {
     try {
-      const created = await savedViewsRepository.create(profileId, medium, nameInput, currentCriteria)
+      const created = await repository.create(profileId, medium, nameInput, currentCriteria)
       setSavedViews((existing) => [...existing, created].sort((first, second) => first.name.localeCompare(second.name, 'fr', { sensitivity: 'base' })))
       setOpen(null)
       setError(null)
@@ -171,7 +246,7 @@ export function LibraryViewBar({
   const renameActiveView = async () => {
     if (!activeSavedView) return
     try {
-      await savedViewsRepository.rename(profileId, activeSavedView.id, nameInput)
+      await repository.rename(profileId, activeSavedView.id, nameInput)
       const trimmed = nameInput.trim().replace(/\s+/g, ' ')
       setSavedViews((existing) => existing
         .map((entry) => (entry.id === activeSavedView.id ? { ...entry, name: trimmed } : entry))
@@ -188,64 +263,125 @@ export function LibraryViewBar({
   const deleteActiveView = async () => {
     if (!activeSavedView) return
     try {
-      await savedViewsRepository.remove(profileId, activeSavedView.id)
+      await repository.remove(profileId, activeSavedView.id)
       setSavedViews((existing) => existing.filter((entry) => entry.id !== activeSavedView.id))
       setConfirmingDelete(false)
       setOpen(null)
       setError(null)
-      onViewChange(builtinViews[0])
+      onViewChange(defaultBuiltinViewForMedium(builtinViews, medium))
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : 'La vue n’a pas pu être supprimée.')
     }
   }
 
-  const renderViewButton = (view: LibraryViewDefinition) => (
+  const renderViewButton = (view: LibraryViewDefinition, onActivate?: () => void) => (
     <button
       className={`filter ${activeView.id === view.id ? 'active' : ''}`}
       type="button"
       aria-pressed={activeView.id === view.id}
       key={view.id}
-      onClick={() => onViewChange(view)}
+      data-view-id={view.id}
+      onClick={onActivate ?? (() => onViewChange(view))}
+      onKeyDown={(event) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return
+        const boutons = [...event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>(':scope > button.filter:not([hidden])') ?? []]
+        const position = boutons.indexOf(event.currentTarget)
+        if (position < 0) return
+        event.preventDefault()
+        const cible = event.key === 'Home'
+          ? boutons[0]
+          : event.key === 'End'
+            ? boutons.at(-1)
+            : boutons[(position + (event.key === 'ArrowRight' ? 1 : -1) + boutons.length) % boutons.length]
+        cible?.focus()
+      }}
     >
       {view.name}
     </button>
   )
 
+  const entreeOverflowId = (id: string) => `overflow-${id.replace(/[^a-zA-Z0-9_-]+/g, '-')}`
+
+  // Vues rognées par la rangée + vues enregistrées au-delà des trois affichées :
+  // toutes restent atteignables par le menu, ancré dans les actions.
+  const appliquerVue = (appliquer: () => void) => () => {
+    setOpen(null)
+    appliquer()
+  }
+  const entreesDebordement: EntreeDebordement[] = [
+    ...builtinViews
+      .filter((vue) => idsRogpes.includes(vue.id))
+      .map((vue) => ({ id: vue.id, nom: vue.name, appliquer: appliquerVue(() => onViewChange(vue)) })),
+    ...inlineSaved
+      .filter((vue) => idsRogpes.includes(vue.id))
+      .map((vue) => ({ id: vue.id, nom: vue.name, appliquer: appliquerVue(() => applySavedView(vue)) })),
+    ...overflowSaved.map((vue) => ({ id: vue.id, nom: vue.name, appliquer: appliquerVue(() => applySavedView(vue)) })),
+  ]
+
   return (
     <div className="view-bar" ref={rootRef}>
-      <div className="filters library-views" role="group" aria-label="Choisir la vue">
-        {builtinViews.map(renderViewButton)}
+      <div className="filters library-views" role="group" aria-label="Choisir la vue" ref={vuesRef}>
+        {builtinViews.map((view) => renderViewButton(view))}
         {inlineSaved.map((view) => renderViewButton({ id: view.id, name: view.name, filters: view.criteria.filters, sort: view.criteria.sort, builtin: false }))}
-        {overflowSaved.length > 0 && (
+      </div>
+
+      <div className="view-bar-actions">
+        {entreesDebordement.length > 0 && (
           <div className="view-bar-popover-anchor">
             <button
               className={`filter view-bar-more ${open === 'more' ? 'active' : ''}`}
               type="button"
               aria-expanded={open === 'more'}
-              aria-label={`${overflowSaved.length} vues enregistrées supplémentaires`}
+              aria-controls="library-views-overflow"
+              aria-haspopup="menu"
+              aria-label={entreesDebordement.length > 1 ? `${entreesDebordement.length} vues supplémentaires` : '1 vue supplémentaire'}
               onClick={() => toggle('more')}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  if (open !== 'more') toggle('more')
+                  window.requestAnimationFrame(() => {
+                    const premier = document.querySelector<HTMLButtonElement>('#library-views-overflow [role="menuitem"]')
+                    const dernier = [...document.querySelectorAll<HTMLButtonElement>('#library-views-overflow [role="menuitem"]')].at(-1)
+                    ;(event.key === 'ArrowDown' ? premier : dernier)?.focus()
+                  })
+                }
+              }}
             >
-              +{overflowSaved.length}
+              +{entreesDebordement.length}
             </button>
             {open === 'more' && (
-              <div className="view-bar-popover view-bar-overflow" role="dialog" aria-label="Vues enregistrées supplémentaires">
-                {overflowSaved.map((view) => (
+              <div id="library-views-overflow" className="view-bar-popover view-bar-overflow" role="menu" aria-label="Vues supplémentaires">
+                {entreesDebordement.map((entree) => (
                   <button
                     className="view-bar-overflow-item"
                     type="button"
-                    key={view.id}
-                    onClick={() => applySavedView(view)}
+                    role="menuitem"
+                    key={entree.id}
+                    id={entreeOverflowId(entree.id)}
+                    onClick={entree.appliquer}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return
+                      const items = [...event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []]
+                      const position = items.indexOf(event.currentTarget)
+                      if (position < 0) return
+                      event.preventDefault()
+                      const cible = event.key === 'Home'
+                        ? items[0]
+                        : event.key === 'End'
+                          ? items.at(-1)
+                          : items[(position + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]
+                      if (cible) cible.focus()
+                      else event.currentTarget.closest<HTMLElement>('.view-bar-popover-anchor')?.querySelector<HTMLButtonElement>('.view-bar-more')?.focus()
+                    }}
                   >
-                    {view.name}
+                    {entree.nom}
                   </button>
                 ))}
               </div>
             )}
           </div>
         )}
-      </div>
-
-      <div className="view-bar-actions">
         <div className="view-bar-popover-anchor">
           <button
             className={`view-bar-icon ${open === 'filters' ? 'active' : ''} ${activeFilterCount > 0 ? 'engaged' : ''}`}

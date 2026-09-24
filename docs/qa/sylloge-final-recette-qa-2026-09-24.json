@@ -1,0 +1,1346 @@
+{
+  "base": "http://127.0.0.1:5192/qa-integration.html",
+  "results": [
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "home",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Ma bibliothèque",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 2530.984375,
+          "top": 0,
+          "right": 390,
+          "bottom": 2530.984375,
+          "left": 0
+        },
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 2531,
+        "scrollHeight": 2531,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 292.125,
+            "y": 656.484375,
+            "width": 27.78125,
+            "height": 44,
+            "top": 656.484375,
+            "right": 319.90625,
+            "bottom": 700.484375,
+            "left": 292.125
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 292.125,
+            "y": 1559.484375,
+            "width": 27.78125,
+            "height": 44,
+            "top": 1559.484375,
+            "right": 319.90625,
+            "bottom": 1603.484375,
+            "left": 292.125
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 178.59375,
+            "y": 2019.984375,
+            "width": 27.78125,
+            "height": 44,
+            "top": 2019.984375,
+            "right": 206.375,
+            "bottom": 2063.984375,
+            "left": 178.59375
+          }
+        }
+      ],
+      "smallControlCount": 3,
+      "unlabeledControls": [],
+      "activeView": null,
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1653,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 543,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1098,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 543,
+          "scrollable": true,
+          "tabIndex": 0
+        }
+      ],
+      "controls": 54
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "films",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Films",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "top": 0,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 2281,
+        "overflowX": false,
+        "overflowY": true
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À voir",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 14
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "series",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Séries",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "top": 0,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 844,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À voir",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 16
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "books",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Livres",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "top": 0,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 844,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À lire",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 16
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "games",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Jeux",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "top": 0,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 844,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À jouer",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 14
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "artworks",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Art",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "top": 0,
+          "right": 390,
+          "bottom": 844,
+          "left": 0
+        },
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 844,
+        "scrollHeight": 844,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "Favori",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 14
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "screen": "drawer",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Ma bibliothèque",
+      "theme": "light",
+      "document": {
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 2530.984375,
+          "top": 0,
+          "right": 390,
+          "bottom": 2530.984375,
+          "left": 0
+        },
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "clientHeight": 2531,
+        "scrollHeight": 2531,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 292.125,
+            "y": 656.484375,
+            "width": 27.78125,
+            "height": 44,
+            "top": 656.484375,
+            "right": 319.90625,
+            "bottom": 700.484375,
+            "left": 292.125
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 292.125,
+            "y": 1559.484375,
+            "width": 27.78125,
+            "height": 44,
+            "top": 1559.484375,
+            "right": 319.90625,
+            "bottom": 1603.484375,
+            "left": 292.125
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 178.59375,
+            "y": 2019.984375,
+            "width": 27.78125,
+            "height": 44,
+            "top": 2019.984375,
+            "right": 206.375,
+            "bottom": 2063.984375,
+            "left": 178.59375
+          }
+        }
+      ],
+      "smallControlCount": 3,
+      "unlabeledControls": [],
+      "activeView": null,
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": true
+      },
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1653,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 543,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 1098,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 358,
+          "scrollWidth": 543,
+          "scrollable": true,
+          "tabIndex": 0
+        }
+      ],
+      "controls": 62
+    },
+    {
+      "viewport": "mobile",
+      "screen": "drawer-focus",
+      "identity": {
+        "title": "Sylloge — recette intégration",
+        "host": "127.0.0.1:5192",
+        "h1": "Ma bibliothèque"
+      },
+      "drawer": {
+        "open": true,
+        "activeLabel": "Fermer le menu",
+        "count": 8,
+        "bodyOverflow": "hidden"
+      },
+      "interactions": {
+        "escapeCloses": false
+      }
+    },
+    {
+      "viewport": "mobile",
+      "screen": "drawer-escape",
+      "identity": {
+        "title": "Sylloge — recette intégration",
+        "host": "127.0.0.1:5192",
+        "h1": "Ma bibliothèque"
+      },
+      "interactions": {
+        "escapeCloses": true
+      }
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "screen": "home",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Ma bibliothèque",
+      "theme": "light",
+      "document": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 2792.4375,
+          "top": 0,
+          "right": 768,
+          "bottom": 2792.4375,
+          "left": 0
+        },
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "clientHeight": 2792,
+        "scrollHeight": 2792,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 288.28125,
+            "y": 701.921875,
+            "width": 25.109375,
+            "height": 44,
+            "top": 701.921875,
+            "right": 313.390625,
+            "bottom": 745.921875,
+            "left": 288.28125
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 288.28125,
+            "y": 1758.890625,
+            "width": 25.109375,
+            "height": 44,
+            "top": 1758.890625,
+            "right": 313.390625,
+            "bottom": 1802.890625,
+            "left": 288.28125
+          }
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Art",
+          "rect": {
+            "x": 179.40625,
+            "y": 2280.875,
+            "width": 25.109375,
+            "height": 44,
+            "top": 2280.875,
+            "right": 204.515625,
+            "bottom": 2324.875,
+            "left": 179.40625
+          }
+        }
+      ],
+      "smallControlCount": 3,
+      "unlabeledControls": [],
+      "activeView": null,
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 728,
+          "scrollWidth": 2208,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 728,
+          "scrollWidth": 728,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 728,
+          "scrollWidth": 1468,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 728,
+          "scrollWidth": 728,
+          "scrollable": false,
+          "tabIndex": 0
+        }
+      ],
+      "controls": 50
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "screen": "films",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Films",
+      "theme": "light",
+      "document": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "top": 0,
+          "right": 768,
+          "bottom": 1024,
+          "left": 0
+        },
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "clientHeight": 1024,
+        "scrollHeight": 4591,
+        "overflowX": false,
+        "overflowY": true
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À voir",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 21
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "screen": "series",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Séries",
+      "theme": "light",
+      "document": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "top": 0,
+          "right": 768,
+          "bottom": 1024,
+          "left": 0
+        },
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "clientHeight": 1024,
+        "scrollHeight": 1024,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À voir",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 18
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "screen": "books",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Livres",
+      "theme": "light",
+      "document": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "top": 0,
+          "right": 768,
+          "bottom": 1024,
+          "left": 0
+        },
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "clientHeight": 1024,
+        "scrollHeight": 1024,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À lire",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 18
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "screen": "games",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Jeux",
+      "theme": "light",
+      "document": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "top": 0,
+          "right": 768,
+          "bottom": 1024,
+          "left": 0
+        },
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "clientHeight": 1024,
+        "scrollHeight": 1024,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "À jouer",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 17
+    },
+    {
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "screen": "artworks",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Art",
+      "theme": "light",
+      "document": {
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 768,
+          "height": 1024,
+          "top": 0,
+          "right": 768,
+          "bottom": 1024,
+          "left": 0
+        },
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "clientHeight": 1024,
+        "scrollHeight": 1024,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [],
+      "smallControlCount": 0,
+      "unlabeledControls": [],
+      "activeView": "Favori",
+      "nav": {
+        "sidebar": false,
+        "appBar": true,
+        "bottom": true,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 14
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screen": "home",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Ma bibliothèque",
+      "theme": "light",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 208,
+          "y": 0,
+          "width": 1232,
+          "height": 1000,
+          "top": 0,
+          "right": 1440,
+          "bottom": 1000,
+          "left": 208
+        },
+        "clientWidth": 1232,
+        "scrollWidth": 1232,
+        "clientHeight": 1000,
+        "scrollHeight": 2296,
+        "overflowX": false,
+        "overflowY": true
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Thème clair",
+          "rect": {
+            "x": 10,
+            "y": 320,
+            "width": 187,
+            "height": 24,
+            "top": 320,
+            "right": 197,
+            "bottom": 344,
+            "left": 10
+          }
+        }
+      ],
+      "smallControlCount": 1,
+      "unlabeledControls": [],
+      "activeView": null,
+      "nav": {
+        "sidebar": true,
+        "appBar": false,
+        "bottom": false,
+        "drawer": false
+      },
+      "lanes": [
+        {
+          "label": "Derniers ajouts — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1745,
+          "scrollable": true,
+          "tabIndex": 0
+        },
+        {
+          "label": "À découvrir — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Favoris et mieux notés — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        },
+        {
+          "label": "Vus, lus et joués — file horizontale, défilement aux flèches gauche et droite",
+          "clientWidth": 1157,
+          "scrollWidth": 1157,
+          "scrollable": false,
+          "tabIndex": 0
+        }
+      ],
+      "controls": 46
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screen": "films",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Films",
+      "theme": "light",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 208,
+          "y": 0,
+          "width": 1232,
+          "height": 1000,
+          "top": 0,
+          "right": 1440,
+          "bottom": 1000,
+          "left": 208
+        },
+        "clientWidth": 1232,
+        "scrollWidth": 1232,
+        "clientHeight": 1000,
+        "scrollHeight": 1354,
+        "overflowX": false,
+        "overflowY": true
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Thème clair",
+          "rect": {
+            "x": 10,
+            "y": 320,
+            "width": 187,
+            "height": 24,
+            "top": 320,
+            "right": 197,
+            "bottom": 344,
+            "left": 10
+          }
+        }
+      ],
+      "smallControlCount": 1,
+      "unlabeledControls": [],
+      "activeView": "À voir",
+      "nav": {
+        "sidebar": true,
+        "appBar": false,
+        "bottom": false,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 19
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screen": "series",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Séries",
+      "theme": "light",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 208,
+          "y": 0,
+          "width": 1232,
+          "height": 1000,
+          "top": 0,
+          "right": 1440,
+          "bottom": 1000,
+          "left": 208
+        },
+        "clientWidth": 1232,
+        "scrollWidth": 1232,
+        "clientHeight": 1000,
+        "scrollHeight": 1000,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Thème clair",
+          "rect": {
+            "x": 10,
+            "y": 320,
+            "width": 187,
+            "height": 24,
+            "top": 320,
+            "right": 197,
+            "bottom": 344,
+            "left": 10
+          }
+        }
+      ],
+      "smallControlCount": 1,
+      "unlabeledControls": [],
+      "activeView": "À voir",
+      "nav": {
+        "sidebar": true,
+        "appBar": false,
+        "bottom": false,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 16
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screen": "books",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Livres",
+      "theme": "light",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 208,
+          "y": 0,
+          "width": 1064.046875,
+          "height": 1000,
+          "top": 0,
+          "right": 1272.046875,
+          "bottom": 1000,
+          "left": 208
+        },
+        "clientWidth": 1064,
+        "scrollWidth": 1064,
+        "clientHeight": 1000,
+        "scrollHeight": 1000,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Thème clair",
+          "rect": {
+            "x": 10,
+            "y": 320,
+            "width": 187,
+            "height": 24,
+            "top": 320,
+            "right": 197,
+            "bottom": 344,
+            "left": 10
+          }
+        }
+      ],
+      "smallControlCount": 1,
+      "unlabeledControls": [],
+      "activeView": "À lire",
+      "nav": {
+        "sidebar": true,
+        "appBar": false,
+        "bottom": false,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 16
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screen": "games",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Jeux",
+      "theme": "light",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 208,
+          "y": 0,
+          "width": 782.953125,
+          "height": 1000,
+          "top": 0,
+          "right": 990.953125,
+          "bottom": 1000,
+          "left": 208
+        },
+        "clientWidth": 783,
+        "scrollWidth": 783,
+        "clientHeight": 1000,
+        "scrollHeight": 1000,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Thème clair",
+          "rect": {
+            "x": 10,
+            "y": 320,
+            "width": 187,
+            "height": 24,
+            "top": 320,
+            "right": 197,
+            "bottom": 344,
+            "left": 10
+          }
+        }
+      ],
+      "smallControlCount": 1,
+      "unlabeledControls": [],
+      "activeView": "À jouer",
+      "nav": {
+        "sidebar": true,
+        "appBar": false,
+        "bottom": false,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 15
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screen": "artworks",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Art",
+      "theme": "light",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 208,
+          "y": 0,
+          "width": 846.3125,
+          "height": 1000,
+          "top": 0,
+          "right": 1054.3125,
+          "bottom": 1000,
+          "left": 208
+        },
+        "clientWidth": 846,
+        "scrollWidth": 846,
+        "clientHeight": 1000,
+        "scrollHeight": 1000,
+        "overflowX": false,
+        "overflowY": false
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Thème clair",
+          "rect": {
+            "x": 10,
+            "y": 320,
+            "width": 187,
+            "height": 24,
+            "top": 320,
+            "right": 197,
+            "bottom": 344,
+            "left": 10
+          }
+        }
+      ],
+      "smallControlCount": 1,
+      "unlabeledControls": [],
+      "activeView": "Favori",
+      "nav": {
+        "sidebar": true,
+        "appBar": false,
+        "bottom": false,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 12
+    },
+    {
+      "viewport": "desktop",
+      "screen": "interactions",
+      "identity": {
+        "title": "Sylloge — recette intégration",
+        "host": "127.0.0.1:5192",
+        "h1": "Films"
+      },
+      "interactions": {
+        "before": "À voir",
+        "after": "Récent",
+        "filterDialog": "Filtres",
+        "escapeCloses": true,
+        "sortDialog": "Tri"
+      }
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "screen": "dark",
+      "title": "Sylloge — recette intégration",
+      "host": "127.0.0.1:5192",
+      "h1": "Films",
+      "theme": "dark",
+      "document": {
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "overflow": false
+      },
+      "main": {
+        "rect": {
+          "x": 208,
+          "y": 0,
+          "width": 1232,
+          "height": 1000,
+          "top": 0,
+          "right": 1440,
+          "bottom": 1000,
+          "left": 208
+        },
+        "clientWidth": 1232,
+        "scrollWidth": 1232,
+        "clientHeight": 1000,
+        "scrollHeight": 1354,
+        "overflowX": false,
+        "overflowY": true
+      },
+      "clippedText": [],
+      "smallControls": [
+        {
+          "tag": "BUTTON",
+          "text": "Thème sombre",
+          "rect": {
+            "x": 10,
+            "y": 320,
+            "width": 187,
+            "height": 24,
+            "top": 320,
+            "right": 197,
+            "bottom": 344,
+            "left": 10
+          }
+        }
+      ],
+      "smallControlCount": 1,
+      "unlabeledControls": [],
+      "activeView": "Récent",
+      "nav": {
+        "sidebar": true,
+        "appBar": false,
+        "bottom": false,
+        "drawer": false
+      },
+      "lanes": [],
+      "controls": 19
+    }
+  ],
+  "failures": [],
+  "consoleErrors": [],
+  "logErrors": [],
+  "exceptions": [],
+  "generatedAt": "2026-09-24T11:39:33.940Z"
+}

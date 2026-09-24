@@ -1,0 +1,232 @@
+{
+  "base": "http://127.0.0.1:5191/qa-integration.html",
+  "viewport": {
+    "title": "Sylloge — recette intégration",
+    "host": "127.0.0.1:5191",
+    "h1": "Ma bibliothèque",
+    "clientWidth": 1440,
+    "scrollWidth": 1440,
+    "homeClientHeight": 900,
+    "homeScrollHeight": 2240,
+    "firstScreenText": false,
+    "first": {
+      "heading": "Derniers ajouts",
+      "empty": "",
+      "top": 180.125,
+      "bottom": 604.890625,
+      "laneTop": 224.125,
+      "laneBottom": 564.890625,
+      "clientWidth": 1157,
+      "scrollWidth": 1745,
+      "cardCount": 9,
+      "visibleCards": 7,
+      "fullyVisibleCards": 6,
+      "cardWidths": [
+        177.84375,
+        177.84375,
+        177.84375,
+        177.84375,
+        177.84375,
+        177.84375,
+        177.84375,
+        177.84375,
+        177.84375
+      ]
+    },
+    "rows": [
+      {
+        "heading": "Derniers ajouts",
+        "empty": "",
+        "top": 180.125,
+        "bottom": 604.890625,
+        "laneTop": 224.125,
+        "laneBottom": 564.890625,
+        "clientWidth": 1157,
+        "scrollWidth": 1745,
+        "cardCount": 9,
+        "visibleCards": 7,
+        "fullyVisibleCards": 6,
+        "cardWidths": [
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375
+        ]
+      },
+      {
+        "heading": "À découvrir",
+        "empty": "",
+        "top": 604.890625,
+        "bottom": 1027.65625,
+        "laneTop": 646.890625,
+        "laneBottom": 987.65625,
+        "clientWidth": 1157,
+        "scrollWidth": 1157,
+        "cardCount": 3,
+        "visibleCards": 3,
+        "fullyVisibleCards": 0,
+        "cardWidths": [
+          177.84375,
+          177.84375,
+          177.84375
+        ]
+      },
+      {
+        "heading": "Favoris et mieux notés",
+        "empty": "",
+        "top": 1027.65625,
+        "bottom": 1461.421875,
+        "laneTop": 1069.65625,
+        "laneBottom": 1421.421875,
+        "clientWidth": 1157,
+        "scrollWidth": 1157,
+        "cardCount": 6,
+        "visibleCards": 0,
+        "fullyVisibleCards": 0,
+        "cardWidths": [
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375,
+          177.84375
+        ]
+      },
+      {
+        "heading": "Vus, lus et joués",
+        "empty": "",
+        "top": 1461.421875,
+        "bottom": 1884.1875,
+        "laneTop": 1503.421875,
+        "laneBottom": 1844.1875,
+        "clientWidth": 1157,
+        "scrollWidth": 1157,
+        "cardCount": 3,
+        "visibleCards": 0,
+        "fullyVisibleCards": 0,
+        "cardWidths": [
+          177.84375,
+          177.84375,
+          177.84375
+        ]
+      },
+      {
+        "heading": "Cette année",
+        "empty": "",
+        "top": 1912.1875,
+        "bottom": 2180.1875,
+        "laneTop": null,
+        "laneBottom": null,
+        "clientWidth": null,
+        "scrollWidth": null,
+        "cardCount": 0,
+        "visibleCards": 0,
+        "fullyVisibleCards": 0,
+        "cardWidths": []
+      }
+    ]
+  },
+  "scenarios": {
+    "vertical_over_rail": {
+      "before": {
+        "page": 0,
+        "lane": 2,
+        "active": "BODY"
+      },
+      "after": {
+        "page": 420,
+        "lane": 2,
+        "active": "BODY"
+      }
+    },
+    "horizontal_over_rail": {
+      "before": {
+        "page": 0,
+        "lane": 0,
+        "active": "at-lane"
+      },
+      "after": {
+        "page": 0,
+        "lane": 196,
+        "active": "at-lane"
+      }
+    },
+    "focus_and_keyboard": {
+      "after_horizontal_wheel": {
+        "page": 0,
+        "lane": 196,
+        "active": "at-lane"
+      },
+      "after_arrow_right": {
+        "page": 0,
+        "lane": 380,
+        "active": "at-lane"
+      }
+    },
+    "row_button_focus": {
+      "after": {
+        "page": 0,
+        "lane": 587,
+        "active": "BODY"
+      },
+      "activeTag": "BODY",
+      "activeLabel": null
+    }
+  },
+  "films": {
+    "box": {
+      "x": 208,
+      "y": 0,
+      "width": 973.140625,
+      "height": 900
+    },
+    "scroll": {
+      "clientHeight": 900,
+      "scrollHeight": 2591,
+      "before": 0,
+      "after": 300,
+      "windowY": 0
+    },
+    "pointer": {
+      "x": 694,
+      "y": 491,
+      "cardIndex": 1,
+      "cardBox": {
+        "x": 552.046875,
+        "y": 277.375,
+        "width": 285.046875,
+        "height": 427.5625
+      }
+    },
+    "clientWidth": 1440,
+    "scrollWidth": 1440,
+    "wheelHandlers": 0
+  },
+  "conclusion": {
+    "globalOverflow": "none",
+    "fullyVisibleCardsInFirstRow": 6,
+    "firstScreenRowsWithCards": 2,
+    "reprendreOrAussiEnCours": false
+  },
+  "console": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting..."
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected."
+    },
+    {
+      "type": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold"
+    }
+  ],
+  "pageerrors": [],
+  "failures": []
+}

@@ -148,7 +148,6 @@ function CollectionCsvPreviewPanel({
       )}
       {valid && (
         <p className="import-contextual-hint">
-          <span aria-hidden="true">💡</span>
           L’étape suivante te propose Remplacer ou Fusionner. Rien n’est encore écrit : tu pourras relire le résumé complet après l’import.
         </p>
       )}

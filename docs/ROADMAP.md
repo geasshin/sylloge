@@ -3,6 +3,8 @@
 > **Statut :** feuille de route active. Les releases `0.2.0`, `0.3.0`, `0.4.0` et `0.5.0` sont livrées. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le train actif prépare la release publique `0.6.0` (front-end définitif) ; sa spécification détaillée vit dans [`plans/roadmap-future.md`](plans/roadmap-future.md), consultée à l'ouverture du train, et les jalons concernés sont réintégrés ici au fur et à mesure.
 >
 > Les releases publiques sont des hypothèses de séquencement, pas des promesses de calendrier. Elles sont construites par plusieurs jalons d’intégration étroits, chacun validé et commité avant le suivant.
+>
+> **Fournisseur Jeux actuel :** `IGDB`. Les mentions de `RAWG` dans les jalons historiques décrivent un état antérieur et ne constituent pas la configuration courante.
 
 ## 1. Promesse de la V1 publique
 

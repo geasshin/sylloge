@@ -33,7 +33,7 @@ Détails utiles par médium : Livre en Manga pour voir le compteur de tomes +/�
 - [ ] Films : rechercher « Amélie » dans TMDB, cliquer un résultat : le formulaire se préremplit, statut/note/favori restent vides, puis annuler sans rien écrire.
 - [ ] Séries : même parcours TMDB TV avec un titre connu.
 - [ ] Livres : même parcours Open Library avec « Le Petit Prince ».
-- [ ] Jeux : même parcours RAWG, attribution « Données : RAWG » visible.
+- [ ] Jeux : même parcours IGDB, avec le fournisseur affiché dans le parcours.
 
 Si un fournisseur échoue : noter le message exact affiché avant tout diagnostic, une panne chez le fournisseur n'est pas un défaut de l'application.
 

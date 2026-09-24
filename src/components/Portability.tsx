@@ -1178,7 +1178,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
         serializeLibraryDocument(document),
       )
       setExportMessage(savedName
-        ? `Export JSON enregistré dans « ${savedName} » (${full.films.length} films, ${full.series.length} séries, ${full.books.length} livres, ${full.games.length} jeux, ${full.artworks.length} œuvres).`
+        ? `Export JSON enregistré dans « ${savedName} » (${full.films.length} ${full.films.length === 1 ? 'film' : 'films'}, ${full.series.length} ${full.series.length === 1 ? 'série' : 'séries'}, ${full.books.length} ${full.books.length === 1 ? 'livre' : 'livres'}, ${full.games.length} ${full.games.length === 1 ? 'jeu' : 'jeux'}, ${full.artworks.length} ${full.artworks.length === 1 ? 'œuvre' : 'œuvres'}).`
         : 'Export annulé. Aucun fichier n’a été écrit.')
     } catch (error) {
       console.error('Impossible d’exporter la bibliothèque complète.', error)
@@ -1215,7 +1215,7 @@ function GlobalTransferSection({ library, fullLibrary, onImported, onProfilesCha
         )
         onProfilesChanged()
         onImported({ profile: imported.profile, films: imported.films })
-        setImportMessage(`Bibliothèque restaurée dans le profil courant « ${imported.profile.name} » : ${imported.films.length} films, ${imported.series.length} séries, ${imported.books.length} livres, ${imported.games.length} jeux, ${imported.artworks.length} œuvres.`)
+        setImportMessage(`Bibliothèque restaurée dans le profil courant « ${imported.profile.name} » : ${imported.films.length} ${imported.films.length === 1 ? 'film' : 'films'}, ${imported.series.length} ${imported.series.length === 1 ? 'série' : 'séries'}, ${imported.books.length} ${imported.books.length === 1 ? 'livre' : 'livres'}, ${imported.games.length} ${imported.games.length === 1 ? 'jeu' : 'jeux'}, ${imported.artworks.length} ${imported.artworks.length === 1 ? 'œuvre' : 'œuvres'}.`)
         return
       }
 
