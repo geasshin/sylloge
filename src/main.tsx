@@ -2511,8 +2511,8 @@ function App() {
     }
   }
 
-  // Même parcours direct pour les Jeux via RAWG (jalon 0.4.28), clé
-  // embarquée côté backend, jamais exposée au frontend.
+  // Même parcours direct pour les Jeux via IGDB, identifiants
+  // embarqués côté backend, jamais exposés au frontend.
   const selectIgdbGameCandidate = async (candidate: IgdbGameCandidate) => {
     setCandidateSelection({ pendingId: candidate.gameId, error: null })
     try {

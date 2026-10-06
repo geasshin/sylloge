@@ -1,54 +1,35 @@
-# Sylloge — instructions pour les agents de code
+# Consignes pour travailler sur Sylloge
 
-Sylloge est une bibliothèque culturelle personnelle **local-first**. La dernière release publique est `0.5.0` (extension culturelle aux cinq médiums) ; le train actif prépare `0.6.0`, le design desktop définitif de la V1.
+## Références du projet
 
-## Références à lire avant toute modification
+Avant un changement qui touche au produit, consulter :
 
-Dans cet ordre :
+1. docs/ROADMAP.md pour le périmètre confirmé et le prochain lot ;
+2. docs/WORKFLOW.md pour les pratiques de travail ;
+3. DESIGN.md pour la base visuelle ;
+4. README.md et les contrats de données concernés.
 
-1. `docs/ROADMAP.md` — périmètre, invariants et exclusions de la version ;
-2. `docs/WORKFLOW.md` — rôles, gates et règles Git ;
-3. `README.md` — architecture, lancement, données et sauvegarde ;
-4. `DESIGN.md` — règles visuelles et accessibilité.
+Les documents sous docs/archive et les anciens plans sous docs/plans sont historiques. Ils ne créent pas de tâche active ni de règle actuelle.
 
-Le code et ses tests décrivent le comportement précis. Ne traite pas les prototypes, prompts ou notes hors du dépôt comme une spécification active.
+## Base produit
 
-## Pré-vol et commandes
+- Application personnelle locale sur Mac.
+- Cinq bibliothèques : Films, Séries, Livres, Jeux et Art.
+- L’allure visuelle actuelle est conservée comme base. Les améliorations doivent corriger les incohérences et la finition sans engager un redesign global.
+- Ne pas élargir le périmètre vers de nouveaux médias, comptes, synchronisation, cloud ou distribution publique sans décision explicite.
 
-Avant d’éditer : relève `git status --short --branch`, lis les documents ci-dessus et vérifie le périmètre du brief. Arrête-toi et rapporte le blocage avant toute modification si l’arbre contient des changements inattendus, si une décision produit manque, ou si la baseline échoue à ses contrôles applicables.
+## Données et sécurité
 
-Contrôles usuels :
+- Ne pas ouvrir, modifier, copier ou utiliser les données personnelles réelles pour les essais.
+- Garder les essais dans un dossier et un profil temporaires isolés.
+- Les clés fournisseur sont locales et ignorées par Git. Ne pas les afficher, les demander dans le chat, les copier dans des fichiers suivis ou envoyer des requêtes réelles pour une validation ordinaire.
+- Préserver les formats existants. Examiner le contrat concerné avant de changer un import, un export ou une migration SQLite.
+- Ne jamais remplacer ou fusionner une bibliothèque sans choix explicite de la personne.
 
-```bash
-npm run typecheck
-npm run verify
-npm run build
-cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy --all-targets -- -D warnings
-```
+## Changements et vérification
 
-Un test peut naturellement être rouge durant un cycle de développement ciblé ; le contrôle de départ et le contrôle final doivent être verts. Ne masque jamais un échec en supprimant ou désactivant un test.
-
-## Garde-fous de périmètre
-
-N’ajoute pas de ta propre initiative : nouveau médium, redesign global, source externe ou API, compte, cloud, synchronisation, backend, tracking, dépendance, permission Tauri, format de données, migration SQLite ou changement de version. Si cela devient nécessaire pour le brief, explique pourquoi et attends un arbitrage.
-
-Pour un lot non trivial, travaille dans la branche prévue par le brief. Ne commit, ne fusionne, ne tague et ne pousse rien sauf instruction explicite.
-
-## Données, import et affiches
-
-- SQLite locale est la source de vérité. Ne synchronise jamais le fichier SQLite actif, son WAL ou son SHM avec un service cloud.
-- Préserve les migrations séquentielles de `src-tauri/src/database.rs` et teste toute évolution de schéma ou d’accès SQLite.
-- Un import est validé avant toute écriture et atomique. Il écrit dans la collection du **profil courant** après un choix explicite Remplacer ou Fusionner ; la restauration globale vise un profil vide et ne crée jamais de profil. Aucun import n’écrase ni ne fusionne silencieusement une bibliothèque.
-- Les exports JSON restent lisibles et versionnés. N’invente ni données ni contenu de remplacement.
-- Une affiche est facultative. Garde l’alternative accessible et le fallback neutre quand son URL est absente ou échoue ; aucun filtre, teinte, dégradé ou recadrage destructeur.
-
-## Rapport de fin de lot
-
-Réponds de façon factuelle avec :
-
-1. les fichiers réellement modifiés et le comportement livré ;
-2. les commandes lancées et leur résultat exact ;
-3. les scénarios manuels restant à exercer ;
-4. les limites, écarts ou décisions à arbitrer.
-
-Si un garde-fou bloque, ne contourne pas le problème : arrête-toi, conserve le périmètre et rapporte le fait précis.
+- Explorer seulement les fichiers utiles au lot et suivre les outils déjà utilisés par le dépôt.
+- Pour une modification d’interface, vérifier les parcours visés avec des données factices et examiner le rendu quand l’environnement le permet.
+- Pour du code, lancer les contrôles pertinents : npm run typecheck, npm run verify, npm run build et les commandes Cargo concernées. Un clone propre peut manquer les modules locaux ignorés contenant des secrets. Rapporter cette limite clairement, ne pas la masquer.
+- Ne pas commit, fusionner, taguer ou pousser sans demande explicite.
+- À la fin, indiquer les fichiers modifiés, les vérifications réellement exécutées et les limites restantes.

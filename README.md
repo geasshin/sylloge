@@ -1,77 +1,46 @@
 # Sylloge
 
-Sylloge est une bibliothèque culturelle personnelle, locale et durable. La release publique `0.5.0` couvre Films, Séries, Livres, Jeux et Art. SQLite est la source de vérité : aucun compte, API ou accès réseau n’est nécessaire pour créer, consulter ou modifier une fiche. L'enrichissement des métadonnées (TMDB, Open Library, RAWG), facultatif, est le seul appel réseau ; il ne sert qu'à préremplir une fiche après choix explicite de la personne.
+Sylloge est une application de bibliothèque culturelle personnelle, conçue pour un usage local sur Mac. Le périmètre retenu comprend cinq bibliothèques : Films, Séries, Livres, Jeux et Art.
 
-## Structure
+## État du projet
 
-- src/domain : modèles culturels, validation et formats JSON versionnés.
-- src/data : accès SQLite et pont vers les commandes Tauri.
-- src/components : fiche, formulaire, affiche et portabilité.
-- src-tauri : application Rust, migrations SQLite et dialogues natifs.
-- DESIGN.md : direction visuelle validée.
-- docs : feuille de route et mode de travail versionnés.
+La base de reprise est la branche main au commit 0854e2a. Le tag publié v0.6.0 précède ce commit et le numéro affiché dans les manifestes est encore 0.6.0. L’application installée affiche aussi 0.6.0, mais son commit exact n’est pas connu. Pour la reprise, l’application installée est considérée comme la même étape générale du projet que main, sans affirmer une identité exacte des binaires.
 
-## Lancer
+Les décisions et l’ordre des prochains lots figurent dans [la feuille de route](docs/ROADMAP.md). Les faits de l’audit et ses limites sont dans [l’état de base](docs/ETAT_DE_BASE.md).
 
-Prérequis : Node.js avec npm, Rust avec Cargo et les Xcode Command Line Tools.
+## Technologies
 
-~~~bash
-npm install
+- Interface : React, TypeScript et Vite.
+- Application de bureau : Tauri et Rust.
+- Données personnelles : SQLite locale.
+- Aide facultative aux métadonnées : TMDB pour Films et Séries, Open Library pour Livres, IGDB pour Jeux. Les bibliothèques restent utilisables sans ces services.
+
+## Lancer le projet
+
+Prérequis : Node.js avec npm, Rust avec Cargo et les outils de ligne de commande Xcode.
+
+```bash
+npm ci
 npm run tauri:dev
-~~~
+```
 
-Pour créer un bundle macOS local non publiable :
+Les modules Rust contenant les secrets de fournisseur sont ignorés par Git et ne sont pas inclus dans un clone. Le lancement natif et certaines validations ne passent pas tant qu’ils ne sont pas générés, même si l’usage des métadonnées reste facultatif dans l’application. Suivre les exemples du [générateur de modules locaux](scripts/generate_embedded_key.py) avec les secrets déjà conservés dans des fichiers locaux protégés. Ne jamais ajouter de clé réelle au dépôt ni la coller dans une commande ou dans le chat. L’audit de reprise a utilisé uniquement des valeurs factices temporaires.
 
-~~~bash
-npm run tauri:build -- --no-sign
-open src-tauri/target/release/bundle/macos/Sylloge.app
-~~~
+## Contrôles du projet
 
-Pour un bundle signé distribuable et la publication GitHub, suivre `docs/TAURI_UPDATER_SETUP.md`. Le build release produit un DMG pour l’installation initiale et une archive `.app.tar.gz` signée pour l’updater.
-
-## Clés API embarquées
-
-Les clés TMDB et RAWG vivent chacune dans un fichier Rust ignoré par Git : `src-tauri/src/tmdb/embedded_key.rs` et `src-tauri/src/rawg/embedded_key.rs`. Un clone propre ne les contient pas et les contrôles Cargo échouent sans eux. Sur une nouvelle machine :
-
-1. Déposer chaque clé en clair dans `~/.sylloge-secrets/tmdb-api-key.txt` puis `~/.sylloge-secrets/rawg-api-key.txt`, avec un éditeur de texte ; ne jamais coller une clé dans un terminal.
-2. Générer les fichiers embarqués :
-
-~~~bash
-python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/tmdb-api-key.txt --provider tmdb --out src-tauri/src/tmdb/embedded_key.rs
-python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/rawg-api-key.txt --provider rawg --out src-tauri/src/rawg/embedded_key.rs
-~~~
-
-3. Rejouer `cd src-tauri && cargo test` : les tests du module embarqué valident la clé produite.
-
-Si un fichier embarqué existe mais que sa clé source manque, l’opération inverse restaure celle-ci sans jamais l’afficher :
-
-~~~bash
-python3 scripts/generate_embedded_key.py decode --embedded-file src-tauri/src/tmdb/embedded_key.rs --out ~/.sylloge-secrets/tmdb-api-key.txt
-~~~
-
-La clé n’apparaît ni dans le dépôt, ni dans les exports, snapshots ou journaux. L’embarcation vise un usage gratuit et non commercial diffusé à des personnes de confiance ; toute distribution publique ou commerciale impose de revoir ce modèle.
-
-## Données et sauvegarde
-
-Les données macOS sont dans ~/Library/Application Support/com.aurelientrouble.sylloge/. La base est sylloge.db, accompagnée si nécessaire de sylloge.db-wal et sylloge.db-shm. Ne pas les copier pendant que l’application est ouverte.
-
-Le format global `sylloge-library` v2 contient les cinq collections d’un profil et reste compatible avec les exports Films `sylloge-films` v1 historiques. Chaque bibliothèque et les Paramètres proposent désormais l’export JSON et l’export CSV de sa collection. Le CSV est un tableau lisible et versionné, adapté à un seul médium ; le JSON reste le format de restauration fidèle des cinq collections. Les [contrats CSV Films v1](docs/CONTRAT_CSV_FILMS_V1.md) et [Collections v1](docs/CONTRAT_CSV_COLLECTIONS_V1.md) fixent les colonnes et l’échappement. Les citations de Livres sont conservées dans une cellule JSON ordonnée ; leurs identifiants techniques et horodatages ne font pas partie du CSV. Chaque bibliothèque accepte un JSON Sylloge, un CSV UTF-8, un ZIP ou un dossier local contenant des JSON/CSV. Le conteneur est inspecté en mémoire, avec les limites documentées de taille, profondeur et volume, puis présente les chemins relatifs des candidats : un candidat unique part vers l’aperçu existant et plusieurs demandent un choix explicite. La fusion détecte les doublons au titre normalisé et préserve les données personnelles de l’existant. Un CSV Sylloge v1 est reconnu ; un tableau externe passe par un mapping explicite, et tout défaut bloque l’écriture avant les choix Remplacer ou Fusionner. Les pages Markdown restent réservées à l’association déterministe des notes longues du flux Films historique. La restauration globale v1/v2 est réservée au profil courant vide et ne crée aucun profil ; elle constitue l’unique parcours multi-collections, les imports partiels restant propres à chaque bibliothèque. Un dossier de sauvegarde explicite peut créer des snapshots JSON v2 atomiques après le premier changement du jour par profil ou à la demande ; seuls les 30 snapshots enregistrés par Sylloge les plus récents sont conservés. Le réglage peut être oublié sans supprimer les fichiers déjà créés ; un dossier effacé ou devenu inaccessible est signalé comme tel. Ne jamais copier la SQLite active, son WAL ou son SHM pendant que l’application est ouverte. Les détails Films restent définis par le [contrat de compatibilité Films v1](docs/CONTRAT_FILMS_V1.md).
-
-### Confidentialité et provenance des métadonnées
-
-L'enrichissement TMDB est entièrement facultatif : la création, la consultation et la modification d'une fiche restent intégralement possibles hors ligne. Quand la personne l'utilise, Sylloge contacte l'API TMDB depuis le backend Rust pour rechercher une œuvre, puis préremplit la fiche seulement après un choix explicite et modifiable. La clé API est embarquée dans le binaire par le développeur (fichier ignoré par Git, obfusqué) ; elle n'apparaît ni dans le dépôt, ni dans l'interface, ni dans les exports, snapshots ou journaux. Ce modèle vaut pour un usage gratuit et non commercial, diffusé à des personnes de confiance.
-
-Les données reçues de TMDB vivent dans une table de cache séparée (`film_tmdb_cache`), renouvelable pendant 80 jours puis expirant à 180 jours au plus tard, avec purge et renouvellement automatiques au démarrage. Ce cache — identifiant TMDB, résumé, crédits, adresses d'affiches et affiche choisie — n'est **jamais** inclus dans les exports JSON/CSV ni dans les snapshots : seules les données personnelles de la bibliothèque y figurent. Aucune image TMDB n'est téléchargée dans les données locales. L'attribution TMDB est affichée dans « À propos », dans les réglages et à proximité de la présentation enrichie d'une fiche. À l'expiration ou en l'absence de réseau, la fiche personnelle reste intacte avec son fallback neutre.
-
-## Vérifier
-
-~~~bash
+```bash
 npm run typecheck
 npm run verify
 npm run build
-cd src-tauri && cargo fmt --check && cargo check && cargo test && cargo clippy --all-targets -- -D warnings
-~~~
+cd src-tauri
+cargo fmt --check
+cargo check
+cargo test
+cargo clippy --all-targets -- -D warnings
+```
 
-## Périmètre actuel
+Voir [l’état de base](docs/ETAT_DE_BASE.md) pour savoir lesquels passent sur ce clone et dans quelles conditions.
 
-La release publique `0.5.0` livre les cinq médiums de bout en bout : saisie et création assistée (TMDB pour Films et Séries, Open Library pour Livres, RAWG pour Jeux), fiche, recherche, vues unifiées (présets filtres + tri, vues enregistrées), filtres et tris combinables, import/export unifié à deux boutons, Sauvegarde Sylloge, profils et snapshots globaux. Livres conserve le suivi des tomes Manga/Comics et les citations personnelles. Jeux garde une plateforme libre assistée par des suggestions et filtrable, sans tracker ; Art n’a pas de note et garde lieu et exposition en textes libres facultatifs. La restauration globale remplit un profil vide ; les imports partiels restent propres à chaque bibliothèque. La synchronisation reste explicitement hors V1.
+## Données locales
+
+La base personnelle est stockée par Tauri dans le dossier de données de l’application. Ne pas copier ni modifier cette base, ou ses fichiers SQLite -wal et -shm, pendant que Sylloge est ouvert. Les contrôles et essais doivent utiliser un profil temporaire isolé.

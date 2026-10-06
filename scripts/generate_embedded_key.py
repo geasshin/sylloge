@@ -1,31 +1,22 @@
 #!/usr/bin/env python3
-"""Génération et lecture des clés API embarquées de Sylloge.
+"""Génération et lecture des secrets fournisseur embarqués de Sylloge.
 
-Les deux fournisseurs à clé (TMDB pour Films et Séries, RAWG pour Jeux)
-embarquent leur clé dans un fichier Rust ignoré par Git :
+Le build natif utilise :
+  - TMDB : src-tauri/src/tmdb/embedded_key.rs
+  - IGDB : src-tauri/src/igdb/embedded_client_id.rs
+           src-tauri/src/igdb/embedded_client_secret.rs
 
-  - src-tauri/src/tmdb/embedded_key.rs
-  - src-tauri/src/rawg/embedded_key.rs
+Ces fichiers sont ignorés par Git. Le même générateur produit les trois modules :
 
-Chaque fichier contient une graine (SEED), les octets de la clé XORés avec le
-keystream `mask_byte` et le décodeur. C'est de l'OBFUSCATION, pas du chiffrement :
-le modèle suppose un binaire diffusé gratuitement à des personnes de confiance.
+  python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/tmdb-api-key.txt --provider tmdb --out src-tauri/src/tmdb/embedded_key.rs
+  python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-id.txt --provider igdb --out src-tauri/src/igdb/embedded_client_id.rs
+  python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-secret.txt --provider igdb --out src-tauri/src/igdb/embedded_client_secret.rs
 
-Usage :
-
-  # Produire un embedded_key.rs depuis la clé en clair
-  python3 scripts/generate_embedded_key.py encode \
-      --key-file ~/.sylloge-secrets/rawg-api-key.txt \
-      --provider rawg \
-      --out src-tauri/src/rawg/embedded_key.rs
-
-  # Restaurer la clé en clair depuis un embedded_key.rs existant
-  python3 scripts/generate_embedded_key.py decode \
-      --embedded-file src-tauri/src/rawg/embedded_key.rs \
-      --out ~/.sylloge-secrets/rawg-api-key.txt
-
-La clé ne doit jamais être collée dans un terminal ni affichée : elle transite
-par les fichiers, jamais par l'historique shell ni par la sortie du script.
+Chaque module obfusque les octets avec une graine et un keystream. C'est de
+l'obfuscation, pas du chiffrement. Ne jamais ajouter les fichiers générés au
+dépôt, coller un secret dans une commande ou afficher une valeur secrète.
+L'option decode restaure un secret dans un fichier protégé sans l'afficher.
+Le script ne contacte aucun fournisseur.
 """
 
 from __future__ import annotations

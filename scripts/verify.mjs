@@ -838,6 +838,27 @@ const completeExport = createLibraryExport({
   assert.equal(unknownStatusPreview.document, null, 'Un statut non reconnu doit bloquer l’import avant toute écriture')
   assert.match(unknownStatusPreview.errors[0].message, /pas reconnu/i, 'Le statut refusé doit être expliqué localement')
 
+  const frenchFilmStatusesSource = {
+    name: 'statuts-francais.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Statut\nFilm à voir,À voir\nFilm déjà vu,Vu\n', 'statuts-francais.csv')],
+    markdownPages: [],
+  }
+  const frenchFilmStatusesSession = prepareFilmCsvImport(frenchFilmStatusesSource)
+  const frenchFilmStatusesConfiguration = initialFilmImportConfiguration(frenchFilmStatusesSession)
+  const frenchFilmStatusesPreview = previewFilmCsvImport(
+    frenchFilmStatusesSession,
+    frenchFilmStatusesSource,
+    frenchFilmStatusesConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.deepEqual(
+    frenchFilmStatusesPreview.document?.films.map((film) => film.status),
+    ['à découvrir', 'terminé'],
+    'Les statuts français courants « À voir » et « Vu » doivent être reconnus dans un CSV Films',
+  )
+  assert.equal(frenchFilmStatusesPreview.errors.length, 0, 'Les statuts français reconnus ne doivent pas bloquer les fiches CSV')
+
   const ambiguousRatingSource = {
     name: 'notes-ambigues.csv',
     kind: 'csv',
@@ -1928,6 +1949,7 @@ const backupServiceSource = readFileSync(new URL('../src/data/backupService.ts',
 const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePortability.ts', import.meta.url), 'utf8')
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
 const libraryImportButtonSource = readFileSync(new URL('../src/components/LibraryImportButton.tsx', import.meta.url), 'utf8')
+const collectionImportFlowSource = readFileSync(new URL('../src/components/CollectionImportFlow.tsx', import.meta.url), 'utf8')
 const filmCsvImportFlowSource = readFileSync(new URL('../src/components/FilmCsvImportFlow.tsx', import.meta.url), 'utf8')
 // Le code de production de portability.rs s'arrête avant `mod tests` : les tests
 // d'intégration manipulent volontairement le cache TMDB pour prouver son exclusion,
@@ -2048,6 +2070,15 @@ assert.match(libraryImportButtonSource, /JSON[\s\S]*CSV[\s\S]*ZIP compatible/, '
 assert.match(libraryImportButtonSource, /setOpen\(true\)/, 'Le premier clic doit ouvrir le dialogue d’import')
 assert.doesNotMatch(libraryImportButtonSource, /setOpen\(true\)[^}]*pickAndPrepare/s, 'Le premier clic ne doit pas ouvrir immédiatement le sélecteur de fichiers')
 assert.match(libraryImportButtonSource, /writingRef\.current/, 'Un double déclenchement ne doit jamais lancer deux écritures concurrentes')
+assert.match(libraryImportButtonSource, /props\.kind === 'films' \|\| props\.kind === 'series' \? 'json-preview' : 'mode'/, 'Les imports JSON Films et Séries doivent passer par un aperçu avant le choix de traitement')
+assert.match(libraryImportButtonSource, /<JsonImportPreview[\s\S]*fileName=\{fileName\}[\s\S]*items=\{props\.kind === 'films' \? filmsImported : seriesImported\}/, 'L’aperçu JSON doit identifier le fichier et recevoir les fiches analysées')
+assert.match(libraryImportButtonSource, /items\.slice\(0, 5\)/, 'L’aperçu JSON doit limiter l’extrait affiché pour garder le dialogue lisible')
+assert.match(libraryImportButtonSource, /onContinue=\{\(\) => setStep\('mode'\)\}/, 'Le choix Remplacer ou Fusionner ne doit venir qu’après l’aperçu JSON')
+assert.match(collectionImportFlowSource, /title=\{duplicate\.existing\.title\}/, 'Le résolveur doit afficher le titre d’origine, avec sa casse et ses accents, et non la clé normalisée')
+assert.match(libraryImportButtonSource, /series: \{ pluralLabel: 'séries', gender: 'feminine' \}/, 'Le choix d’import doit accorder correctement le pluriel féminin Séries')
+assert.match(libraryImportButtonSource, /games: \{ pluralLabel: 'jeux', gender: 'masculine' \}/, 'Le choix d’import doit employer le pluriel correct de Jeux')
+assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détectée' : 'détectées'/, 'Le choix d’import doit accorder les noms féminins au singulier et au pluriel')
+assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détecté' : 'détectés'/, 'Le choix d’import doit accorder les noms masculins au singulier et au pluriel')
 assert.match(filmCsvImportFlowSource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
 assert.match(filmCsvImportFlowSource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
 assert.doesNotMatch(filmCsvImportFlowSource, /Nouveau profil|Créer le nouveau profil/, 'L’import CSV ou Notion ne doit plus créer de profil')
@@ -2329,6 +2360,13 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.equal(parseSeriesCollectionJson(serialized).items?.[0]?.title, 'Série v2', 'L’import unitaire Séries doit accepter un document v2')
   assert.equal(parseBooksCollectionJson(serialized).items?.[0]?.quotes[0]?.body, 'Citation mémorable', 'L’import unitaire Livres doit conserver les citations du document v2')
 
+  const malformedFilmJson = parseFilmsCollectionJson('{ "films":')
+  const malformedSeriesJson = parseSeriesCollectionJson('{ "series":')
+  assert.equal(malformedFilmJson.items, null, 'Un JSON Films mal formé ne doit fournir aucune fiche à écrire')
+  assert.equal(malformedSeriesJson.items, null, 'Un JSON Séries mal formé ne doit fournir aucune fiche à écrire')
+  assert.match(malformedFilmJson.error ?? '', /aucune donnée n’a été écrite/i, 'L’erreur JSON Films doit confirmer l’absence d’écriture')
+  assert.match(malformedSeriesJson.error ?? '', /aucune donnée n’a été écrite/i, 'L’erreur JSON Séries doit confirmer l’absence d’écriture')
+
   const v1Document = JSON.stringify({
     format: 'sylloge-films',
     version: 1,
@@ -2341,6 +2379,21 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.equal(parseFilmsCollectionJson(v1Document).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit rester compatible avec un JSON Films v1')
   assert.equal(parseSeriesCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Séries')
   assert.equal(parseBooksCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Livres')
+
+  const emptyCollectionsDocument = serializeLibraryDocument(createLibraryDocument({
+    profile: library.profile,
+    films: [],
+    series: [],
+    books: [],
+    games: [],
+    artworks: [],
+  }, '2026-07-19T12:00:00.000Z'))
+  const emptyFilmJson = parseFilmsCollectionJson(emptyCollectionsDocument)
+  const emptySeriesJson = parseSeriesCollectionJson(emptyCollectionsDocument)
+  assert.equal(emptyFilmJson.items, null, 'Un document v2 sans films doit être refusé avant Remplacer ou Fusionner')
+  assert.match(emptyFilmJson.error ?? '', /aucun film/i, 'Le refus d’une collection Films vide doit nommer le contenu absent')
+  assert.equal(emptySeriesJson.items, null, 'Un document v2 sans séries doit être refusé avant Remplacer ou Fusionner')
+  assert.match(emptySeriesJson.error ?? '', /aucune série/i, 'Le refus d’une collection Séries vide doit nommer le contenu absent')
 
   const invalidSeries = JSON.parse(serialized)
   invalidSeries.series[0].seasonsSeen = 12
@@ -3434,6 +3487,58 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
   assert.deepEqual(snapshotDocument?.artworks[0], existingArtwork, 'Le snapshot global doit inclure fidèlement l’Art')
 }
 
+// Lot imports Films/Séries — doublons entre la collection locale et le fichier.
+{
+  const timestamp = '2026-07-22T16:00:00.000Z'
+  const { planFilmMerge, planSeriesMerge, resolveFilmMerge, resolveSeriesMerge } = await import('../src/domain/importMerge.ts')
+  const existingFilm = {
+    id: 'film-local', profileId: 'default', title: 'Étoile bleue', originalTitle: null, year: null,
+    status: 'terminé', isFavorite: true, rating: 5, watchedAt: '2026-07-01',
+    personalNote: 'Avis local conservé.', director: null, summary: null,
+    providerName: null, providerId: null, posterUrl: null, createdAt: timestamp, updatedAt: timestamp,
+  }
+  const importedFilm = {
+    ...existingFilm, id: 'film-imported', profileId: 'source', title: ' etoile bleue ',
+    year: 2020, status: 'à découvrir', rating: null, isFavorite: false, watchedAt: null,
+    personalNote: null, director: 'Camille Test',
+  }
+  const newFilm = { ...importedFilm, id: 'film-new', title: 'Film inédit' }
+  const filmPlan = planFilmMerge([existingFilm], [importedFilm, newFilm])
+  assert.equal(filmPlan.duplicates.length, 1, 'La fusion Films doit repérer un titre identique après normalisation des accents, de la casse et des espaces')
+  assert.equal(filmPlan.additions.length, 1, 'La fusion Films doit garder les fiches sans correspondance comme ajouts')
+  const keptFilm = resolveFilmMerge([], filmPlan, new Map([['etoile bleue', 'keep-existing']]), timestamp).updates[0]
+  assert.equal(keptFilm.director, 'Camille Test', 'La fusion Films doit compléter les champs descriptifs vides')
+  assert.equal(keptFilm.status, existingFilm.status, 'La fusion Films doit préserver le statut personnel local')
+  assert.equal(keptFilm.rating, existingFilm.rating, 'La fusion Films doit préserver la note locale')
+  assert.equal(keptFilm.personalNote, existingFilm.personalNote, 'La fusion Films doit préserver l’avis local')
+  const importedFilmChoice = resolveFilmMerge([], filmPlan, new Map([['etoile bleue', 'keep-imported']]), timestamp).updates[0]
+  assert.equal(importedFilmChoice.id, existingFilm.id, 'Le choix de la fiche importée doit conserver l’identité SQLite locale')
+  assert.equal(importedFilmChoice.status, importedFilm.status, 'Le choix de la fiche importée doit appliquer ses données explicitement choisies')
+
+  const existingSeries = {
+    id: 'series-local', profileId: 'default', title: 'Été calme', showrunner: null, casting: null,
+    summary: null, category: 'série télé', status: 'en cours', rating: 4, isFavorite: true,
+    seasonsSeen: 2, seasonsTotal: 5, progressUpdatedAt: timestamp, startedAt: '2026-06-01',
+    posterUrl: null, personalNote: 'Progression locale conservée.', createdAt: timestamp, updatedAt: timestamp,
+  }
+  const importedSeries = {
+    ...existingSeries, id: 'series-imported', profileId: 'source', title: 'ete calme',
+    showrunner: 'Alex Test', summary: 'Résumé factice', status: 'à voir', rating: null,
+    isFavorite: false, seasonsSeen: 0, seasonsTotal: null, progressUpdatedAt: null,
+    startedAt: null, personalNote: null,
+  }
+  const seriesPlan = planSeriesMerge([existingSeries], [importedSeries])
+  assert.equal(seriesPlan.duplicates.length, 1, 'La fusion Séries doit ignorer casse et accents pour détecter un doublon')
+  const keptSeries = resolveSeriesMerge([], seriesPlan, new Map([['ete calme', 'keep-existing']]), timestamp).updates[0]
+  assert.equal(keptSeries.showrunner, 'Alex Test', 'La fusion Séries doit compléter les champs éditoriaux vides')
+  assert.equal(keptSeries.status, existingSeries.status, 'La fusion Séries doit préserver le statut personnel local')
+  assert.equal(keptSeries.seasonsSeen, existingSeries.seasonsSeen, 'La fusion Séries doit préserver la progression locale')
+  assert.equal(keptSeries.personalNote, existingSeries.personalNote, 'La fusion Séries doit préserver l’avis local')
+  const importedSeriesChoice = resolveSeriesMerge([], seriesPlan, new Map([['ete calme', 'keep-imported']]), timestamp).updates[0]
+  assert.equal(importedSeriesChoice.id, existingSeries.id, 'Le choix de la fiche Série importée doit conserver l’identité locale')
+  assert.equal(importedSeriesChoice.status, importedSeries.status, 'Le choix de la fiche Série importée doit appliquer son statut explicitement')
+}
+
 // Jalon 0.4.11 — résolveur de doublons praticable à grande échelle.
 {
   const { countModifiedDuplicateResolutions, filterDuplicatesByTitle } = await import('../src/domain/importMerge.ts')
@@ -4445,4 +4550,4 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.doesNotMatch(stylesSource0626, /theme-preview-[\s\S]{0,400}#5[bB]3[aA]68/, 'Onboarding : aucune couleur d’accent inventée ne doit rester dans les vignettes')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge. Uniformisation 0.6.7 : les fiches Séries, Livres, Jeux et Art reprennent les trois boutons explicites du modèle Film, plus aucun menu caché ; l’association directe s’ouvre dans la même pop-up floutée avec recherche préremplie, fusion éditoriale bornée et données personnelles intactes ; l’Art reste sans fournisseur par règle du domaine. Pop-up 0.6.19 : pop-up commune d’ajout et de modification, champs éditoriaux sans toggle et grille Art 16:10 pleine largeur. Composition 0.6.20 : hauteur stable dictée par l’affiche, avis intégré sous le verdict, contenu long défilable et actions ancrées dans la colonne droite. Prototype Film 0.6.21 : champ titre dégagé, verdict doré/rouge sous l’affiche, faits TMDB conservés en ajout et modification. Correction Film 0.6.22 : date compacte sur la ligne des statuts, fiche TMDB immobile et formulaire éditorial allégé. Extension 0.6.23 : gabarit de verdict sous visuel et ligne statut/date partagés par les cinq médiums, fond segmenté Film borné à ses boutons, ajout et modification alignés. Fidélité 0.6.24 : modifications relues depuis SQLite, verdicts purgés au retour en liste d’attente, types Série/Livre segmentés, provenance fournisseur persistante, informations enrichies encadrées et Art étendu sur toute la largeur. Paramètres 0.6.25 : navigation dédiée verrouillée, identité locale avec avatar borné, thème persistant et onboarding en trois étapes avec restauration validée avant écriture. Gabarits 0.6.26 : outils de bibliothèque fixes sur une ligne et toujours visibles même bibliothèque vide, états vides centrés pleine largeur, onboarding plein cadre avec crayon d’avatar et vignettes de thème fidèles.')
+console.log('Vérification réussie : cinq bibliothèques locales, stockage SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');

@@ -2665,6 +2665,17 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .assistant-source-summary div { min-width: 0; padding: 11px; background: var(--color-surface); }
 .assistant-source-summary dt { color: var(--color-text-muted); font: 500 8px var(--font-label); letter-spacing: .06em; text-transform: uppercase; }
 .assistant-source-summary dd { margin: 5px 0 0; overflow-wrap: anywhere; font-size: 13px; }
+.assistant-content.import-json-review-content { padding-bottom: 16px; }
+.assistant-stage.import-json-review { margin-top: 16px; padding: 18px; }
+.assistant-stage.import-json-review > .card-kicker { margin-top: 0; }
+.import-json-review .assistant-source-summary { margin: 14px 0 0; }
+.import-json-review .assistant-source-summary div { padding: 8px; }
+.assistant-stage > .import-json-review-label { margin: 13px 0 0; color: var(--color-text-muted); font: 600 9px var(--font-label); letter-spacing: .07em; text-transform: uppercase; }
+.import-title-preview { display: grid; gap: 1px; max-height: 230px; margin: 6px 0 0; padding: 0; overflow: auto; list-style: none; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-border); }
+.import-title-preview li { min-width: 0; padding: 6px 12px; overflow-wrap: anywhere; background: var(--color-surface); color: var(--color-text); font-size: 13px; line-height: 1.45; }
+.assistant-stage > .import-title-preview-note { margin: 6px 0 0; color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
+.import-json-review > .import-contextual-hint { margin-top: 9px; padding-block: 7px; }
+.import-json-review .assistant-actions { margin-top: 14px; }
 .source-destination-mapping { margin-top: 22px; border: 1px solid var(--color-border); border-radius: var(--radius-control); overflow: hidden; background: var(--color-border); }
 .source-destination-header, .source-destination-row { display: grid; grid-template-columns: minmax(0, 1fr) 42px minmax(220px, .88fr); gap: 1px; }
 .source-destination-header { background: var(--color-surface-muted); color: var(--color-text-muted); font: 600 9px var(--font-label); letter-spacing: .06em; text-transform: uppercase; }
