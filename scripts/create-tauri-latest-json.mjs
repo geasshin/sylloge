@@ -44,8 +44,12 @@ try {
 } catch {
   throw new Error('L’URL de l’archive est invalide.')
 }
-if (parsedUrl.protocol !== 'https:') {
-  throw new Error('L’URL de l’archive doit utiliser HTTPS.')
+if (
+  parsedUrl.origin !== 'https://api.github.com'
+  || !/^\/repos\/geasshin\/sylloge\/releases\/assets\/[1-9]\d*$/.test(parsedUrl.pathname)
+  || parsedUrl.search
+) {
+  throw new Error('L’URL de l’archive doit viser un asset de release Sylloge via l’API GitHub.')
 }
 
 const notesPath = resolve(notesFile)

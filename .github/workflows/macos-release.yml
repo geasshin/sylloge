@@ -77,8 +77,8 @@ jobs:
           : "${TAURI_SIGNING_PRIVATE_KEY:?Le secret TAURI_SIGNING_PRIVATE_KEY doit être configuré.}"
           npm run tauri:build -- --target universal-apple-darwin
 
-      - name: Préparer les notes et le manifeste updater
-        id: manifest
+      - name: Préparer les notes et les artefacts updater
+        id: artifacts
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,28 +104,10 @@ jobs:
             exit 1
           fi
 
-          manifest_arm="$RUNNER_TEMP/latest-arm.json"
-          manifest="$RUNNER_TEMP/latest.json"
-          archive_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Sylloge.app.tar.gz"
-          node scripts/create-tauri-latest-json.mjs \
-            --version "$VERSION" \
-            --notes-file "$notes_file" \
-            --url "$archive_url" \
-            --signature-file "$signature" \
-            --target darwin-aarch64 \
-            --output "$manifest_arm"
-          node --input-type=module - "$manifest_arm" "$manifest" <<'NODE'
-          import { readFileSync, writeFileSync } from 'node:fs'
-          const [sourcePath, outputPath] = process.argv.slice(2)
-          const manifest = JSON.parse(readFileSync(sourcePath, 'utf8'))
-          manifest.platforms['darwin-x86_64'] = manifest.platforms['darwin-aarch64']
-          writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
-          NODE
-
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
           echo "signature=$signature" >> "$GITHUB_OUTPUT"
           echo "dmg=${dmg_files[0]}" >> "$GITHUB_OUTPUT"
-          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+          echo "notes=$notes_file" >> "$GITHUB_OUTPUT"
 
       - name: Publier la GitHub Release et ses fichiers updater
         shell: bash
@@ -133,21 +115,49 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
           TAG: ${{ steps.version.outputs.tag }}
-          ARCHIVE: ${{ steps.manifest.outputs.archive }}
-          SIGNATURE: ${{ steps.manifest.outputs.signature }}
-          DMG: ${{ steps.manifest.outputs.dmg }}
-          MANIFEST: ${{ steps.manifest.outputs.manifest }}
+          ARCHIVE: ${{ steps.artifacts.outputs.archive }}
+          SIGNATURE: ${{ steps.artifacts.outputs.signature }}
+          DMG: ${{ steps.artifacts.outputs.dmg }}
+          NOTES: ${{ steps.artifacts.outputs.notes }}
         run: |
           set -euo pipefail
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" \
-              "$DMG" "$ARCHIVE" "$SIGNATURE" "$MANIFEST" \
-              --repo "$GITHUB_REPOSITORY" --clobber
-          else
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "Sylloge $VERSION" \
-              --notes-file "$RUNNER_TEMP/release-notes.md" \
-              "$DMG" "$ARCHIVE" "$SIGNATURE" "$MANIFEST"
+              --notes-file "$NOTES" \
+              --draft
           fi
+
+          gh release upload "$TAG" \
+            "$DMG" "$ARCHIVE" "$SIGNATURE" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+          archive_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name == "Sylloge.app.tar.gz" and .state == "uploaded") | .id')"
+          if [[ ! "$archive_asset_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Impossible de trouver l’identifiant de l’archive updater dans la release." >&2
+            exit 1
+          fi
+
+          manifest_arm="$RUNNER_TEMP/latest-arm.json"
+          manifest="$RUNNER_TEMP/latest.json"
+          archive_url="https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/$archive_asset_id"
+          node scripts/create-tauri-latest-json.mjs \
+            --version "$VERSION" \
+            --notes-file "$NOTES" \
+            --url "$archive_url" \
+            --signature-file "$SIGNATURE" \
+            --target darwin-aarch64 \
+            --output "$manifest_arm"
+          node --input-type=module - "$manifest_arm" "$manifest" <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs'
+          const [sourcePath, outputPath] = process.argv.slice(2)
+          const updaterManifest = JSON.parse(readFileSync(sourcePath, 'utf8'))
+          updaterManifest.platforms['darwin-x86_64'] = updaterManifest.platforms['darwin-aarch64']
+          writeFileSync(outputPath, `${JSON.stringify(updaterManifest, null, 2)}\n`, 'utf8')
+          NODE
+
+          gh release upload "$TAG" "$manifest" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"

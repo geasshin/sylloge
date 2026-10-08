@@ -21,17 +21,18 @@ Ne générez pas une nouvelle paire par routine. Après une première release di
 
 ## Ce que vérifie Sylloge
 
-Sylloge lit uniquement le manifeste HTTPS suivant :
+Sylloge utilise l’API REST GitHub pour accéder aux releases privées :
 
 ```text
-https://github.com/geasshin/sylloge/releases/latest/download/latest.json
+GET https://api.github.com/repos/geasshin/sylloge/releases/latest
+GET https://api.github.com/repos/geasshin/sylloge/releases/assets/{asset_id}
 ```
 
-Avant le contrôle Tauri, Sylloge vérifie l’accès au manifeste avec le même jeton afin de distinguer un jeton refusé (`401`), un accès interdit (`403`) et une release ou un manifeste introuvable (`404`). Le jeton et le corps de la réponse ne sont jamais écrits dans les journaux ni renvoyés à l’interface.
+Sylloge lit d’abord les métadonnées de la dernière release publiée afin de trouver l’identifiant de son asset `latest.json`. Tauri récupère ensuite ce manifeste par l’endpoint d’asset, puis l’archive de mise à jour par son propre identifiant d’asset. Ces requêtes utilisent `Authorization: Bearer`, `Accept: application/octet-stream` et la version documentée de l’API GitHub. GitHub peut rediriger le téléchargement vers son stockage de fichiers ; le client HTTP suit cette redirection. Le jeton et le corps des erreurs ne sont jamais écrits dans les journaux ni renvoyés à l’interface.
 
 Le dépôt étant privé, GitHub exige une authentification pour lire le manifeste et télécharger l’archive. Dans les réglages, la personne fournit un jeton d’accès personnel GitHub à granularité fine, limité au dépôt `geasshin/sylloge`, avec l’autorisation **Contents: Read-only**. Sylloge le conserve uniquement dans le Trousseau macOS, sans l’enregistrer dans les préférences. Le manifeste fournit une archive et la signature lue dans son fichier `.sig`. L’application vérifie cette signature avec la clé publique embarquée. Une branche Git, un commit ou un artefact non signé ne peut pas devenir une mise à jour installable.
 
-La première installation reste manuelle depuis un DMG. De même, une installation de Sylloge 0.6.0 doit d’abord être remplacée manuellement par un DMG contenant l’authentification privée, car cette ancienne version ne peut pas accéder au dépôt privé. Après cette installation unique, enregistrez le jeton dans les réglages de l’application. Les mises à jour suivantes peuvent alors être recherchées depuis Sylloge.
+La première installation reste manuelle depuis un DMG. Les versions construites avec l’ancienne URL web des releases (`0.6.2` et `0.6.3`) ne peuvent pas recevoir ce correctif à distance, car leur adresse de mise à jour est intégrée au binaire. Elles doivent être remplacées une seule fois par un DMG contenant l’accès par API GitHub. Après cette transition, les mises à jour suivantes peuvent être recherchées et installées depuis Sylloge avec le jeton déjà enregistré dans le Trousseau.
 
 ## Préparer le build local
 
@@ -67,11 +68,11 @@ Le fichier `.github/workflows/macos-release.yml` lance une publication après ch
 2. Applique cette version au build seulement, dans le runner GitHub Actions. Aucun fichier de version n’est commité automatiquement.
 3. Régénère les clés embarquées et construit un bundle macOS universel avec `npm run tauri:build -- --target universal-apple-darwin`.
 4. Produit le DMG, l’archive `Sylloge.app.tar.gz` et sa signature Tauri.
-5. Génère `latest.json` avec l’URL HTTPS et la signature exacte, puis publie les fichiers dans une GitHub Release versionnée.
+5. Crée la release en brouillon, publie l’archive signée, lit son identifiant via l’API, puis génère `latest.json` avec l’URL d’asset API et la signature exacte. Le manifeste est téléversé avant la publication de la release.
 
 Les artefacts du build automatisé se trouvent sous `src-tauri/target/universal-apple-darwin/release/bundle/` dans le runner CI.
 
-Le manifeste associe la même archive universelle aux cibles `darwin-aarch64` et `darwin-x86_64`. Les commits sur les branches de travail ne publient rien. Un échec de build, de signature ou de manifeste arrête le flux avant la création de la release.
+Le manifeste associe la même archive universelle aux cibles `darwin-aarch64` et `darwin-x86_64`. Les commits sur les branches de travail ne publient rien. Un échec de build, de signature ou de génération du manifeste arrête le flux avant la publication. Un brouillon incomplet peut rester dans GitHub et sera réutilisé lors d’une nouvelle exécution.
 
 Le dépôt doit avoir ces secrets GitHub Actions configurés :
 
@@ -87,11 +88,12 @@ Pour récupérer une mise à jour sur une installation existante, ouvrez Sylloge
 
 Le test de chaîne complète exige deux versions réellement signées avec la même clé :
 
-1. Installez manuellement le DMG initial sur une machine de test.
-2. Poussez un changement validé sur `main` et vérifiez la réussite du workflow dans GitHub Actions.
-3. Vérifiez la nouvelle GitHub Release, le DMG, l’archive, son `.sig` et `latest.json`.
-4. Dans l’application installée, vérifiez la détection, les notes, « Plus tard », l’ignorance puis le rétablissement de la version.
-5. Lancez « Télécharger et installer » et vérifiez le redémarrage ainsi que la conservation de la bibliothèque SQLite locale.
+1. Installez manuellement le DMG de la première version qui utilise les endpoints d’assets de l’API GitHub.
+2. Enregistrez un jeton fine-grained valide et vérifiez dans GitHub que sa date d’utilisation se met à jour après une recherche.
+3. Poussez un changement validé sur `main` et vérifiez la réussite du workflow dans GitHub Actions.
+4. Vérifiez la nouvelle GitHub Release, le DMG, l’archive, son `.sig` et `latest.json`. L’URL de l’archive dans le manifeste doit viser `api.github.com/repos/geasshin/sylloge/releases/assets/{asset_id}`.
+5. Dans l’application installée, vérifiez la détection, les notes, « Plus tard », l’ignorance puis le rétablissement de la version.
+6. Lancez « Télécharger et installer » et vérifiez le redémarrage ainsi que la conservation de la bibliothèque SQLite locale.
 
 Cette vérification nécessite une vraie release signée et un jeton autorisé. Un `404` peut indiquer une release absente ou un accès refusé au dépôt privé : il ne constitue jamais un succès d’installation.
 
