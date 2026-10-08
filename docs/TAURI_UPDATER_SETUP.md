@@ -68,11 +68,11 @@ Le fichier `.github/workflows/macos-release.yml` lance une publication après ch
 2. Applique cette version au build seulement, dans le runner GitHub Actions. Aucun fichier de version n’est commité automatiquement.
 3. Régénère les clés embarquées et construit un bundle macOS universel avec `npm run tauri:build -- --target universal-apple-darwin`.
 4. Produit le DMG, l’archive `Sylloge.app.tar.gz` et sa signature Tauri.
-5. Crée le tag Git, ouvre la release en brouillon, publie l’archive signée, lit son identifiant via l’API, puis génère `latest.json` avec l’URL d’asset API et la signature exacte. Le manifeste est téléversé avant la publication de la release.
+5. Retrouve un éventuel brouillon dans la liste des releases ou en crée un, puis téléverse l’archive signée. Il lit l’asset par identifiant de release, génère `latest.json` avec l’URL d’asset API et la signature exacte, téléverse le manifeste puis publie la release par son identifiant en ciblant le commit exact du build.
 
 Les artefacts du build automatisé se trouvent sous `src-tauri/target/universal-apple-darwin/release/bundle/` dans le runner CI.
 
-Le manifeste associe la même archive universelle aux cibles `darwin-aarch64` et `darwin-x86_64`. Les commits sur les branches de travail ne publient rien. Un échec de build, de signature ou de génération du manifeste arrête le flux avant la publication. Un brouillon incomplet peut rester dans GitHub et sera réutilisé lors d’une nouvelle exécution.
+Le manifeste associe la même archive universelle aux cibles `darwin-aarch64` et `darwin-x86_64`. Les commits sur les branches de travail ne publient rien. Un échec de build, de signature ou de génération du manifeste arrête le flux avant la publication. Un brouillon incomplet peut rester dans GitHub et sera réutilisé lors d’une nouvelle exécution, sans consommer le numéro de version. Une release brouillon ne doit pas être recherchée par son tag tant qu’il n’est pas publié : le workflow la retrouve dans la liste des releases, puis utilise son identifiant pour lire ses assets et la publier.
 
 Le dépôt doit avoir ces secrets GitHub Actions configurés :
 
