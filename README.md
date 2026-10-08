@@ -27,7 +27,7 @@ npm run tauri:build -- --no-sign
 open src-tauri/target/release/bundle/macos/Sylloge.app
 ~~~
 
-Chaque push sur `main` déclenche automatiquement le build macOS et la publication d’une GitHub Release avec son DMG, son archive `.app.tar.gz` signée, sa signature et son manifeste updater. La première installation reste manuelle depuis le DMG ; les versions suivantes sont proposées dans l’application. Le détail et les secrets requis sont décrits dans `docs/TAURI_UPDATER_SETUP.md`.
+Chaque push sur `main` déclenche automatiquement le build macOS et la publication d’une GitHub Release avec son DMG, son archive `.app.tar.gz` signée, sa signature et son manifeste updater. Le dépôt étant privé, l’application doit recevoir un jeton GitHub à granularité fine, limité à `geasshin/sylloge` avec `Contents: Read-only`, conservé dans le Trousseau macOS. La transition depuis une ancienne version sans cette authentification nécessite une installation manuelle du DMG ; les versions suivantes sont proposées dans l’application. Le détail et les secrets requis sont décrits dans `docs/TAURI_UPDATER_SETUP.md`.
 
 ## Clés API embarquées
 

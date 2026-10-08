@@ -5,12 +5,15 @@ mod openlibrary;
 mod portability;
 mod profiles;
 mod tmdb;
+mod updater;
+mod updater_credentials;
 mod updater_preferences;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(portability::BackupSnapshotLock::default())
+        .manage(updater::PendingUpdate::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
@@ -51,6 +54,11 @@ pub fn run() {
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,
+            updater_credentials::get_private_updater_credential_status,
+            updater_credentials::set_private_updater_token,
+            updater_credentials::remove_private_updater_token,
+            updater::check_for_app_update,
+            updater::install_app_update,
             tmdb::get_film_tmdb_cache,
             tmdb::purge_expired_tmdb_cache,
             tmdb::search_tmdb_films,

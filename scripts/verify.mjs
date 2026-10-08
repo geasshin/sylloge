@@ -8,7 +8,7 @@ import { SqliteFilmsRepository, toFilm } from '../src/data/filmsRepository.ts'
 import { BackupService } from '../src/data/backupService.ts'
 import { confirmValidatedImport } from '../src/data/libraryTransferService.ts'
 import { UpdaterPreferencesService } from '../src/data/updaterPreferences.ts'
-import { TauriUpdaterService, isMissingReleaseManifestError } from '../src/data/updaterService.ts'
+import { TauriUpdaterService, updaterErrorMessage } from '../src/data/updaterService.ts'
 import { EMPTY_FILM_FORM, localToday, validateFilmForm } from '../src/domain/filmForm.ts'
 import {
   filmMetadataResultToFormInitialValues,
@@ -98,7 +98,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     'L’updater doit consulter uniquement la release GitHub statique attendue',
   )
   assert.equal(tauriConfig.plugins.updater.dangerousInsecureTransportProtocol, false, 'Le transport HTTP non sécurisé doit rester interdit')
-  assert.ok(capabilities.permissions.includes('updater:default'), 'La fenêtre principale doit pouvoir vérifier les updates')
+  assert.ok(!capabilities.permissions.includes('updater:default'), 'Les commandes updater directes du frontend doivent rester désactivées')
   assert.ok(capabilities.permissions.includes('process:default'), 'La fenêtre principale doit pouvoir relancer l’application après installation')
   assert.match(cargoManifest, /^tauri-plugin-updater = "2"$/m, 'Le plugin updater Rust officiel doit être déclaré')
   assert.match(cargoManifest, /^tauri-plugin-process = "2"$/m, 'Le plugin process Rust officiel doit être déclaré')
@@ -184,14 +184,14 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   let downloadCount = 0
   let relaunchCount = 0
   const updater = new TauriUpdaterService(
-    async () => {
-      checkCount += 1
-      return {
-        version: '0.3.1',
-        body: 'Notes de release',
-        async downloadAndInstall() {
-          downloadCount += 1
-        },
+    {
+      async check() {
+        checkCount += 1
+        return { version: '0.3.1', notes: 'Notes de release' }
+      },
+      async install(version) {
+        assert.equal(version, '0.3.1', 'Seule la version détectée doit être transmise au natif')
+        downloadCount += 1
       }
     },
     async () => {
@@ -203,16 +203,16 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   assert.equal(checkCount, 1, 'La vérification doit appeler uniquement l’API check')
   assert.equal(downloadCount, 0, 'La vérification ne doit jamais télécharger une mise à jour')
   assert.equal(update?.version, '0.3.1', 'La version détectée doit être transmise à l’interface')
+  assert.equal(update?.notes, 'Notes de release', 'Les notes de release doivent être transmises à l’interface')
   if (update) await updater.downloadAndInstall(update)
   assert.equal(downloadCount, 1, 'Le téléchargement et l’installation exigent une action distincte')
   assert.equal(relaunchCount, 1, 'Le redémarrage intervient seulement après l’installation')
   assert.equal(
-    isMissingReleaseManifestError(new Error('Could not fetch a valid release JSON from the remote')),
-    true,
-    'Un manifeste absent ou invalide doit être reconnu sans faux succès',
+    updaterErrorMessage('UPDATER_TOKEN_REQUIRED'),
+    'Enregistrez un jeton GitHub dans les réglages pour accéder aux releases privées.',
+    'L’absence de jeton doit être expliquée clairement',
   )
-  assert.equal(isMissingReleaseManifestError(new Error('HTTP status 404')), false, 'Un code HTTP isolé ne doit pas être interprété à tort')
-  assert.equal(isMissingReleaseManifestError(new Error('network unavailable')), false, 'Une erreur réseau ne doit pas être présentée comme un manifeste absent')
+  assert.match(updaterErrorMessage('UPDATER_PRIVATE_RELEASE_UNAVAILABLE'), /Contents en lecture seule/, 'Un problème de permission doit orienter vers le réglage du jeton')
 }
 
 {
