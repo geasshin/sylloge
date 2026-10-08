@@ -2891,6 +2891,18 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .settings-facts dd a { display: inline-block; padding: 7px 3px; margin: -7px -3px; border-radius: 6px; }
 .updater-card { margin-top: 23px; }
 .updater-card > p:first-child { max-width: 670px; }
+.updater-credentials { display: grid; gap: 13px; margin: 19px 0; padding: 16px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface-muted); }
+.updater-credentials h3 { margin: 0; font-size: 15px; letter-spacing: -.02em; }
+.updater-credentials > div > p { max-width: 760px; margin: 7px 0 8px; color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
+.updater-credentials a { color: var(--color-text); font-size: 12px; font-weight: 600; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.updater-credentials a:hover { color: var(--color-accent); }
+.updater-credential-state { margin: 0; color: var(--color-text-muted); font-size: 12px; }
+.updater-token-form { display: grid; gap: 8px; max-width: 520px; }
+.updater-token-form > label { color: var(--color-text); font-size: 12px; font-weight: 600; }
+.updater-token-form > input { width: 100%; min-height: 40px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 13px; }
+.updater-token-form > input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.updater-token-form > input:disabled { opacity: .65; }
+.updater-token-form .updater-actions { margin-top: 4px; }
 .updater-preference { display: flex; align-items: center; justify-content: space-between; gap: 22px; padding: 17px 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .updater-preference h3, .updater-available h3 { margin: 0; font-size: 17px; letter-spacing: -.025em; }
 .updater-preference p { max-width: 520px; margin: 7px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }

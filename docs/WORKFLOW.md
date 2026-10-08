@@ -42,7 +42,7 @@ Un jalon interne porte volontairement un libellé lisible pour suivre la progres
 5. Hermes demande explicitement l’accord avant la fusion de la release cible dans `main`.
 6. Après le push sur `main`, GitHub Actions choisit le prochain numéro correctif à partir de la version de base et des tags stables existants. La version est appliquée aux manifestes uniquement dans le runner CI : aucun commit de version automatique n’est ajouté au dépôt.
 
-Ce flux publie les mises à jour macOS. La première installation reste manuelle via le DMG. Ensuite, l’application peut proposer la version publiée et la personne choisit de la télécharger et de l’installer. La distribution Windows conserve son workflow distinct.
+Ce flux publie les mises à jour macOS. Le dépôt est privé : l’application doit disposer d’un jeton GitHub à granularité fine limité au dépôt avec `Contents: Read-only`, stocké dans le Trousseau macOS. La première installation, ainsi que la transition depuis une version sans authentification privée, reste manuelle via le DMG. Ensuite, l’application peut proposer la version publiée et la personne choisit de la télécharger et de l’installer. La distribution Windows conserve son workflow distinct.
 
 Pour les correctifs minuscules, une branche reste recommandée mais peut être évitée si Aurélien demande explicitement une intervention directe sur `main`.
 

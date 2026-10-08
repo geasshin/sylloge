@@ -1,6 +1,6 @@
 # Sylloge - publication automatique d’une release Tauri
 
-Ce guide décrit la publication macOS automatisée de Sylloge depuis les GitHub Releases publiques de `geasshin/sylloge`. Il ne contient aucune clé privée ni passphrase.
+Ce guide décrit la publication macOS automatisée de Sylloge depuis les GitHub Releases privées de `geasshin/sylloge`, et leur accès depuis l’application avec un jeton conservé dans le Trousseau macOS. Il ne contient aucune clé privée, passphrase ni jeton.
 
 ## Générer et conserver la clé une seule fois
 
@@ -27,9 +27,9 @@ Sylloge lit uniquement le manifeste HTTPS suivant :
 https://github.com/geasshin/sylloge/releases/latest/download/latest.json
 ```
 
-Le manifeste fournit une archive et la signature lue dans son fichier `.sig`. L’application vérifie cette signature avec la clé publique embarquée. Une branche Git, un commit ou un artefact non signé ne peut pas devenir une mise à jour installable.
+Le dépôt étant privé, GitHub exige une authentification pour lire le manifeste et télécharger l’archive. Dans les réglages, la personne fournit un jeton d’accès personnel GitHub à granularité fine, limité au dépôt `geasshin/sylloge`, avec l’autorisation **Contents: Read-only**. Sylloge le conserve dans le Trousseau macOS. Le jeton n’est pas renvoyé à l’interface, enregistré dans les préférences ou écrit dans les journaux. Le manifeste fournit une archive et la signature lue dans son fichier `.sig`. L’application vérifie cette signature avec la clé publique embarquée. Une branche Git, un commit ou un artefact non signé ne peut pas devenir une mise à jour installable.
 
-La première installation reste manuelle depuis un DMG. Une installation existante peut rechercher une mise à jour après l’installation d’un bundle qui contient l’updater.
+La première installation reste manuelle depuis un DMG. De même, une installation de Sylloge 0.6.0 doit d’abord être remplacée manuellement par un DMG contenant l’authentification privée, car cette ancienne version ne peut pas accéder au dépôt privé. Après cette installation unique, enregistrez le jeton dans les réglages de l’application. Les mises à jour suivantes peuvent alors être recherchées depuis Sylloge.
 
 ## Préparer le build local
 
@@ -79,7 +79,7 @@ Le dépôt doit avoir ces secrets GitHub Actions configurés :
 
 La clé privée Tauri est transmise au build pour signer l’archive updater. Elle n’est ni affichée ni écrite dans le dépôt. Les clés API sont écrites uniquement dans les fichiers temporaires ignorés par Git du runner, puis embarquées dans l’application.
 
-Pour récupérer une mise à jour sur une installation existante, ouvrez Sylloge et utilisez la vérification de mise à jour dans les paramètres. Si la recherche automatique est activée, l’application peut aussi la proposer au démarrage. Le téléchargement et l’installation restent soumis au choix de la personne.
+Pour récupérer une mise à jour sur une installation existante, ouvrez Sylloge, enregistrez le jeton dans les paramètres si nécessaire, puis utilisez la vérification de mise à jour. Si la recherche automatique est activée et qu’un jeton est présent, l’application peut aussi la proposer au démarrage. Le téléchargement et l’installation restent soumis au choix de la personne.
 
 ## Test réel obligatoire
 
@@ -91,7 +91,7 @@ Le test de chaîne complète exige deux versions réellement signées avec la m�
 4. Dans l’application installée, vérifiez la détection, les notes, « Plus tard », l’ignorance puis le rétablissement de la version.
 5. Lancez « Télécharger et installer » et vérifiez le redémarrage ainsi que la conservation de la bibliothèque SQLite locale.
 
-Cette vérification nécessite une vraie release signée. Un `404` du manifeste signifie seulement qu’aucune release updater n’est disponible : il ne constitue jamais un succès d’installation.
+Cette vérification nécessite une vraie release signée et un jeton autorisé. Un `404` peut indiquer une release absente ou un accès refusé au dépôt privé : il ne constitue jamais un succès d’installation.
 
 ## Conservation de la clé
 
