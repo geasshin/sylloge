@@ -1,6 +1,6 @@
 # Sylloge
 
-Sylloge est une bibliothèque culturelle personnelle, locale et durable. La release publique `0.5.0` couvre Films, Séries, Livres, Jeux et Art. SQLite est la source de vérité : aucun compte, API ou accès réseau n’est nécessaire pour créer, consulter ou modifier une fiche. L'enrichissement des métadonnées (TMDB, Open Library, RAWG), facultatif, est le seul appel réseau ; il ne sert qu'à préremplir une fiche après choix explicite de la personne.
+Sylloge est une bibliothèque culturelle personnelle, locale et durable, qui couvre Films, Séries, Livres, Jeux et Art. SQLite est la source de vérité : aucun compte ni accès réseau n’est nécessaire pour créer, consulter ou modifier une fiche. L’enrichissement facultatif des métadonnées (TMDB, Open Library, IGDB) sert uniquement à préremplir une fiche après un choix explicite.
 
 ## Structure
 
@@ -27,18 +27,19 @@ npm run tauri:build -- --no-sign
 open src-tauri/target/release/bundle/macos/Sylloge.app
 ~~~
 
-Pour un bundle signé distribuable et la publication GitHub, suivre `docs/TAURI_UPDATER_SETUP.md`. Le build release produit un DMG pour l’installation initiale et une archive `.app.tar.gz` signée pour l’updater.
+Chaque push sur `main` déclenche automatiquement le build macOS et la publication d’une GitHub Release avec son DMG, son archive `.app.tar.gz` signée, sa signature et son manifeste updater. La première installation reste manuelle depuis le DMG ; les versions suivantes sont proposées dans l’application. Le détail et les secrets requis sont décrits dans `docs/TAURI_UPDATER_SETUP.md`.
 
 ## Clés API embarquées
 
-Les clés TMDB et RAWG vivent chacune dans un fichier Rust ignoré par Git : `src-tauri/src/tmdb/embedded_key.rs` et `src-tauri/src/rawg/embedded_key.rs`. Un clone propre ne les contient pas et les contrôles Cargo échouent sans eux. Sur une nouvelle machine :
+Les clés TMDB et IGDB vivent dans des fichiers Rust ignorés par Git : `src-tauri/src/tmdb/embedded_key.rs`, `src-tauri/src/igdb/embedded_client_id.rs` et `src-tauri/src/igdb/embedded_client_secret.rs`. Un clone propre ne les contient pas et les contrôles Cargo échouent sans eux. Sur une nouvelle machine :
 
-1. Déposer chaque clé en clair dans `~/.sylloge-secrets/tmdb-api-key.txt` puis `~/.sylloge-secrets/rawg-api-key.txt`, avec un éditeur de texte ; ne jamais coller une clé dans un terminal.
+1. Déposer la clé TMDB dans `~/.sylloge-secrets/tmdb-api-key.txt`, puis les identifiants IGDB dans `~/.sylloge-secrets/igdb-client-id.txt` et `~/.sylloge-secrets/igdb-client-secret.txt`, avec un éditeur de texte ; ne jamais coller une clé dans un terminal.
 2. Générer les fichiers embarqués :
 
 ~~~bash
 python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/tmdb-api-key.txt --provider tmdb --out src-tauri/src/tmdb/embedded_key.rs
-python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/rawg-api-key.txt --provider rawg --out src-tauri/src/rawg/embedded_key.rs
+python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-id.txt --provider igdb --out src-tauri/src/igdb/embedded_client_id.rs
+python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-secret.txt --provider igdb --out src-tauri/src/igdb/embedded_client_secret.rs
 ~~~
 
 3. Rejouer `cd src-tauri && cargo test` : les tests du module embarqué valident la clé produite.

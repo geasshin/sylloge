@@ -1,6 +1,6 @@
-# Sylloge - préparation d’une release Tauri signée
+# Sylloge - publication automatique d’une release Tauri
 
-Ce guide prépare une chaîne de mises à jour Tauri depuis les GitHub Releases publiques de `geasshin/sylloge`. Il ne publie rien et ne contient aucune clé privée ni passphrase.
+Ce guide décrit la publication macOS automatisée de Sylloge depuis les GitHub Releases publiques de `geasshin/sylloge`. Il ne contient aucune clé privée ni passphrase.
 
 ## Générer et conserver la clé une seule fois
 
@@ -29,7 +29,7 @@ https://github.com/geasshin/sylloge/releases/latest/download/latest.json
 
 Le manifeste fournit une archive et la signature lue dans son fichier `.sig`. L’application vérifie cette signature avec la clé publique embarquée. Une branche Git, un commit ou un artefact non signé ne peut pas devenir une mise à jour installable.
 
-La première installation d’une version qui contient cet updater reste manuelle. Une installation existante ne pourra rechercher une mise à jour qu’après ce premier bundle installé localement.
+La première installation reste manuelle depuis un DMG. Une installation existante peut rechercher une mise à jour après l’installation d’un bundle qui contient l’updater.
 
 ## Préparer le build local
 
@@ -47,7 +47,7 @@ Dans Terminal macOS (zsh), exécutez ce bloc depuis le dossier du projet. Il tra
 )
 ```
 
-Ne copiez pas ce bloc dans une conversation ou un fichier qui ajouterait la passphrase à l’historique. La version distribuée doit correspondre aux manifestes de la release. La version `0.3.0` est la première installation manuelle publiée contenant l’updater ; la prochaine release publique signée devra servir à exercer une mise à jour réelle depuis elle.
+Ne copiez pas ce bloc dans une conversation ou un fichier qui ajouterait la passphrase à l’historique. Le build local ne publie rien. Les versions distribuées sont créées par le workflow GitHub décrit ci-dessous.
 
 Sur macOS, les artefacts attendus sont :
 
@@ -57,65 +57,41 @@ Sur macOS, les artefacts attendus sont :
 
 Le bundle `.app` peut aussi être présent pour inspection locale. La configuration macOS utilise actuellement la signature ad hoc `-`. Sans Developer ID et notarisation, Gatekeeper peut donc demander un contournement explicite lors d’une première installation de test ou d’une diffusion restreinte.
 
-## Créer `latest.json`
+## Publication automatique depuis `main`
 
-Le manifeste statique doit contenir une version Semantic Versioning, les notes, une URL HTTPS d’archive et le contenu exact du fichier `.sig`. La signature est une chaîne, jamais un chemin ou une URL.
+Le fichier `.github/workflows/macos-release.yml` lance une publication après chaque push sur `main`. Le flux :
 
-Pour éviter toute copie manuelle, le script sans dépendance `scripts/create-tauri-latest-json.mjs` lit les notes et le fichier `.sig`, puis écrit un JSON stable. Il ne lit jamais de clé privée.
+1. Lit la version de base du projet et les tags stables `vX.Y.Z`, puis calcule le prochain numéro correctif.
+2. Applique cette version au build seulement, dans le runner GitHub Actions. Aucun fichier de version n’est commité automatiquement.
+3. Régénère les clés embarquées et construit un bundle macOS universel avec `npm run tauri:build -- --target universal-apple-darwin`.
+4. Produit le DMG, l’archive `Sylloge.app.tar.gz` et sa signature Tauri.
+5. Génère `latest.json` avec l’URL HTTPS et la signature exacte, puis publie les fichiers dans une GitHub Release versionnée.
 
-Préparez un fichier de notes local, puis utilisez les chemins de votre artefact réel :
+Les artefacts du build automatisé se trouvent sous `src-tauri/target/universal-apple-darwin/release/bundle/` dans le runner CI.
 
-```bash
-node scripts/create-tauri-latest-json.mjs \
-  --version 0.4.0 \
-  --notes-file /chemin/prive/notes-0.4.0.md \
-  --url https://github.com/geasshin/sylloge/releases/download/v0.4.0/Sylloge.app.tar.gz \
-  --signature-file /chemin/prive/Sylloge.app.tar.gz.sig \
-  --target darwin-aarch64 \
-  --output /chemin/prive/latest.json
-```
+Le manifeste associe la même archive universelle aux cibles `darwin-aarch64` et `darwin-x86_64`. Les commits sur les branches de travail ne publient rien. Un échec de build, de signature ou de manifeste arrête le flux avant la création de la release.
 
-Choisissez `darwin-aarch64` pour une archive Apple Silicon ou `darwin-x86_64` pour une archive Intel. La clé `platforms` doit correspondre à l’architecture réelle de l’archive. Tauri valide tout le manifeste avant toute comparaison de version.
+Le dépôt doit avoir ces secrets GitHub Actions configurés :
 
-Le fichier obtenu suit cette forme :
+- `TAURI_SIGNING_PRIVATE_KEY` et `TAURI_SIGNING_PASSWORD`, correspondant à la paire Tauri conservée par le projet ;
+- `SYLLOGE_TMDB_API_KEY` ;
+- `SYLLOGE_IGDB_CLIENT_ID` et `SYLLOGE_IGDB_CLIENT_SECRET`.
 
-```json
-{
-  "version": "0.4.0",
-  "notes": "Notes de release",
-  "platforms": {
-    "darwin-aarch64": {
-      "signature": "contenu exact de Sylloge.app.tar.gz.sig",
-      "url": "https://github.com/geasshin/sylloge/releases/download/v0.4.0/Sylloge.app.tar.gz"
-    }
-  }
-}
-```
+La clé privée Tauri est transmise au build pour signer l’archive updater. Elle n’est ni affichée ni écrite dans le dépôt. Les clés API sont écrites uniquement dans les fichiers temporaires ignorés par Git du runner, puis embarquées dans l’application.
 
-Le script est vérifié par `npm run verify` sur une fixture temporaire. Il refuse une URL non HTTPS, une cible Tauri invalide, des notes ou une signature vides, et tout écrasement des fichiers source de notes ou de signature.
-
-## Publier manuellement la release
-
-Après le build signé et la vérification des noms de fichiers :
-
-1. Créez une GitHub Release versionnée correspondant au bundle.
-2. Ajoutez l’archive `Sylloge.app.tar.gz`.
-3. Ajoutez son fichier `Sylloge.app.tar.gz.sig` sans le modifier.
-4. Ajoutez le `latest.json` généré, avec l’URL exacte de l’archive uploadée.
-5. Vérifiez publiquement que `https://github.com/geasshin/sylloge/releases/latest/download/latest.json` télécharge bien le manifeste attendu.
-
-Ne publiez pas une release qui pointe vers une archive non signée, une archive différente de celle décrite par la signature, une URL HTTP ou une version incohérente.
+Pour récupérer une mise à jour sur une installation existante, ouvrez Sylloge et utilisez la vérification de mise à jour dans les paramètres. Si la recherche automatique est activée, l’application peut aussi la proposer au démarrage. Le téléchargement et l’installation restent soumis au choix de la personne.
 
 ## Test réel obligatoire
 
 Le test de chaîne complète exige deux versions réellement signées avec la même clé :
 
-1. Installez manuellement sur une machine de test une version inférieure contenant l’updater.
-2. Publiez une release supérieure avec l’archive, le `.sig` et le `latest.json` correspondants.
-3. Vérifiez la détection, les notes, « Plus tard », l’ignorance puis le rétablissement de la version.
-4. Lancez « Télécharger et installer » et vérifiez le redémarrage ainsi que la conservation de la bibliothèque SQLite locale.
+1. Installez manuellement le DMG initial sur une machine de test.
+2. Poussez un changement validé sur `main` et vérifiez la réussite du workflow dans GitHub Actions.
+3. Vérifiez la nouvelle GitHub Release, le DMG, l’archive, son `.sig` et `latest.json`.
+4. Dans l’application installée, vérifiez la détection, les notes, « Plus tard », l’ignorance puis le rétablissement de la version.
+5. Lancez « Télécharger et installer » et vérifiez le redémarrage ainsi que la conservation de la bibliothèque SQLite locale.
 
-Ce test ne peut pas être simulé avant la publication d’un vrai artefact signé. Un `404` du manifeste signifie seulement qu’aucune release n’est disponible : il ne constitue jamais un succès d’installation.
+Cette vérification nécessite une vraie release signée. Un `404` du manifeste signifie seulement qu’aucune release updater n’est disponible : il ne constitue jamais un succès d’installation.
 
 ## Conservation de la clé
 

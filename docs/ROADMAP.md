@@ -2,7 +2,7 @@
 
 > **Statut :** feuille de route active. Les releases `0.2.0`, `0.3.0`, `0.4.0` et `0.5.0` sont livrées. `0.3.0` est la première release macOS signée publiée sur GitHub ; l’installation manuelle a été validée. Le train actif prépare la release publique `0.6.0` (front-end définitif) ; sa spécification détaillée vit dans [`plans/roadmap-future.md`](plans/roadmap-future.md), consultée à l'ouverture du train, et les jalons concernés sont réintégrés ici au fur et à mesure.
 >
-> Les releases publiques sont des hypothèses de séquencement, pas des promesses de calendrier. Elles sont construites par plusieurs jalons d’intégration étroits, chacun validé et commité avant le suivant.
+> Les versions `X.Y.0` restent des objectifs de produit. Depuis le 8 octobre 2026, chaque push sur `main` produit automatiquement une release macOS corrective après réussite du build et de la signature.
 >
 > **Fournisseur Jeux actuel :** `IGDB`. Les mentions de `RAWG` dans les jalons historiques décrivent un état antérieur et ne constituent pas la configuration courante.
 
@@ -40,12 +40,13 @@ La baseline ne doit pas être confondue avec une V1 publique : elle n’a pas en
 
 ## 3. Rythme de livraison
 
-Sylloge sépare volontairement le **jalon d’intégration** de la **release publique** : une release `X.Y.0` doit livrer un sujet complet et cohérent, plutôt qu’une seule fonctionnalité isolée.
+Depuis le 8 octobre 2026, chaque push sur `main` lance la publication automatique d’une release macOS avec le numéro correctif suivant. Le build et la signature doivent réussir avant que la release soit publiée. Les branches de travail ne déclenchent pas de publication.
 
-- Les jalons tels que `0.3.1`, `0.3.2` ou `0.3.5` sont des repères de travail de la branche qui prépare `0.4.0`. Ils ont un périmètre unique, leurs propres critères d’acceptation, tests, QA manuelle et commits.
-- Ils ne sont **ni** des tags, **ni** des versions de manifeste, **ni** des GitHub Releases. Sans cette règle, `0.3.1` serait une vraie patch release SemVer publique et brouillerait l’état réellement installable.
-- Seule la clôture du train met à jour les manifestes, est fusionnée dans `main`, reçoit un tag et devient une GitHub Release signée.
-- Le même mécanisme s’applique ensuite : les jalons `0.4.1…` préparent `0.5.0`, les `0.5.1…` préparent `0.6.0`, et ainsi de suite.
+- Les jalons tels que `0.3.1`, `0.3.2` ou `0.3.5` restent des repères de travail et ne sont pas publiés depuis leur branche.
+- Une fois le code intégré à `main`, le flux CI applique le prochain numéro correctif aux manifestes du build, signe l’archive updater et publie le DMG, l’archive, la signature et `latest.json`.
+- Cette version générée n’est pas réécrite dans les manifestes source et n’ajoute pas de commit automatique.
+
+Le détail opérationnel est décrit dans [`WORKFLOW.md`](WORKFLOW.md) et [`TAURI_UPDATER_SETUP.md`](TAURI_UPDATER_SETUP.md).
 
 ## 4. Jalon historique et release actuelle
 
