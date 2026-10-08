@@ -124,12 +124,36 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     /releases\/download\/\$TAG/,
     'Le manifeste ne doit plus utiliser l’URL web des assets privés',
   )
-  const releaseTagPushIndex = releaseWorkflow.indexOf('git push origin "refs/tags/$TAG"')
+  const releaseListIndex = releaseWorkflow.indexOf('releases?per_page=100')
   const draftReleaseIndex = releaseWorkflow.indexOf('gh release create "$TAG"')
   const assetUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG"')
+  const assetLookupIndex = releaseWorkflow.indexOf('gh api "repos/$GITHUB_REPOSITORY/releases/$release_id"')
+  const manifestUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG" "$manifest"')
+  const releasePublishIndex = releaseWorkflow.indexOf('--method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id"')
   assert.ok(
-    releaseTagPushIndex >= 0 && releaseTagPushIndex < draftReleaseIndex && draftReleaseIndex < assetUploadIndex,
-    'Le tag Git doit exister avant la création du brouillon auquel les assets seront ajoutés',
+    releaseListIndex >= 0 && releaseListIndex < draftReleaseIndex && draftReleaseIndex < assetUploadIndex &&
+      assetUploadIndex < assetLookupIndex && assetLookupIndex < manifestUploadIndex && manifestUploadIndex < releasePublishIndex,
+    'La release doit être retrouvée ou créée avant les assets, le manifeste doit être ajouté avant la publication par identifiant',
+  )
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /git push origin "refs\/tags\/\$TAG"/,
+    'Le tag ne doit pas être poussé avant la publication du brouillon, afin qu’une reprise garde le même numéro de version',
+  )
+  assert.match(
+    releaseWorkflow,
+    /gh api "repos\/\$GITHUB_REPOSITORY\/releases\/\$release_id"/,
+    'Les assets du brouillon doivent être lus par identifiant de release, car son tag n’est pas encore résolu',
+  )
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /releases\/tags\/\$TAG/,
+    'La release en brouillon ne doit pas être recherchée via son tag non publié',
+  )
+  assert.match(
+    releaseWorkflow,
+    /--method PATCH "repos\/\$GITHUB_REPOSITORY\/releases\/\$release_id" \\\n\s+-F draft=false \\\n\s+-F target_commitish="\$GITHUB_SHA"/,
+    'La publication doit mettre à jour la release par son identifiant et associer le commit exact du build',
   )
   assert.equal(tauriConfig.plugins.updater.dangerousInsecureTransportProtocol, false, 'Le transport HTTP non sécurisé doit rester interdit')
   assert.ok(!capabilities.permissions.includes('updater:default'), 'Les commandes updater directes du frontend doivent rester désactivées')

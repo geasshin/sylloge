@@ -121,25 +121,31 @@ jobs:
           NOTES: ${{ steps.artifacts.outputs.notes }}
         run: |
           set -euo pipefail
-          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-              git tag "$TAG" "$GITHUB_SHA"
-              git push origin "refs/tags/$TAG"
-            fi
+          find_release_id() {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.tag_name == env.TAG) | .id'
+          }
+
+          release_id="$(find_release_id)"
+          if [[ -z "$release_id" ]]; then
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
               --title "Sylloge $VERSION" \
               --notes-file "$NOTES" \
-              --draft \
-              --verify-tag
+              --draft
+            release_id="$(find_release_id)"
+          fi
+          if [[ ! "$release_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Impossible de retrouver l’identifiant de la release GitHub." >&2
+            exit 1
           fi
 
           gh release upload "$TAG" \
             "$DMG" "$ARCHIVE" "$SIGNATURE" \
             --repo "$GITHUB_REPOSITORY" --clobber
 
-          archive_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+          archive_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
             --jq '.assets[] | select(.name == "Sylloge.app.tar.gz" and .state == "uploaded") | .id')"
           if [[ ! "$archive_asset_id" =~ ^[1-9][0-9]*$ ]]; then
             echo "Impossible de trouver l’identifiant de l’archive updater dans la release." >&2
@@ -165,4 +171,6 @@ jobs:
           NODE
 
           gh release upload "$TAG" "$manifest" --repo "$GITHUB_REPOSITORY" --clobber
-          gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            -F draft=false \
+            -F target_commitish="$GITHUB_SHA" >/dev/null
