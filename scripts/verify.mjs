@@ -124,6 +124,13 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     /releases\/download\/\$TAG/,
     'Le manifeste ne doit plus utiliser l’URL web des assets privés',
   )
+  const releaseTagPushIndex = releaseWorkflow.indexOf('git push origin "refs/tags/$TAG"')
+  const draftReleaseIndex = releaseWorkflow.indexOf('gh release create "$TAG"')
+  const assetUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG"')
+  assert.ok(
+    releaseTagPushIndex >= 0 && releaseTagPushIndex < draftReleaseIndex && draftReleaseIndex < assetUploadIndex,
+    'Le tag Git doit exister avant la création du brouillon auquel les assets seront ajoutés',
+  )
   assert.equal(tauriConfig.plugins.updater.dangerousInsecureTransportProtocol, false, 'Le transport HTTP non sécurisé doit rester interdit')
   assert.ok(!capabilities.permissions.includes('updater:default'), 'Les commandes updater directes du frontend doivent rester désactivées')
   assert.ok(capabilities.permissions.includes('process:default'), 'La fenêtre principale doit pouvoir relancer l’application après installation')

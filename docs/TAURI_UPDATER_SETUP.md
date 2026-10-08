@@ -68,7 +68,7 @@ Le fichier `.github/workflows/macos-release.yml` lance une publication après ch
 2. Applique cette version au build seulement, dans le runner GitHub Actions. Aucun fichier de version n’est commité automatiquement.
 3. Régénère les clés embarquées et construit un bundle macOS universel avec `npm run tauri:build -- --target universal-apple-darwin`.
 4. Produit le DMG, l’archive `Sylloge.app.tar.gz` et sa signature Tauri.
-5. Crée la release en brouillon, publie l’archive signée, lit son identifiant via l’API, puis génère `latest.json` avec l’URL d’asset API et la signature exacte. Le manifeste est téléversé avant la publication de la release.
+5. Crée le tag Git, ouvre la release en brouillon, publie l’archive signée, lit son identifiant via l’API, puis génère `latest.json` avec l’URL d’asset API et la signature exacte. Le manifeste est téléversé avant la publication de la release.
 
 Les artefacts du build automatisé se trouvent sous `src-tauri/target/universal-apple-darwin/release/bundle/` dans le runner CI.
 
