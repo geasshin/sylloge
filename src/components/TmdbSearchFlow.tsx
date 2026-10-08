@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   searchTmdbFilms,
+  resolveFilmDisplayPoster,
   type TmdbSearchCandidate,
 } from '../data/tmdbService.ts'
 import type { Film } from '../domain/film.ts'
@@ -28,6 +29,19 @@ type SearchState =
 export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel, compact = false }: TmdbSearchFlowProps) {
   const [query, setQuery] = useState(() => film?.title ?? '')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
+  // Fiche de contexte : elle montre la même affiche que la bibliothèque, donc
+  // la sélection TMDB quand elle existe plutôt que le seul champ manuel.
+  const [contextPoster, setContextPoster] = useState<string | null>(film?.posterUrl ?? null)
+
+  useEffect(() => {
+    setContextPoster(film?.posterUrl ?? null)
+    if (!film) return
+    let cancelled = false
+    resolveFilmDisplayPoster(film.id, film.posterUrl).then((url) => {
+      if (!cancelled) setContextPoster(url)
+    })
+    return () => { cancelled = true }
+  }, [film?.id, film?.posterUrl])
 
   useEffect(() => {
     let cancelled = false
@@ -89,7 +103,7 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
 
       {film && (
         <section className="tmdb-film-context" aria-labelledby="tmdb-film-context-title">
-          <Poster title={film.title} src={film.posterUrl} className="tmdb-film-context-poster" />
+          <Poster title={film.title} src={contextPoster} className="tmdb-film-context-poster" />
           <div className="tmdb-film-context-info">
             <p className="card-kicker">Fiche actuelle</p>
             <h2 id="tmdb-film-context-title">{film.title}</h2>

@@ -91,6 +91,31 @@ export function getFilmTmdbCache(filmId: string): Promise<CachedFilmTmdbPresenta
   return invoke('get_film_tmdb_cache', { filmId })
 }
 
+/** Réalisateur issu de l'association locale TMDB, sans nouvel appel réseau. */
+export async function resolveFilmDisplayDirector(filmId: string): Promise<string | null> {
+  const cached = await getFilmTmdbCache(filmId)
+  const directors = cached?.presentation.directors.map((name) => name.trim()).filter(Boolean) ?? []
+  return directors.length > 0 ? directors.join(', ') : null
+}
+
+/**
+ * Affiche montrée pour un film, dans l'ordre : la sélection du cache TMDB,
+ * l'affiche TMDB courante, puis l'affiche enregistrée sur la fiche. Une
+ * lecture impossible (hors coquille native, par exemple le harnais de
+ * recette) rend simplement la valeur de repli.
+ */
+export async function resolveFilmDisplayPoster(
+  filmId: string,
+  fallback: string | null = null,
+): Promise<string | null> {
+  try {
+    const cache = await getFilmTmdbCache(filmId)
+    return cache?.selectedPosterUrl ?? cache?.presentation.posterUrl ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
 export function setFilmTmdbPoster(
   filmId: string,
   posterUrl: string | null,

@@ -45,7 +45,7 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
   return (
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
-        <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
+        <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={backLabel}>{icon('arrow-left')}</button>
         {/* L'Art n'a aucun fournisseur d'association : pas de baguette ici, règle du domaine. */}
         <div className="detail-actions">
           <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">

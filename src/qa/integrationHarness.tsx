@@ -37,6 +37,17 @@ const profileId = 'qa-profile'
 const now = '2026-09-23T12:00:00.000Z'
 const timestamp = (day: string) => `${day}T12:00:00.000Z`
 
+/**
+ * Recette : une seule fiche porte une affiche fournie par le résolveur, pour
+ * prouver que la carte d'accueil relit la même source que la bibliothèque.
+ * Toutes les autres gardent le fallback neutre.
+ */
+const qaResolvedPoster = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="450"><rect width="300" height="450" fill="#3E4B70"/><text x="150" y="232" font-family="sans-serif" font-size="26" fill="#ffffff" text-anchor="middle">Affiche du cache</text></svg>',
+)}`
+const resolveQaFilmPoster = async (filmId: string) => (filmId === 'film-1' ? qaResolvedPoster : null)
+const resolveQaFilmContributor = async (filmId: string) => (filmId === 'film-3' ? 'Réalisation depuis le cache local' : null)
+
 const films: Film[] = [
   {
     id: 'film-1', profileId, title: 'Le.Extension, la plus longue', originalTitle: null, year: 2024,
@@ -64,7 +75,7 @@ const films: Film[] = [
   },
   {
     id: 'film-5', profileId, title: 'Une œuvre en attente', originalTitle: null, year: 2012,
-    status: 'à découvrir', isFavorite: false, rating: null, watchedAt: null, personalNote: null,
+    status: 'en attente', isFavorite: false, rating: null, watchedAt: null, personalNote: null,
     director: null, summary: null, providerName: null, providerId: null,
     posterUrl: null, createdAt: timestamp('2026-09-19'), updatedAt: timestamp('2026-09-19'),
   },
@@ -78,31 +89,61 @@ const filmsForScrollQa: Film[] = [
   }),
 ]
 
-const series: Series[] = [{
-  id: 'series-1', profileId, title: 'Le Bureau des Légendes', showrunner: 'Eric Kandel', casting: 'Dagane, Caroline Proust',
-  summary: 'Une série à reprendre.', category: 'série télé', status: 'en cours', rating: 5, isFavorite: true,
-  seasonsSeen: 3, seasonsTotal: 5, progressUpdatedAt: timestamp('2026-09-23'), startedAt: '2024-01-10',
-  posterUrl: null, personalNote: 'Une saison à reprendre avec calme.', createdAt: timestamp('2024-01-10'), updatedAt: timestamp('2026-09-23'),
-}]
+const series: Series[] = [
+  {
+    id: 'series-1', profileId, title: 'Le Bureau des Légendes', showrunner: 'Eric Kandel', casting: 'Dagane, Caroline Proust',
+    summary: 'Une série à reprendre.', category: 'série télé', status: 'en cours', rating: 5, isFavorite: true,
+    seasonsSeen: 3, seasonsTotal: 5, progressUpdatedAt: timestamp('2026-09-23'), startedAt: '2024-01-10',
+    posterUrl: null, personalNote: 'Une saison à reprendre avec calme.', createdAt: timestamp('2024-01-10'), updatedAt: timestamp('2026-09-23'),
+  },
+  {
+    id: 'series-2', profileId, title: 'Dark', showrunner: 'Baran bo Odar', casting: null, summary: null,
+    category: 'série télé', status: 'à voir', rating: null, isFavorite: false,
+    seasonsSeen: null, seasonsTotal: 3, progressUpdatedAt: null, startedAt: null,
+    posterUrl: null, personalNote: null, createdAt: timestamp('2026-10-03'), updatedAt: timestamp('2026-10-03'),
+  },
+]
 
-const books: Book[] = [{
-  id: 'book-1', profileId, title: 'A game of Thrones', author: 'George R. R. Martin', year: 1996, summary: 'Un livre en cours.',
-  category: 'livre', status: 'en cours', rating: 4, isFavorite: true, volumesRead: 2, volumesTotal: 5,
-  progressUpdatedAt: timestamp('2026-09-22'), startedAt: '2026-01-01', coverUrl: null,
-  personalNote: 'La progression doit rester visible dans Reprendre.', createdAt: timestamp('2026-01-01'), updatedAt: timestamp('2026-09-22'), quotes: [],
-}]
+const books: Book[] = [
+  {
+    id: 'book-1', profileId, title: 'A game of Thrones', author: 'George R. R. Martin', year: 1996, summary: 'Un livre en cours.',
+    category: 'livre', status: 'en cours', rating: 4, isFavorite: true, volumesRead: 2, volumesTotal: 5,
+    progressUpdatedAt: timestamp('2026-09-22'), startedAt: '2026-01-01', coverUrl: null,
+    personalNote: 'La progression doit rester visible dans Reprendre.', createdAt: timestamp('2026-01-01'), updatedAt: timestamp('2026-09-22'), quotes: [],
+  },
+  {
+    id: 'book-2', profileId, title: 'Dune', author: 'Frank Herbert', year: 1965, summary: null,
+    category: 'livre', status: 'à lire', rating: null, isFavorite: false, volumesRead: null, volumesTotal: null,
+    progressUpdatedAt: null, startedAt: null, coverUrl: null, personalNote: null,
+    createdAt: timestamp('2026-10-05'), updatedAt: timestamp('2026-10-05'), quotes: [],
+  },
+]
 
-const games: Game[] = [{
-  id: 'game-1', profileId, title: 'Hades', developer: 'Supergiant Games', platform: 'PC', year: 2020, status: 'joué',
-  rating: 5, isFavorite: true, playedAt: '2025-09-23', coverUrl: null, personalNote: 'Toujours excellent.',
-  createdAt: timestamp('2020-09-17'), updatedAt: timestamp('2025-09-23'),
-}]
+const games: Game[] = [
+  {
+    id: 'game-1', profileId, title: 'Hades', developer: 'Supergiant Games', platform: 'PC', year: 2020, status: 'joué',
+    rating: 5, isFavorite: true, playedAt: '2025-09-23', coverUrl: null, personalNote: 'Toujours excellent.',
+    createdAt: timestamp('2020-09-17'), updatedAt: timestamp('2025-09-23'),
+  },
+  {
+    id: 'game-2', profileId, title: 'Celeste', developer: 'Non', platform: 'PC', year: 2018, status: 'à jouer',
+    rating: null, isFavorite: false, playedAt: null, coverUrl: null, personalNote: null,
+    createdAt: timestamp('2026-10-06'), updatedAt: timestamp('2026-10-06'),
+  },
+]
 
-const artworks: Artwork[] = [{
-  id: 'art-1', profileId, title: 'Nuit vacation', artist: 'Anonyme', year: 1890, form: 'peinture', location: 'Paris',
-  exhibition: null, status: 'découverte', isFavorite: true, discoveredAt: '2021-09-23', imageUrl: null,
-  personalNote: 'Une œuvre sans visuel.', customFields: [], createdAt: timestamp('2021-09-23'), updatedAt: timestamp('2021-09-23'),
-}]
+const artworks: Artwork[] = [
+  {
+    id: 'art-1', profileId, title: 'Nuit vacation', artist: 'Anonyme', year: 1890, form: 'peinture', location: 'Paris',
+    exhibition: null, status: 'découverte', isFavorite: true, discoveredAt: '2021-09-23', imageUrl: null,
+    personalNote: 'Une œuvre sans visuel.', customFields: [], createdAt: timestamp('2021-09-23'), updatedAt: timestamp('2021-09-23'),
+  },
+  {
+    id: 'art-2', profileId, title: 'Le Jardin des délices', artist: 'Jérôme Bosch', year: 1490, form: 'peinture', location: null,
+    exhibition: null, status: 'à découvrir', isFavorite: false, discoveredAt: null, imageUrl: null,
+    personalNote: null, customFields: [], createdAt: timestamp('2026-10-07'), updatedAt: timestamp('2026-10-07'),
+  },
+]
 
 const library: FilmLibrary = {
   profile: { id: profileId, name: 'Profil de recette', createdAt: now, updatedAt: now },
@@ -219,10 +260,11 @@ function Harness() {
             onOpenBook={() => undefined}
             onOpenGame={() => undefined}
             onOpenArtwork={() => undefined}
-            onBrowse={(medium) => setScreen(medium === 'film' ? 'films' : medium === 'série' ? 'series' : medium === 'livre' ? 'books' : medium === 'jeu' ? 'games' : 'artworks')}
+            resolveFilmPoster={resolveQaFilmPoster}
+            resolveFilmContributor={resolveQaFilmContributor}
           />
         )}
-        {screen === 'empty' && <Home library={{ ...library, films: [] }} seriesCollection={[]} bookCollection={[]} gameCollection={[]} artworkCollection={[]} onOpen={() => undefined} onOpenSeries={() => undefined} onOpenBook={() => undefined} onOpenGame={() => undefined} onOpenArtwork={() => undefined} onBrowse={() => undefined} />}
+        {screen === 'empty' && <Home library={{ ...library, films: [] }} seriesCollection={[]} bookCollection={[]} gameCollection={[]} artworkCollection={[]} onOpen={() => undefined} onOpenSeries={() => undefined} onOpenBook={() => undefined} onOpenGame={() => undefined} onOpenArtwork={() => undefined} />}
         {cases.filter((item) => item.key === screen).map((item) => <MediumCaseView key={item.key} item={item} />)}
       </div>
     </StrictMode>

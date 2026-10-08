@@ -11,7 +11,7 @@ import { BookForm } from './components/BookForm.tsx'
 import { GameDetail } from './components/GameDetail.tsx'
 import { GameForm } from './components/GameForm.tsx'
 import { Poster } from './components/Poster.tsx'
-import { Home, type MediumFilterKey } from './components/AtriumHome.tsx'
+import { Home } from './components/AtriumHome.tsx'
 import { Portability, type PortabilitySection } from './components/Portability.tsx'
 import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
@@ -41,8 +41,8 @@ import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryVi
 import { MobileAppShell } from './components/MobileAppShell.tsx'
 import { BookCategorySwitch, SeriesCategorySwitch } from './components/CategorySwitch.tsx'
 
-import type { TmdbSearchCandidate, CachedFilmTmdbPresentation, TmdbFilmPresentation } from './data/tmdbService.ts'
-import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
+import type { TmdbSearchCandidate, TmdbFilmPresentation } from './data/tmdbService.ts'
+import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, resolveFilmDisplayPoster, resolveFilmDisplayDirector, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
 import { previewOpenLibraryBook, searchOpenLibraryBooks, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
 import { previewIgdbGame, searchIgdbGames, type IgdbGameCandidate } from './data/igdbService.ts'
 import { autoAssociateFilms } from './domain/autoAssociate.ts'
@@ -137,10 +137,11 @@ import {
   TrashIcon,
   PanelIcon,
   UnlinkIcon,
+  ArrowLeftIcon,
 } from './components/icons.tsx'
 import './styles.css'
 
-type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink'
+type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink' | 'arrow-left'
 export type { IconName }
 type SettingsSection = PortabilitySection
 
@@ -149,6 +150,8 @@ export function icon(name: IconName) {
   switch (name) {
     case 'home':
       return <HomeIcon />
+    case 'arrow-left':
+      return <ArrowLeftIcon />
     case 'film':
       return <FilmIcon />
     case 'series':
@@ -381,18 +384,17 @@ function librarySubtitle(
 }
 
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
-  const [tmdbCache, setTmdbCache] = useState<CachedFilmTmdbPresentation | null>(null)
+  const [displayPosterUrl, setDisplayPosterUrl] = useState<string | null>(film.posterUrl)
   const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
-  const displayPosterUrl = tmdbCache?.selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
 
   useEffect(() => {
     let cancelled = false
-    getFilmTmdbCache(film.id).then(
-      (cache) => { if (!cancelled) setTmdbCache(cache) },
-      () => { if (!cancelled) setTmdbCache(null) },
-    )
+    setDisplayPosterUrl(film.posterUrl)
+    resolveFilmDisplayPoster(film.id, film.posterUrl).then((url) => {
+      if (!cancelled) setDisplayPosterUrl(url)
+    })
     return () => { cancelled = true }
-  }, [film.id])
+  }, [film.id, film.posterUrl])
 
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
@@ -685,15 +687,6 @@ function compareByCreatedAt(first: Film, second: Film): number {
 
 function compareByWatchedAt(first: Film, second: Film): number {
   return (second.watchedAt ?? '').localeCompare(first.watchedAt ?? '') || compareByCreatedAt(first, second)
-}
-
-/** Vue de bibliothèque d'un médium : la porte de sortie des modules d'accueil. */
-function libraryViewForMedium(medium: MediumFilterKey): View {
-  if (medium === 'film') return { name: 'library' }
-  if (medium === 'série') return { name: 'series' }
-  if (medium === 'livre') return { name: 'books' }
-  if (medium === 'jeu') return { name: 'games' }
-  return { name: 'artworks' }
 }
 
 type LibraryContext = {
@@ -1990,6 +1983,12 @@ function BooksLibrary({
   )
 }
 
+/**
+ * Écran d'où une fiche a été ouverte. C'est à la fois la cible du bouton
+ * retour et la clé sous laquelle la position de défilement est mémorisée.
+ */
+type ReturnKey = 'home' | 'library' | 'series' | 'books' | 'games' | 'artworks'
+
 type View =
   | { name: 'home' }
   | { name: 'library' }
@@ -1998,14 +1997,32 @@ type View =
   | { name: 'create'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
   | { name: 'tmdb-search' }
   | { name: 'tmdb-associate'; filmId: string }
-  | { name: 'detail'; filmId: string; returnTo: 'home' | 'library' }
-  | { name: 'series-detail'; seriesId: string }
+  | { name: 'detail'; filmId: string; returnTo: ReturnKey }
+  | { name: 'series-detail'; seriesId: string; returnTo: ReturnKey }
   | { name: 'books' }
-  | { name: 'book-detail'; bookId: string }
+  | { name: 'book-detail'; bookId: string; returnTo: ReturnKey }
   | { name: 'games' }
-  | { name: 'game-detail'; gameId: string }
+  | { name: 'game-detail'; gameId: string; returnTo: ReturnKey }
   | { name: 'artworks' }
-  | { name: 'artwork-detail'; artworkId: string }
+  | { name: 'artwork-detail'; artworkId: string; returnTo: ReturnKey }
+
+/** Vue de destination d'un retour : l'écran d'où la fiche a été ouverte. */
+function returnView(key: ReturnKey): View {
+  switch (key) {
+    case 'home':
+      return { name: 'home' }
+    case 'library':
+      return { name: 'library' }
+    case 'series':
+      return { name: 'series' }
+    case 'books':
+      return { name: 'books' }
+    case 'games':
+      return { name: 'games' }
+    default:
+      return { name: 'artworks' }
+  }
+}
 
 function sortFilms(films: Film[]): Film[] {
   return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
@@ -2067,7 +2084,7 @@ function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel
   return (
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
-        <button className="back-button" type="button" onClick={onBack}>{backLabel}</button>
+        <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={backLabel}>{icon('arrow-left')}</button>
       </header>
       {state.status === 'loading' ? (
         <div className="library-state" role="status">
@@ -2139,8 +2156,11 @@ function App() {
   const [candidateSelection, setCandidateSelection] = useState<{ pendingId: number | null; error: string | null }>({ pendingId: null, error: null })
   const [bookSelection, setBookSelection] = useState<{ pendingKey: string | null; error: string | null }>({ pendingKey: null, error: null })
   const [tmdbNotice, setTmdbNotice] = useState<{ filmId: string; message: string } | null>(null)
-  const libraryScrollPosition = useRef(0)
-  const restoreLibraryScroll = useRef(false)
+  /** Position de défilement mémorisée par écran (accueil et bibliothèques). */
+  const scrollMemory = useRef(new Map<string, number>())
+  const pendingScrollRestore = useRef<{ key: string; top: number } | null>(null)
+  /** L'accueil défile dans sa propre colonne, les bibliothèques dans la fenêtre. */
+  const homeScrollRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -2400,24 +2420,44 @@ function App() {
   }, [libraryState])
 
   useEffect(() => {
-    if (view.name !== 'library' || !restoreLibraryScroll.current) return
+    const pending = pendingScrollRestore.current
+    if (pending === null || view.name !== pending.key) return
 
-    restoreLibraryScroll.current = false
+    pendingScrollRestore.current = null
     const frame = window.requestAnimationFrame(() => {
-      window.scrollTo({ top: libraryScrollPosition.current })
+      // L'accueil défile dans sa colonne sur grand écran, dans la fenêtre
+      // ensuite : on écrit aux deux endroits, seul le vrai conteneur répond.
+      const home = homeScrollRef.current
+      if (home) home.scrollTop = pending.top
+      window.scrollTo({ top: pending.top })
     })
     return () => window.cancelAnimationFrame(frame)
   }, [view])
 
+  /** Position de défilement de l'écran affiché, quel que soit son conteneur. */
+  const currentScroll = () => {
+    const home = homeScrollRef.current
+    return home ? Math.max(home.scrollTop, window.scrollY) : window.scrollY
+  }
+
   const leaveLibrary = (nextView: View) => {
-    if (view.name === 'library') libraryScrollPosition.current = window.scrollY
+    scrollMemory.current.set(view.name, currentScroll())
     setView(nextView)
+    if (homeScrollRef.current) homeScrollRef.current.scrollTop = 0
+    window.scrollTo({ top: 0 })
+  }
+
+  /** Retour depuis une fiche : l'écran d'origine retrouve sa place exacte. */
+  const goBackTo = (key: ReturnKey) => {
+    pendingScrollRestore.current = { key, top: scrollMemory.current.get(key) ?? 0 }
+    setView(returnView(key))
+    if (homeScrollRef.current) homeScrollRef.current.scrollTop = 0
     window.scrollTo({ top: 0 })
   }
 
   const returnToLibrary = () => {
     if (view.name === 'library') return
-    restoreLibraryScroll.current = true
+    pendingScrollRestore.current = { key: 'library', top: scrollMemory.current.get('library') ?? 0 }
     setView({ name: 'library' })
   }
 
@@ -2727,11 +2767,13 @@ function App() {
         gameCollection={gameCollection}
         artworkCollection={artworkCollection}
         onOpen={(film) => leaveLibrary({ name: 'detail', filmId: film.id, returnTo: 'home' })}
-        onOpenSeries={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
-        onOpenBook={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
-        onOpenGame={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
-        onOpenArtwork={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
-        onBrowse={(medium) => leaveLibrary(libraryViewForMedium(medium))}
+        onOpenSeries={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id, returnTo: 'home' })}
+        onOpenBook={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id, returnTo: 'home' })}
+        onOpenGame={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id, returnTo: 'home' })}
+        onOpenArtwork={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id, returnTo: 'home' })}
+        resolveFilmPoster={resolveFilmDisplayPoster}
+        resolveFilmContributor={resolveFilmDisplayDirector}
+        scrollRef={homeScrollRef}
       />
     )
   } else if (view.name === 'tmdb-search') {
@@ -2863,8 +2905,8 @@ function App() {
         profileId={library.profile.id}
         filmId={view.filmId}
         detailRevision={library.films.find((entry) => entry.id === view.filmId)?.updatedAt ?? ''}
-        onBack={() => view.returnTo === 'home' ? leaveLibrary({ name: 'home' }) : returnToLibrary()}
-        backLabel={view.returnTo === 'home' ? '← Retour à l’accueil' : '← Retour aux films'}
+        onBack={() => goBackTo(view.returnTo)}
+        backLabel={view.returnTo === 'home' ? 'Retour à l’accueil' : 'Retour aux films'}
         onEdit={() => {
           const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
           if (film) {
@@ -2893,8 +2935,7 @@ function App() {
             library: updatedLibrary,
           })
           requestAutomaticBackup(updatedLibrary)
-          if (view.returnTo === 'home') leaveLibrary({ name: 'home' })
-          else returnToLibrary()
+          goBackTo(view.returnTo)
         }}
       />
     )
@@ -2911,7 +2952,7 @@ function App() {
           setCandidateSelection({ pendingId: null, error: null })
           setAddFlow({ medium: 'série', step: 'search' })
         }}
-        onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id })}
+        onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id, returnTo: 'series' })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
@@ -2923,8 +2964,8 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'series' })}>
-              ← Retour aux séries
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux séries">
+              {icon('arrow-left')}
             </button>
           </header>
           <div className="library-state error-state" role="alert">
@@ -2937,8 +2978,8 @@ function App() {
       content = (
         <SeriesDetail
           series={series}
-          onBack={() => setView({ name: 'series' })}
-          backLabel="← Retour aux séries"
+          onBack={() => goBackTo(view.returnTo)}
+          backLabel="Retour aux séries"
           onEdit={async () => {
             const series = seriesCollection.find((entry) => entry.id === view.seriesId)
             if (series) {
@@ -2977,7 +3018,7 @@ function App() {
           setBookSelection({ pendingKey: null, error: null })
           setAddFlow({ medium: 'livre', step: 'search' })
         }}
-        onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id })}
+        onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id, returnTo: 'books' })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
@@ -2989,8 +3030,8 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'books' })}>
-              ← Retour aux livres
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux livres">
+              {icon('arrow-left')}
             </button>
           </header>
           <div className="library-state error-state" role="alert">
@@ -3003,8 +3044,8 @@ function App() {
       content = (
         <BookDetail
           book={book}
-          onBack={() => setView({ name: 'books' })}
-          backLabel="← Retour aux livres"
+          onBack={() => goBackTo(view.returnTo)}
+          backLabel="Retour aux livres"
           onEdit={async () => {
             const book = bookCollection.find((entry) => entry.id === view.bookId)
             if (book) {
@@ -3044,7 +3085,7 @@ function App() {
           setCandidateSelection({ pendingId: null, error: null })
           setAddFlow({ medium: 'jeu', step: 'search' })
         }}
-        onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id })}
+        onOpen={(game) => leaveLibrary({ name: 'game-detail', gameId: game.id, returnTo: 'games' })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
@@ -3056,8 +3097,8 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'games' })}>
-              ← Retour aux jeux
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux jeux">
+              {icon('arrow-left')}
             </button>
           </header>
           <div className="library-state error-state" role="alert">
@@ -3070,8 +3111,8 @@ function App() {
       content = (
         <GameDetail
           game={game}
-          onBack={() => setView({ name: 'games' })}
-          backLabel="← Retour aux jeux"
+          onBack={() => goBackTo(view.returnTo)}
+          backLabel="Retour aux jeux"
           onEdit={async () => {
             const game = gameCollection.find((entry) => entry.id === view.gameId)
             if (game) {
@@ -3108,7 +3149,7 @@ function App() {
         onContextChange={setArtworkContext}
         onRetrySearch={() => setArtworkSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => setAddFlow({ medium: 'artwork', step: 'form' })}
-        onOpen={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id })}
+        onOpen={(artwork) => leaveLibrary({ name: 'artwork-detail', artworkId: artwork.id, returnTo: 'artworks' })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
@@ -3120,8 +3161,8 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button" type="button" onClick={() => setView({ name: 'artworks' })}>
-              ← Retour à l’Art
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux œuvres d’art">
+              {icon('arrow-left')}
             </button>
           </header>
           <div className="library-state error-state" role="alert">
@@ -3134,8 +3175,8 @@ function App() {
       content = (
         <ArtworkDetail
           artwork={artwork}
-          onBack={() => setView({ name: 'artworks' })}
-          backLabel="← Retour aux œuvres"
+          onBack={() => goBackTo(view.returnTo)}
+          backLabel="Retour aux œuvres d’art"
           onEdit={() => {
             const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
             if (artwork) {
@@ -3384,7 +3425,7 @@ function App() {
                     }
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'series-detail', seriesId: targetId! })
+                    leaveLibrary({ name: 'series-detail', seriesId: targetId!, returnTo: 'series' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3435,7 +3476,7 @@ function App() {
                     setBookSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'book-detail', bookId: targetId! })
+                    leaveLibrary({ name: 'book-detail', bookId: targetId!, returnTo: 'books' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3486,7 +3527,7 @@ function App() {
                     setGameSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'game-detail', gameId: targetId! })
+                    leaveLibrary({ name: 'game-detail', gameId: targetId!, returnTo: 'games' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3515,7 +3556,7 @@ function App() {
                     setArtworkSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'artwork-detail', artworkId: editArtworkId ?? '' })
+                    leaveLibrary({ name: 'artwork-detail', artworkId: editArtworkId ?? '', returnTo: 'artworks' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
