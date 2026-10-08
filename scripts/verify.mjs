@@ -212,7 +212,10 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     'Enregistrez un jeton GitHub dans les réglages pour accéder aux releases privées.',
     'L’absence de jeton doit être expliquée clairement',
   )
-  assert.match(updaterErrorMessage('UPDATER_PRIVATE_RELEASE_UNAVAILABLE'), /Contents en lecture seule/, 'Un problème de permission doit orienter vers le réglage du jeton')
+  assert.match(updaterErrorMessage('UPDATER_TOKEN_INVALID'), /actif, non expiré/, 'Un jeton refusé doit être distingué')
+  assert.match(updaterErrorMessage('UPDATER_TOKEN_PERMISSION_DENIED'), /Contents en lecture/, 'Un problème de permission doit orienter vers le réglage du jeton')
+  assert.match(updaterErrorMessage('UPDATER_PRIVATE_RELEASE_UNAVAILABLE'), /latest\.json/, 'Un manifeste introuvable doit être identifié')
+  assert.match(updaterErrorMessage('UPDATER_MANIFEST_INVALID'), /version exploitable/, 'Un manifeste illisible doit être distingué d’un refus d’accès')
 }
 
 {

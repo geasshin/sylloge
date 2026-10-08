@@ -27,7 +27,9 @@ Sylloge lit uniquement le manifeste HTTPS suivant :
 https://github.com/geasshin/sylloge/releases/latest/download/latest.json
 ```
 
-Le dépôt étant privé, GitHub exige une authentification pour lire le manifeste et télécharger l’archive. Dans les réglages, la personne fournit un jeton d’accès personnel GitHub à granularité fine, limité au dépôt `geasshin/sylloge`, avec l’autorisation **Contents: Read-only**. Sylloge le conserve dans le Trousseau macOS. Le jeton n’est pas renvoyé à l’interface, enregistré dans les préférences ou écrit dans les journaux. Le manifeste fournit une archive et la signature lue dans son fichier `.sig`. L’application vérifie cette signature avec la clé publique embarquée. Une branche Git, un commit ou un artefact non signé ne peut pas devenir une mise à jour installable.
+Avant le contrôle Tauri, Sylloge vérifie l’accès au manifeste avec le même jeton afin de distinguer un jeton refusé (`401`), un accès interdit (`403`) et une release ou un manifeste introuvable (`404`). Le jeton et le corps de la réponse ne sont jamais écrits dans les journaux ni renvoyés à l’interface.
+
+Le dépôt étant privé, GitHub exige une authentification pour lire le manifeste et télécharger l’archive. Dans les réglages, la personne fournit un jeton d’accès personnel GitHub à granularité fine, limité au dépôt `geasshin/sylloge`, avec l’autorisation **Contents: Read-only**. Sylloge le conserve uniquement dans le Trousseau macOS, sans l’enregistrer dans les préférences. Le manifeste fournit une archive et la signature lue dans son fichier `.sig`. L’application vérifie cette signature avec la clé publique embarquée. Une branche Git, un commit ou un artefact non signé ne peut pas devenir une mise à jour installable.
 
 La première installation reste manuelle depuis un DMG. De même, une installation de Sylloge 0.6.0 doit d’abord être remplacée manuellement par un DMG contenant l’authentification privée, car cette ancienne version ne peut pas accéder au dépôt privé. Après cette installation unique, enregistrez le jeton dans les réglages de l’application. Les mises à jour suivantes peuvent alors être recherchées depuis Sylloge.
 
