@@ -18,11 +18,12 @@
 - Voix personnelle : `--color-personal: #473952` (prune profond) pour les avis rédigés.
 - Danger : `#9C3B2E`.
 
-## Typographie — deux voix
+## Typographie — hiérarchie d’interface
 
-- **Voix encyclopédie** : pile système sans-serif (`-apple-system…`). Titres en graisse 800 avec interlettrage resserré (`-0.8px` au-delà de 30 px), libellés de section en petites capitales espacées (`10-11px`, `+1.4px`), textes courants 13 px.
+- **Titres d’interface** : Syne variable, chargée depuis le fichier local du projet. Titres de pages, bibliothèques et sections en capitales ; une hiérarchie courte distingue les pages (environ 48 px, graisse 800), les rangées principales (18-19 px, graisse 700) et les catégories par médium (16 px, graisse 700). L’interlettrage positif reste modéré pour préserver la lecture des capitales.
+- **Titres d’œuvres** : pile système sans-serif (`-apple-system…`) et casse d’origine dans les rangées, les cartes et les fiches. Ce choix reste provisoire pour les fiches détaillées, jusqu’à validation visuelle.
+- **Texte courant et métadonnées** : pile système sans-serif, en casse naturelle et dans des tailles plus compactes que les titres. Les libellés techniques peuvent rester en capitales monospaces.
 - **Voix personnelle** : tout avis rédigé par la personne est en serif système (`ui-serif, "New York", Georgia, serif`), 15-15.5 px, interligne 1.8, teinte prune, filet vertical violet à gauche. Cette règle vaut pour les cinq médiums.
-- Les métadonnées techniques de l'œuvre (fiche technique) utilisent des libellés subtils en capitales et des valeurs en texte normal.
 
 ## Formes et composants
 

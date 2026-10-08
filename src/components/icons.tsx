@@ -10,6 +10,16 @@ const strokeProps = {
   strokeLinejoin: 'round' as const,
 }
 
+/** Flèche de retour : seule la direction est visible, le sens reste nommé. */
+export function ArrowLeftIcon({ size = 17 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+      <path {...strokeProps} strokeWidth={1.8} d="M15.4 10H5.1" />
+      <path {...strokeProps} strokeWidth={1.8} d="M9.9 4.8 4.7 10l5.2 5.2" />
+    </svg>
+  )
+}
+
 export function HomeIcon({ size = 17 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">

@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Syne";
+  src: url("./assets/fonts/Syne-VariableFont_wght.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+}
+
 :root {
   /* Direction artistique : gris anthracite ultra-moderne, monochrome.
      Light mode : gris froids neutres, accent = encre presque noire. */
@@ -90,7 +98,7 @@
   }
   color-scheme: light;
   --font-ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  --font-display: var(--font-ui);
+  --font-display: "Syne", var(--font-ui);
   --font-personal: ui-serif, "New York", Georgia, "Times New Roman", serif;
   --font-label: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --radius-pill: 999px;
@@ -106,6 +114,7 @@
 }
 
 * { box-sizing: border-box; }
+h1, h2, h3, h4 { font-family: var(--font-display); text-transform: uppercase; }
 html, body, #root { min-height: 100%; margin: 0; }
 body { min-width: 0; overflow-x: hidden; }
 /* La largeur utile ne change jamais quand une liste raccourcit (bug « saut
@@ -136,8 +145,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .display-title {
   font-weight: 800;
-  letter-spacing: -.03em;
+  letter-spacing: .02em;
   line-height: 1.02;
+}
+.detail-page-main .display-title {
+  font-family: var(--font-ui);
+  text-transform: none;
+  letter-spacing: -.03em;
 }
 
 .app { min-height: 100vh; display: flex; }
@@ -331,9 +345,9 @@ nav { display: flex; flex-direction: column; gap: 2px; }
    la page d'accueil seule : ses tokens sont redéclarés dans la portée
    `.atrium-home` (règle § 5.4 du CDC home-v1). Le reste de l'application garde
    sa direction en place ; la coquille (barre latérale) n'est pas redessinée.
-   Les modules « Derniers ajouts », « Favoris et mieux notés » et « Vus, lus et
-   joués » reprennent la file horizontale de la proposition C : en-tête sur une
-   ligne, voie défilante, flèches seulement en cas de débordement réel.
+   Les modules « Derniers ajouts », « Récent » et « Favoris » reprennent la
+   file horizontale : en-tête sur une ligne, voie défilante, flèches seulement
+   en cas de débordement réel.
    ========================================================================== */
 
 /* Tokens du contrat à l'intérieur de l'accueil. En thème sombre, l'accueil
@@ -355,7 +369,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   --color-accent-soft: #F0E8F3;
   --color-personal: #473952;
   --color-star-empty: #E4E0D6;
-  --color-star-active: #9E7415;
+  --color-star-active: #B78322;
   --color-poster-fallback: #EDEAE3;
   --hover-border: #D9D3C7;
   --shadow-visual-value: 0 1px 2px rgba(31, 29, 26, .07), 0 10px 26px -14px rgba(31, 29, 26, .22);
@@ -371,85 +385,173 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   background: var(--color-canvas);
   color: var(--color-text);
 }
+:root[data-theme='dark'] .atrium-home { --color-star-active: #E0B253; }
 .at-inner { width: 100%; max-width: 1440px; margin: 0 auto; }
 
 /* Remise à zéro des marges de l'agent utilisateur, sans coût de spécificité :
    `:where()` ne pèse rien, donc les règles ci-dessous gardent la main. */
 :where(.atrium-home) :where(p, ul, ol, li, h1, h2, h3, figure, blockquote) { margin: 0; }
 
-/* Tête volontairement réduite : le titre suffit à orienter ; la place
-   gagnée revient immédiatement aux rangées de découverte. */
-.at-head { padding: 8px 0 10px; }
-.at-title {
-  margin: 0;
-  font-family: var(--font-personal);
-  font-weight: 600;
-  font-size: clamp(32px, 3vw, 40px);
-  line-height: 1.03;
-  letter-spacing: -.018em;
+/* Couleur de repère d'un médium : une teinte par bibliothèque, portée par la
+   pastille du tableau et par les jours du calendrier. Cinq familles de teinte
+   franchement distinctes, pour rester lisibles en pastille minuscule. */
+[data-medium='film'] { --medium-color: #2F6BA8; }
+[data-medium='série'] { --medium-color: #B8446E; }
+[data-medium='livre'] { --medium-color: #2F8A5E; }
+[data-medium='jeu'] { --medium-color: #C4851C; }
+[data-medium='art'] { --medium-color: #7C4BC4; }
+:root[data-theme='dark'] [data-medium='film'] { --medium-color: #6FA8E8; }
+:root[data-theme='dark'] [data-medium='série'] { --medium-color: #F08AB4; }
+:root[data-theme='dark'] [data-medium='livre'] { --medium-color: #5FCB8E; }
+:root[data-theme='dark'] [data-medium='jeu'] { --medium-color: #E8B95C; }
+:root[data-theme='dark'] [data-medium='art'] { --medium-color: #AC8BEE; }
+
+/* Bandeau d'activité : un seul module bordé, centré, qui réunit le tableau des
+   bibliothèques et le calendrier des consommations. Même langage que les
+   modules par médium plus bas : un filet, un fond de carte, jamais deux boîtes
+   imbriquées. */
+.at-overview {
+  width: min(100%, 860px);
+  max-width: 100%;
+  margin: 4px auto 0;
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  align-items: center;
+  padding: 14px clamp(18px, 2.4vw, 26px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+.at-overview-panel { min-width: 0; }
+.at-overview-panel:first-child { padding-right: clamp(22px, 2.6vw, 34px); }
+.at-calendar-panel {
+  padding-left: clamp(22px, 2.6vw, 34px);
+  border-left: 1px solid var(--color-hairline);
+}
+
+/* Tableau des bibliothèques : un médium par ligne, trois comptes par ligne. */
+.at-medium-table { width: 100%; border-collapse: collapse; }
+.at-medium-table th,
+.at-medium-table td { padding: 9px 0; text-align: right; }
+.at-medium-table thead th {
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.at-medium-table thead th + th,
+.at-medium-table tbody th + td { padding-left: clamp(12px, 1.8vw, 24px); }
+.at-medium-table tbody th,
+.at-medium-table tbody td { border-bottom: 1px solid var(--color-hairline); }
+.at-medium-table tbody tr:last-child th,
+.at-medium-table tbody tr:last-child td { border-bottom: 0; }
+.at-medium-table tbody th {
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.at-medium-name { display: inline-flex; align-items: center; gap: 10px; }
+.at-medium-table td {
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.at-medium-table tbody td { color: var(--medium-color); font-weight: 700; }
+
+.at-medium-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--medium-color, var(--color-text));
+  box-shadow: 0 0 0 2px var(--color-surface);
+}
+
+.at-empty-home {
+  max-width: 46ch;
+  margin: 12vh auto 0;
+  text-align: center;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+}
+
+/* Titre de section : la seule voix forte de la page, sans surtitre. */
+.at-section-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.025em;
   color: var(--color-text);
 }
-.at-head-empty { min-height: calc(100vh - 94px); display: flex; flex-direction: column; justify-content: center; }
-.at-empty-home {
-  max-width: 44ch;
-  margin-top: 14px;
-  font-family: var(--font-personal);
-  font-size: clamp(18px, 2vw, 24px);
-  line-height: 1.45;
+
+/* Sélections par médium : trois œuvres par module, rangées centrées. */
+.at-medium-section { margin-top: 34px; }
+.at-medium-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.at-refresh-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
   color: var(--color-text-muted);
+  transition: border-color .12s ease, color .12s ease, background-color .12s ease;
 }
-
-/* Libellé de section : voix encyclopédie, petites capitales espacées. */
-.at-label {
-  color: var(--color-text-muted);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: .14em;
-  text-transform: uppercase;
+.at-refresh-button:hover { border-color: var(--hover-border); color: var(--color-accent); background: var(--color-surface); }
+.at-refresh-button svg { width: 15px; height: 15px; display: block; }
+.at-medium-grid {
+  margin-top: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 16px;
 }
-.at-hint { margin-top: 6px; font-size: 12.5px; color: var(--color-text-muted); }
-
-/* ————————————————————————————— Jour pour jour ———————————————————————— */
-
-.at-jour {
-  margin-top: 34px;
-  padding: 24px 0 26px;
-  border-top: 1px solid var(--color-hairline);
-  border-bottom: 1px solid var(--color-hairline);
+.at-medium-panel {
+  min-width: 0;
+  flex: 0 1 calc((100% - 32px) / 3);
+  padding: 16px 17px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
 }
-.at-jour-head { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
-.at-jour-grid {
-  margin-top: 16px;
+.at-medium-items {
+  margin-top: 13px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: clamp(18px, 2.4vw, 34px);
+  gap: 16px;
 }
-.at-jour-item { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.at-jour-years { color: var(--color-text-muted); font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
-.at-jour-title { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
-.at-jour-facts { font-size: 12px; color: var(--color-text-muted); }
-.at-jour-note {
-  margin: 4px 0 0;
-  padding-left: 14px;
-  border-left: 2px solid var(--color-accent);
-  font-family: var(--font-personal);
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--color-personal);
-}
-.at-jour-link { margin-top: 4px; }
 
 /* ————————————————————————— Modules et rangées ————————————————————————— */
 
 .at-section { margin-top: 28px; }
-.at-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
 .at-work { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 0; }
 .at-work .poster { transition: transform .14s ease, box-shadow .14s ease; box-shadow: var(--shadow-visual); }
 .at-work:hover .poster { transform: translateY(-3px); box-shadow: var(--shadow-lifted); }
 .at-work:hover .at-work-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.at-work-cap { margin-top: 9px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.at-work-title { font-size: 13.5px; font-weight: 700; letter-spacing: -.01em; overflow-wrap: anywhere; }
-.at-work-sub { font-size: 12px; color: var(--color-text-muted); }
+.at-work .poster-fallback b { display: none; }
+.at-work-cap { margin-top: 7px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.at-work-title { font-family: var(--font-ui); font-size: 13.5px; font-weight: 650; line-height: 1.2; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.at-work-byline {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .at-work-meta { display: none; font-size: 11.5px; color: var(--color-text-muted); align-items: center; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .at-work-meta i { font-style: normal; }
 .at-work-heart { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--color-accent); }
@@ -458,7 +560,16 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 /* ————————————————— File horizontale (proposition C, langage de A) ———————— */
 
 .at-file-head { display: flex; align-items: baseline; gap: 14px; min-height: 30px; }
-.at-file-head .at-label { font-size: 12px; letter-spacing: .11em; }
+.at-file-head .at-section-title {
+  font-size: 22px;
+  font-weight: 750;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.at-medium-head .at-section-title {
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
 .at-row-nav { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .at-row-btn {
   width: 32px;
@@ -509,97 +620,132 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   flex: 0 0 calc((100% - (var(--at-lane-count) - 1) * var(--at-lane-gap)) / var(--at-lane-count));
   scroll-snap-align: start;
 }
-.at-lane .at-work-cap { margin-top: 8px; gap: 4px; min-height: 54px; }
-.at-lane .at-work-title { font-size: 12.5px; line-height: 1.3; min-height: 2.6em; }
-.at-lane .at-work-sub, .at-lane .at-work-meta { display: none; }
-
-/* Portes de sortie : chaque module qui montre des œuvres en porte une. */
-.at-doors {
-  margin: 10px 0 0;
-  display: flex;
-  align-items: center;
-  gap: 2px 6px;
-  flex-wrap: wrap;
+.at-lane .at-work-cap { margin-top: 7px; gap: 2px; min-height: 0; }
+.at-lane .at-work-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 12.5px;
-  color: var(--color-text-muted);
+  line-height: 1.25;
 }
-.at-doors-label { margin-right: 6px; }
-.at-door-slot { display: inline-flex; align-items: center; gap: 6px; }
-.at-door-sep { color: var(--color-text-subtle); }
-.at-door {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  padding: 0 10px;
-  color: var(--color-text);
-  font-size: 12.5px;
-  font-weight: 600;
-  transition: background-color .12s ease;
+
+/* Rangée dont les cartes portent une date : la ligne de contexte reste
+   visible, la hauteur de la légende est réservée pour ne rien faire sauter. */
+.at-file-meta .at-work-cap { min-height: 82px; }
+.at-file-meta .at-work-meta { display: flex; }
+
+@media (prefers-reduced-motion: reduce) {
+  .at-refresh-button { transition: none; }
 }
-.at-door:hover { background: var(--veil-soft); }
-.at-door-refresh { gap: 8px; border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); padding: 0 14px; }
-.at-door-refresh:hover { border-color: var(--hover-border); background: var(--color-surface); }
 
-/* ————————————————————— Cette année : chiffres et calendrier ————————————— */
-
-.at-year-grid {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-  gap: clamp(24px, 3.2vw, 46px);
-  align-items: start;
+.at-calendar {
+  margin-top: 0;
+  width: 100%;
 }
-.at-year { display: flex; flex-direction: column; gap: 12px; }
-.at-year-figures { font-size: 13.5px; color: var(--color-text); }
-.at-year-figures b { font-weight: 700; font-variant-numeric: tabular-nums; }
-.at-year-detail { font-size: 12px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
-
-.at-calendar { margin-top: 0; }
 .at-cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .at-cal-nav h3 {
-  font-size: 12.5px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-muted);
+  font-size: 12px;
   font-weight: 700;
-  text-transform: capitalize;
+  text-transform: uppercase;
   font-variant-numeric: tabular-nums;
 }
 .at-cal-button {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: 13px;
+  font-size: 20px;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: border-color .12s ease, color .12s ease, background-color .12s ease;
 }
-.at-cal-button:hover:not(:disabled) { border-color: var(--hover-border); color: var(--color-text); background: var(--color-surface); }
+.at-cal-button:hover:not(:disabled) { border-color: var(--color-border); color: var(--color-text); background: var(--color-surface); }
 .at-cal-button:disabled { opacity: .45; cursor: default; }
-.at-cal-weekdays { margin-top: 10px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.at-cal-weekdays span { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: .08em; color: var(--color-text-muted); text-transform: uppercase; }
+.at-cal-weekdays { margin-top: 7px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.at-cal-weekdays span { text-align: center; font-size: 9px; font-weight: 700; letter-spacing: .06em; color: var(--color-text-muted); text-transform: uppercase; }
 .at-cal-days {
   padding: 0;
   list-style: none;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: 30px;
-  gap: 2px;
+  grid-auto-rows: 31px;
+  gap: 3px;
   /* Six semaines réservées : la hauteur ne bouge pas d'un mois à l'autre. */
-  min-height: 190px;
+  min-height: 201px;
   align-content: start;
 }
-.at-cal-days .at-cal-pad { min-height: 30px; }
-.at-cal-day { position: relative; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
-.at-cal-day time { font-size: 11.5px; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
-.at-cal-day.on time { color: var(--color-text); font-weight: 600; }
-.at-cal-day.today { box-shadow: inset 0 0 0 1px var(--color-border); }
+.at-cal-days .at-cal-pad { min-height: 31px; }
+.at-cal-day {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 5px;
+  border-radius: 8px;
+}
+.at-cal-day time { font-size: 11.5px; color: var(--color-text-subtle); font-variant-numeric: tabular-nums; }
+/* Un jour actif se lit comme une tuile douce ; les pastilles gardent le médium. */
+.at-cal-day.on { background: var(--color-surface-muted); box-shadow: inset 0 0 0 1px var(--color-border); }
+.at-cal-day.on time { color: var(--color-text); font-weight: 650; }
+.at-cal-day.today { box-shadow: inset 0 0 0 1.5px var(--color-accent); }
+.at-cal-day.today time { color: var(--color-text); font-weight: 700; }
 .at-cal-dots { position: absolute; bottom: 3px; left: 0; right: 0; display: flex; justify-content: center; gap: 2px; }
-.at-cal-dots i { width: 4px; height: 4px; border-radius: 50%; background: var(--color-text); }
+.at-cal-dots i { width: 6px; height: 6px; border: 1px solid var(--color-surface); border-radius: 50%; background: var(--medium-color, var(--color-text)); }
+
+/* Survol d'un jour actif : le détail des œuvres du jour, dans la bulle sombre
+   déjà utilisée par le rail. Les teintes de médium sont les versions claires,
+   puisque la bulle reste sombre dans les deux thèmes. */
+.at-cal-tip {
+  position: absolute;
+  bottom: calc(100% + 9px);
+  left: 50%;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 168px;
+  max-width: 270px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-tooltip-bg);
+  color: var(--color-tooltip-text);
+  box-shadow: var(--shadow-lifted);
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, 4px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+  pointer-events: auto;
+}
+.at-cal-day:hover .at-cal-tip,
+.at-cal-day:focus .at-cal-tip { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+.at-cal-tip-item { display: flex; align-items: baseline; gap: 8px; }
+.at-cal-tip-title {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.at-cal-tip [data-medium='film'] { --medium-color: #6FA8E8; }
+.at-cal-tip [data-medium='série'] { --medium-color: #F08AB4; }
+.at-cal-tip [data-medium='livre'] { --medium-color: #5FCB8E; }
+.at-cal-tip [data-medium='jeu'] { --medium-color: #E8B95C; }
+.at-cal-tip [data-medium='art'] { --medium-color: #AC8BEE; }
+.at-cal-tip .at-medium-dot { width: 6px; height: 6px; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) {
+  .at-cal-tip { transition: none; transform: translate(-50%, 0); }
+}
 
 /* ————————————————————————————— États vides ———————————————————————————— */
 
@@ -608,15 +754,6 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   font-size: 13px;
   color: var(--color-text-muted);
 }
-.at-empty-block { padding: clamp(24px, 4vh, 40px) 0 clamp(8px, 2vh, 16px); }
-.at-empty-block .at-empty {
-  font-size: clamp(20px, 1.9vw, 24px);
-  font-weight: 800;
-  letter-spacing: -.02em;
-  color: var(--color-text);
-}
-.at-empty-block p { margin: 10px 0 0; max-width: 48ch; font-size: 13.5px; line-height: 1.75; color: var(--color-text-muted); }
-
 /* Étoiles de note : or pour la part remplie, gris chaud pour le reste. */
 .at-stars { display: inline-flex; gap: 2px; font-size: 12.5px; line-height: 1; }
 .at-star { position: relative; display: inline-block; color: var(--color-star-empty); }
@@ -638,25 +775,41 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 @media (max-width: 1280px) {
   .at-lane { --at-lane-count: 5; }
 }
-@media (max-width: 1080px) {
-  .at-jour-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 1120px) {
+  .at-medium-panel { flex-basis: calc((100% - 16px) / 2); }
+  .at-medium-items { gap: 14px; }
 }
 @media (max-width: 900px) {
-  .at-jour-grid { grid-template-columns: minmax(0, 1fr); gap: 26px; }
-  .at-jour-item + .at-jour-item { padding-top: 24px; border-top: 1px solid var(--color-hairline); }
+  .at-overview {
+    width: auto;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    padding: 16px clamp(16px, 4vw, 22px);
+  }
+  .at-overview-panel:first-child { padding-right: 0; }
+  .at-calendar-panel {
+    padding-left: 0;
+    padding-top: 16px;
+    border-left: 0;
+    border-top: 1px solid var(--color-hairline);
+  }
+  .at-medium-grid { flex-direction: column; align-items: stretch; }
+  .at-medium-panel { flex-basis: auto; }
 }
 @media (max-width: 820px) {
   .at-lane { --at-lane-count: 4; }
+  .at-medium-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 620px) {
   .atrium-home { padding: 18px 18px 64px; }
   .at-lane { --at-lane-count: 3; --at-lane-gap: 14px; }
   .at-file-head { flex-wrap: wrap; }
   .at-row-nav { margin-left: 0; }
-  .at-title { font-size: clamp(30px, 9vw, 38px); }
+  .at-medium-panel { padding: 16px 16px 18px; }
 }
 @media (max-width: 520px) {
   .at-lane { --at-lane-count: 2; }
+  .at-medium-items { gap: 12px; }
 }
 
 /* La navigation reste un rail sous la largeur de travail. Sans cela, le shell
@@ -676,8 +829,9 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 /* Les files restent empilées : c'est leur répétition qui rend la page
    scannable. Une grille deux par deux donnait quatre gros modules, mais
    masquait la logique de parcours d'une rangée à l'autre. */
-.at-files { margin-top: 10px; }
+.at-files { margin-top: 30px; }
 .at-files > .at-section { margin-top: 0; }
+.at-files > .at-section + .at-section { margin-top: 30px; }
 .at-files .at-lane { --at-lane-count: 6; }
 
 @media (max-width: 820px) {
@@ -730,7 +884,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 }
 
 .poster-fallback span { font: 500 9px var(--font-label); text-transform: uppercase; letter-spacing: .06em; }
-.poster-fallback b { min-width: 0; color: var(--color-text); font-size: 16px; line-height: 1.2; overflow-wrap: anywhere; }
+.poster-fallback b { min-width: 0; color: var(--color-text); font-family: var(--font-ui); font-size: 16px; line-height: 1.2; overflow-wrap: anywhere; }
 .library-main {
   padding: 54px clamp(38px, 5vw, 88px) 80px;
   /* 0.6.26 : la page est une colonne pleine hauteur ; l’état vide peut
@@ -923,7 +1077,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
    un titre long ne déplace plus jamais la géométrie de la grille */
 .film-card-info { padding: 10px 2px 0; display: grid; gap: 4px; }
 .film-card-top { display: flex; min-width: 0; justify-content: space-between; align-items: start; gap: 4px; }
-.film-card-info b { flex: 1 1 auto; min-width: 0; font-size: 14px; line-height: 1.2; letter-spacing: -.035em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: calc(2 * 1.2em); }
+.film-card-info b { flex: 1 1 auto; min-width: 0; font-family: var(--font-ui); font-size: 14px; font-weight: 650; line-height: 1.2; letter-spacing: -.025em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: calc(2 * 1.2em); }
 .film-card-info i { flex: 0 0 auto; color: var(--color-accent); font-style: normal; font-size: 11px; }
 /* La ligne de faits (réalisation · année) est bornée à une ligne et sa hauteur
    est réservée, comme celle du titre : une réalisation longue ne fait plus
@@ -1005,6 +1159,30 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   padding-bottom: 17px;
 }
 .back-button { border: 0; background: transparent; padding: 8px 0; color: var(--color-accent); font-size: 13px; font-weight: 650; }
+
+/* Retour d'une fiche : une pastille ronde du même langage que les contrôles
+   de rangée, assez large pour rester une cible confortable. */
+.back-button.back-button-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color .14s ease, background-color .14s ease, color .14s ease, transform .14s ease;
+}
+.back-button.back-button-icon:hover {
+  border-color: var(--hover-border);
+  background: var(--color-surface-muted);
+  color: var(--color-accent);
+  transform: translateX(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .back-button.back-button-icon:hover { transform: none; }
+}
 
 .editor-main { padding: 30px clamp(38px, 6vw, 92px) 74px; }
 .editor-heading, .film-form { width: min(100%, 700px); margin-inline: auto; }
@@ -1486,7 +1664,7 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 .tmdb-film-context-poster .poster-fallback b { font-size: 10px; }
 .tmdb-film-context-info { min-width: 0; display: grid; align-content: start; gap: 6px; }
 .tmdb-film-context-info .card-kicker { margin: 0; }
-.tmdb-film-context-info h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.tmdb-film-context-info h2 { margin: 0; font-family: var(--font-ui); font-size: 18px; letter-spacing: -.025em; text-transform: none; overflow-wrap: anywhere; }
 .tmdb-film-context-info p:last-child { margin: 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
 .tmdb-search-results { margin-top: 24px; }
 .tmdb-search-results h2 { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
@@ -3398,18 +3576,16 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   .app-settings .portability-main { padding-inline: 20px; }
   .atrium-home { padding-inline: 20px; padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
   .at-inner { max-width: none; }
-  .at-title { font-size: clamp(31px, 8.5vw, 38px); }
-  .at-head { padding-top: 4px; }
-  .at-jour { margin-top: 24px; padding-block: 20px; }
-  .at-year-grid { grid-template-columns: 1fr; }
+  .at-overview { padding-bottom: 16px; }
+  .at-section-title { font-size: 16px; }
+  .at-file-head .at-section-title { font-size: 20px; font-weight: 750; }
+  .at-medium-section { margin-top: 30px; }
+  .at-medium-grid { gap: 14px; }
   .at-calendar { width: 100%; }
   .at-files { margin-top: 8px; }
   .at-section { margin-top: 24px; }
   .at-lane { --at-lane-count: 3; --at-lane-gap: 12px; }
   .at-files .at-lane { --at-lane-count: 3; }
-  .at-doors { gap: 2px 3px; }
-  .at-doors-label { width: auto; margin: 0 2px 0 0; }
-  .at-door { min-height: 44px; padding-inline: 4px; font-size: 11px; }
 
   .library-main { min-height: 100dvh; padding-top: calc(82px + env(safe-area-inset-top)); padding-bottom: calc(38px + env(safe-area-inset-bottom)); }
   .library-header { align-items: flex-start; flex-direction: column; gap: 17px; }
@@ -3540,8 +3716,13 @@ nav { display: flex; flex-direction: column; gap: 2px; }
   .portability-main,
   .app-settings .portability-main { padding-inline: 16px; }
   .atrium-home { padding-inline: 16px; padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
-  .at-doors { gap: 2px; }
-  .at-door { padding-inline: 5px; font-size: 11.5px; }
+  .at-medium-table thead th { letter-spacing: .06em; }
+  .at-medium-table thead th + th,
+  .at-medium-table tbody th + td { padding-left: 10px; }
+  .at-medium-table tbody th { font-size: 12.5px; }
+  .at-medium-name { gap: 8px; }
+  .at-medium-table td { font-size: 12.5px; }
+  .at-medium-table td:first-of-type { font-size: 15px; }
   .at-lane,
   .at-files .at-lane { --at-lane-count: 2; --at-lane-gap: 12px; }
   .library-header-actions { grid-template-columns: 1fr 1fr; }
