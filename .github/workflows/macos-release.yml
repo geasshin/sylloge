@@ -1,0 +1,153 @@
+name: Release macOS
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: sylloge-macos-main-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Récupérer le dépôt et les tags
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer Rust et les cibles macOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Préparer la prochaine version corrective
+        id: version
+        run: node scripts/prepare-tauri-release-version.mjs
+
+      - name: Installer les dépendances npm
+        run: npm ci
+
+      - name: Générer les clés embarquées depuis les secrets GitHub
+        shell: bash
+        env:
+          SYLLOGE_TMDB_API_KEY: ${{ secrets.SYLLOGE_TMDB_API_KEY }}
+          SYLLOGE_IGDB_CLIENT_ID: ${{ secrets.SYLLOGE_IGDB_CLIENT_ID }}
+          SYLLOGE_IGDB_CLIENT_SECRET: ${{ secrets.SYLLOGE_IGDB_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          : "${SYLLOGE_TMDB_API_KEY:?Le secret SYLLOGE_TMDB_API_KEY doit être configuré.}"
+          : "${SYLLOGE_IGDB_CLIENT_ID:?Le secret SYLLOGE_IGDB_CLIENT_ID doit être configuré.}"
+          : "${SYLLOGE_IGDB_CLIENT_SECRET:?Le secret SYLLOGE_IGDB_CLIENT_SECRET doit être configuré.}"
+          umask 077
+          mkdir -p ~/.sylloge-secrets src-tauri/src/tmdb src-tauri/src/igdb
+          printf '%s' "$SYLLOGE_TMDB_API_KEY" > ~/.sylloge-secrets/tmdb-api-key.txt
+          printf '%s' "$SYLLOGE_IGDB_CLIENT_ID" > ~/.sylloge-secrets/igdb-client-id.txt
+          printf '%s' "$SYLLOGE_IGDB_CLIENT_SECRET" > ~/.sylloge-secrets/igdb-client-secret.txt
+          python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/tmdb-api-key.txt --provider tmdb --out src-tauri/src/tmdb/embedded_key.rs
+          python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-id.txt --provider igdb --out src-tauri/src/igdb/embedded_client_id.rs
+          python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-secret.txt --provider igdb --out src-tauri/src/igdb/embedded_client_secret.rs
+
+      - name: Nettoyer les bundles macOS mis en cache
+        run: rm -rf src-tauri/target/universal-apple-darwin/release/bundle
+
+      - name: Construire le bundle macOS universel et signer l’archive updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${TAURI_SIGNING_PRIVATE_KEY:?Le secret TAURI_SIGNING_PRIVATE_KEY doit être configuré.}"
+          npm run tauri:build -- --target universal-apple-darwin
+
+      - name: Préparer les notes et le manifeste updater
+        id: manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$TAG" \
+            -f target_commitish="$GITHUB_SHA" \
+            --jq .body > "$notes_file"
+          if ! grep -q '[^[:space:]]' "$notes_file" || grep -qx 'null' "$notes_file"; then
+            printf '%s\n' "Mise à jour de Sylloge. Consultez l’historique du dépôt pour le détail des changements." > "$notes_file"
+          fi
+
+          archive="src-tauri/target/universal-apple-darwin/release/bundle/macos/Sylloge.app.tar.gz"
+          signature="$archive.sig"
+          shopt -s nullglob
+          dmg_files=(src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg)
+          if [[ ! -s "$archive" || ! -s "$signature" || ${#dmg_files[@]} -ne 1 ]]; then
+            echo "Les artefacts macOS attendus sont absents ou ambigus." >&2
+            exit 1
+          fi
+
+          manifest_arm="$RUNNER_TEMP/latest-arm.json"
+          manifest="$RUNNER_TEMP/latest.json"
+          archive_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Sylloge.app.tar.gz"
+          node scripts/create-tauri-latest-json.mjs \
+            --version "$VERSION" \
+            --notes-file "$notes_file" \
+            --url "$archive_url" \
+            --signature-file "$signature" \
+            --target darwin-aarch64 \
+            --output "$manifest_arm"
+          node --input-type=module - "$manifest_arm" "$manifest" <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs'
+          const [sourcePath, outputPath] = process.argv.slice(2)
+          const manifest = JSON.parse(readFileSync(sourcePath, 'utf8'))
+          manifest.platforms['darwin-x86_64'] = manifest.platforms['darwin-aarch64']
+          writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+          NODE
+
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          echo "signature=$signature" >> "$GITHUB_OUTPUT"
+          echo "dmg=${dmg_files[0]}" >> "$GITHUB_OUTPUT"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Publier la GitHub Release et ses fichiers updater
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          ARCHIVE: ${{ steps.manifest.outputs.archive }}
+          SIGNATURE: ${{ steps.manifest.outputs.signature }}
+          DMG: ${{ steps.manifest.outputs.dmg }}
+          MANIFEST: ${{ steps.manifest.outputs.manifest }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "$DMG" "$ARCHIVE" "$SIGNATURE" "$MANIFEST" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Sylloge $VERSION" \
+              --notes-file "$RUNNER_TEMP/release-notes.md" \
+              "$DMG" "$ARCHIVE" "$SIGNATURE" "$MANIFEST"
+          fi
