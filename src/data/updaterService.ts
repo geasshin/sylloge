@@ -49,6 +49,7 @@ const UPDATER_ERROR_MESSAGES: Record<string, string> = {
   UPDATER_TOKEN_PERMISSION_DENIED: 'GitHub refuse l’accès au dépôt. Vérifiez que le jeton autorise Contents en lecture pour geasshin/sylloge et qu’aucune approbation n’est en attente.',
   UPDATER_PRIVATE_RELEASE_UNAVAILABLE: 'GitHub renvoie 404, ce qui peut masquer un accès refusé à la release privée. Vérifiez que geasshin/sylloge est sélectionné, que Contents est en lecture seule et que la release contient latest.json.',
   UPDATER_MANIFEST_INVALID: 'GitHub répond, mais Sylloge ne trouve pas de version exploitable dans latest.json. Le manifeste de la release doit être vérifié.',
+  UPDATER_RELEASE_METADATA_INVALID: 'La réponse de la release GitHub est illisible. Réessayez plus tard ou vérifiez les fichiers de la release.',
   UPDATER_REQUEST_SETUP_FAILED: 'La requête de mise à jour n’a pas pu être préparée. Vérifiez la configuration du dépôt.',
   UPDATER_CHECK_FAILED: 'La vérification a échoué. Vérifiez la connexion et les droits du jeton GitHub.',
   UPDATER_INSTALL_FAILED: 'Le téléchargement ou l’installation a échoué. Votre version actuelle reste ouverte.',

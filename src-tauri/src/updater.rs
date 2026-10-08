@@ -1,12 +1,17 @@
-use serde::Serialize;
+use reqwest::{header::ACCEPT, StatusCode, Url};
+use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
-use tauri_plugin_updater::{Error as UpdaterError, UpdaterExt};
+use tauri_plugin_updater::{Error as UpdaterError, Updater, UpdaterExt};
 
 use crate::updater_credentials;
 
-const PRIVATE_RELEASE_MANIFEST_URL: &str =
-    "https://github.com/geasshin/sylloge/releases/latest/download/latest.json";
+const GITHUB_LATEST_RELEASE_API_URL: &str =
+    "https://api.github.com/repos/geasshin/sylloge/releases/latest";
+const GITHUB_RELEASE_ASSET_API_URL: &str =
+    "https://api.github.com/repos/geasshin/sylloge/releases/assets/";
+const GITHUB_API_VERSION: &str = "2026-03-10";
+const RELEASE_MANIFEST_ASSET_NAME: &str = "latest.json";
 
 pub struct PendingUpdate(Mutex<Option<String>>);
 
@@ -30,14 +35,8 @@ pub async fn check_for_app_update(
 ) -> Result<Option<AvailableUpdate>, String> {
     let token = updater_credentials::read_updater_token()?
         .ok_or_else(|| "UPDATER_TOKEN_REQUIRED".to_string())?;
-    verify_private_release_access(token.as_str()).await?;
-
-    let updater = app
-        .updater_builder()
-        .header("Authorization", format!("Bearer {}", token.as_str()))
-        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?
-        .build()
-        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?;
+    let manifest_endpoint = latest_manifest_endpoint(token.as_str()).await?;
+    let updater = build_authenticated_updater(&app, token.as_str(), manifest_endpoint)?;
 
     let update = updater.check().await.map_err(map_check_error)?;
     let details = update.as_ref().map(|update| AvailableUpdate {
@@ -83,14 +82,8 @@ pub async fn install_app_update(
 
     let token = updater_credentials::read_updater_token()?
         .ok_or_else(|| "UPDATER_TOKEN_REQUIRED".to_string())?;
-    verify_private_release_access(token.as_str()).await?;
-
-    let updater = app
-        .updater_builder()
-        .header("Authorization", format!("Bearer {}", token.as_str()))
-        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?
-        .build()
-        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?;
+    let manifest_endpoint = latest_manifest_endpoint(token.as_str()).await?;
+    let updater = build_authenticated_updater(&app, token.as_str(), manifest_endpoint)?;
     let update = updater
         .check()
         .await
@@ -106,6 +99,94 @@ pub async fn install_app_update(
         .map_err(|_| "UPDATER_INSTALL_FAILED".to_string())
 }
 
+fn build_authenticated_updater(
+    app: &AppHandle,
+    token: &str,
+    manifest_endpoint: Url,
+) -> Result<Updater, String> {
+    let builder = app
+        .updater_builder()
+        .endpoints(vec![manifest_endpoint])
+        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?
+        .header("Authorization", format!("Bearer {token}"))
+        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?
+        .header(ACCEPT.as_str(), "application/octet-stream")
+        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?
+        .header("X-GitHub-Api-Version", GITHUB_API_VERSION)
+        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?
+        .header("User-Agent", "Sylloge")
+        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())?;
+
+    builder
+        .build()
+        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())
+}
+
+#[derive(Deserialize)]
+struct GitHubRelease {
+    assets: Vec<GitHubReleaseAsset>,
+}
+
+#[derive(Deserialize)]
+struct GitHubReleaseAsset {
+    id: u64,
+    name: String,
+    state: String,
+}
+
+async fn latest_manifest_endpoint(token: &str) -> Result<Url, String> {
+    let response = reqwest::Client::new()
+        .get(GITHUB_LATEST_RELEASE_API_URL)
+        .bearer_auth(token)
+        .header(ACCEPT, "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", GITHUB_API_VERSION)
+        .header("User-Agent", "Sylloge")
+        .send()
+        .await
+        .map_err(|_| "UPDATER_CHECK_FAILED".to_string())?;
+
+    if let Some(error) = github_response_error(response.status()) {
+        return Err(error.to_string());
+    }
+
+    let release = response
+        .json::<GitHubRelease>()
+        .await
+        .map_err(|_| "UPDATER_RELEASE_METADATA_INVALID".to_string())?;
+    let Some(asset_id) = latest_manifest_asset_id(&release.assets) else {
+        return Err("UPDATER_MANIFEST_INVALID".to_string());
+    };
+
+    release_asset_url(asset_id)
+}
+
+fn latest_manifest_asset_id(assets: &[GitHubReleaseAsset]) -> Option<u64> {
+    assets
+        .iter()
+        .find(|asset| asset.name == RELEASE_MANIFEST_ASSET_NAME && asset.state == "uploaded")
+        .map(|asset| asset.id)
+        .filter(|asset_id| *asset_id > 0)
+}
+
+fn release_asset_url(asset_id: u64) -> Result<Url, String> {
+    if asset_id == 0 {
+        return Err("UPDATER_RELEASE_METADATA_INVALID".to_string());
+    }
+
+    Url::parse(&format!("{GITHUB_RELEASE_ASSET_API_URL}{asset_id}"))
+        .map_err(|_| "UPDATER_REQUEST_SETUP_FAILED".to_string())
+}
+
+fn github_response_error(status: StatusCode) -> Option<&'static str> {
+    match status {
+        StatusCode::UNAUTHORIZED => Some("UPDATER_TOKEN_INVALID"),
+        StatusCode::FORBIDDEN => Some("UPDATER_TOKEN_PERMISSION_DENIED"),
+        StatusCode::NOT_FOUND => Some("UPDATER_PRIVATE_RELEASE_UNAVAILABLE"),
+        status if status.is_success() => None,
+        _ => Some("UPDATER_CHECK_FAILED"),
+    }
+}
+
 fn map_check_error(error: UpdaterError) -> String {
     match error {
         UpdaterError::ReleaseNotFound => "UPDATER_MANIFEST_INVALID".to_string(),
@@ -113,65 +194,77 @@ fn map_check_error(error: UpdaterError) -> String {
     }
 }
 
-async fn verify_private_release_access(token: &str) -> Result<(), String> {
-    let response = reqwest::Client::new()
-        .get(PRIVATE_RELEASE_MANIFEST_URL)
-        .bearer_auth(token)
-        .header(reqwest::header::ACCEPT, "application/json")
-        .send()
-        .await
-        .map_err(|_| "UPDATER_CHECK_FAILED".to_string())?;
-
-    if let Some(code) = manifest_access_error(response.status()) {
-        return Err(code.to_string());
-    }
-
-    Ok(())
-}
-
-fn manifest_access_error(status: reqwest::StatusCode) -> Option<&'static str> {
-    match status {
-        reqwest::StatusCode::UNAUTHORIZED => Some("UPDATER_TOKEN_INVALID"),
-        reqwest::StatusCode::FORBIDDEN => Some("UPDATER_TOKEN_PERMISSION_DENIED"),
-        reqwest::StatusCode::NOT_FOUND => Some("UPDATER_PRIVATE_RELEASE_UNAVAILABLE"),
-        status if status.is_success() => None,
-        _ => Some("UPDATER_CHECK_FAILED"),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{manifest_access_error, map_check_error};
+    use super::{
+        github_response_error, latest_manifest_asset_id, map_check_error, release_asset_url,
+        GitHubReleaseAsset,
+    };
     use reqwest::StatusCode;
     use tauri_plugin_updater::Error as UpdaterError;
 
     #[test]
-    fn manifest_access_errors_explain_authentication_statuses() {
+    fn github_api_errors_explain_authentication_statuses() {
         assert_eq!(
-            manifest_access_error(StatusCode::UNAUTHORIZED),
+            github_response_error(StatusCode::UNAUTHORIZED),
             Some("UPDATER_TOKEN_INVALID")
         );
         assert_eq!(
-            manifest_access_error(StatusCode::FORBIDDEN),
+            github_response_error(StatusCode::FORBIDDEN),
             Some("UPDATER_TOKEN_PERMISSION_DENIED")
         );
         assert_eq!(
-            manifest_access_error(StatusCode::NOT_FOUND),
+            github_response_error(StatusCode::NOT_FOUND),
             Some("UPDATER_PRIVATE_RELEASE_UNAVAILABLE")
         );
     }
 
     #[test]
-    fn manifest_access_accepts_success_and_no_content_responses() {
-        assert_eq!(manifest_access_error(StatusCode::OK), None);
-        assert_eq!(manifest_access_error(StatusCode::NO_CONTENT), None);
+    fn github_api_errors_allow_successful_responses() {
+        assert_eq!(github_response_error(StatusCode::OK), None);
     }
 
     #[test]
-    fn unexpected_manifest_responses_keep_a_generic_error() {
+    fn unexpected_github_responses_keep_a_generic_error() {
         assert_eq!(
-            manifest_access_error(StatusCode::INTERNAL_SERVER_ERROR),
+            github_response_error(StatusCode::INTERNAL_SERVER_ERROR),
             Some("UPDATER_CHECK_FAILED")
+        );
+    }
+
+    #[test]
+    fn latest_uploaded_manifest_asset_is_selected_by_name() {
+        let assets = vec![
+            GitHubReleaseAsset {
+                id: 41,
+                name: "Sylloge.app.tar.gz".to_string(),
+                state: "uploaded".to_string(),
+            },
+            GitHubReleaseAsset {
+                id: 42,
+                name: "latest.json".to_string(),
+                state: "uploaded".to_string(),
+            },
+            GitHubReleaseAsset {
+                id: 43,
+                name: "latest.json".to_string(),
+                state: "starter".to_string(),
+            },
+        ];
+
+        assert_eq!(latest_manifest_asset_id(&assets), Some(42));
+        assert_eq!(latest_manifest_asset_id(&assets[..1]), None);
+    }
+
+    #[test]
+    fn release_asset_url_uses_the_github_api_endpoint() {
+        assert_eq!(
+            release_asset_url(42).unwrap().as_str(),
+            "https://api.github.com/repos/geasshin/sylloge/releases/assets/42"
+        );
+        assert_eq!(
+            release_asset_url(0).unwrap_err(),
+            "UPDATER_RELEASE_METADATA_INVALID"
         );
     }
 

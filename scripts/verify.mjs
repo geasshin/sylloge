@@ -85,6 +85,8 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   const tauriConfig = JSON.parse(readFileSync('src-tauri/tauri.conf.json', 'utf8'))
   const capabilities = JSON.parse(readFileSync('src-tauri/capabilities/default.json', 'utf8'))
   const cargoManifest = readFileSync('src-tauri/Cargo.toml', 'utf8')
+  const updaterSource = readFileSync('src-tauri/src/updater.rs', 'utf8')
+  const releaseWorkflow = readFileSync('.github/workflows/macos-release.yml', 'utf8')
 
   assert.equal(tauriConfig.bundle.createUpdaterArtifacts, true, 'Le bundle doit générer les artefacts d’updater')
   assert.equal(
@@ -92,10 +94,35 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFQkI1NTZERjA5OTczRjEKUldUeGM1bndiVlc3cmxLL1JnbE1LM0w3V29taDVkQ0ZJSGE2SnJkelFzNnhONFluNU5EbjZwcmYK',
     'La clé publique d’updater doit être celle décidée pour Sylloge',
   )
-  assert.deepEqual(
+  assert.equal(
     tauriConfig.plugins.updater.endpoints,
-    ['https://github.com/geasshin/sylloge/releases/latest/download/latest.json'],
-    'L’updater doit consulter uniquement la release GitHub statique attendue',
+    undefined,
+    'L’endpoint privé doit être résolu depuis les assets de la release avec le jeton enregistré',
+  )
+  assert.match(
+    updaterSource,
+    /https:\/\/api\.github\.com\/repos\/geasshin\/sylloge\/releases\/latest/,
+    'La release latest doit être découverte avec l’API GitHub authentifiée',
+  )
+  assert.match(
+    updaterSource,
+    /\.endpoints\(vec!\[manifest_endpoint\]\)/,
+    'Tauri doit recevoir l’URL de l’asset latest.json découvert via l’API',
+  )
+  assert.match(
+    updaterSource,
+    /application\/octet-stream/,
+    'Les assets privés doivent être téléchargés au format binaire de l’API GitHub',
+  )
+  assert.match(
+    releaseWorkflow,
+    /archive_url="https:\/\/api\.github\.com\/repos\/\$GITHUB_REPOSITORY\/releases\/assets\/\$archive_asset_id"/,
+    'Le manifeste doit référencer l’asset d’archive par son identifiant API',
+  )
+  assert.doesNotMatch(
+    releaseWorkflow,
+    /releases\/download\/\$TAG/,
+    'Le manifeste ne doit plus utiliser l’URL web des assets privés',
   )
   assert.equal(tauriConfig.plugins.updater.dangerousInsecureTransportProtocol, false, 'Le transport HTTP non sécurisé doit rester interdit')
   assert.ok(!capabilities.permissions.includes('updater:default'), 'Les commandes updater directes du frontend doivent rester désactivées')
@@ -117,7 +144,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
       '--version', '0.3.0',
       '--notes-file', notesPath,
-      '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+      '--url', 'https://api.github.com/repos/geasshin/sylloge/releases/assets/42',
       '--signature-file', signaturePath,
       '--target', 'darwin-aarch64',
       '--output', outputPath,
@@ -129,7 +156,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       platforms: {
         'darwin-aarch64': {
           signature: 'signature de fixture',
-          url: 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+          url: 'https://api.github.com/repos/geasshin/sylloge/releases/assets/42',
         },
       },
     }, 'Le manifeste Tauri doit reprendre la signature .sig et une URL HTTPS de façon déterministe')
@@ -139,7 +166,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
         fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
         '--version', invalidVersion,
         '--notes-file', notesPath,
-        '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+        '--url', 'https://api.github.com/repos/geasshin/sylloge/releases/assets/42',
         '--signature-file', signaturePath,
         '--target', 'darwin-aarch64',
         '--output', outputPath,
@@ -147,6 +174,18 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       assert.notEqual(invalidResult.status, 0, `La version invalide ${invalidVersion} doit être refusée`)
       assert.match(invalidResult.stderr, /Semantic Versioning valide/, 'Le refus doit expliquer la contrainte SemVer')
     }
+
+    const browserAssetResult = spawnSync(process.execPath, [
+      fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
+      '--version', '0.3.0',
+      '--notes-file', notesPath,
+      '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+      '--signature-file', signaturePath,
+      '--target', 'darwin-aarch64',
+      '--output', outputPath,
+    ], { encoding: 'utf8' })
+    assert.notEqual(browserAssetResult.status, 0, 'Le générateur doit refuser les URLs web de releases privées')
+    assert.match(browserAssetResult.stderr, /API GitHub/, 'Le refus doit désigner le format attendu de l’URL d’asset')
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -215,6 +254,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   assert.match(updaterErrorMessage('UPDATER_TOKEN_INVALID'), /actif, non expiré/, 'Un jeton refusé doit être distingué')
   assert.match(updaterErrorMessage('UPDATER_TOKEN_PERMISSION_DENIED'), /Contents en lecture/, 'Un problème de permission doit orienter vers le réglage du jeton')
   assert.match(updaterErrorMessage('UPDATER_PRIVATE_RELEASE_UNAVAILABLE'), /latest\.json/, 'Un manifeste introuvable doit être identifié')
+  assert.match(updaterErrorMessage('UPDATER_RELEASE_METADATA_INVALID'), /réponse de la release GitHub est illisible/, 'Des métadonnées de release illisibles doivent être distinguées')
   assert.match(updaterErrorMessage('UPDATER_MANIFEST_INVALID'), /version exploitable/, 'Un manifeste illisible doit être distingué d’un refus d’accès')
 }
 
