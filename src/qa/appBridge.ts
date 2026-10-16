@@ -320,6 +320,7 @@ function handle(cmd: string, args: Args): unknown {
     case 'get_private_updater_credential_status':
     case 'remove_private_updater_token': return { supported: true, configured: cmd === 'get_private_updater_credential_status' }
     case 'set_private_updater_token': return { supported: true, configured: true }
+    case 'check_for_app_update': return null // aucune mise à jour disponible en recette
     case 'get_updater_preferences': return updaterPreferences()
     case 'set_updater_automatic_checks_enabled':
       execute('UPDATE updater_preferences SET automatic_checks_enabled = $1, updated_at = $2 WHERE singleton = 1', [args.automaticChecksEnabled, now()])
