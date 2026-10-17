@@ -2015,6 +2015,7 @@ const formSource = readFileSync(new URL('../src/components/FilmForm.tsx', import
 const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', import.meta.url), 'utf8')
 const portabilitySource = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
 const accessibleDialogSource = readFileSync(new URL('../src/components/AccessibleDialog.tsx', import.meta.url), 'utf8')
+const dialogFocusSource = readFileSync(new URL('../src/components/FocusDialog.tsx', import.meta.url), 'utf8')
 const libraryExportFlowSource = readFileSync(new URL('../src/components/LibraryExportFlow.tsx', import.meta.url), 'utf8')
 const transferSource = readFileSync(new URL('../src/domain/libraryTransfer.ts', import.meta.url), 'utf8')
 const csvTransferSource = readFileSync(new URL('../src/domain/csvFilmExport.ts', import.meta.url), 'utf8')
@@ -2083,7 +2084,7 @@ assert.match(atriumHomeSource, /aria-labelledby=\{`\$\{id\}-titre`\}/, 'Chaque f
 assert.match(atriumHomeSource, /<div className="at-files">[\s\S]*<\/div>[\s\S]*<div className="at-medium-grid"/, 'Les rangées récentes doivent précéder les modules par médium')
 assert.match(atriumHomeSource, /<ActivityCalendar activityMap=\{activityMap\} \/>/, 'Le calendrier annuel reste porté par l’accueil')
 assert.match(atriumHomeSource, /const mediumStats = MEDIUM_ORDER\.map[\s\S]*FINISHED_STATUSES\[medium\][\s\S]*thisYear: finished\.filter/, 'Les compteurs par bibliothèque restent alimentés par les données réelles')
-assert.match(atriumHomeSource, /className="at-cal-dots"[\s\S]*mediums\.map\(\(medium\)[\s\S]*data-medium=\{medium\}/, 'Les jours du calendrier doivent montrer toutes les catégories présentes avec leurs couleurs')
+assert.match(atriumHomeSource, /className="at-cal-dots"[\s\S]*mediums\.map\(\(medium\)[\s\S]*data-medium=\{medium\}/, 'Les jours du calendrier doivent montrer toutes les catégories présentes avec leurs repères accessibles')
 assert.match(atriumHomeSource, /function WorkPoster[\s\S]*resolveFilmPoster\(entry\.filmId/, 'La carte d’accueil doit relire l’affiche réelle d’un film associé')
 assert.match(atriumHomeSource, /function usableContributor[\s\S]*non\|none[\s\S]*function WorkCard[\s\S]*resolveFilmContributor\(entry\.filmId/, 'Les crédits absents ou de remplissage doivent être masqués, et le réalisateur du cache local doit pouvoir compléter la carte')
 assert.match(atriumHomeSource, /const contributor = showContributor \? usableContributor\(entry\.contributor\) \?\? cachedContributor : null/, 'Les cartes affichent uniquement le nom du crédit, sans préfixe de champ')
@@ -2103,12 +2104,13 @@ assert.match(stylesSource, /\.at-medium-items \{[^}]*grid-template-columns: repe
 assert.doesNotMatch(stylesSource, /\.at-files \.at-work \{/, 'Les rangées d’accueil conservent leur présentation précédente, sans cartes espacées supplémentaires')
 assert.match(stylesSource, /\.at-medium-head \{[^}]*display: flex;[^}]*justify-content: space-between;/s, 'Chaque bouton de rafraîchissement doit rester aligné dans son propre en-tête de médium')
 assert.match(stylesSource, /\.at-cal-days \{[^}]*grid-auto-rows: 31px;[^}]*min-height: 201px;/s, 'Le calendrier compact doit conserver sa hauteur entre les mois')
-assert.match(stylesSource, /--color-star-active: #B78322/, 'Les notes de l’accueil doivent reprendre un doré lisible sur le thème clair')
+assert.match(stylesSource, /--color-star-active: var\(--color-text\)/, 'Les notes doivent utiliser la même encre monochrome lisible dans les deux thèmes')
+assert.match(stylesSource, /--color-heart-active: var\(--color-text\)/, 'Les coups de cœur doivent utiliser l’encre commune, pas une couleur décorative')
 assert.match(stylesSource, /@font-face\s*\{[^}]*font-family: "Syne";[^}]*src: url\("\.\/assets\/fonts\/Syne-VariableFont_wght\.ttf"\)[^}]*font-weight: 400 800;/s, 'La fonte Syne doit être chargée depuis le fichier local du projet')
 assert.match(stylesSource, /--font-display: "Syne", var\(--font-ui\)/, 'Syne doit devenir la voix typographique des titres avec une pile de repli locale')
 assert.match(stylesSource, /h1, h2, h3, h4 \{ font-family: var\(--font-display\); text-transform: uppercase; \}/, 'Les titres structurels de l’application doivent partager Syne et les capitales')
 assert.match(stylesSource, /\.detail-page-main \.display-title \{[^}]*font-family: var\(--font-ui\);[^}]*text-transform: none;/s, 'Les titres des œuvres sur les fiches doivent garder leur casse naturelle et la police de lecture')
-assert.match(stylesSource, /\.at-file-head \.at-section-title \{[^}]*font-size: 22px;[^}]*font-weight: 750;[^}]*text-transform: uppercase;/s, 'Les titres des rangées d’accueil doivent être renforcés et adopter les capitales espacées')
+assert.match(stylesSource, /\.at-file-head \.at-section-title \{[^}]*font-size: var\(--text-2xl\);[^}]*font-weight: 700;[^}]*text-transform: uppercase;/s, 'Les titres des rangées d’accueil doivent être renforcés et adopter les capitales espacées')
 assert.match(atriumHomeSource, /label="Récents"/, 'La rangée des œuvres consommées doit s’intituler « Récents »')
 assert.match(stylesSource, /\.at-medium-table tbody th \{[^}]*font-family: var\(--font-display\);[^}]*text-transform: uppercase;/s, 'Les catégories du tableau d’activité doivent suivre la voix Syne en capitales')
 assert.match(stylesSource, /\.at-cal-nav h3 \{[^}]*text-transform: uppercase;/s, 'Le mois affiché dans le calendrier doit suivre la règle de capitales des titres')
@@ -2206,9 +2208,13 @@ assert.match(filmCsvImportFlowSource, /Fonctionnalité future, non importée/, '
 assert.doesNotMatch(filmCsvImportFlowSource, /champs Films reconnus/, 'Le sélecteur Notion ne doit jamais afficher un compteur de champs reconnus')
 assert.match(filmCsvImportFlowSource, /Pages de notes associées/, 'Les pages de notes historiques doivent apparaître comme une source texte distincte')
 assert.match(filmCsvImportFlowSource, /Évaluation/, 'La destination numérique doit être distinguée de Note personnelle')
-assert.match(accessibleDialogSource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
-assert.match(accessibleDialogSource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
-assert.match(accessibleDialogSource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
+assert.match(dialogFocusSource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
+assert.match(accessibleDialogSource, /useDialogFocus\(dialogRef, onClose, closeDisabled\)/, 'Les assistants doivent utiliser le clavier commun')
+assert.match(posterDialogSource, /useDialogFocus\(dialogRef, onClose, saving \|\| addOpen\)/, 'La galerie doit utiliser le clavier commun sans fermer une fenêtre imbriquée')
+assert.match(dialogFocusSource, /if \(!isTopDialog\(\)\) return/, 'Seule la fenêtre supérieure doit intercepter le clavier')
+assert.match(dialogFocusSource, /returnFocusRef\.current\.focus\(\{ preventScroll: true \}\)/, 'La fermeture doit restaurer le focus sans déplacer la page')
+assert.match(dialogFocusSource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
+assert.match(dialogFocusSource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
 assert.match(portabilitySource, /Sauvegarde Sylloge/, 'L’export global doit être nommé Sauvegarde Sylloge dans les Paramètres')
 assert.match(portabilitySource, /fullLibrary/, 'Le hub de portabilité doit charger les cinq collections pour ses actions par médium')
 // Jalon 0.4.29 : un seul bouton Exporter par médium, dialogue de formats JSON/CSV.
@@ -4462,11 +4468,11 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(mainSource0621, /tmdbPresentation\?: TmdbFilmPresentation/, 'Le flux Film doit conserver temporairement la présentation TMDB détaillée')
   assert.match(mainSource0621, /tmdbPresentation: presentation/, 'La sélection TMDB doit transmettre sa présentation au formulaire d’ajout')
   assert.match(mainSource0621, /tmdbPresentation=\{addFlow\.tmdbPresentation \?\? null\}/, 'La pop-up Film doit recevoir la présentation TMDB conservée')
-  assert.match(stylesSource0621, /\.film-form-film \.field-title[\s\S]*?padding-right: 34px/, 'Film : le champ titre doit libérer la zone de la croix')
+  assert.match(stylesSource0621, /\.film-form-film \.field-title[\s\S]*?padding-right: var\(--control-md\)/, 'Film : le champ titre doit libérer la zone de la croix')
   assert.match(stylesSource0621, /\.film-form-film \.form-poster-frame[\s\S]*?width: min\(100%, 306px\)/, 'Film : l’affiche doit réserver la place du grand verdict sous elle')
   assert.match(stylesSource0621, /\.film-poster-verdict \.rate-value[\s\S]*?display: none/, 'Film : aucun libellé numérique de note ne doit être visible')
-  assert.match(stylesSource0621, /\.film-poster-verdict \.star-fill[\s\S]*?color: var\(--color-star-active\)/, 'Film : les étoiles actives doivent prendre la couleur dorée dédiée')
-  assert.match(stylesSource0621, /\.film-poster-verdict \.heart-input\.on[\s\S]*?color: var\(--color-heart-active\)/, 'Film : le cœur actif doit prendre la couleur rouge dédiée')
+  assert.match(stylesSource0621, /\.film-poster-verdict \.star-fill[\s\S]*?color: var\(--color-star-active\)/, 'Film : les étoiles actives doivent prendre l’encre monochrome dédiée')
+  assert.match(stylesSource0621, /\.film-poster-verdict \.heart-input\.on[\s\S]*?color: var\(--color-heart-active\)/, 'Film : le cœur actif doit prendre l’encre monochrome dédiée')
   for (const source of otherFormSources0621) {
     assert.doesNotMatch(source, /film-form-film|film-poster-verdict|film-provider-facts/, 'Le prototype 0.6.21 doit rester strictement limité au Film')
   }
@@ -4481,8 +4487,8 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(filmSource0622, /className="verdict-row film-status-row(?:\s[^"]*)?"[\s\S]*\{verdictVisible && \([\s\S]*className="date-row"/, 'Film : la date doit partager la ligne des statuts')
   assert.match(filmSource0622, /className="verdict-row film-status-row(?:\s[^"]*)?"[\s\S]*className="date-row"[\s\S]*className="film-provider-facts"/, 'Film : les faits TMDB doivent suivre directement la ligne statut/date')
   assert.doesNotMatch(filmSource0622, /secondary-fields|id="originalTitle"|id="year"|id="director"|id="summary"/, 'Film : les champs éditoriaux redondants ne doivent plus être rendus sous la fiche')
-  assert.match(stylesSource0622, /\.film-status-row[\s\S]*?flex-wrap: nowrap[\s\S]*?gap: 8px/, 'Film : la ligne statut/date ne doit pas passer à la ligne')
-  assert.match(stylesSource0622, /\.film-status-row \.seg-pill-btn[\s\S]*?padding: 7px 9px[\s\S]*?font-size: 11px/, 'Film : les statuts doivent laisser une place compacte à la date')
+  assert.match(stylesSource0622, /\.film-status-row[\s\S]*?flex-wrap: nowrap[\s\S]*?gap: var\(--space-2\)/, 'Film : la ligne statut/date ne doit pas passer à la ligne')
+  assert.match(stylesSource0622, /\.film-status-row \.seg-pill-btn[\s\S]*?padding: 0 var\(--space-2\)[\s\S]*?font-size: var\(--text-xs\)/, 'Film : les statuts doivent laisser une place compacte à la date')
   assert.match(stylesSource0622, /\.film-status-row \.date-row input\[type="date"\][\s\S]*?width: 106px/, 'Film : la date doit occuper une largeur compacte à droite des statuts')
 }
 
@@ -4512,7 +4518,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(stylesSource0623, /\.form-side-with-verdict[\s\S]*grid-template-rows: minmax\(0, 1fr\) 58px/, 'Les cinq médiums doivent réserver la même zone de verdict sous le visuel')
   assert.match(stylesSource0623, /\.status-date-row \.seg-group-form[\s\S]*flex: 0 0 auto/, 'Le fond gris des statuts ne doit pas s’étirer dans l’espace restant')
   assert.match(stylesSource0623, /\.form-poster-verdict \.rate-value[\s\S]*display: none/, 'Les verdicts sous visuel ne doivent pas afficher de valeur numérique')
-  assert.match(stylesSource0623, /\.form-poster-verdict \.heart-input\.on[\s\S]*color: var\(--color-heart-active\)/, 'Les cœurs actifs doivent conserver la couleur rouge dédiée')
+  assert.match(stylesSource0623, /\.form-poster-verdict \.heart-input\.on[\s\S]*color: var\(--color-heart-active\)/, 'Les cœurs actifs doivent conserver l’encre monochrome dédiée')
 }
 
 // Jalon 0.6.24 — modifications fidèles, types segmentés, informations fournisseur
@@ -4659,8 +4665,8 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const compactAvatarBranch = avatarSource0626.match(/compact \? \(([\s\S]*?)\) : \(/)?.[1] ?? ''
   assert.match(compactAvatarBranch, /profile-avatar-pencil/, 'Onboarding : le crayon superposé doit ouvrir le sélecteur de photo')
   assert.doesNotMatch(compactAvatarBranch, /secondary-button/, 'Onboarding : le mode compact ne doit pas afficher de bouton « Choisir une photo »')
-  assert.match(stylesSource0626, /\.theme-preview-light \{ background: #F6F6F7; \}/, 'Onboarding : la vignette claire doit reprendre le canevas réel de l’application')
-  assert.match(stylesSource0626, /\.theme-preview-dark \{ background: #161618; \}/, 'Onboarding : la vignette sombre doit reprendre l’anthracite réel de l’application')
+  assert.match(stylesSource0626, /--color-preview-light-canvas: #F6F6F7;[\s\S]*\.theme-preview-light \{ background: var\(--color-preview-light-canvas\); \}/, 'Onboarding : la vignette claire doit reprendre le canevas réel de l’application')
+  assert.match(stylesSource0626, /--color-preview-dark-canvas: #161618;[\s\S]*\.theme-preview-dark \{ background: var\(--color-preview-dark-canvas\); \}/, 'Onboarding : la vignette sombre doit reprendre l’anthracite réel de l’application')
   assert.doesNotMatch(stylesSource0626, /theme-preview-[\s\S]{0,400}#5[bB]3[aA]68/, 'Onboarding : aucune couleur d’accent inventée ne doit rester dans les vignettes')
 }
 

@@ -92,7 +92,6 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
       )}
 
       <div className="editor-heading">
-        <p className="eyebrow">Film</p>
         <h1 className="display-title">{film ? 'Modifier l’association' : 'Rechercher un film'}</h1>
         <p>
           {film

@@ -83,7 +83,6 @@ export function SeriesTmdbSearchFlow({ existing = null, pendingCandidateId = nul
       )}
 
       <div className="editor-heading">
-        <p className="eyebrow">Série</p>
         <h1 className="display-title">{existing ? 'Modifier l’association' : 'Rechercher une série'}</h1>
         <p>
           {existing

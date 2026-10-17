@@ -6,17 +6,21 @@ const TONE_DONE = new Set(['terminé', 'vu', 'lu', 'joué', 'découverte'])
 const TONE_DROPPED = new Set(['abandonné', 'abandonnée'])
 const TONE_ACTIVE = new Set(['en cours'])
 
-/** Badge de statut unique : un seul état visible, code couleur par famille. */
+export type StatusTone = 'done' | 'active' | 'dropped' | 'todo'
+
+/** Famille visuelle d'un statut, partagée par le badge des fiches et la
+ *  pastille des cartes : accompli, en cours, abandonné ou en attente. */
+export function statusTone(status: string): StatusTone {
+  if (TONE_DROPPED.has(status)) return 'dropped'
+  if (TONE_DONE.has(status)) return 'done'
+  if (TONE_ACTIVE.has(status)) return 'active'
+  return 'todo'
+}
+
+/** Badge de statut unique : un seul état visible, rendu monochrome par famille. */
 export function StatusBadge({ status, labels }: { status: string; labels: StatusLabels }) {
-  const tone = TONE_DROPPED.has(status)
-    ? 'dropped'
-    : TONE_DONE.has(status)
-      ? 'done'
-      : TONE_ACTIVE.has(status)
-        ? 'active'
-        : 'todo'
   return (
-    <span className={`status-badge tone-${tone}`} role="status">
+    <span className={`status-badge tone-${statusTone(status)}`} role="status">
       {labels[status]}
     </span>
   )

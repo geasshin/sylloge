@@ -99,7 +99,6 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <p className="eyebrow">Jeu vidéo</p>
       <h1 className="display-title">{game ? 'Modifier la fiche' : 'Ajouter un jeu'}</h1>
     </div>
   )
@@ -197,6 +196,7 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
               <textarea
                 id="game-personalNote"
                 name="personalNote"
+                aria-label="Critique personnelle"
                 rows={5}
                 placeholder="Qu’as-tu pensé de ce jeu ?"
                 value={values.personalNote}

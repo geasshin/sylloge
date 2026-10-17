@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccessibleDialog } from './components/AccessibleDialog.tsx'
+import { FocusDialog } from './components/FocusDialog.tsx'
 import { ImportHint } from './components/ImportHint.tsx'
 import { ArtworkDetail } from './components/ArtworkDetail.tsx'
 import { ArtworkForm } from './components/ArtworkForm.tsx'
@@ -20,6 +21,7 @@ import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlo
 import { GameIgdbSearchFlow } from './components/GameIgdbSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
+import { statusTone } from './components/VerdictControls.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { updaterCredentialService } from './data/updaterCredentials.ts'
@@ -266,6 +268,7 @@ function Sidebar({
             type="button"
             onClick={onHome}
             data-tooltip={labelFor('Accueil')}
+            aria-label="Accueil"
             aria-current={activeItem === 'home' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('home')} Accueil</span>
@@ -276,6 +279,7 @@ function Sidebar({
             type="button"
             onClick={onLibrary}
             data-tooltip={labelFor('Films')}
+            aria-label="Films"
             aria-current={activeItem === 'library' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('film')} Films</span>
@@ -287,6 +291,7 @@ function Sidebar({
             type="button"
             onClick={onSeries}
             data-tooltip={labelFor('Séries')}
+            aria-label="Séries"
             aria-current={activeItem === 'series' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('series')} Séries</span>
@@ -298,6 +303,7 @@ function Sidebar({
             type="button"
             onClick={onBooks}
             data-tooltip={labelFor('Livres')}
+            aria-label="Livres"
             aria-current={activeItem === 'books' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('book')} Livres</span>
@@ -309,6 +315,7 @@ function Sidebar({
             type="button"
             onClick={onGames}
             data-tooltip={labelFor('Jeux')}
+            aria-label="Jeux"
             aria-current={activeItem === 'games' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('game')} Jeux</span>
@@ -320,6 +327,7 @@ function Sidebar({
             type="button"
             onClick={onArtworks}
             data-tooltip={labelFor('Art')}
+            aria-label="Art"
             aria-current={activeItem === 'artworks' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('art')} Art</span>
@@ -359,6 +367,7 @@ function Sidebar({
               type="button"
               onClick={onSettings}
               data-tooltip={labelFor('Paramètres')}
+              aria-label="Paramètres"
             >
               <span className="nav-item-text">{icon('settings')} Paramètres</span>
               <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
@@ -406,7 +415,7 @@ function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
           {film.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${film.status === 'à découvrir' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(film.status)}`}>
           {FILM_STATUS_LABELS[film.status]}
         </span>
       </span>
@@ -446,7 +455,7 @@ const ONBOARDING_STEPS: Array<{ id: OnboardingStep; label: string }> = [
 
 const THEME_OPTIONS: Array<{ id: ThemePreference; label: string; detail: string }> = [
   { id: 'system', label: 'Système', detail: 'Suit automatiquement le réglage de cet appareil.' },
-  { id: 'light', label: 'Clair', detail: 'Papier chaud et contrastes doux.' },
+  { id: 'light', label: 'Clair', detail: 'Fond neutre et contrastes doux.' },
   { id: 'dark', label: 'Sombre', detail: 'Surfaces profondes pour une lumière réduite.' },
 ]
 
@@ -670,7 +679,6 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="library-state empty-library">
-      <p className="state-kicker">Collection personnelle</p>
       <h2>Votre bibliothèque Films est vide.</h2>
       <p>Ajoutez un premier film, avec un titre seulement si vous le souhaitez.</p>
       <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un film</button>
@@ -793,7 +801,6 @@ function FilmsLibrary({
     <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Films</h1>
           <p className="library-subtitle">{librarySubtitle(library.films, 'film', 'films')}</p>
         </div>
@@ -940,6 +947,7 @@ function AutoAssociateDialog({
       description="Recherche automatique des fiches sur TMDB"
       closeDisabled={phase === 'running'}
       onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
+      size="md"
     >
       <div className="assistant-content">
         {phase === 'confirm' && (
@@ -1048,6 +1056,7 @@ function AutoAssociateEditsDialog({
       description={`Recherche automatique sur ${providerLabel}`}
       closeDisabled={phase === 'running'}
       onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
+      size="md"
     >
       <div className="assistant-content">
         {phase === 'confirm' && (
@@ -1202,7 +1211,7 @@ function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) 
           {series.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {series.showrunner && <small>{series.showrunner}</small>}
-        <span className={`status-line ${series.status === 'à voir' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(series.status)}`}>
           {SERIES_STATUS_LABELS[series.status]}
           {progress ? ` · ${progress}` : ''}
         </span>
@@ -1286,7 +1295,6 @@ function SeriesLibrary({
     <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Séries</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'série', 'séries')}</p>
         </div>
@@ -1351,7 +1359,6 @@ function SeriesLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Séries est vide.</h2>
           <p>Ajoutez une première série, avec un titre seulement si vous le souhaitez.</p>
           <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une série</button>
@@ -1417,7 +1424,7 @@ function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
           {book.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${book.status === 'à lire' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(book.status)}`}>
           {BOOK_STATUS_LABELS[book.status]}
           {progress ? ` · ${progress}` : ''}
         </span>
@@ -1440,7 +1447,7 @@ function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
           {game.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${game.status === 'à jouer' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(game.status)}`}>
           {GAME_STATUS_LABELS[game.status]}
         </span>
       </span>
@@ -1531,7 +1538,6 @@ function GamesLibrary({
     <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Jeux</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'jeu', 'jeux')}</p>
         </div>
@@ -1595,7 +1601,6 @@ function GamesLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Jeux est vide.</h2>
           <p>Ajoutez un premier jeu, avec un titre seulement si vous le souhaitez.</p>
           <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un jeu</button>
@@ -1654,7 +1659,7 @@ function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void
           {artwork.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${artwork.status === 'à découvrir' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(artwork.status)}`}>
           {ARTWORK_STATUS_LABELS[artwork.status]}
         </span>
       </span>
@@ -1702,7 +1707,6 @@ function ArtworksLibrary({
     <main className="main library-main artwork-library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Art</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'œuvre', 'œuvres')}</p>
         </div>
@@ -1751,7 +1755,6 @@ function ArtworksLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Art est vide.</h2>
           <p>Ajoutez une première œuvre, avec un titre seulement si vous le souhaitez.</p>
           <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une œuvre</button>
@@ -1870,7 +1873,6 @@ function BooksLibrary({
     <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Livres</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'livre', 'livres')}</p>
         </div>
@@ -1935,7 +1937,6 @@ function BooksLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Livres est vide.</h2>
           <p>Ajoutez un premier livre, manga ou comics, avec un titre seulement si vous le souhaitez.</p>
           <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un livre</button>
@@ -2740,7 +2741,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">Accueil</h1></div>
         </header>
         <LoadingState />
       </main>
@@ -2749,7 +2750,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">Accueil</h1></div>
         </header>
         <ErrorState onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
       </main>
@@ -2758,7 +2759,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">Accueil</h1></div>
         </header>
       </main>
     )
@@ -3305,8 +3306,9 @@ function App() {
       )}
       {addFlow && libraryState.status === 'ready' && (
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAddFlow(null) }}>
-          <div
+          <FocusDialog
             className="editor-dialog dialog-add-flow"
+            onClose={() => setAddFlow(null)}
             role="dialog"
             aria-modal="true"
             aria-label={{
@@ -3566,13 +3568,14 @@ function App() {
                 />
               )
             })()}
-          </div>
+          </FocusDialog>
         </div>
       )}
       {associateTarget && libraryState.status === 'ready' && (
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAssociateTarget(null) }}>
-          <div
+          <FocusDialog
             className="editor-dialog dialog-associate"
+            onClose={() => setAssociateTarget(null)}
             role="dialog"
             aria-modal="true"
             aria-label="Modifier l’association"
@@ -3624,7 +3627,7 @@ function App() {
               }
               return null
             })()}
-          </div>
+          </FocusDialog>
         </div>
       )}
       {backupNotice && (

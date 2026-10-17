@@ -88,6 +88,7 @@ export function LibraryExportFlow({ kind, profileId }: LibraryExportFlowProps) {
           description="Choisissez le format du fichier. La bibliothèque locale n'est pas modifiée."
           closeDisabled={saving !== null}
           onClose={() => setOpen(false)}
+          size="md"
         >
           <div className="export-format-options">
             <button

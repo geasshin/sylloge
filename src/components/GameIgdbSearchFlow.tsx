@@ -84,7 +84,6 @@ export function GameIgdbSearchFlow({ existing = null, pendingCandidateId = null,
       )}
 
       <div className="editor-heading">
-        <p className="eyebrow">Jeu</p>
         <h1 className="display-title">{existing ? 'Modifier l’association' : 'Rechercher un jeu'}</h1>
         <p>
           {existing

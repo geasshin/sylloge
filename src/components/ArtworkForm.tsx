@@ -99,7 +99,6 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <p className="eyebrow">Art</p>
       <h1 className="display-title">{artwork ? 'Modifier la fiche' : 'Ajouter une œuvre'}</h1>
       <p>Seul le titre est obligatoire.</p>
     </div>
@@ -152,6 +151,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
             <textarea
               id="artwork-personalNote"
               name="personalNote"
+              aria-label="Ressenti personnel"
               rows={5}
               placeholder="Qu’as-tu ressenti face à cette œuvre ?"
               value={values.personalNote}

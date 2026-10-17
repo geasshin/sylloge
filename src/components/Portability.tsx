@@ -66,29 +66,24 @@ type FilmsImportStep = 'source' | 'mapping' | 'preview'
 
 export type PortabilitySection = 'profiles' | 'transfer' | 'backups' | 'application' | 'about'
 
-const SETTINGS_PAGE_COPY: Record<PortabilitySection, { eyebrow: string; title: string; description: string }> = {
+const SETTINGS_PAGE_COPY: Record<PortabilitySection, { title: string; description: string }> = {
   profiles: {
-    eyebrow: 'Identités locales',
     title: 'Profils',
     description: 'Gérez les personnes et les bibliothèques présentes sur cet appareil.',
   },
   transfer: {
-    eyebrow: 'Portabilité',
     title: 'Importer et exporter',
     description: 'Déplacez une sauvegarde complète ou une seule collection, sans écriture invisible.',
   },
   backups: {
-    eyebrow: 'Protection locale',
     title: 'Sauvegardes',
     description: 'Conservez des snapshots datés dans le dossier local de votre choix.',
   },
   application: {
-    eyebrow: 'Préférences',
     title: 'Application',
     description: 'Choisissez l’apparence et la manière dont Sylloge recherche ses mises à jour.',
   },
   about: {
-    eyebrow: 'Informations',
     title: 'À propos',
     description: 'Retrouvez la version installée, les garanties locales et les fournisseurs de métadonnées.',
   },
@@ -328,7 +323,6 @@ export function Portability({
       <main className="main portability-main">
         <header className="settings-hero">
           <div className="settings-hero-copy">
-            <p className="eyebrow">{SETTINGS_PAGE_COPY[section].eyebrow}</p>
             <h1 className="display-title">{SETTINGS_PAGE_COPY[section].title}</h1>
             <p>{SETTINGS_PAGE_COPY[section].description}</p>
           </div>
@@ -1089,6 +1083,7 @@ function ProfilesSection({
           description="La photo est recadrée au carré et enregistrée uniquement sur cet appareil."
           onClose={() => setEditingAvatarProfile(null)}
           closeDisabled={busy}
+          size="md"
         >
           <div className="assistant-content">
             <section className="assistant-stage profile-avatar-dialog">
@@ -1120,6 +1115,7 @@ function ProfilesSection({
           description="Cette suppression est définitive."
           onClose={() => setDeletingProfile(null)}
           closeDisabled={busy}
+          size="sm"
         >
           <div className="assistant-content">
             <section className="assistant-stage">

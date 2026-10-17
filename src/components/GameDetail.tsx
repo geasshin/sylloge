@@ -101,7 +101,6 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
         </div>
 
         <div className="detail-body">
-          <p className="eyebrow">Jeu vidéo</p>
           <h1 className="display-title">{game.title}</h1>
           {(game.developer || game.year !== null || game.platform) && (
             <p className="detail-factline">

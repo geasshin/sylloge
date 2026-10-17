@@ -83,7 +83,6 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
       )}
 
       <div className="editor-heading">
-        <p className="eyebrow">Livre</p>
         <h1 className="display-title">{existing ? 'Modifier l’association' : 'Rechercher un livre'}</h1>
         <p>
           {existing

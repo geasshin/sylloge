@@ -58,6 +58,7 @@ export function PosterUrlDialog({
       description={`Colle l'adresse d'une image pour « ${title} »`}
       closeDisabled={saving}
       onClose={onClose}
+      size="md"
     >
       <div className="assistant-content poster-url-dialog">
         <label className="field">

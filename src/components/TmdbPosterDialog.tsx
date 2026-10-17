@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
+import { useDialogFocus } from './FocusDialog.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 
 type TmdbPosterDialogProps = {
@@ -27,14 +28,7 @@ export function TmdbPosterDialog({
   const [addOpen, setAddOpen] = useState(false)
   const [customUrl, setCustomUrl] = useState<string | null>(null)
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !saving && !addOpen) onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    dialogRef.current?.querySelector<HTMLElement>('button')?.focus()
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose, saving, addOpen])
+  useDialogFocus(dialogRef, onClose, saving || addOpen)
 
   const currentUrl = customUrl ?? selectedUrl ?? posters[0] ?? null
 
@@ -51,13 +45,11 @@ export function TmdbPosterDialog({
           role="dialog"
           aria-modal="true"
           aria-labelledby="poster-dialog-title"
+          tabIndex={-1}
           onClick={(event) => event.stopPropagation()}
         >
           <header className="poster-dialog-header">
-            <div>
-              <p className="card-kicker">Métadonnées TMDB</p>
-              <h2 id="poster-dialog-title">Choisir une affiche</h2>
-            </div>
+            <h2 id="poster-dialog-title">Choisir une affiche</h2>
             <button
               className="poster-dialog-close"
               type="button"

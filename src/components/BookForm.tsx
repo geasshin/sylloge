@@ -151,7 +151,6 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <p className="eyebrow">Livre</p>
       <h1 className="display-title">{book ? 'Modifier la fiche' : 'Ajouter un livre'}</h1>
     </div>
   )
@@ -275,6 +274,7 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
               <textarea
                 id="book-personalNote"
                 name="personalNote"
+                aria-label="Critique personnelle"
                 rows={5}
                 placeholder="Qu’as-tu pensé de ce livre ?"
                 value={values.personalNote}
