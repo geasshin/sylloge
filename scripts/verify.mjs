@@ -2132,6 +2132,7 @@ assert.match(tauriLibrarySource, /portability::clear_backup_settings/, 'La comma
 assert.match(formSource, /<Poster\s+title=\{previewTitle\}\s+src=\{previewUrl\}/s, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
 assert.match(formSource, /values\.watchedAt \|\| today/, 'La date de visionnage est préremplie avec la date du jour (0.6.0 : plus de bouton « Utiliser aujourd’hui »)')
 assert.match(formSource, /onCancel/, 'Le formulaire doit permettre une annulation avant toute écriture')
+assert.match(formSource, /\{ \.\.\.EMPTY_FILM_FORM, \.\.\.initialValues \}/, 'La saisie manuelle transmet des valeurs partielles : le formulaire Film doit les compléter avec les valeurs vides, comme Séries, Livres et Jeux')
 assert.match(formSource, /initialValues/, 'Le formulaire doit accepter des valeurs initiales éditables')
 assert.match(formSource, /onSave\(result\.data, provenance\)/, 'Le formulaire doit transmettre la provenance interne seulement à la validation finale')
 assert.match(tmdbSearchFlowSource, /Saisir manuellement/, 'La recherche TMDB doit proposer une issue vers la saisie manuelle')

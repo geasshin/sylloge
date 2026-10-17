@@ -65,7 +65,7 @@ type FilmFormProps = {
 }
 
 export function FilmForm({ film, initialValues, provenance = null, tmdbPresentation = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, fetchTmdbCache, onCancel, onSave }: FilmFormProps) {
-  const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
+  const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...EMPTY_FILM_FORM, ...initialValues })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
