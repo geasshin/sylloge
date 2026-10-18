@@ -408,13 +408,13 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .home-heading h1 { margin: 0; font-size: var(--text-display); }
 
 /* ==========================================================================
-   Accueil — même direction que le reste de l’application (jetons communs).
-   Les rangées « Derniers ajouts », « Récents » et « Favoris » défilent à
-   l’horizontale ; les flèches n’apparaissent qu’en cas de débordement réel.
+   Accueil — onglets par bibliothèque, œuvre à la une, rangées, activité.
+   Une seule colonne : onglets, une, rangées et calendrier partagent les
+   mêmes bords. L’onglet filtre toute la page ; la couleur vient des visuels.
    ========================================================================== */
 
 .atrium-home {
-  padding: var(--space-5) var(--space-10) var(--space-16);
+  padding: var(--space-8) var(--page-gutter) var(--space-16);
   background: var(--color-canvas);
   color: var(--color-text);
 }
@@ -424,85 +424,234 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    `:where()` ne pèse rien, donc les règles ci-dessous gardent la main. */
 :where(.atrium-home) :where(p, ul, ol, li, h1, h2, h3, figure, blockquote) { margin: 0; }
 
-/* Bandeau d'activité : un seul module bordé, centré, qui réunit le tableau des
-   bibliothèques et le calendrier des consommations. Même langage que les
-   modules par médium plus bas : un filet, un fond de carte, jamais deux boîtes
-   imbriquées. */
-.at-overview {
-  width: min(100%, 860px);
-  max-width: 100%;
-  margin: var(--space-1) auto 0;
-  display: grid;
-  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
-  align-items: center;
-  padding: var(--space-4) var(--space-6);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-}
-.at-overview-panel { min-width: 0; }
-.at-overview-panel:first-child { padding-right: var(--space-8); }
-.at-calendar-panel {
-  padding-left: var(--space-8);
-  border-left: 1px solid var(--color-hairline);
-}
+/* ——————————————————— Onglets et bilan de l’onglet ——————————————————— */
 
-/* Tableau des bibliothèques : un médium par ligne, trois comptes par ligne. */
-.at-medium-table { width: 100%; border-collapse: collapse; }
-.at-medium-table th,
-.at-medium-table td { padding: var(--space-2) 0; text-align: right; }
-.at-medium-table thead th {
-  padding: 0 0 var(--space-2);
-  border-bottom: 1px solid var(--color-border);
+/* Une seule ligne : onglets à gauche, bilan à droite, sans retour ni ellipse. */
+.at-topbar {
+  container: at-topbar / inline-size;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: var(--space-6);
+  white-space: nowrap;
+}
+.at-tabs { flex: 0 0 auto; flex-wrap: nowrap; }
+
+.at-stats {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--space-4);
+  white-space: nowrap;
+}
+.at-stat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1-5);
   color: var(--color-text-muted);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  letter-spacing: .05em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.at-medium-table thead th + th,
-.at-medium-table tbody th + td { padding-left: var(--space-6); }
-.at-medium-table tbody th,
-.at-medium-table tbody td { border-bottom: 1px solid var(--color-hairline); }
-.at-medium-table tbody tr:last-child th,
-.at-medium-table tbody tr:last-child td { border-bottom: 0; }
-.at-medium-table tbody th {
-  text-align: left;
-  font-family: var(--font-display);
   font-size: var(--text-sm);
-  font-weight: 700;
-  letter-spacing: .035em;
-  text-transform: uppercase;
-  white-space: nowrap;
+  line-height: 1;
 }
-.at-medium-name { display: inline-flex; align-items: center; gap: var(--space-2-5); }
-.at-medium-table td {
-  font-size: var(--text-lg);
-  font-weight: 600;
+.at-stat b {
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -.02em;
   font-variant-numeric: tabular-nums;
 }
-.at-medium-table tbody td { color: var(--color-text); font-weight: 700; }
-/* Le nom suffit à identifier la bibliothèque : pas de pastille de couleur. */
-.at-medium-table .at-medium-dot { display: none; }
-
-.at-medium-dot {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  border-radius: var(--radius-pill);
-  background: var(--color-text);
-  box-shadow: 0 0 0 2px var(--color-surface);
+.at-stats-rule { align-self: stretch; width: 1px; background: var(--color-border); }
+/* Douze mois, une barre par mois : le mois courant à l’encre, les autres atténués. */
+.at-spark { display: flex; align-items: flex-end; gap: var(--space-0-5); height: var(--space-6); }
+.at-spark-col { display: flex; align-items: flex-end; width: var(--space-1-5); height: 100%; }
+.at-spark-col i {
+  display: block;
+  width: 100%;
+  min-height: var(--space-0-5);
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--color-text-subtle);
+}
+.at-spark-col.is-current i { background: var(--color-text); }
+/* Barre latérale étendue sur une petite fenêtre : l’histogramme s’efface
+   plutôt que de replier ou d’abréger le bilan. */
+@container at-topbar (max-width: 760px) {
+  .at-spark,
+  .at-stats-rule:has(+ .at-spark) { display: none; }
 }
 
-.at-empty-home {
-  max-width: 46ch;
-  margin: 12vh auto 0;
+.at-tab-panel { margin-top: var(--space-5); }
+.at-empty-tab {
+  max-width: 52ch;
+  margin: var(--space-20) auto 0;
   text-align: center;
-  font-size: var(--text-lg);
-  line-height: 1.7;
   color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  line-height: 1.6;
 }
+
+/* ————————————————————————————— À la une ————————————————————————————— */
+
+/* Le voile est sombre dans les deux thèmes : l’encre, les étoiles, le focus
+   et le bouton principal de la une passent aux jetons « sur voile ». */
+.at-hero {
+  --at-hero-height: 420px;
+  --at-hero-blur: 40px;
+  --color-accent: var(--color-on-scrim);
+  --color-accent-hover: color-mix(in srgb, var(--color-on-scrim) 86%, transparent);
+  --color-on-accent: var(--color-scrim-strong);
+  --color-focus: var(--color-on-scrim);
+  --color-star-active: var(--color-on-scrim);
+  --color-star-empty: color-mix(in srgb, var(--color-on-scrim) 36%, transparent);
+  position: relative;
+  isolation: isolate;
+  height: var(--at-hero-height);
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  /* Sans visuel, la diapositive garde le même voile sur une surface neutre. */
+  background: linear-gradient(var(--color-scrim), var(--color-scrim)), var(--color-surface-muted);
+  color: var(--color-on-scrim);
+  box-shadow: var(--shadow-visual);
+}
+.at-hero-slides { position: absolute; inset: 0; }
+/* Fondu enchaîné : l’entrante apparaît au-dessus, la sortante reste opaque
+   dessous le temps du fondu, puis s’efface. Aucune mise en page ne bouge. */
+.at-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0s linear var(--duration-base), visibility 0s linear var(--duration-base);
+}
+.at-slide.is-active {
+  z-index: 1;
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--duration-base) var(--ease-out), visibility 0s;
+}
+.at-slide-backdrop { position: absolute; inset: 0; overflow: hidden; }
+/* L’image floutée déborde de son cadre pour que le flou n’éclaircisse pas les bords. */
+.at-slide-backdrop img {
+  position: absolute;
+  top: calc(-2 * var(--at-hero-blur));
+  left: calc(-2 * var(--at-hero-blur));
+  width: calc(100% + 4 * var(--at-hero-blur));
+  height: calc(100% + 4 * var(--at-hero-blur));
+  object-fit: cover;
+  filter: blur(var(--at-hero-blur));
+}
+.at-slide-backdrop::after { content: ""; position: absolute; inset: 0; background: var(--color-scrim); }
+.at-slide-body {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-8) var(--space-12) var(--space-8) var(--space-8);
+}
+.at-slide-poster { flex: 0 0 auto; height: 100%; aspect-ratio: 2 / 3; }
+.at-slide-poster .poster { height: 100%; box-shadow: var(--shadow-lifted); }
+/* Sans affiche : même traitement que les cartes, le titre vit à côté. */
+.at-slide-poster .poster-fallback b { display: none; }
+.at-slide-text {
+  min-width: 0;
+  max-width: 60ch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.at-slide-meta {
+  color: color-mix(in srgb, var(--color-on-scrim) 76%, transparent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.at-slide-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--color-on-scrim);
+  font-family: var(--font-ui);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -.03em;
+  text-transform: none;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.at-slide-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: color-mix(in srgb, var(--color-on-scrim) 86%, transparent);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+.at-slide-status .at-stars { font-size: var(--text-lg); }
+/* Extrait de la critique : voix serif, trois lignes au plus, coupe en fin de ligne. */
+.at-slide-note {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  max-width: 56ch;
+  color: color-mix(in srgb, var(--color-on-scrim) 90%, transparent);
+  font-family: var(--font-personal);
+  font-size: var(--text-lg);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.at-slide-actions { margin-top: var(--space-2); }
+
+.at-hero-controls {
+  position: absolute;
+  z-index: 2;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+.at-hero-btn {
+  width: var(--control-md);
+  height: var(--control-md);
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-on-scrim) 26%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-on-scrim) 10%, transparent);
+  color: var(--color-on-scrim);
+  transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+.at-hero-btn:hover {
+  border-color: color-mix(in srgb, var(--color-on-scrim) 44%, transparent);
+  background: color-mix(in srgb, var(--color-on-scrim) 20%, transparent);
+}
+.at-hero-btn:active { transform: scale(.98); }
+.at-hero-btn svg { display: block; }
+.at-hero-dots { display: flex; align-items: center; margin-left: var(--space-2); }
+.at-hero-dot {
+  width: var(--space-5);
+  height: var(--control-md);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+}
+.at-hero-dot::before {
+  content: "";
+  width: var(--space-1-5);
+  height: var(--space-1-5);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-on-scrim) 40%, transparent);
+  transition: width var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out);
+}
+.at-hero-dot:hover::before { background: color-mix(in srgb, var(--color-on-scrim) 72%, transparent); }
+.at-hero-dot[aria-current='true']::before { width: var(--space-3); background: var(--color-on-scrim); }
 
 /* Titre de section : la seule voix forte de la page, sans surtitre. */
 .at-section-title {
@@ -513,32 +662,8 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   color: var(--color-text);
 }
 
-/* Sélections par médium : trois œuvres par module, rangées centrées. */
-.at-medium-section { margin-top: var(--space-8); }
-.at-medium-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+/* Icône de rafraîchissement de la pioche : taille optique propre. */
 .at-refresh-button svg { width: 15px; height: 15px; display: block; }
-.at-medium-grid {
-  margin-top: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: stretch;
-  gap: var(--space-4);
-}
-.at-medium-panel {
-  min-width: 0;
-  flex: 0 1 calc((100% - 2 * var(--space-4)) / 3);
-  padding: var(--space-4) var(--space-4) var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-}
-.at-medium-items {
-  margin-top: var(--space-3);
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-4);
-}
 
 /* ————————————————————————— Modules et rangées ————————————————————————— */
 
@@ -558,20 +683,18 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Sous « Tout », le médium suit le titre : jamais un surtitre. */
+.at-work-medium { color: var(--color-text-secondary); font-weight: 600; }
 .at-work-meta { display: none; font-size: var(--text-sm); color: var(--color-text-muted); align-items: center; gap: var(--space-2); flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .at-work-meta i { font-style: normal; }
 
 /* ————————————————— File horizontale (proposition C, langage de A) ———————— */
 
-.at-file-head { display: flex; align-items: baseline; gap: var(--space-3); min-height: 30px; }
+.at-file-head { display: flex; align-items: center; gap: var(--space-3); min-height: var(--control-md); }
 .at-file-head .at-section-title {
   font-size: var(--text-2xl);
   font-weight: 700;
   letter-spacing: .03em;
-  text-transform: uppercase;
-}
-.at-medium-head .at-section-title {
-  letter-spacing: .045em;
   text-transform: uppercase;
 }
 .at-row-nav { display: flex; align-items: center; gap: var(--space-1-5); margin-left: auto; }
@@ -607,6 +730,8 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    navigateur, sans transformer la rangée en grille à deux colonnes. */
 .at-lane > .at-work {
   flex: 0 0 calc((100% - (var(--at-lane-count) - 1) * var(--at-lane-gap)) / var(--at-lane-count));
+  /* Le crédit sur une ligne s’abrège : il ne doit jamais élargir sa carte. */
+  min-width: 0;
   scroll-snap-align: start;
 }
 .at-lane .at-work-cap { margin-top: var(--space-2); gap: var(--space-0-5); min-height: 0; }
@@ -624,6 +749,28 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .at-file-meta .at-work-cap { min-height: 82px; }
 .at-file-meta .at-work-meta { display: flex; }
 
+/* Les files restent empilées : c'est leur répétition qui rend la page
+   scannable. Une rangée vide n’est pas affichée. */
+.at-files { margin-top: var(--space-8); }
+.at-files > .at-section { margin-top: 0; }
+.at-files > .at-section + .at-section { margin-top: var(--space-8); }
+.at-files .at-lane { --at-lane-count: 6; }
+
+/* ——————————————————————————— Activité ——————————————————————————— */
+
+/* Même largeur que les rangées : le calendrier à gauche, le mois à droite. */
+.at-activity-panel {
+  margin-top: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.at-activity-body {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: var(--space-8);
+}
 
 .at-calendar {
   margin-top: 0;
@@ -677,7 +824,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   border-radius: var(--radius-sm);
 }
 .at-cal-day time { font-size: var(--text-sm); color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
-/* Un jour actif se lit comme une tuile douce ; une pastille par bibliothèque active. */
+/* Un jour actif se lit comme une tuile douce ; une pastille d’encre par bibliothèque active. */
 .at-cal-day.on { background: var(--color-surface-muted); box-shadow: inset 0 0 0 1px var(--color-border); }
 .at-cal-day.on time { color: var(--color-text); font-weight: 600; }
 .at-cal-day.today { box-shadow: inset 0 0 0 1.5px var(--color-accent); }
@@ -721,18 +868,63 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
-.at-cal-tip .at-medium-dot { width: 6px; height: 6px; background: var(--color-tooltip-text); box-shadow: none; }
-@media (prefers-reduced-motion: reduce) {
-  .at-cal-tip { transition: none; transform: translate(-50%, 0); }
+.at-medium-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  background: var(--color-tooltip-text);
 }
 
-/* ————————————————————————————— États vides ———————————————————————————— */
-
-.at-empty {
-  padding: var(--space-5) 0 var(--space-1-5);
+/* Le mois affiché, date par date : les œuvres terminées s’ouvrent d’un clic. */
+.at-month { min-width: 0; padding-left: var(--space-8); border-left: 1px solid var(--color-hairline); }
+.at-month-summary {
+  min-height: var(--control-sm);
+  display: flex;
+  align-items: center;
+  color: var(--color-text);
   font-size: var(--text-md);
-  color: var(--color-text-muted);
+  font-weight: 600;
 }
+.at-month-list {
+  margin-top: var(--space-1-5);
+  padding: 0;
+  list-style: none;
+  columns: 260px 2;
+  column-gap: var(--space-8);
+}
+.at-month-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-1-5) 0;
+  border-bottom: 1px solid var(--color-hairline);
+  break-inside: avoid;
+}
+.at-month-item time {
+  flex: 0 0 var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.at-month-link {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.at-month-link:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.at-month-medium { flex: 0 0 auto; margin-left: auto; color: var(--color-text-muted); font-size: var(--text-xs); }
+
 /* Étoiles de note : encre pour la part remplie, gris pour le reste. */
 .at-stars { display: inline-flex; gap: var(--space-0-5); font-size: var(--text-md); line-height: 1; }
 .at-star { position: relative; display: inline-block; color: var(--color-star-empty); }
@@ -754,41 +946,20 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 @media (max-width: 1280px) {
   .at-lane { --at-lane-count: 5; }
 }
-@media (max-width: 1120px) {
-  .at-medium-panel { flex-basis: calc((100% - var(--space-4)) / 2); }
-  .at-medium-items { gap: var(--space-3); }
-}
-@media (max-width: 900px) {
-  .at-overview {
-    width: auto;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-    padding: var(--space-4) var(--space-6);
-  }
-  .at-overview-panel:first-child { padding-right: 0; }
-  .at-calendar-panel {
-    padding-left: 0;
-    padding-top: var(--space-4);
-    border-left: 0;
-    border-top: 1px solid var(--color-hairline);
-  }
-  .at-medium-grid { flex-direction: column; align-items: stretch; }
-  .at-medium-panel { flex-basis: auto; }
-}
 @media (max-width: 820px) {
   .at-lane { --at-lane-count: 4; }
-  .at-medium-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .at-files .at-lane { --at-lane-count: 4; }
 }
 @media (max-width: 620px) {
   .atrium-home { padding: var(--space-5) var(--space-5) var(--space-16); }
   .at-lane { --at-lane-count: 3; --at-lane-gap: var(--space-4); }
+  .at-files .at-lane { --at-lane-count: 3; }
   .at-file-head { flex-wrap: wrap; }
   .at-row-nav { margin-left: 0; }
-  .at-medium-panel { padding: var(--space-4) var(--space-4) var(--space-5); }
 }
 @media (max-width: 520px) {
-  .at-lane { --at-lane-count: 2; }
-  .at-medium-items { gap: var(--space-3); }
+  .at-lane,
+  .at-files .at-lane { --at-lane-count: 2; }
 }
 
 /* La navigation reste un rail sous la largeur de travail. Sans cela, le shell
@@ -805,27 +976,16 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .at-file-head { flex-wrap: wrap; }
 }
 
-/* Les files restent empilées : c'est leur répétition qui rend la page
-   scannable. Une grille deux par deux donnait quatre gros modules, mais
-   masquait la logique de parcours d'une rangée à l'autre. */
-.at-files { margin-top: var(--space-8); }
-.at-files > .at-section { margin-top: 0; }
-.at-files > .at-section + .at-section { margin-top: var(--space-8); }
-.at-files .at-lane { --at-lane-count: 6; }
-
-@media (max-width: 820px) {
-  .at-files .at-lane { --at-lane-count: 4; }
-}
-@media (max-width: 620px) {
-  .at-files .at-lane { --at-lane-count: 3; }
-}
-@media (max-width: 520px) {
-  .at-files .at-lane { --at-lane-count: 2; }
-}
-
-/* Mouvement réduit : les élévations au survol restent au repos. */
+/* Mouvement réduit : ni fondu, ni élévation, ni pression ; la une ne défile
+   pas seule (géré par le composant). */
 @media (prefers-reduced-motion: reduce) {
   .at-work:hover .poster { transform: none; }
+  .at-slide,
+  .at-slide.is-active,
+  .at-hero-btn,
+  .at-hero-dot::before { transition: none; }
+  .at-hero-btn:active { transform: none; }
+  .at-cal-tip { transition: none; transform: translate(-50%, 0); }
 }
 
 .poster {
@@ -3329,11 +3489,8 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .app-settings .portability-main { padding-inline: var(--space-5); }
   .atrium-home { padding-inline: var(--space-5); padding-bottom: calc(var(--space-20) + env(safe-area-inset-bottom)); }
   .at-inner { max-width: none; }
-  .at-overview { padding-bottom: var(--space-4); }
   .at-section-title { font-size: var(--text-lg); }
   .at-file-head .at-section-title { font-size: var(--text-2xl); font-weight: 700; }
-  .at-medium-section { margin-top: var(--space-8); }
-  .at-medium-grid { gap: var(--space-4); }
   .at-calendar { width: 100%; }
   .at-files { margin-top: var(--space-2); }
   .at-section { margin-top: var(--space-6); }
@@ -3469,13 +3626,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .portability-main,
   .app-settings .portability-main { padding-inline: var(--space-4); }
   .atrium-home { padding-inline: var(--space-4); padding-bottom: calc(var(--space-20) + env(safe-area-inset-bottom)); }
-  .at-medium-table thead th { letter-spacing: .06em; }
-  .at-medium-table thead th + th,
-  .at-medium-table tbody th + td { padding-left: var(--space-2-5); }
-  .at-medium-table tbody th { font-size: var(--text-md); }
-  .at-medium-name { gap: var(--space-2); }
-  .at-medium-table td { font-size: var(--text-md); }
-  .at-medium-table td:first-of-type { font-size: var(--text-lg); }
   .at-lane,
   .at-files .at-lane { --at-lane-count: 2; --at-lane-gap: var(--space-3); }
   .library-header-actions { grid-template-columns: 1fr 1fr; }

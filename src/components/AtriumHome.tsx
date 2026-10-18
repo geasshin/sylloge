@@ -1,9 +1,10 @@
 /**
- * L'accueil regroupe les files utiles et les cinq collections du profil.
+ * L'accueil met une œuvre à la une, puis range la collection en files par
+ * catégorie. Des onglets filtrent toute la page par bibliothèque.
  * Il reste montable dans l'application et dans le harnais de recette.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Poster } from './Poster.tsx'
 import type { FilmLibrary } from '../data/filmsRepository.ts'
 import type { Film } from '../domain/film.ts'
@@ -19,6 +20,17 @@ function formatCalendarDate(date: Date): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * Jour local « AAAA-MM-JJ » d'une date personnelle. Une date seule est déjà
+ * locale ; un horodatage ISO (progression d'une série ou d'un livre) est
+ * ramené au fuseau de la machine, jamais lu en UTC.
+ */
+function localDayKey(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value.slice(0, 10) : formatCalendarDate(date)
+}
+
 /** Clé de médium interne aux modules de l'accueil. */
 type MediumFilterKey = 'film' | 'série' | 'livre' | 'jeu' | 'art'
 
@@ -27,15 +39,6 @@ const MEDIUM_CARD_LABELS: Record<MediumFilterKey, string> = {
   'série': 'Série',
   livre: 'Livre',
   jeu: 'Jeu',
-  art: 'Art',
-}
-
-/** Libellés des bibliothèques : ils nomment les portes de sortie de l'accueil. */
-const MEDIUM_LIBRARY_LABELS: Record<MediumFilterKey, string> = {
-  film: 'Films',
-  'série': 'Séries',
-  livre: 'Livres',
-  jeu: 'Jeux',
   art: 'Art',
 }
 
@@ -58,6 +61,15 @@ const FINISHED_STATUSES: Record<MediumFilterKey, string> = {
   livre: 'lu',
   jeu: 'joué',
   art: 'découverte',
+}
+
+/** Verbe de la une pour une œuvre terminée : « Vu hier », « Lu le 12 août ». */
+const FINISHED_VERBS: Record<MediumFilterKey, string> = {
+  film: 'Vu',
+  'série': 'Vue',
+  livre: 'Lu',
+  jeu: 'Joué',
+  art: 'Découverte',
 }
 
 const CONTRIBUTOR_LABELS: Record<MediumFilterKey, string> = {
@@ -84,9 +96,15 @@ function usableContributor(value: string | null | undefined): string | null {
   return contributor
 }
 
-/** Nombre de cartes gardées dans les files par médium. */
+/** Nombre de cartes gardées dans chaque rangée. */
 const RAIL_SHOWN = 12
-const MEDIUM_DRAWN = 3
+/** La pioche du jour remplit une rangée de bureau. */
+const MEDIUM_DRAWN = 6
+/** À la une : coups de cœur de l'onglet, sinon dernières œuvres terminées. */
+const FEATURED_FAVORITES = 8
+const FEATURED_FALLBACK = 5
+/** Défilement automatique de la une, en millisecondes. */
+const FEATURED_DELAY = 8000
 
 export type HomeEntry = {
   key: string
@@ -96,6 +114,8 @@ export type HomeEntry = {
   contributor: string | null
   /** Identifiant du film : sert à relire son affiche et son réalisateur du cache TMDB. */
   filmId?: string
+  /** Année de l'œuvre quand le médium la connaît (les séries n'en ont pas). */
+  year: number | null
   createdAt: string
   rating: number | null
   isFavorite: boolean
@@ -104,7 +124,102 @@ export type HomeEntry = {
   /** Date personnelle la plus récente pour un statut en cours ou terminé. */
   recentAt: string | null
   recentLabel: string | null
+  /** Critique personnelle, citée en extrait par la une. */
+  personalNote: string | null
+  /** « Saison 2 sur 4 », « Tome 11 sur 18 » : progression connue, sinon rien. */
+  progressLabel: string | null
   onOpen: () => void
+}
+
+function isFinished(entry: HomeEntry): boolean {
+  return entry.status === FINISHED_STATUSES[entry.medium]
+}
+
+/** « Saison 2 sur 4 » : rien tant que la progression ou le total est inconnu. */
+function progressOf(unit: 'Saison' | 'Tome', seen: number | null, total: number | null): string | null {
+  if (seen === null || total === null || seen < 1 || total < seen) return null
+  return `${unit} ${seen} sur ${total}`
+}
+
+// ————————————————————————————————————————————————————————————————
+// Onglets : tout, ou une seule bibliothèque. Chaque onglet porte ses
+// libellés accordés pour le bilan, les rangées et l'état vide.
+// ————————————————————————————————————————————————————————————————
+
+type HomeTabKey = 'tout' | MediumFilterKey
+
+type HomeTab = {
+  key: HomeTabKey
+  /** Valeur mémorisée et identifiant DOM, sans accent. */
+  slug: string
+  label: string
+  /** Compteur accordé : singulier, puis pluriel. */
+  finished: readonly [string, string]
+  /** Mois sans œuvre terminée. */
+  none: string
+  queue: string
+  recent: string
+  /** État vide : une phrase, le constat puis ce qui remplira la page. */
+  empty: string
+}
+
+const HOME_TABS: readonly HomeTab[] = [
+  {
+    key: 'tout', slug: 'tout', label: 'Tout',
+    finished: ['œuvre terminée', 'œuvres terminées'], none: 'Aucune œuvre terminée',
+    queue: 'En attente', recent: 'Récemment terminés',
+    empty: 'Aucune œuvre pour le moment : celles des cinq bibliothèques apparaîtront ici.',
+  },
+  {
+    key: 'film', slug: 'films', label: 'Films',
+    finished: ['film vu', 'films vus'], none: 'Aucun film vu',
+    queue: 'À voir', recent: 'Récemment vus',
+    empty: 'Aucun film pour le moment : ceux de la bibliothèque Films apparaîtront ici.',
+  },
+  {
+    key: 'série', slug: 'series', label: 'Séries',
+    finished: ['série vue', 'séries vues'], none: 'Aucune série vue',
+    queue: 'À voir', recent: 'Récemment vues',
+    empty: 'Aucune série pour le moment : celles de la bibliothèque Séries apparaîtront ici.',
+  },
+  {
+    key: 'livre', slug: 'livres', label: 'Livres',
+    finished: ['livre lu', 'livres lus'], none: 'Aucun livre lu',
+    queue: 'À lire', recent: 'Récemment lus',
+    empty: 'Aucun livre pour le moment : ceux de la bibliothèque Livres apparaîtront ici.',
+  },
+  {
+    key: 'jeu', slug: 'jeux', label: 'Jeux',
+    finished: ['jeu joué', 'jeux joués'], none: 'Aucun jeu joué',
+    queue: 'À jouer', recent: 'Récemment joués',
+    empty: 'Aucun jeu pour le moment : ceux de la bibliothèque Jeux apparaîtront ici.',
+  },
+  {
+    key: 'art', slug: 'art', label: 'Art',
+    finished: ['œuvre découverte', 'œuvres découvertes'], none: 'Aucune œuvre découverte',
+    queue: 'À découvrir', recent: 'Récemment découvertes',
+    empty: 'Aucune œuvre d’art pour le moment : celles de la bibliothèque Art apparaîtront ici.',
+  },
+]
+
+/** Dernier onglet ouvert, retrouvé d'une session à l'autre. */
+const HOME_TAB_STORAGE_KEY = 'sylloge-home-tab'
+
+function readStoredTab(): HomeTabKey {
+  try {
+    const stored = window.localStorage.getItem(HOME_TAB_STORAGE_KEY)
+    return HOME_TABS.find((tab) => tab.slug === stored)?.key ?? 'tout'
+  } catch {
+    return 'tout'
+  }
+}
+
+function storeTab(tab: HomeTab) {
+  try {
+    window.localStorage.setItem(HOME_TAB_STORAGE_KEY, tab.slug)
+  } catch {
+    // Stockage indisponible : l'onglet reste valable pour la session.
+  }
 }
 
 /**
@@ -115,8 +230,8 @@ export type HomeEntry = {
 function buildActivityMap(entries: HomeEntry[]): Map<string, HomeEntry[]> {
   const map = new Map<string, HomeEntry[]>()
   for (const entry of entries) {
-    if (entry.status !== FINISHED_STATUSES[entry.medium] || entry.recentAt === null) continue
-    const day = entry.recentAt.slice(0, 10)
+    if (!isFinished(entry) || entry.recentAt === null) continue
+    const day = localDayKey(entry.recentAt)
     const list = map.get(day)
     if (list) list.push(entry)
     else map.set(day, [entry])
@@ -127,19 +242,77 @@ function buildActivityMap(entries: HomeEntry[]): Map<string, HomeEntry[]> {
   return map
 }
 
-// ————————————————————————————————————————————————————————————————
-// Accueil v2 — « L'atrium » (design-lab/home-v1/a, validé le 22/09).
-// Les rangées « Derniers ajouts », « Récents » et « Favoris » reprennent la
-// même voie horizontale, avec des flèches seulement en cas de débordement.
-// ————————————————————————————————————————————————————————————————
+type TabMonth = { key: string; label: string; count: number; current: boolean }
+type TabStats = { finished: number; thisMonth: number; months: TabMonth[]; lastTwelveMonths: number }
+
+/**
+ * Bilan de l'onglet, calculé à chaque affichage depuis les dates réelles :
+ * œuvres terminées, mois civil en cours et douze derniers mois.
+ */
+function buildTabStats(entries: HomeEntry[], now: Date): TabStats {
+  const finished = entries.filter(isFinished)
+  const perMonth = new Map<string, number>()
+  for (const entry of finished) {
+    if (entry.recentAt === null) continue
+    const month = localDayKey(entry.recentAt).slice(0, 7)
+    perMonth.set(month, (perMonth.get(month) ?? 0) + 1)
+  }
+  const months = Array.from({ length: 12 }, (_, index): TabMonth => {
+    const date = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1)
+    const key = formatCalendarDate(date).slice(0, 7)
+    return { key, label: monthShort.format(date), count: perMonth.get(key) ?? 0, current: index === 11 }
+  })
+  return {
+    finished: finished.length,
+    thisMonth: months[11].count,
+    months,
+    lastTwelveMonths: months.reduce((total, month) => total + month.count, 0),
+  }
+}
+
+/** Activité la plus récente d'abord ; sans date, l'ajout le plus récent. */
+function byRecentActivity(first: HomeEntry, second: HomeEntry): number {
+  if (first.recentAt !== second.recentAt) {
+    if (first.recentAt === null) return 1
+    if (second.recentAt === null) return -1
+    const delta = second.recentAt.localeCompare(first.recentAt)
+    if (delta !== 0) return delta
+  }
+  return second.createdAt.localeCompare(first.createdAt)
+}
+
+/** Œuvres terminées, de la plus récente à la plus ancienne ; à jour égal, celles qui ont une critique. */
+function byFinishedDateThenNote(first: HomeEntry, second: HomeEntry): number {
+  const firstDay = first.recentAt ? localDayKey(first.recentAt) : ''
+  const secondDay = second.recentAt ? localDayKey(second.recentAt) : ''
+  return secondDay.localeCompare(firstDay)
+    || Number(Boolean(second.personalNote)) - Number(Boolean(first.personalNote))
+    || second.createdAt.localeCompare(first.createdAt)
+}
+
+/**
+ * Œuvres à la une : les coups de cœur de l'onglet. Sans coup de cœur, les
+ * dernières œuvres terminées, puis celles en cours, puis les derniers ajouts.
+ */
+function pickFeatured(entries: HomeEntry[]): HomeEntry[] {
+  const featuredFavorites = entries.filter((entry) => entry.isFavorite).sort(byRecentActivity).slice(0, FEATURED_FAVORITES)
+  if (featuredFavorites.length > 0) return featuredFavorites
+  const finished = entries.filter(isFinished).sort(byFinishedDateThenNote)
+  if (finished.length > 0) return finished.slice(0, FEATURED_FALLBACK)
+  const inProgress = entries.filter((entry) => entry.status === 'en cours').sort(byRecentActivity)
+  if (inProgress.length > 0) return inProgress.slice(0, FEATURED_FALLBACK)
+  return [...entries].sort((first, second) => second.createdAt.localeCompare(first.createdAt)).slice(0, FEATURED_FALLBACK)
+}
 
 /** Dates et libellés : jamais de date UTC, jamais de compteur inventé. */
 const dateFull = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' })
 const dateDayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' })
+const monthLong = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' })
+const monthShort = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' })
 
-/** Date locale d'une valeur « AAAA-MM-JJ », sans passage par UTC. */
+/** Date locale d'une date personnelle, sans passage par UTC. */
 function parseLocalDay(value: string): Date {
-  const [year, month, day] = value.slice(0, 10).split('-').map(Number)
+  const [year, month, day] = localDayKey(value).split('-').map(Number)
   return new Date(year, month - 1, day)
 }
 
@@ -161,6 +334,15 @@ function relativeDayLabel(value: string): string {
 /** Jour lisible d'une clé « AAAA-MM-JJ » (libellé accessible du calendrier). */
 function dayLabel(value: string): string {
   return dateFull.format(parseLocalDay(value))
+}
+
+/** Statut et date de la une : « Vu hier », « En cours · Saison 1 sur 2 »… */
+function featuredStatus(entry: HomeEntry): string {
+  const when = entry.recentAt ? relativeDayLabel(entry.recentAt) : null
+  if (isFinished(entry)) return when ? `${FINISHED_VERBS[entry.medium]} ${when}` : FINISHED_VERBS[entry.medium]
+  if (entry.status === 'en cours') return entry.progressLabel ? `En cours · ${entry.progressLabel}` : 'En cours'
+  const status = entry.status ? `${entry.status.charAt(0).toLocaleUpperCase('fr-FR')}${entry.status.slice(1)}` : ''
+  return status && when ? `${status} ${when}` : status
 }
 
 /** Nom du visuel attendu pour un médium (fallback compris). */
@@ -210,6 +392,23 @@ function ChevronRight() {
   )
 }
 
+function PauseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 5v14" />
+      <path d="M15 5v14" />
+    </svg>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 5.5v13l10-6.5z" />
+    </svg>
+  )
+}
+
 function RefreshIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -244,6 +443,67 @@ function Stars({ value }: { value: number }) {
  * base, jamais un écran cassé.
  */
 function WorkPoster({ entry, resolveFilmPoster }: { entry: HomeEntry; resolveFilmPoster?: FilmPosterResolver }) {
+  const src = usePosterSource(entry, resolveFilmPoster)
+  return <Poster title={entry.title} src={src} label={posterLabel(entry.medium)} />
+}
+
+/**
+ * Carte d'une œuvre « posée » : le titre reste visible sous le visuel ; les
+ * détails de la rangée sont portés par son nom accessible complet. Sous
+ * l'onglet Tout, le médium s'ajoute après le titre, jamais au-dessus.
+ */
+function WorkCard({
+  entry,
+  meta,
+  showRating = false,
+  showContributor = false,
+  showMedium = false,
+  resolveFilmPoster,
+  resolveFilmContributor,
+}: {
+  entry: HomeEntry
+  meta?: string
+  showRating?: boolean
+  showContributor?: boolean
+  showMedium?: boolean
+  resolveFilmPoster?: FilmPosterResolver
+  resolveFilmContributor?: FilmContributorResolver
+}) {
+  const cachedContributor = useCachedContributor(entry, showContributor, resolveFilmContributor)
+
+  const medium = MEDIUM_CARD_LABELS[entry.medium]
+  const rating = showRating && entry.rating !== null ? `Noté ${entry.rating} sur 5` : null
+  const favorite = entry.isFavorite ? 'Coup de cœur' : null
+  const contributor = showContributor ? usableContributor(entry.contributor) ?? cachedContributor : null
+  const contributorFact = contributor ? `${CONTRIBUTOR_LABELS[entry.medium]} ${contributor}` : null
+  const facts = [medium, contributorFact, meta ?? null, rating, favorite].filter((value): value is string => value !== null).join(' · ')
+  const accessibleLabel = `Ouvrir la fiche de ${entry.title}${facts ? `, ${facts}` : ''}`
+
+  return (
+    <button type="button" className="at-work" data-medium={entry.medium} onClick={entry.onOpen} aria-label={accessibleLabel}>
+      <WorkPoster entry={entry} resolveFilmPoster={resolveFilmPoster} />
+      <span className="at-work-cap">
+        <span className="at-work-title">{entry.title}</span>
+        {(showMedium || contributor) && (
+          <span className="at-work-byline" title={contributor ?? undefined}>
+            {showMedium && <span className="at-work-medium">{medium}</span>}
+            {showMedium && contributor ? ' · ' : null}
+            {contributor}
+          </span>
+        )}
+        {meta && <span className="at-work-meta">{meta}</span>}
+        {showRating && entry.rating !== null && <Stars value={entry.rating} />}
+      </span>
+    </button>
+  )
+}
+
+// ————————————————————————————————————————————————————————————————
+// Visuels et crédits du cache local, partagés par les cartes et la une
+// ————————————————————————————————————————————————————————————————
+
+/** Affiche affichée : celle du cache TMDB pour un film associé, sinon l'enregistrée. */
+function usePosterSource(entry: HomeEntry, resolveFilmPoster?: FilmPosterResolver): string | null {
   const [src, setSrc] = useState(entry.poster)
 
   useEffect(() => {
@@ -260,81 +520,281 @@ function WorkPoster({ entry, resolveFilmPoster }: { entry: HomeEntry; resolveFil
     return () => { cancelled = true }
   }, [entry.filmId, entry.poster, resolveFilmPoster])
 
-  return <Poster title={entry.title} src={src} label={posterLabel(entry.medium)} />
+  return src
 }
 
-/**
- * Carte d'une œuvre « posée » : le titre reste visible sous le visuel ; les
- * détails de la rangée sont portés par son nom accessible complet.
- */
-function WorkCard({
-  entry,
-  meta,
-  showRating = false,
-  showContributor = false,
-  resolveFilmPoster,
-  resolveFilmContributor,
-}: {
-  entry: HomeEntry
-  meta?: string
-  showRating?: boolean
-  showContributor?: boolean
-  resolveFilmPoster?: FilmPosterResolver
-  resolveFilmContributor?: FilmContributorResolver
-}) {
+/** Réalisateur lu dans le cache TMDB local quand le crédit enregistré est vide ou factice. */
+function useCachedContributor(entry: HomeEntry, enabled: boolean, resolveFilmContributor?: FilmContributorResolver): string | null {
   const [cachedContributor, setCachedContributor] = useState<string | null>(null)
+
   useEffect(() => {
     let cancelled = false
     setCachedContributor(null)
-    if (!showContributor || usableContributor(entry.contributor) || entry.filmId === undefined || resolveFilmContributor === undefined) {
+    if (!enabled || usableContributor(entry.contributor) || entry.filmId === undefined || resolveFilmContributor === undefined) {
       return () => { cancelled = true }
     }
     Promise.resolve()
       .then(() => resolveFilmContributor(entry.filmId as string))
       .then((value) => { if (!cancelled) setCachedContributor(usableContributor(value)) }, () => undefined)
     return () => { cancelled = true }
-  }, [entry.contributor, entry.filmId, resolveFilmContributor, showContributor])
+  }, [enabled, entry.contributor, entry.filmId, resolveFilmContributor])
 
-  const medium = MEDIUM_CARD_LABELS[entry.medium]
-  const rating = showRating && entry.rating !== null ? `Noté ${entry.rating} sur 5` : null
-  const favorite = entry.isFavorite ? 'Coup de cœur' : null
-  const contributor = showContributor ? usableContributor(entry.contributor) ?? cachedContributor : null
-  const contributorFact = contributor ? `${CONTRIBUTOR_LABELS[entry.medium]} ${contributor}` : null
-  const facts = [medium, contributorFact, meta ?? null, rating, favorite].filter((value): value is string => value !== null).join(' · ')
-  const accessibleLabel = `Ouvrir la fiche de ${entry.title}${facts ? `, ${facts}` : ''}`
+  return cachedContributor
+}
+
+/** Préférence système de mouvement réduit, suivie en direct. */
+function usePrefersReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduced(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+
+  return reduced
+}
+
+/** Fenêtre ou onglet visible : rien ne défile tant que la page est cachée. */
+function usePageVisible(): boolean {
+  const [visible, setVisible] = useState(() => !document.hidden)
+
+  useEffect(() => {
+    const update = () => setVisible(!document.hidden)
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
+  }, [])
+
+  return visible
+}
+
+// ————————————————————————————————————————————————————————————————
+// À la une : une œuvre à la fois, défilement automatique accessible
+// ————————————————————————————————————————————————————————————————
+
+/**
+ * Carrousel de la une. Il avance seul toutes les huit secondes, sauf au
+ * survol, pendant le focus clavier, en pause demandée, en mouvement réduit ou
+ * quand la page est cachée. Une seule œuvre : ni minuterie ni points.
+ */
+function FeaturedCarousel({
+  entries,
+  resolveFilmPoster,
+  resolveFilmContributor,
+}: {
+  entries: HomeEntry[]
+  resolveFilmPoster?: FilmPosterResolver
+  resolveFilmContributor?: FilmContributorResolver
+}) {
+  const count = entries.length
+  const [index, setIndex] = useState(0)
+  /** Chaque navigation manuelle relance le compte à rebours. */
+  const [cycle, setCycle] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [keyboardInside, setKeyboardInside] = useState(false)
+  const reducedMotion = usePrefersReducedMotion()
+  const pageVisible = usePageVisible()
+  const current = count > 0 ? index % count : 0
+  const canRotate = count > 1 && !reducedMotion
+  const rotating = canRotate && !paused && !hovered && !keyboardInside && pageVisible
+
+  useEffect(() => {
+    if (!rotating) return
+    const timer = window.setTimeout(() => setIndex((value) => (value + 1) % count), FEATURED_DELAY)
+    return () => window.clearTimeout(timer)
+  }, [rotating, current, count, cycle])
+
+  const show = (target: number) => {
+    setIndex(((target % count) + count) % count)
+    setCycle((value) => value + 1)
+  }
+
+  // Seul le focus clavier suspend le défilement : un clic de souris dans la
+  // une est déjà couvert par le survol.
+  const onFocus = (event: FocusEvent<HTMLElement>) => {
+    setKeyboardInside(event.target instanceof HTMLElement && event.target.matches(':focus-visible'))
+  }
+  const onBlur = (event: FocusEvent<HTMLElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeyboardInside(false)
+  }
+
+  if (count === 0) return null
 
   return (
-    <button type="button" className="at-work" data-medium={entry.medium} onClick={entry.onOpen} aria-label={accessibleLabel}>
-      <WorkPoster entry={entry} resolveFilmPoster={resolveFilmPoster} />
-      <span className="at-work-cap">
-        <span className="at-work-title">{entry.title}</span>
-        {contributor && <span className="at-work-byline" title={contributor}>{contributor}</span>}
-        {meta && <span className="at-work-meta">{meta}</span>}
-        {showRating && entry.rating !== null && <Stars value={entry.rating} />}
-      </span>
-    </button>
+    <section
+      className="at-hero"
+      aria-roledescription="carrousel"
+      aria-labelledby="at-hero-titre"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={onFocus}
+      onBlur={onBlur}
+    >
+      <h2 className="visually-hidden" id="at-hero-titre">À la une</h2>
+      {count > 1 && (
+        <div className="at-hero-controls">
+          {canRotate && (
+            <button
+              type="button"
+              className="at-hero-btn"
+              onClick={() => setPaused((value) => !value)}
+              aria-label={paused ? 'Reprendre le défilement' : 'Mettre en pause le défilement'}
+              title={paused ? 'Reprendre le défilement' : 'Mettre en pause le défilement'}
+            >
+              {paused ? <PlayIcon /> : <PauseIcon />}
+            </button>
+          )}
+          <button type="button" className="at-hero-btn" onClick={() => show(current - 1)} aria-label="Œuvre précédente" title="Œuvre précédente">
+            <ChevronLeft />
+          </button>
+          <button type="button" className="at-hero-btn" onClick={() => show(current + 1)} aria-label="Œuvre suivante" title="Œuvre suivante">
+            <ChevronRight />
+          </button>
+          {/* Les points servent au pointeur ; au clavier, les flèches suffisent
+              et évitent huit arrêts de tabulation de plus. */}
+          <div className="at-hero-dots">
+            {entries.map((entry, position) => (
+              <button
+                key={entry.key}
+                type="button"
+                className="at-hero-dot"
+                tabIndex={-1}
+                aria-label={`Afficher ${entry.title} (${position + 1} sur ${count})`}
+                aria-current={position === current ? 'true' : undefined}
+                onClick={() => show(position)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="at-hero-slides" aria-live={rotating ? 'off' : 'polite'}>
+        {entries.map((entry, position) => (
+          <FeaturedSlide
+            key={entry.key}
+            entry={entry}
+            active={position === current}
+            label={`${position + 1} sur ${count}`}
+            resolveFilmPoster={resolveFilmPoster}
+            resolveFilmContributor={resolveFilmContributor}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Diapositive de la une : affiche, fond flouté tiré de la même affiche sous un
+ * voile, médium et crédit, titre, note et statut, extrait de la critique.
+ */
+function FeaturedSlide({
+  entry,
+  active,
+  label,
+  resolveFilmPoster,
+  resolveFilmContributor,
+}: {
+  entry: HomeEntry
+  active: boolean
+  label: string
+  resolveFilmPoster?: FilmPosterResolver
+  resolveFilmContributor?: FilmContributorResolver
+}) {
+  const src = usePosterSource(entry, resolveFilmPoster)
+  const [backdropMissing, setBackdropMissing] = useState(false)
+  useEffect(() => { setBackdropMissing(false) }, [src])
+  const cachedContributor = useCachedContributor(entry, true, resolveFilmContributor)
+  const contributor = usableContributor(entry.contributor) ?? cachedContributor
+  const facts = [MEDIUM_CARD_LABELS[entry.medium], entry.year !== null ? String(entry.year) : null, contributor]
+    .filter((value): value is string => value !== null)
+    .join(' · ')
+  const note = entry.personalNote?.trim()
+
+  return (
+    <div
+      className={`at-slide${active ? ' is-active' : ''}`}
+      role="group"
+      aria-roledescription="diapositive"
+      aria-label={label}
+      aria-hidden={active ? undefined : true}
+      inert={!active}
+    >
+      {src && !backdropMissing && (
+        <div className="at-slide-backdrop" aria-hidden="true">
+          <img src={src} alt="" onError={() => setBackdropMissing(true)} />
+        </div>
+      )}
+      <div className="at-slide-body">
+        <div className="at-slide-poster">
+          <Poster title={entry.title} src={src} label={posterLabel(entry.medium)} />
+        </div>
+        <div className="at-slide-text">
+          <p className="at-slide-meta">{facts}</p>
+          <h3 className="at-slide-title">{entry.title}</h3>
+          <p className="at-slide-status">
+            {entry.rating !== null && <Stars value={entry.rating} />}
+            <span>{featuredStatus(entry)}</span>
+          </p>
+          {note && <p className="at-slide-note">{`« ${note} »`}</p>}
+          <div className="at-slide-actions">
+            <button type="button" className="primary-button" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}`}>
+              Ouvrir la fiche
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Bilan de l'onglet : deux compteurs et douze mois en barres, sur une ligne. */
+function TabStatistics({ tab, stats }: { tab: HomeTab; stats: TabStats }) {
+  const [singular, plural] = tab.finished
+  const noun = (count: number) => (count > 1 ? plural : singular)
+  const peak = Math.max(1, ...stats.months.map((month) => month.count))
+
+  return (
+    <div className="at-stats" role="group" aria-label={`Bilan de l’onglet ${tab.label}`}>
+      <p className="at-stat"><b>{stats.finished}</b> <span>{noun(stats.finished)}</span></p>
+      <span className="at-stats-rule" aria-hidden="true" />
+      <p className="at-stat"><b>{stats.thisMonth}</b> <span>ce mois-ci</span></p>
+      <span className="at-stats-rule" aria-hidden="true" />
+      <div className="at-spark" aria-hidden="true">
+        {stats.months.map((month) => (
+          <span key={month.key} className={`at-spark-col${month.current ? ' is-current' : ''}`} title={`${month.label} : ${month.count}`}>
+            <i style={{ height: `${Math.round((month.count / peak) * 100)}%` }} />
+          </span>
+        ))}
+      </div>
+      <span className="visually-hidden">{`${stats.lastTwelveMonths} ${noun(stats.lastTwelveMonths)} sur 12 mois`}</span>
+    </div>
   )
 }
 
 /**
  * File horizontale : les flèches restent dans l'en-tête et n'apparaissent que
- * lorsqu'il y a réellement des cartes hors champ.
+ * lorsqu'il y a réellement des cartes hors champ. Une file vide est masquée.
  */
 function FileRow({
   id,
   label,
   entries,
-  emptyMessage,
   renderCard,
   showMeta = false,
+  action,
 }: {
   id: string
   label: string
   entries: HomeEntry[]
-  emptyMessage: string
   renderCard: (entry: HomeEntry) => ReactNode
   /** Rangee dont les cartes portent une ligne de contexte sous le titre. */
   showMeta?: boolean
+  /** Action propre à la rangée (rafraîchir la pioche), à côté des flèches. */
+  action?: ReactNode
 }) {
   const laneRef = useRef<HTMLDivElement | null>(null)
   const [overflow, setOverflow] = useState(false)
@@ -374,40 +834,50 @@ function FileRow({
     lane.scrollBy({ left: direction * distance, behavior: reduced ? 'auto' : 'smooth' })
   }
 
+  if (entries.length === 0) return null
+
   return (
     <section id={id} className={`at-section${showMeta ? ' at-file-meta' : ''}`} aria-labelledby={`${id}-titre`}>
       <div className="at-file-head">
         <h2 className="at-section-title" id={`${id}-titre`}>{label}</h2>
-        {entries.length > 0 && overflow && (
+        {(action || overflow) && (
           <div className="at-row-nav">
-            <button type="button" className="at-row-btn" onClick={() => step(-1)} disabled={atStart} aria-label={`Faire défiler ${label} vers la gauche`}>
-              <ChevronLeft />
-            </button>
-            <button type="button" className="at-row-btn" onClick={() => step(1)} disabled={atEnd} aria-label={`Faire défiler ${label} vers la droite`}>
-              <ChevronRight />
-            </button>
+            {action}
+            {overflow && (
+              <>
+                <button type="button" className="at-row-btn" onClick={() => step(-1)} disabled={atStart} aria-label={`Faire défiler ${label} vers la gauche`}>
+                  <ChevronLeft />
+                </button>
+                <button type="button" className="at-row-btn" onClick={() => step(1)} disabled={atEnd} aria-label={`Faire défiler ${label} vers la droite`}>
+                  <ChevronRight />
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
-      {entries.length > 0 ? (
-        <div
-          className="at-lane"
-          ref={laneRef}
-          tabIndex={0}
-          role="group"
-          aria-label={`${label}, ${entries.length} œuvres, utilisez les flèches gauche et droite pour faire défiler`}
-        >
-          {entries.map(renderCard)}
-        </div>
-      ) : (
-        <p className="at-empty">{emptyMessage}</p>
-      )}
+      <div
+        className="at-lane"
+        id={`${id}-voie`}
+        ref={laneRef}
+        tabIndex={0}
+        role="group"
+        aria-label={`${label}, ${entries.length} œuvre${entries.length > 1 ? 's' : ''}, utilisez les flèches gauche et droite pour faire défiler`}
+      >
+        {entries.map(renderCard)}
+      </div>
     </section>
   )
 }
 
-/** Calendrier d'activité : module « mémoire », monochrome, mois par mois. */
-function ActivityCalendar({ activityMap }: { activityMap: Map<string, HomeEntry[]> }) {
+/** Libellés du journal d'activité, accordés à l'onglet. */
+type ActivityJournalCopy = { finished: readonly [string, string]; none: string; showMedium: boolean }
+
+/**
+ * Calendrier d'activité : module « mémoire », monochrome, mois par mois. Le
+ * journal du mois affiché nomme les œuvres terminées, date par date.
+ */
+function ActivityCalendar({ activityMap, journal }: { activityMap: Map<string, HomeEntry[]>; journal: ActivityJournalCopy }) {
   const [monthOffset, setMonthOffset] = useState(0)
   const today = new Date()
   const cursor = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1)
@@ -417,72 +887,101 @@ function ActivityCalendar({ activityMap }: { activityMap: Map<string, HomeEntry[
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const canGoForward = monthOffset < 0
   const todayKey = formatCalendarDate(today)
+  const monthName = monthLong.format(cursor)
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`
+  const monthEntries = Array.from(activityMap.entries())
+    .filter(([key]) => key.startsWith(monthPrefix))
+    .sort(([first], [second]) => second.localeCompare(first))
+    .flatMap(([key, list]) => list.map((entry) => ({ key, entry })))
+  const [singular, plural] = journal.finished
 
   return (
-    <div className="at-calendar">
-      <header className="at-cal-nav">
-        <button type="button" className="at-cal-button" onClick={() => setMonthOffset((value) => value - 1)} aria-label="Mois précédent">
-          ‹
-        </button>
-        <h3>{new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(cursor)}</h3>
-        <button
-          type="button"
-          className="at-cal-button"
-          onClick={() => setMonthOffset((value) => Math.min(0, value + 1))}
-          disabled={!canGoForward}
-          aria-label="Mois suivant"
-        >
-          ›
-        </button>
-      </header>
-      <div className="at-cal-weekdays" aria-hidden="true">
-        {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => (
-          <span key={`${label}-${index}`}>{label}</span>
-        ))}
+    <div className="at-activity-body">
+      <div className="at-calendar">
+        <header className="at-cal-nav">
+          <button type="button" className="at-cal-button" onClick={() => setMonthOffset((value) => value - 1)} aria-label="Mois précédent">
+            ‹
+          </button>
+          <h3>{monthName}</h3>
+          <button
+            type="button"
+            className="at-cal-button"
+            onClick={() => setMonthOffset((value) => Math.min(0, value + 1))}
+            disabled={!canGoForward}
+            aria-label="Mois suivant"
+          >
+            ›
+          </button>
+        </header>
+        <div className="at-cal-weekdays" aria-hidden="true">
+          {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => (
+            <span key={`${label}-${index}`}>{label}</span>
+          ))}
+        </div>
+        <ol className="at-cal-days">
+          {Array.from({ length: firstWeekday }, (_, index) => (
+            <li key={`pad-${index}`} className="at-cal-pad" />
+          ))}
+          {Array.from({ length: daysInMonth }, (_, index) => {
+            const day = index + 1
+            const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+            const dayEntries = activityMap.get(key) ?? []
+            const mediums = MEDIUM_ORDER.filter((medium) => dayEntries.some((entry) => entry.medium === medium))
+            return (
+              <li
+                key={key}
+                className={`at-cal-day${mediums.length > 0 ? ' on' : ''}${key === todayKey ? ' today' : ''}`}
+                tabIndex={dayEntries.length > 0 ? 0 : undefined}
+              >
+                <time dateTime={key}>{day}</time>
+                {mediums.length > 0 && (
+                  <span className="at-cal-dots" aria-hidden="true">
+                    {mediums.map((medium) => (
+                      <i key={medium} data-medium={medium} />
+                    ))}
+                  </span>
+                )}
+                {dayEntries.length > 0 && (
+                  <span className="visually-hidden">
+                    {`${dayLabel(key)} : ${dayEntries.map((entry) => `${MEDIUM_CARD_LABELS[entry.medium]} « ${entry.title} »`).join(', ')}`}
+                  </span>
+                )}
+                {/* Repère visuel au survol : la liste réelle des œuvres du jour. */}
+                {dayEntries.length > 0 && (
+                  <span className="at-cal-tip" aria-hidden="true">
+                    {dayEntries.map((entry) => (
+                      <span className="at-cal-tip-item" key={entry.key}>
+                        <span className="at-medium-dot" data-medium={entry.medium} />
+                        <span className="at-cal-tip-title">{entry.title}</span>
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </li>
+            )
+          })}
+        </ol>
       </div>
-      <ol className="at-cal-days">
-        {Array.from({ length: firstWeekday }, (_, index) => (
-          <li key={`pad-${index}`} className="at-cal-pad" />
-        ))}
-        {Array.from({ length: daysInMonth }, (_, index) => {
-          const day = index + 1
-          const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          const dayEntries = activityMap.get(key) ?? []
-          const mediums = MEDIUM_ORDER.filter((medium) => dayEntries.some((entry) => entry.medium === medium))
-          return (
-            <li
-              key={key}
-              className={`at-cal-day${mediums.length > 0 ? ' on' : ''}${key === todayKey ? ' today' : ''}`}
-              tabIndex={dayEntries.length > 0 ? 0 : undefined}
-            >
-              <time dateTime={key}>{day}</time>
-              {mediums.length > 0 && (
-                <span className="at-cal-dots" aria-hidden="true">
-                  {mediums.map((medium) => (
-                    <i key={medium} data-medium={medium} />
-                  ))}
-                </span>
-              )}
-              {dayEntries.length > 0 && (
-                <span className="visually-hidden">
-                  {`${dayLabel(key)} : ${dayEntries.map((entry) => `${MEDIUM_CARD_LABELS[entry.medium]} « ${entry.title} »`).join(', ')}`}
-                </span>
-              )}
-              {/* Repère visuel au survol : la liste réelle des œuvres du jour. */}
-              {dayEntries.length > 0 && (
-                <span className="at-cal-tip" aria-hidden="true">
-                  {dayEntries.map((entry) => (
-                    <span className="at-cal-tip-item" key={entry.key}>
-                      <span className="at-medium-dot" data-medium={entry.medium} />
-                      <span className="at-cal-tip-title">{entry.title}</span>
-                    </span>
-                  ))}
-                </span>
-              )}
-            </li>
-          )
-        })}
-      </ol>
+      <div className="at-month">
+        <p className="at-month-summary">
+          {monthEntries.length > 0
+            ? `${monthEntries.length} ${monthEntries.length > 1 ? plural : singular} en ${monthName}`
+            : `${journal.none} en ${monthName}.`}
+        </p>
+        {monthEntries.length > 0 && (
+          <ol className="at-month-list">
+            {monthEntries.map(({ key, entry }) => (
+              <li className="at-month-item" key={`${key}-${entry.key}`}>
+                <time dateTime={key}>{Number(key.slice(8, 10))}</time>
+                <button type="button" className="at-month-link" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}, ${dayLabel(key)}`}>
+                  {entry.title}
+                </button>
+                {journal.showMedium && <span className="at-month-medium">{MEDIUM_CARD_LABELS[entry.medium]}</span>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
     </div>
   )
 }
@@ -534,12 +1033,15 @@ export function Home({
       poster: film.posterUrl,
       contributor: film.director,
       filmId: film.id,
+      year: film.year,
       createdAt: film.createdAt,
       rating: film.rating,
       isFavorite: film.isFavorite,
       status: film.status,
       recentAt: film.status === 'terminé' || film.status === 'abandonné' ? film.watchedAt : null,
       recentLabel: film.status === 'terminé' ? 'Vu' : film.status === 'abandonné' ? 'Abandonné' : null,
+      personalNote: film.personalNote,
+      progressLabel: null,
       onOpen: () => onOpen(film),
     })),
     ...seriesCollection.map((entry) => ({
@@ -548,12 +1050,15 @@ export function Home({
       title: entry.title,
       poster: entry.posterUrl,
       contributor: entry.showrunner,
+      year: null,
       createdAt: entry.createdAt,
       rating: entry.rating,
       isFavorite: entry.isFavorite,
       status: entry.status,
       recentAt: entry.status === 'à voir' ? null : entry.progressUpdatedAt ?? entry.startedAt,
       recentLabel: entry.status === 'vue' ? 'Vue' : entry.status === 'abandonnée' ? 'Arrêtée' : entry.status === 'en cours' ? 'En cours' : null,
+      personalNote: entry.personalNote,
+      progressLabel: progressOf('Saison', entry.seasonsSeen, entry.seasonsTotal),
       onOpen: () => onOpenSeries(entry),
     })),
     ...bookCollection.map((entry) => ({
@@ -562,12 +1067,15 @@ export function Home({
       title: entry.title,
       poster: entry.coverUrl,
       contributor: entry.author,
+      year: entry.year,
       createdAt: entry.createdAt,
       rating: entry.rating,
       isFavorite: entry.isFavorite,
       status: entry.status,
       recentAt: entry.status === 'à lire' ? null : entry.progressUpdatedAt ?? entry.startedAt,
       recentLabel: entry.status === 'lu' ? 'Lu' : entry.status === 'abandonné' ? 'Abandonné' : entry.status === 'en cours' ? 'En cours' : null,
+      personalNote: entry.personalNote,
+      progressLabel: progressOf('Tome', entry.volumesRead, entry.volumesTotal),
       onOpen: () => onOpenBook(entry),
     })),
     ...gameCollection.map((entry) => ({
@@ -576,12 +1084,15 @@ export function Home({
       title: entry.title,
       poster: entry.coverUrl,
       contributor: entry.developer,
+      year: entry.year,
       createdAt: entry.createdAt,
       rating: entry.rating,
       isFavorite: entry.isFavorite,
       status: entry.status,
       recentAt: entry.status === 'à jouer' ? null : entry.playedAt,
       recentLabel: entry.status === 'joué' ? 'Joué' : entry.status === 'abandonné' ? 'Abandonné' : null,
+      personalNote: entry.personalNote,
+      progressLabel: null,
       onOpen: () => onOpenGame(entry),
     })),
     ...artworkCollection.map((entry) => ({
@@ -590,190 +1101,214 @@ export function Home({
       title: entry.title,
       poster: entry.imageUrl,
       contributor: entry.artist,
+      year: entry.year,
       createdAt: entry.createdAt,
       rating: null,
       isFavorite: entry.isFavorite,
       status: entry.status,
       recentAt: entry.status === 'découverte' ? entry.discoveredAt : null,
-      recentLabel: entry.status === 'découverte' ? 'Découvert' : null,
+      recentLabel: entry.status === 'découverte' ? 'Découverte' : null,
+      personalNote: entry.personalNote,
+      progressLabel: null,
       onOpen: () => onOpenArtwork(entry),
     })),
   ]
 
-  const activityMap = buildActivityMap(allEntries)
-  return <HomeDashboard entries={allEntries} activityMap={activityMap} resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} scrollRef={scrollRef} />
+  return <HomeDashboard allEntries={allEntries} resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} scrollRef={scrollRef} />
 }
 
-/** Accueil Sylloge : activité personnelle, files récentes et sélections par médium. */
+/**
+ * Accueil Sylloge : onglets et bilan, œuvre à la une, files par catégorie,
+ * puis calendrier d'activité. L'onglet filtre toute la page.
+ */
 function HomeDashboard({
-  entries,
-  activityMap,
+  allEntries,
   resolveFilmPoster,
   resolveFilmContributor,
   scrollRef,
 }: {
-  entries: HomeEntry[]
-  activityMap: Map<string, HomeEntry[]>
+  allEntries: HomeEntry[]
   resolveFilmPoster?: FilmPosterResolver
   resolveFilmContributor?: FilmContributorResolver
   scrollRef?: RefObject<HTMLElement | null>
 }) {
-  const additions = entries
+  const [tab, setTab] = useState<HomeTabKey>(readStoredTab)
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const current = HOME_TABS.find((item) => item.key === tab) ?? HOME_TABS[0]
+  const isAll = current.key === 'tout'
+  const entries = useMemo(
+    () => (current.key === 'tout' ? allEntries : allEntries.filter((entry) => entry.medium === current.key)),
+    [allEntries, current.key],
+  )
+
+  const selectTab = (next: HomeTab) => {
+    setTab(next.key)
+    storeTab(next)
+  }
+
+  // Onglets au clavier : flèches gauche et droite en boucle, Début et Fin.
+  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const position = HOME_TABS.indexOf(current)
+    let next: number
+    switch (event.key) {
+      case 'ArrowRight': next = (position + 1) % HOME_TABS.length; break
+      case 'ArrowLeft': next = (position - 1 + HOME_TABS.length) % HOME_TABS.length; break
+      case 'Home': next = 0; break
+      case 'End': next = HOME_TABS.length - 1; break
+      default: return
+    }
+    event.preventDefault()
+    selectTab(HOME_TABS[next])
+    tabRefs.current[next]?.focus()
+  }
+
+  const stats = buildTabStats(entries, new Date())
+  const featured = useMemo(() => pickFeatured(entries), [entries])
+  const favorites = entries
+    .filter((entry) => entry.isFavorite)
+    .sort((first, second) => (second.rating ?? -1) - (first.rating ?? -1) || (second.recentAt ?? second.createdAt).localeCompare(first.recentAt ?? first.createdAt))
+    .slice(0, RAIL_SHOWN)
+  const inProgress = entries
+    .filter((entry) => entry.status === 'en cours' && (entry.medium === 'série' || entry.medium === 'livre'))
+    .sort(byRecentActivity)
+    .slice(0, RAIL_SHOWN)
+  const queue = entries
     .filter((entry) => QUEUE_STATUSES[entry.medium].includes(entry.status ?? ''))
     .sort((first, second) => second.createdAt.localeCompare(first.createdAt))
     .slice(0, RAIL_SHOWN)
   const recent = entries
-    .filter((entry) => entry.recentAt !== null)
+    .filter((entry) => isFinished(entry) && entry.recentAt !== null)
     .sort((first, second) => second.recentAt!.localeCompare(first.recentAt!))
     .slice(0, RAIL_SHOWN)
-  const favorites = entries
-    .filter((entry) => entry.isFavorite && ((entry.rating !== null && entry.rating >= 4.5) || entry.medium === 'art'))
-    .sort((first, second) => (second.rating ?? -1) - (first.rating ?? -1) || second.createdAt.localeCompare(first.createdAt))
-    .slice(0, RAIL_SHOWN)
-  const year = new Date().getFullYear()
-  const yearPrefix = String(year)
-  const mediumStats = MEDIUM_ORDER.map((medium) => {
-    const ofMedium = entries.filter((entry) => entry.medium === medium)
-    const finished = ofMedium.filter((entry) => entry.status === FINISHED_STATUSES[medium])
-    return {
-      medium,
-      finished: finished.length,
-      pending: ofMedium.filter((entry) => QUEUE_STATUSES[medium].includes(entry.status ?? '')).length,
-      thisYear: finished.filter((entry) => entry.recentAt?.startsWith(yearPrefix)).length,
-    }
-  })
-  const totalWorks = entries.length
-  const selectionDay = formatCalendarDate(new Date())
-  const [selectionState, setSelectionState] = useState<Partial<Record<MediumFilterKey, { revision: number; previousKeys: string[] }>>>({})
-  const byMedium = useMemo(
-    () => MEDIUM_ORDER.map((medium) => ({
-      medium,
-      entries: drawForMedium(
-        entries.filter((entry) => entry.medium === medium),
-        `${selectionDay}-${medium}-${selectionState[medium]?.revision ?? 0}`,
-        selectionState[medium]?.previousKeys,
-      ),
-    })).filter(({ entries }) => entries.length > 0),
-    [entries, selectionDay, selectionState],
-  )
+  const additions = [...entries].sort((first, second) => second.createdAt.localeCompare(first.createdAt)).slice(0, RAIL_SHOWN)
+  const activityMap = useMemo(() => buildActivityMap(entries), [entries])
 
-  const refreshMediumSelection = (medium: MediumFilterKey) => {
-    const currentSelection = byMedium.find((item) => item.medium === medium)?.entries
-    if (!currentSelection) return
-    setSelectionState((previous) => ({
+  // Pioche du jour : tirage reproductible par jour et par onglet, renouvelé
+  // à la demande pour le seul onglet affiché.
+  const selectionDay = formatCalendarDate(new Date())
+  const [pickState, setPickState] = useState<Partial<Record<HomeTabKey, { revision: number; previousKeys: string[] }>>>({})
+  const pick = useMemo(
+    () => drawForMedium(entries, `${selectionDay}-${current.key}-${pickState[current.key]?.revision ?? 0}`, pickState[current.key]?.previousKeys),
+    [entries, selectionDay, current.key, pickState],
+  )
+  const refreshPick = () => {
+    setPickState((previous) => ({
       ...previous,
-      [medium]: {
-        revision: (previous[medium]?.revision ?? 0) + 1,
-        previousKeys: currentSelection.map((entry) => entry.key),
+      [tab]: {
+        revision: (previous[tab]?.revision ?? 0) + 1,
+        previousKeys: pick.map((entry) => entry.key),
       },
     }))
   }
+
+  const cardProps = { showMedium: isAll, resolveFilmPoster, resolveFilmContributor }
 
   return (
     <main ref={scrollRef} className="main home-main atrium-home" aria-label="Accueil">
       <div className="at-inner">
         <h1 className="visually-hidden">Accueil</h1>
-        {totalWorks === 0 ? (
-          <p className="at-empty-home">Aucune œuvre pour le moment.</p>
-        ) : (
-          <>
-            <section className="at-overview" aria-label="Activité et calendrier">
-              <section className="at-overview-panel" aria-labelledby="at-stats-title">
-                <h2 className="visually-hidden" id="at-stats-title">Activité par bibliothèque</h2>
-                {/* Chaque médium garde la même pastille que les jours du
-                    calendrier : la couleur relie les deux modules. */}
-                <table className="at-medium-table">
-                  <thead>
-                    <tr>
-                      <th scope="col"><span className="visually-hidden">Bibliothèque</span></th>
-                      <th scope="col">Terminés</th>
-                      <th scope="col">En attente</th>
-                      <th scope="col">{year}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mediumStats.map(({ medium, finished, pending, thisYear }) => (
-                    <tr key={medium} data-medium={medium}>
-                        <th scope="row">
-                          <span className="at-medium-name">
-                            <span className="at-medium-dot" data-medium={medium} aria-hidden="true" />
-                            {MEDIUM_LIBRARY_LABELS[medium]}
-                          </span>
-                        </th>
-                        <td>{finished}</td>
-                        <td>{pending}</td>
-                        <td>{thisYear}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-              <section className="at-overview-panel at-calendar-panel" aria-label="Calendrier d'activité">
-                <ActivityCalendar activityMap={activityMap} />
-              </section>
-            </section>
+        <div className="at-topbar">
+          <div className="seg-group-form at-tabs" role="tablist" aria-label="Bibliothèques de l’accueil" onKeyDown={onTabKeyDown}>
+            {HOME_TABS.map((item, position) => (
+              <button
+                key={item.slug}
+                ref={(element) => { tabRefs.current[position] = element }}
+                type="button"
+                role="tab"
+                id={`at-tab-${item.slug}`}
+                className={`seg-pill-btn${item.key === tab ? ' on' : ''}`}
+                aria-selected={item.key === tab}
+                aria-controls="at-tab-panel"
+                tabIndex={item.key === tab ? 0 : -1}
+                onClick={() => selectTab(item)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <TabStatistics tab={current} stats={stats} />
+        </div>
 
-            <div className="at-files">
-              <FileRow
-                id="at-additions"
-                label="Derniers ajouts"
-                entries={additions}
-                emptyMessage="Aucune œuvre en attente."
-                renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showContributor resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} />}
-              />
-              <FileRow
-                id="at-recent"
-                label="Récents"
-                entries={recent}
-                emptyMessage="Aucune activité récente."
-                showMeta
-                renderCard={(entry) => (
-                  <WorkCard
-                    key={entry.key}
-                    entry={entry}
-                    meta={`${entry.recentLabel ?? 'Activité'} · ${relativeDayLabel(entry.recentAt as string)}`}
-                    showRating
-                    showContributor
-                    resolveFilmPoster={resolveFilmPoster}
-                    resolveFilmContributor={resolveFilmContributor}
-                  />
-                )}
-              />
-              <FileRow
-                id="at-favorites"
-                label="Favoris"
-                entries={favorites}
-                emptyMessage="Aucun favori."
-                renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showRating showContributor resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} />}
-              />
-            </div>
+        <div key={current.slug} className="at-tab-panel" role="tabpanel" id="at-tab-panel" aria-labelledby={`at-tab-${current.slug}`}>
+          {entries.length === 0 ? (
+            <p className="at-empty-tab">{current.empty}</p>
+          ) : (
+            <>
+              <FeaturedCarousel entries={featured} resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} />
 
-            <div className="at-medium-section">
-              <div className="at-medium-grid" aria-label="Œuvres par médium">
-                {byMedium.map(({ medium, entries: mediumEntries }) => (
-                  <section className="at-medium-panel" key={medium} aria-labelledby={`at-medium-${medium}`}>
-                    <div className="at-medium-head">
-                      <h2 className="at-section-title" id={`at-medium-${medium}`}>{MEDIUM_LIBRARY_LABELS[medium]}</h2>
-                      <button
-                        type="button"
-                        className="at-refresh-button"
-                        onClick={() => refreshMediumSelection(medium)}
-                        aria-controls={`at-medium-items-${medium}`}
-                        aria-label={`Rafraîchir les suggestions ${MEDIUM_LIBRARY_LABELS[medium]}`}
-                        title={`Rafraîchir ${MEDIUM_LIBRARY_LABELS[medium]}`}
-                      >
-                        <RefreshIcon />
-                      </button>
-                    </div>
-                    <div className="at-medium-items" id={`at-medium-items-${medium}`}>
-                      {mediumEntries.map((entry) => <WorkCard key={entry.key} entry={entry} resolveFilmPoster={resolveFilmPoster} />)}
-                    </div>
-                  </section>
-                ))}
+              <div className="at-files">
+                <FileRow
+                  id="at-favorites"
+                  label="Coups de cœur"
+                  entries={favorites}
+                  renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showRating showContributor {...cardProps} />}
+                />
+                <FileRow
+                  id="at-progress"
+                  label="En cours"
+                  entries={inProgress}
+                  showMeta
+                  renderCard={(entry) => <WorkCard key={entry.key} entry={entry} meta={entry.progressLabel ?? undefined} showContributor {...cardProps} />}
+                />
+                <FileRow
+                  id="at-queue"
+                  label={current.queue}
+                  entries={queue}
+                  renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showContributor {...cardProps} />}
+                />
+                <FileRow
+                  id="at-recent"
+                  label={current.recent}
+                  entries={recent}
+                  showMeta
+                  renderCard={(entry) => (
+                    <WorkCard
+                      key={entry.key}
+                      entry={entry}
+                      meta={`${entry.recentLabel ?? 'Activité'} · ${relativeDayLabel(entry.recentAt as string)}`}
+                      showRating
+                      showContributor
+                      {...cardProps}
+                    />
+                  )}
+                />
+                <FileRow
+                  id="at-additions"
+                  label="Derniers ajouts"
+                  entries={additions}
+                  renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showContributor {...cardProps} />}
+                />
+                <FileRow
+                  id="at-pick"
+                  label="Pioche du jour"
+                  entries={pick}
+                  action={(
+                    <button
+                      type="button"
+                      className="at-refresh-button"
+                      onClick={refreshPick}
+                      aria-controls="at-pick-voie"
+                      aria-label="Tirer une autre pioche du jour"
+                      title="Tirer une autre pioche"
+                    >
+                      <RefreshIcon />
+                    </button>
+                  )}
+                  renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showContributor {...cardProps} />}
+                />
               </div>
-            </div>
-          </>
-        )}
+
+              <section className="at-section at-activity" aria-labelledby="at-activity-titre">
+                <div className="at-file-head">
+                  <h2 className="at-section-title" id="at-activity-titre">Activité</h2>
+                </div>
+                <div className="at-activity-panel">
+                  <ActivityCalendar activityMap={activityMap} journal={{ finished: current.finished, none: current.none, showMedium: isAll }} />
+                </div>
+              </section>
+            </>
+          )}
+        </div>
       </div>
     </main>
   )
