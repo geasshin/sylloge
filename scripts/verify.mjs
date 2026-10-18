@@ -4171,7 +4171,7 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
 assert.match(libraryViewBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
 assert.match(libraryViewBarSource, /Enregistrer comme vue/, 'La rangée doit permettre d’enregistrer le combo courant comme vue')
 assert.match(libraryViewBarSource, /INLINE_SAVED_VIEWS/, 'Le débordement des vues enregistrées doit rester borné dans la rangée')
-assert.match(libraryViewBarSource, /debut >= pointEntree/, 'Le point médian doit déclencher l’overflow plutôt que de laisser des boutons rognés à droite')
+assert.match(libraryViewBarSource, /debut >= pointEntree/, 'Le point d’entrée du débordement doit retirer le premier bouton qui ne tient pas et tous les suivants, sans laisser de bouton rogné à droite')
 assert.match(libraryViewBarSource, /data-view-id=\{view\.id\}/, 'La mesure du débordement doit identifier chaque bouton de façon stable')
 assert.match(libraryViewBarSource, /aria-pressed=\{activeView\.id === view\.id\}/, 'Les vues intégrées et enregistrées doivent exposer leur état actif')
 assert.match(libraryViewBarSource, /event\.key === 'Home'[\s\S]*event\.key === 'End'/, 'La rangée doit permettre de rejoindre ses extrémités au clavier')
@@ -4702,6 +4702,63 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(stylesSource0626, /--color-preview-light-canvas: #F6F6F7;[\s\S]*\.theme-preview-light \{ background: var\(--color-preview-light-canvas\); \}/, 'Onboarding : la vignette claire doit reprendre le canevas réel de l’application')
   assert.match(stylesSource0626, /--color-preview-dark-canvas: #161618;[\s\S]*\.theme-preview-dark \{ background: var\(--color-preview-dark-canvas\); \}/, 'Onboarding : la vignette sombre doit reprendre l’anthracite réel de l’application')
   assert.doesNotMatch(stylesSource0626, /theme-preview-[\s\S]{0,400}#5[bB]3[aA]68/, 'Onboarding : aucune couleur d’accent inventée ne doit rester dans les vignettes')
+}
+
+// Bibliothèque Art (18 octobre 2026) — vues visibles, filtres et vues
+// enregistrées réellement appliqués, visuel ajoutable dès la création.
+{
+  const mainSourceArt = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const viewBarSourceArt = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
+  const posterSourceArt = readFileSync(new URL('../src/components/Poster.tsx', import.meta.url), 'utf8')
+  const posterUrlDialogSourceArt = readFileSync(new URL('../src/components/PosterUrlDialog.tsx', import.meta.url), 'utf8')
+  const artworkFormSourceArt = readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8')
+  const artworkDetailSourceArt = readFileSync(new URL('../src/components/ArtworkDetail.tsx', import.meta.url), 'utf8')
+  const stylesSourceArt = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  // Rangée des vues : l'ancien « point médian » retirait des vues même quand la
+  // place suffisait (les trois vues de l'Art disparaissaient en 0.6.4).
+  assert.match(viewBarSourceArt, /const premierRogne = largeursEtOrigines\.find\(\(\{ debut, width \}\) => debut \+ width > conteneurBounds\.width \+ 0\.5\)/, 'Vues : seul un bouton qui dépasse réellement la rangée déclenche le débordement')
+  assert.match(viewBarSourceArt, /const pointEntree = premierRogne \? premierRogne\.debut : Number\.POSITIVE_INFINITY/, 'Vues : quand tout tient, aucune vue ne quitte la rangée')
+  assert.doesNotMatch(viewBarSourceArt, /Math\.floor\(positions\.length \/ 2\)/, 'Vues : l’heuristique du point médian ne doit pas revenir')
+  assert.match(viewBarSourceArt, /for \(let passe = 0; passe < boutons\.length; passe \+= 1\) \{[\s\S]*?\.filter\(\(bouton\) => !bouton\.hidden\)/, 'Vues : le débordement se mesure dans l’état réellement affiché (la barre de vues suit la largeur de son contenu)')
+  assert.match(stylesSourceArt, /\.library-views > \.filter\[hidden\] \{ display: none; \}/, 'Vues : une vue envoyée dans « +n » ne doit plus rester affichée (display de .filter prioritaire sur hidden)')
+  assert.match(viewBarSourceArt, /inlineSaved\.map\(\(view\) => renderViewButton\(\{[^}]*\}, \(\) => applySavedView\(view\)\)\)/, 'Vues : une vue enregistrée cliquée dans la rangée doit appliquer sa forme, catégorie ou plateforme comme depuis le menu')
+
+  // Réinitialiser et appliquer une vue enregistrée déclenchent plusieurs
+  // mises à jour dans le même geste : chacune doit partir de l'état courant,
+  // sinon seule la dernière survit (forme, catégorie ou plateforme perdue).
+  const viewBarBlocksArt = mainSourceArt.match(/<LibraryViewBar[\s\S]*?\/>/g) ?? []
+  assert.strictEqual(viewBarBlocksArt.length, 5, 'Vues : les cinq bibliothèques utilisent la rangée commune')
+  for (const block of viewBarBlocksArt) {
+    assert.doesNotMatch(block, /onContextChange\(\{ \.\.\.context/, 'Vues : les rappels de la rangée ne doivent pas reconstruire le contexte depuis une copie figée')
+    assert.ok((block.match(/onContextChange\(\(current\) => \(\{ \.\.\.current,/g) ?? []).length >= 3, 'Vues : vue, filtres et tri doivent être des mises à jour fonctionnelles')
+  }
+  assert.strictEqual((mainSourceArt.match(/onContextChange: Dispatch<SetStateAction<\w+LibraryContext>>/g) ?? []).length, 4, 'Vues : Séries, Livres, Jeux et Art acceptent une mise à jour fonctionnelle du contexte')
+  assert.match(mainSourceArt, /onContextChange: Dispatch<SetStateAction<LibraryContext>>/, 'Vues : Films accepte une mise à jour fonctionnelle du contexte')
+
+  // Visuel à la création : crayon posé sur le visuel et fiche créée ouverte.
+  assert.match(posterSourceArt, /onEdit \? 'poster-editable' : ''/, 'Visuel : un visuel modifiable doit porter son propre repère de positionnement')
+  assert.match(stylesSourceArt, /\.poster-editable \{ position: relative; \}/, 'Visuel : le crayon doit rester dans l’angle du visuel, même sans conteneur positionné')
+  assert.doesNotMatch(mainSourceArt, /artworkId: editArtworkId \?\? ''/, 'Art : la fiche ouverte après un ajout ne doit plus viser un identifiant vide')
+  assert.match(mainSourceArt, /targetId = artwork\.id[\s\S]{0,400}leaveLibrary\(\{ name: 'artwork-detail', artworkId: targetId, returnTo: 'artworks' \}\)/, 'Art : l’ajout doit ouvrir la fiche de l’œuvre créée')
+
+  // Libellés accordés au genre du visuel : « le visuel », « l’affiche », « la couverture ».
+  assert.match(posterSourceArt, /Visuel: 'le visuel'/, 'Libellés : le visuel est masculin')
+  assert.match(posterSourceArt, /Affiche: 'l’affiche'/, 'Libellés : l’affiche s’élide')
+  assert.doesNotMatch(posterSourceArt + posterUrlDialogSourceArt, /Modifier la \$\{label/, 'Libellés : « Modifier la visuel » et « Modifier la affiche » ne doivent pas revenir')
+  assert.doesNotMatch(posterUrlDialogSourceArt, /à la visuel/, 'Libellés : « revenir à la visuel » ne doit pas revenir')
+
+  // Visuels d'Art : montrés entiers sur fond neutre dans la carte, la fiche et l'aperçu.
+  assert.match(stylesSourceArt, /\.poster\.artwork-visual \{ background: var\(--color-surface-muted\); \}/, 'Art : le visuel repose sur le fond neutre thémé')
+  assert.match(stylesSourceArt, /\.poster\.artwork-visual img \{ object-fit: contain; \}/, 'Art : le visuel d’une œuvre n’est jamais rogné')
+  assert.doesNotMatch(stylesSourceArt, /\.artwork-card \.poster img \{[^}]*object-fit: cover/, 'Art : aucune règle de carte ne doit rogner le visuel')
+  assert.match(mainSourceArt, /<Poster title=\{artwork\.title\} src=\{artwork\.imageUrl\} label="Visuel" className="artwork-visual" \/>/, 'Art : la carte utilise le visuel entier')
+  assert.match(artworkDetailSourceArt, /className="detail-poster artwork-visual"/, 'Art : la fiche utilise le visuel entier')
+  assert.match(artworkFormSourceArt, /className="form-poster-preview-lg artwork-visual"/, 'Art : l’aperçu d’ajout utilise le visuel entier')
+
+  // Formulaire Art : Année et Exposition ne débordent plus de leur colonne.
+  assert.match(stylesSourceArt, /\.form-row > \.field > :is\(input, select\) \{ min-width: 0; \}/, 'Formulaire : un champ ne doit pas déborder de sa colonne')
+  assert.match(artworkFormSourceArt, /className="form-row form-row-halves"[\s\S]{0,200}artwork-location/, 'Formulaire Art : lieu et exposition partagent la rangée à parts égales')
 }
 
 console.log('Vérification réussie : cinq bibliothèques locales, stockage SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');

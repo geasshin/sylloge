@@ -150,9 +150,9 @@ export function LibraryViewBar({
 
   // Grille de vues unifiée : les vues intégrées et les trois premières vues
   // enregistrées restent sur une seule ligne. Si la place manque, le composant
-  // retire réellement de la rangée tout ce qui déborde ou commence après son
-  // point médian, puis le transfère dans le menu « +n ». Le point médian évite
-  // qu'une rangée volontairement tronquée reste visuellement rognée à droite.
+  // retire réellement de la rangée le premier bouton qui ne tient pas et tous
+  // ceux qui le suivent (attribut hidden, masqué par la feuille de style), puis
+  // les transfère dans le menu « +n ». Quand tout tient, rien n'est retiré.
   useLayoutEffect(() => {
     const orderedIds = [
       ...builtinViews.map((vue) => vue.id),
@@ -161,44 +161,39 @@ export function LibraryViewBar({
     const mesurer = () => {
       const conteneur = vuesRef.current
       if (!conteneur) return
-      // On mesure depuis la version complète, jamais depuis un état de rognage
-      // précédent : la largeur de chaque bouton doit être stable pour retrouver
-      // le point d'entrée exact de l'overflow quand la fenêtre est agrandie.
+      // On repart toujours de la rangée complète, jamais d'un état de rognage
+      // précédent, pour retrouver toutes les vues quand la fenêtre s'agrandit.
       const boutons = orderedIds
         .map((id) => conteneur.querySelector<HTMLButtonElement>(`:scope > button[data-view-id="${CSS.escape(id)}"]`))
         .filter((bouton): bouton is HTMLButtonElement => bouton !== null)
-      const rendus = boutons.map((bouton) => {
+      boutons.forEach((bouton) => {
         bouton.hidden = false
-        return { bouton, width: bouton.getBoundingClientRect().width }
       })
-      const conteneurBounds = conteneur.getBoundingClientRect()
-      const largeursEtOrigines = rendus.map(({ bouton, width }) => ({
-        bouton,
-        width,
-        debut: bouton.getBoundingClientRect().left - conteneurBounds.left,
-      }))
-      const pointEntree = (() => {
-        const positions = largeursEtOrigines.slice(1).map(({ debut, width }, index) => debut - width / 2 - largeursEtOrigines[index].width / 2)
-        if (positions.length === 0) return conteneurBounds.width
-        const milieu = Math.floor(positions.length / 2)
-        let point = positions[milieu]
-        for (let index = milieu - 1; index >= 0; index -= 1) {
-          if (positions[index] > point) break
-          point = positions[index]
-        }
-        for (let index = milieu + 1; index < positions.length; index += 1) {
-          if (positions[index] <= point) break
-          point = positions[index]
-        }
-        return point
-      })()
-      const idsRogpes: string[] = []
-      largeursEtOrigines.forEach(({ bouton, width, debut }) => {
-        if (debut + width > conteneurBounds.width + 0.5 || debut >= pointEntree) {
-          idsRogpes.push(bouton.dataset.viewId ?? '')
-          bouton.hidden = true
-        }
-      })
+      // La place disponible dépend elle-même de ce qui est affiché (la barre de
+      // vues suit la largeur de son contenu) : chaque passe mesure l'état
+      // réellement affiché, jusqu'à ce que tout ce qui reste tienne.
+      for (let passe = 0; passe < boutons.length; passe += 1) {
+        const conteneurBounds = conteneur.getBoundingClientRect()
+        const largeursEtOrigines = boutons
+          .filter((bouton) => !bouton.hidden)
+          .map((bouton) => {
+            const bounds = bouton.getBoundingClientRect()
+            return { bouton, width: bounds.width, debut: bounds.left - conteneurBounds.left }
+          })
+        // Point d'entrée du débordement : le début du premier bouton qui ne
+        // tient pas. Tant que tout tient, il n'existe pas et rien ne quitte la
+        // rangée (l'ancien « point médian » retirait des vues même quand la
+        // place suffisait : toutes celles de l'Art disparaissaient). Sinon, ce
+        // bouton et tous les suivants passent dans le menu « +n » : aucun
+        // bouton ne reste rogné à droite.
+        const premierRogne = largeursEtOrigines.find(({ debut, width }) => debut + width > conteneurBounds.width + 0.5)
+        const pointEntree = premierRogne ? premierRogne.debut : Number.POSITIVE_INFINITY
+        if (!premierRogne) break
+        largeursEtOrigines.forEach(({ bouton, debut }) => {
+          if (debut >= pointEntree) bouton.hidden = true
+        })
+      }
+      const idsRogpes = boutons.filter((bouton) => bouton.hidden).map((bouton) => bouton.dataset.viewId ?? '')
       setIdsRogpes((precedents) => (precedents.join('|') === idsRogpes.join('|') ? precedents : idsRogpes))
     }
     mesurer()
@@ -322,7 +317,10 @@ export function LibraryViewBar({
     <div className="view-bar" ref={rootRef}>
       <div className="filters library-views" role="group" aria-label="Choisir la vue" ref={vuesRef}>
         {builtinViews.map((view) => renderViewButton(view))}
-        {inlineSaved.map((view) => renderViewButton({ id: view.id, name: view.name, filters: view.criteria.filters, sort: view.criteria.sort, builtin: false }))}
+        {/* Une vue enregistrée de la rangée s'applique comme depuis le menu
+            « +n » : sa forme, catégorie ou plateforme et son tri, sans filtre
+            à la volée resté par-dessus. */}
+        {inlineSaved.map((view) => renderViewButton({ id: view.id, name: view.name, filters: view.criteria.filters, sort: view.criteria.sort, builtin: false }, () => applySavedView(view)))}
       </div>
 
       <div className="view-bar-actions">

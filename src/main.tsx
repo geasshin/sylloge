@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccessibleDialog } from './components/AccessibleDialog.tsx'
 import { FocusDialog } from './components/FocusDialog.tsx'
@@ -774,7 +774,7 @@ type FilmsLibraryProps = {
   library: FilmLibrary
   context: LibraryContext
   searchState: SearchState
-  onContextChange: (context: LibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<LibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (film: Film) => void
@@ -849,15 +849,15 @@ function FilmsLibrary({
           medium="films"
           builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={FILM_FILTER_PANEL_CONFIG}
           mediumFilterValue="all"
           onMediumFilterChange={() => {}}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
         />
       </div>
@@ -1225,7 +1225,7 @@ type SeriesLibraryProps = {
   collection: Series[]
   context: SeriesLibraryContext
   searchState: SeriesSearchState
-  onContextChange: (context: SeriesLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<SeriesLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (series: Series) => void
@@ -1342,18 +1342,18 @@ function SeriesLibrary({
           medium="series"
           builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'series')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={{ ...SERIES_FILTER_PANEL_CONFIG, mediumFilter: null }}
           mediumFilterValue="all"
           onMediumFilterChange={(stored) => {
             const selected = storedToCategories(stored)
-            onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] })
+            onContextChange((current) => ({ ...current, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] }))
           }}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: false }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_SERIES_CATEGORIES), filters: resolved.filters }}
         />
       </div>
@@ -1460,7 +1460,7 @@ type GamesLibraryProps = {
   collection: Game[]
   context: GameLibraryContext
   searchState: GameSearchState
-  onContextChange: (context: GameLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<GameLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (game: Game) => void
@@ -1581,7 +1581,7 @@ function GamesLibrary({
           medium="games"
           builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'games')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={{
             ...GAME_FILTER_PANEL_CONFIG,
             mediumFilter: {
@@ -1590,12 +1590,12 @@ function GamesLibrary({
             },
           }}
           mediumFilterValue={context.platform}
-          onMediumFilterChange={(platform) => onContextChange({ ...context, platform })}
+          onMediumFilterChange={(platform) => onContextChange((current) => ({ ...current, platform }))}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
         />
       </div>
@@ -1652,7 +1652,7 @@ function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void
 
   return (
     <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${artwork.title}`}>
-      <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" />
+      <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" className="artwork-visual" />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{artwork.title}</b>
@@ -1672,7 +1672,7 @@ type ArtworksLibraryProps = {
   collection: Artwork[]
   context: ArtworkLibraryContext
   searchState: ArtworkSearchState
-  onContextChange: (context: ArtworkLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<ArtworkLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (artwork: Artwork) => void
@@ -1741,15 +1741,15 @@ function ArtworksLibrary({
           medium="artworks"
           builtinViews={titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={ARTWORK_FILTER_PANEL_CONFIG}
           mediumFilterValue={context.form}
-          onMediumFilterChange={(form) => onContextChange({ ...context, form: form as ArtworkSearchCriteria['form'] })}
+          onMediumFilterChange={(form) => onContextChange((current) => ({ ...current, form: form as ArtworkSearchCriteria['form'] }))}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: false, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
         />
       </div>
@@ -1795,7 +1795,7 @@ type BooksLibraryProps = {
   collection: Book[]
   context: BookLibraryContext
   searchState: BookSearchState
-  onContextChange: (context: BookLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<BookLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (book: Book) => void
@@ -1920,18 +1920,18 @@ function BooksLibrary({
           medium="books"
           builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'books')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={{ ...BOOK_FILTER_PANEL_CONFIG, mediumFilter: null }}
           mediumFilterValue="all"
           onMediumFilterChange={(stored) => {
             const selected = storedToCategories(stored)
-            onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_BOOK_CATEGORIES]) as BookCategory[] })
+            onContextChange((current) => ({ ...current, category: (selected.length > 0 ? selected : [...ALL_BOOK_CATEGORIES]) as BookCategory[] }))
           }}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_BOOK_CATEGORIES), filters: resolved.filters }}
         />
       </div>
@@ -3550,19 +3550,24 @@ function App() {
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: ArtworkWriteInput) => {
                     const library = libraryState.library
+                    // La fiche ouverte après l’enregistrement est celle de l’œuvre
+                    // modifiée ou tout juste créée, comme pour les autres médiums.
+                    let targetId: string
                     if (editArtworkId) {
                       await mediaRepository.updateArtwork(library.profile.id, editArtworkId, input)
                       const refreshed = await mediaRepository.getArtwork(library.profile.id, editArtworkId)
                       if (!refreshed) throw new Error('L’œuvre enregistrée ne peut pas être relue depuis SQLite.')
                       setArtworkCollection((current) => sortArtworks(current.map((entry) => entry.id === editArtworkId ? refreshed : entry)))
+                      targetId = editArtworkId
                     } else {
                       const artwork = await mediaRepository.createArtwork(library.profile.id, input)
                       setArtworkCollection((current) => sortArtworks([...current, artwork]))
+                      targetId = artwork.id
                     }
                     setArtworkSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'artwork-detail', artworkId: editArtworkId ?? '', returnTo: 'artworks' })
+                    leaveLibrary({ name: 'artwork-detail', artworkId: targetId, returnTo: 'artworks' })
                     window.scrollTo({ top: 0 })
                   }}
                 />

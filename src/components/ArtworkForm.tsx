@@ -108,7 +108,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
     <form className="film-form form-detail form-medium-artwork" onSubmit={handleSubmit} noValidate>
       <div className="form-side form-side-with-verdict form-side-artwork">
         <div className="form-poster-frame">
-          <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg" label="Visuel" {...posterEditor.posterProps} />
+          <Poster title={previewTitle} src={previewUrl} className="form-poster-preview-lg artwork-visual" label="Visuel" {...posterEditor.posterProps} />
         </div>
         <div className="form-poster-verdict artwork-poster-verdict">
           <FavoriteHeart checked={values.isFavorite} onChange={(next) => update('isFavorite', next)} />
@@ -198,7 +198,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               <label htmlFor="artwork-artist">Artiste</label>
               <input id="artwork-artist" value={values.artist} onChange={(event) => update('artist', event.target.value)} />
             </div>
-            <div className="form-row">
+            <div className="form-row form-row-halves">
               <div className="field">
                 <label htmlFor="artwork-location">Lieu</label>
                 <input id="artwork-location" value={values.location} onChange={(event) => update('location', event.target.value)} />

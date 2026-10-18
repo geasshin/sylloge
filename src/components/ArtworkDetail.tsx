@@ -66,7 +66,7 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
       <article className="detail-layout">
         <div className="detail-side">
           <div className="poster-container detail-poster-wrap">
-            <Poster title={artwork.title} src={artwork.imageUrl} className="detail-poster" label="Visuel" onEdit={onImageEdit ? () => setPosterDialogOpen(true) : undefined} />
+            <Poster title={artwork.title} src={artwork.imageUrl} className="detail-poster artwork-visual" label="Visuel" onEdit={onImageEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
           <div className="detail-status">
             <StatusBadge status={artwork.status} labels={ARTWORK_STATUS_LABELS} />

@@ -1,10 +1,34 @@
 import { useEffect, useState } from 'react'
 
+export type PosterLabel = 'Affiche' | 'Couverture' | 'Visuel'
+
+/** Libellé précédé de son article défini : « l’affiche », « la couverture », « le visuel ». */
+const POSTER_LABEL_WITH_ARTICLE: Record<PosterLabel, string> = {
+  Affiche: 'l’affiche',
+  Couverture: 'la couverture',
+  Visuel: 'le visuel',
+}
+
+/** Même libellé après « à » : « à l’affiche », « à la couverture », « au visuel ». */
+const POSTER_LABEL_AFTER_A: Record<PosterLabel, string> = {
+  Affiche: 'à l’affiche',
+  Couverture: 'à la couverture',
+  Visuel: 'au visuel',
+}
+
+export function posterLabelWithArticle(label: PosterLabel): string {
+  return POSTER_LABEL_WITH_ARTICLE[label]
+}
+
+export function posterLabelAfterA(label: PosterLabel): string {
+  return POSTER_LABEL_AFTER_A[label]
+}
+
 type PosterProps = {
   title: string
   src: string | null
   className?: string
-  label?: 'Affiche' | 'Couverture' | 'Visuel'
+  label?: PosterLabel
   /** Présent → un bouton crayon apparaît au survol de l'affiche. */
   onEdit?: () => void
 }
@@ -18,8 +42,10 @@ export function Poster({ title, src, className = '', label = 'Affiche', onEdit }
 
   const showFallback = !src || missing
 
+  // Le crayon est positionné par le visuel lui-même (poster-editable) : il ne
+  // dépend plus d'un conteneur ajouté ou oublié par chaque écran.
   return (
-    <div className={`poster ${className}`.trim()}>
+    <div className={`poster ${onEdit ? 'poster-editable' : ''} ${className}`.replace(/\s+/g, ' ').trim()}>
       {showFallback ? (
         <div className="poster-fallback" role="img" aria-label={`${label} indisponible pour ${title}`}>
           <span>Sans {label.toLocaleLowerCase('fr')}</span>
@@ -29,7 +55,7 @@ export function Poster({ title, src, className = '', label = 'Affiche', onEdit }
         <img src={src} alt={`${label} de « ${title} »`} onError={() => setMissing(true)} />
       )}
       {onEdit && (
-        <button type="button" className="poster-edit-overlay" onClick={onEdit} aria-label={`Modifier la ${label.toLocaleLowerCase('fr')} de « ${title} »`} title={`Modifier la ${label.toLocaleLowerCase('fr')}`}>
+        <button type="button" className="poster-edit-overlay" onClick={onEdit} aria-label={`Modifier ${posterLabelWithArticle(label)} de « ${title} »`} title={`Modifier ${posterLabelWithArticle(label)}`}>
           <PencilGlyph />
         </button>
       )}
