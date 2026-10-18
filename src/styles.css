@@ -63,6 +63,8 @@
   --color-on-scrim: #FFFFFF;
   --veil-strong: rgba(23, 23, 26, .055);
   --veil-soft: rgba(23, 23, 26, .05);
+  /* Voile de survol posé sur un fond encre (pastille de vue active). */
+  --veil-on-accent: rgba(255, 255, 255, .18);
   --select-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23606068' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   /* Aperçus fidèles à chaque thème, indépendants du thème de la fenêtre. */
   --color-preview-light-canvas: #F6F6F7;
@@ -109,6 +111,7 @@
     --color-overlay: rgba(0, 0, 0, .55);
     --veil-strong: rgba(255, 255, 255, .07);
     --veil-soft: rgba(255, 255, 255, .06);
+    --veil-on-accent: rgba(23, 23, 26, .12);
     --select-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A3A3AB' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, .3);
     --shadow-visual: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .5);
@@ -1046,7 +1049,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    reprennent l’un de ces rôles.
    ========================================================================== */
 .primary-button, .secondary-button, .danger-button, .text-button, .back-button,
-.icon-action-button, .state-action, .auto-associate-button, .filter-panel-toggle {
+.icon-action-button, .state-action, .auto-associate-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1072,16 +1075,15 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 .primary-button:not(:disabled):hover { border-color: var(--color-accent-hover); background: var(--color-accent-hover); }
 /* Secondaire : filet sur surface */
-.secondary-button, .icon-action-button, .state-action, .auto-associate-button, .filter-panel-toggle {
+.secondary-button, .icon-action-button, .state-action, .auto-associate-button {
   border-color: var(--color-border);
   background: var(--color-surface);
 }
 .secondary-button:not(:disabled):hover, .icon-action-button:not(:disabled):hover, .state-action:not(:disabled):hover,
-.auto-associate-button:not(:disabled):hover, .filter-panel-toggle:not(:disabled):hover {
+.auto-associate-button:not(:disabled):hover {
   border-color: var(--color-border-strong);
   box-shadow: var(--shadow-xs);
 }
-.filter-panel-toggle.active { border-color: var(--color-accent); }
 /* Texte : sans fond ni filet, le survol pose un voile */
 .text-button, .back-button {
   padding-inline: var(--space-2);
@@ -1090,24 +1092,17 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .back-button:not(.back-button-icon) { margin-inline-start: calc(-1 * var(--space-2)); }
 .text-button:not(:disabled):hover, .back-button:not(:disabled):hover { background: var(--veil-soft); color: var(--color-text); }
 /* Danger : rouge sobre, jamais d’aplat */
-.danger-button, .primary-button.danger, .secondary-button.danger, .icon-action-button.icon-action-danger,
-.filter-panel-toggle.danger-action {
+.danger-button, .primary-button.danger, .secondary-button.danger, .icon-action-button.icon-action-danger {
   border-color: var(--color-danger-border);
   background: var(--color-surface);
   color: var(--color-danger);
   box-shadow: none;
 }
 .danger-button:not(:disabled):hover, .primary-button.danger:not(:disabled):hover, .secondary-button.danger:not(:disabled):hover,
-.icon-action-button.icon-action-danger:not(:disabled):hover, .filter-panel-toggle.danger-action:not(:disabled):hover {
+.icon-action-button.icon-action-danger:not(:disabled):hover {
   border-color: var(--color-danger);
   background: var(--color-danger-soft);
   box-shadow: none;
-}
-/* Petite taille : actions secondaires dans un panneau */
-.filter-panel-toggle {
-  min-height: var(--control-sm);
-  padding-inline: var(--space-3);
-  font-size: var(--text-md);
 }
 /* Icône dans un bouton à libellé */
 .icon-action-button svg { flex: 0 0 auto; opacity: .72; }
@@ -1116,7 +1111,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 /* Icône : rond de --control-md, filet sur surface */
 .icon-action-button:not(:has(> span)), .back-button.back-button-icon, .at-row-btn, .at-refresh-button,
-.view-bar-icon, .stepper-button {
+.stepper-button {
   position: relative;
   width: var(--control-md);
   min-width: var(--control-md);
@@ -1132,7 +1127,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   transition: background-color var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
 .back-button.back-button-icon:not(:disabled):hover, .at-row-btn:not(:disabled):hover, .at-refresh-button:not(:disabled):hover,
-.view-bar-icon:not(:disabled):hover, .stepper-button:not(:disabled):hover {
+.stepper-button:not(:disabled):hover {
   border-color: var(--color-border-strong);
   background: var(--color-surface-muted);
   color: var(--color-text);
@@ -1141,8 +1136,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .at-refresh-button { color: var(--color-text-muted); }
 .at-row-btn svg { display: block; }
 .stepper-button { font-size: var(--text-xl); font-weight: 600; line-height: 1; }
-.view-bar-icon { color: var(--color-text-muted); }
-.view-bar-icon.active, .view-bar-icon.engaged { border-color: var(--color-accent); color: var(--color-accent); }
 /* Le retour se décale vers la gauche au survol : le mouvement dit la direction. */
 .back-button.back-button-icon:not(:disabled):hover { transform: translateX(-2px); }
 
@@ -1155,12 +1148,12 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 /* Pression et désactivé : identiques pour tous les rôles */
 :is(.primary-button, .secondary-button, .danger-button, .text-button, .back-button, .icon-action-button, .state-action,
-  .auto-associate-button, .filter-panel-toggle, .at-row-btn, .at-refresh-button, .at-cal-button, .view-bar-icon,
+  .auto-associate-button, .at-row-btn, .at-refresh-button, .at-cal-button,
   .stepper-button, .dialog-close, .poster-dialog-close, .seg-pill-btn, .heart-input, .poster-edit-overlay, .poster-edit-button):not(:disabled):active {
   transform: scale(.98);
 }
 :is(.primary-button, .secondary-button, .danger-button, .text-button, .back-button, .icon-action-button, .state-action,
-  .auto-associate-button, .filter-panel-toggle, .at-row-btn, .at-refresh-button, .at-cal-button, .view-bar-icon,
+  .auto-associate-button, .at-row-btn, .at-refresh-button, .at-cal-button,
   .stepper-button, .dialog-close, .poster-dialog-close, .poster-edit-overlay, .poster-edit-button):disabled {
   cursor: default;
   opacity: 1;
@@ -1173,7 +1166,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 @media (prefers-reduced-motion: reduce) {
   .back-button.back-button-icon:not(:disabled):hover,
   :is(.primary-button, .secondary-button, .danger-button, .text-button, .back-button, .icon-action-button, .state-action,
-    .auto-associate-button, .filter-panel-toggle, .at-row-btn, .at-refresh-button, .at-cal-button, .view-bar-icon,
+    .auto-associate-button, .at-row-btn, .at-refresh-button, .at-cal-button,
     .stepper-button, .dialog-close, .poster-dialog-close, .seg-pill-btn, .heart-input, .poster-edit-overlay, .poster-edit-button):not(:disabled):active { transform: none; }
 }
 
@@ -1182,7 +1175,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    Le texte saisi suit la base --text-md ; la recherche principale garde la
    même hauteur que les boutons de sa rangée.
    ========================================================================== */
-:where(.field input, .field select, .field textarea, .search, .saved-views-editor input, .date-row input[type="date"],
+:where(.field input, .field select, .field textarea, .search, .view-bar-form-input, .select-trigger, .date-row input[type="date"],
   .review-write textarea, .mapping-select, .source-destination-row select, .films-import-profile-name input,
   .films-import-profile-name select, .films-import-rating-scale select, .updater-token-form > input,
   .profile-rename-form input, .profile-create-form input, .onboarding-name-field input, .duplicates-search input,
@@ -1213,14 +1206,14 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   background-position: right var(--space-3) center;
   cursor: pointer;
 }
-:where(.field input, .field select, .field textarea, .search, .saved-views-editor input, .date-row input[type="date"],
+:where(.field input, .field select, .field textarea, .search, .view-bar-form-input, .select-trigger:not(:disabled), .date-row input[type="date"],
   .review-write textarea, .mapping-select, .source-destination-row select, .films-import-profile-name input,
   .films-import-profile-name select, .films-import-rating-scale select, .updater-token-form > input,
   .profile-rename-form input, .profile-create-form input, .onboarding-name-field input, .duplicates-search input,
   .custom-field-row input, .provider-information-platform input):hover {
   border-color: var(--color-border-strong);
 }
-:where(.field input, .field select, .field textarea, .saved-views-editor input, .date-row input[type="date"],
+:where(.field input, .field select, .field textarea, .view-bar-form-input, .select-trigger, .date-row input[type="date"],
   .review-write textarea, .mapping-select, .source-destination-row select, .films-import-profile-name input,
   .films-import-profile-name select, .films-import-rating-scale select, .updater-token-form > input,
   .profile-rename-form input, .profile-create-form input, .onboarding-name-field input, .duplicates-search input,
@@ -1231,8 +1224,67 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 .search:has(input:focus-visible) { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 :where(input, textarea)::placeholder { color: var(--color-placeholder); }
-:where(.field input, .field select, .field textarea)[aria-invalid="true"] { border-color: var(--color-danger); }
-:where(.field input, .field select, .field textarea, .updater-token-form > input):disabled { opacity: .55; cursor: default; }
+:where(.field input, .field select, .field textarea, .select-trigger)[aria-invalid="true"] { border-color: var(--color-danger); }
+:where(.field input, .field select, .field textarea, .select-trigger, .updater-token-form > input):disabled { opacity: .55; cursor: default; }
+
+/* Liste déroulante Sylloge (Select.tsx) : même gabarit que les champs, liste
+   d’options dans un panneau flottant ; l’option cochée est en encre, l’option
+   active (clavier ou survol) sur fond discret. */
+.select { position: relative; min-width: 0; }
+.select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.select.is-open .select-trigger { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
+.select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-value.is-placeholder { color: var(--color-placeholder); }
+.select-chevron { flex: none; color: var(--color-text-muted); transition: transform var(--duration-fast) var(--ease-out); }
+.select.is-open .select-chevron { transform: rotate(180deg); }
+.select-listbox {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 90;
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--space-2));
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  animation: select-listbox-in var(--duration-fast) var(--ease-out);
+}
+.select-listbox:focus { outline: none; }
+@keyframes select-listbox-in { from { opacity: 0; } }
+.select-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-sm);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.select-option.is-active { background: var(--color-surface-muted); }
+.select-option[aria-selected='true'] { font-weight: 600; }
+.select-option[aria-disabled='true'] { color: var(--color-text-muted); cursor: default; }
+.select-check { flex: none; color: var(--color-text); }
+@media (prefers-reduced-motion: reduce) {
+  .select-listbox { animation: none; }
+  .select-chevron { transition: none; }
+}
 
 /* ==========================================================================
    Fenêtres modales — un seul gabarit
@@ -1303,7 +1355,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   line-height: 1;
   transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
 }
-.library-tools { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-6); padding: var(--space-8) 0 var(--space-6); border-bottom: 1px solid var(--color-border); }
 .search {
   height: var(--control-md);
   flex: 1 1 320px;
@@ -1320,121 +1371,229 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .search > svg { flex: 0 0 auto; margin-right: var(--space-2-5); opacity: .55; }
 .search input { min-width: 0; height: 100%; width: 100%; padding: 0; border: 0; background: none; font-size: var(--text-md); color: var(--color-text); }
 .search input:focus { outline: none; }
-.filters { display: flex; gap: var(--space-1); }
-.library-views { flex-wrap: wrap; }
-.filter { display: inline-flex; align-items: center; min-height: var(--control-md); background: transparent; border: 0; padding: 0 var(--space-2-5); border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--color-text-muted); white-space: nowrap; }
-.filter:hover { background: var(--veil-soft); }
-.filter.active { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600; }
-/* Vues intégrées et enregistrées : onglets sobrement soulignés à l'actif */
-.library-views .filter { position: relative; font-size: var(--text-md); }
-.library-views .filter::after {
-  content: "";
-  position: absolute;
-  left: var(--space-2-5);
-  right: var(--space-2-5);
-  bottom: 3px;
-  height: 2px;
+
+/* ==========================================================================
+   Ligne d’outils et barre de vues des bibliothèques (18 octobre 2026)
+   Association, recherche, catégories puis barre de vues, sur une ligne.
+   Quand la ligne ne peut plus contenir la barre sans écraser les vues, la
+   barre prend toute la ligne suivante, d’un seul bloc : aucun bouton n’est
+   renvoyé seul à la ligne et aucun libellé n’est coupé. Les seuils suivent
+   la largeur réelle de la ligne (requête de conteneur, barre latérale
+   comprise) et ce qu’elle porte : association et catégories (Séries,
+   Livres), association (Films, Jeux), recherche seule (Art).
+   ========================================================================== */
+.library-tools {
+  container: library-tools / inline-size;
+  /* Ses panneaux passent au-dessus de la grille, quel que soit le moteur. */
+  position: relative;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-8) 0 var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+.library-tools > .auto-associate-button, .library-tools > .category-switch { flex: none; }
+/* Recherche : la largeur de son texte d’aide (le plus long, celui des Films,
+   tient en 272 px ; ceux des Séries et Livres en 224 px). Elle ne s’élargit
+   que lorsque la barre de vues a sa propre ligne. */
+.library-tools > .search { flex: 0 0 272px; }
+.library-tools > .search:has(~ .category-switch) { flex-basis: 224px; }
+.view-bar {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+@container library-tools (width < 1230px) {
+  .category-switch ~ .view-bar { flex-basis: 100%; }
+  .library-tools > .search:has(~ .category-switch) { flex-grow: 1; max-width: none; }
+}
+@container library-tools (width < 1010px) {
+  .auto-associate-button ~ .view-bar { flex-basis: 100%; }
+  .auto-associate-button ~ .search { flex-grow: 1; max-width: none; }
+}
+@container library-tools (width < 830px) {
+  .view-bar { flex-basis: 100%; }
+  .library-tools > .search { flex-grow: 1; max-width: none; }
+}
+
+/* Rangée des vues : pastilles du contrôle segmenté de l’accueil (même piste,
+   vue active à l’encre pleine). Elle défile quand la place manque ; un fondu
+   et une flèche n’apparaissent que du côté où des vues sont réellement
+   cachées. La marge intérieure garde l’anneau de focus hors de la zone
+   rognée par le défilement. */
+.view-bar-views { position: relative; flex: 1 1 0; min-width: 0; display: flex; }
+.view-bar-scroller {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  margin: calc(-1 * var(--space-1));
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  scroll-padding-inline: var(--space-10);
+}
+.view-bar-scroller::-webkit-scrollbar { display: none; }
+.library-tools .view-bar .library-views { flex: none; flex-wrap: nowrap; max-width: none; }
+.view-pill { flex: none; display: inline-flex; align-items: center; gap: var(--space-1-5); }
+/* Vue modifiée : un point à côté de son nom, en plus des actions proposées. */
+.view-pill-dot { flex: none; width: var(--space-1-5); height: var(--space-1-5); border-radius: var(--radius-pill); background: currentColor; }
+/* Vue enregistrée active : sa pastille porte son propre menu « … ». */
+.view-pill-group { flex: none; display: inline-flex; align-items: center; border-radius: var(--radius-pill); }
+.view-pill-group.on { background: var(--color-accent); box-shadow: var(--shadow-xs); }
+.view-pill-group > .seg-pill-btn.on { padding-right: var(--space-1); background: transparent; box-shadow: none; }
+.view-pill-menu {
+  display: inline-grid;
+  place-items: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  margin-right: var(--space-0-5);
+  padding: 0;
+  border: 0;
   border-radius: var(--radius-pill);
   background: transparent;
+  color: var(--color-on-accent);
   transition: background-color var(--duration-fast) var(--ease-out);
 }
-.library-views .filter:hover { background: transparent; color: var(--color-text); }
-.library-views .filter.active { background: transparent; color: var(--color-text); }
-.library-views .filter.active::after { background: var(--color-accent); }
-/* Une vue retirée de la rangée par la mesure du débordement (attribut hidden)
-   ne s’affiche plus : elle reste atteignable par le menu « +n ». */
-.library-views > .filter[hidden] { display: none; }
-.filter-panel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--space-3); align-items: end; }
-.filter-panel-favorite { display: flex; align-items: center; gap: var(--space-2); min-height: 42px; font-size: var(--text-sm); color: var(--color-text); }
-/* Case compacte : cible --control-sm et carré centré de 12 px. Les marges
-   compensent la cible sans demi-espacements hors grille. */
-.filter-panel-favorite input[type='checkbox'] {
-  appearance: none;
-  -webkit-appearance: none;
+.view-pill-menu:hover, .view-pill-menu[aria-expanded='true'] { background: var(--veil-on-accent); }
+.view-pill-menu:focus-visible { outline-color: var(--color-on-accent); outline-offset: -2px; }
+.view-bar-separator { flex: none; width: 1px; height: var(--space-4); margin-inline: var(--space-1); background: var(--color-border-strong); }
+.view-bar-new { flex: none; gap: var(--space-1-5); white-space: nowrap; }
+.view-bar-new svg { flex: none; opacity: .72; }
+.view-bar-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  width: var(--space-12);
+  pointer-events: none;
+}
+/* Le fondu couvre aussi la marge intérieure du défilement (anneau de focus). */
+.view-bar-edge-start { left: calc(-1 * var(--space-1)); justify-content: flex-start; background: linear-gradient(to right, var(--color-canvas) 45%, transparent); }
+.view-bar-edge-end { right: calc(-1 * var(--space-1)); justify-content: flex-end; background: linear-gradient(to left, var(--color-canvas) 45%, transparent); }
+.view-bar-scroll {
+  pointer-events: auto;
+  display: inline-grid;
+  place-items: center;
   width: var(--control-sm);
   height: var(--control-sm);
-  margin: calc(-1 * var(--space-1-5)) calc(-1 * var(--space-1));
   padding: 0;
-  position: relative;
-  flex: 0 0 auto;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-}
-.filter-panel-favorite input[type='checkbox']::before {
-  content: '';
-  position: absolute;
-  inset: 8px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
-  box-sizing: border-box;
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
-.filter-panel-favorite input[type='checkbox']:checked::before {
+.view-bar-scroll:hover { border-color: var(--color-border-strong); color: var(--color-text); }
+
+/* Actions : libellées, à hauteur commune ; les modifications de la vue
+   (réinitialiser, enregistrer, mettre à jour) n’apparaissent que si elles
+   ont un objet, séparées des réglages par un filet. */
+.view-bar-actions { flex: none; display: flex; align-items: center; gap: var(--space-1-5); margin-left: auto; }
+.view-bar-pending { display: flex; align-items: center; gap: var(--space-0-5); }
+.view-bar-pending::after { content: ''; width: 1px; height: var(--space-4); margin-left: var(--space-1-5); background: var(--color-border-strong); }
+.view-bar-text-action { white-space: nowrap; }
+.view-bar-text-action.is-strong { color: var(--color-text); }
+.view-bar-action { gap: var(--space-1-5); padding-inline: var(--space-3); white-space: nowrap; }
+.view-bar-action svg { flex: none; opacity: .72; }
+.view-bar-action:not(:disabled):hover svg, .view-bar-action.is-open svg { opacity: 1; }
+.view-bar-action.is-open { border-color: var(--color-accent); }
+.view-bar-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--space-5);
+  height: var(--space-5);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
   background: var(--color-accent);
-  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
-.filter-panel-favorite input[type='checkbox']:checked::after {
-  content: '';
-  position: absolute;
-  left: 12px;
-  top: 13px;
-  width: 6px;
-  height: 3px;
-  border: 1.6px solid var(--color-on-accent);
-  border-top: 0;
-  border-right: 0;
-  transform: rotate(-45deg);
-}
-.filter-panel-favorite input[type='checkbox']:focus-visible { outline: none; }
-.filter-panel-favorite input[type='checkbox']:focus-visible::before {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-.filter-panel-actions { display: flex; justify-content: flex-end; margin-top: var(--space-3); }
-.view-bar { display: flex; align-items: center; flex: 1 1 auto; flex-wrap: wrap; gap: var(--space-2-5); min-width: 0; }
-.view-bar .library-views { flex-wrap: wrap; }
-.view-bar-actions { display: flex; align-items: center; gap: var(--space-1-5); margin-left: auto; }
-/* Le contrôle de débordement des vues vit dans les actions, donc hors de la
-   zone rognée de la rangée (constat B1) : il garde le gabarit du bouton de vue. */
-.view-bar-actions .view-bar-more { position: relative; font-size: var(--text-md); }
+.view-bar-sort-direction { display: inline-grid; place-items: center; color: var(--color-text-muted); }
+
+/* Panneaux de la barre : filtres, tri, nouvelle vue, menu de la vue. */
 .view-bar-popover-anchor { position: relative; }
-.view-bar-badge { position: absolute; top: -6px; right: -6px; min-width: 15px; height: 15px; padding: 0 var(--space-0-5); border-radius: var(--radius-pill); background: var(--color-accent); color: var(--color-on-accent); font-size: var(--text-2xs); line-height: 15px; text-align: center; }
-.view-bar-popover { position: absolute; top: calc(100% + 8px); right: 0; z-index: 30; width: 300px; max-width: min(86vw, 340px); padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-popover); display: grid; gap: var(--space-3); }
-.view-bar-popover .filter-panel-grid { grid-template-columns: 1fr; gap: var(--space-2-5); }
-.view-bar-overflow { width: 220px; padding: var(--space-2); }
-.view-bar-overflow-item { display: block; width: 100%; padding: var(--space-2) var(--space-2-5); border: 0; border-radius: var(--radius-xs); background: transparent; text-align: left; font-size: var(--text-sm); color: var(--color-text); }
-.view-bar-overflow-item:hover { background: var(--color-surface-muted); }
-.view-bar-direction { display: flex; gap: var(--space-1); }
-/* 0.6.26 : au-delà de 1250 px la rangée d’outils est un gabarit fixe sur
-   une seule ligne. Le repli des vues sous la recherche ne peut plus être
-   déclenché par un changement de vue active ou de contenu : la largeur
-   calculée ne varie plus avec l’état. */
-@media (min-width: 1251px) {
-  .library-tools {
-    flex-wrap: nowrap;
-    gap: var(--space-4);
-  }
-  .library-tools .view-bar {
-    flex: 1 1 auto;
-    flex-wrap: nowrap;
-  }
-  .library-tools .view-bar .library-views {
-    flex-wrap: nowrap;
-    overflow: hidden;
-  }
-  .library-tools .view-bar .library-views .filter {
-    flex: 0 0 auto;
-  }
-  .library-tools .view-bar-actions {
-    flex: 0 0 auto;
-    margin-left: auto;
-  }
+.view-bar-popover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  animation: view-bar-popover-in var(--duration-base) var(--ease-out);
 }
-.saved-views-actions, .saved-views-editor { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
-.saved-views-editor input { font-size: var(--text-sm); }
-.saved-views-error { flex-basis: 100%; margin: 0; font-size: var(--text-sm); color: var(--color-danger); }
-.danger-action { color: var(--color-danger); }
+/* Fondu seul : une transformation ferait du panneau le repère des listes
+   déroulantes en position fixe pendant son apparition. */
+@keyframes view-bar-popover-in { from { opacity: 0; } }
+/* Ancrés à un bouton de la rangée qui défile : position calculée, hors de la zone rognée. */
+.view-bar-floating { top: 0; right: auto; left: 0; }
+.view-bar-filters { width: min(var(--dialog-sm), calc(100vw - 2 * var(--space-4))); }
+.view-bar-create { width: min(320px, calc(100vw - 2 * var(--space-4))); }
+.view-bar-sort-popover, .view-bar-view-menu { width: max-content; padding: var(--space-1-5); gap: 0; }
+.filter-panel-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); align-items: end; }
+.filter-panel-grid > .is-wide { grid-column: 1 / -1; }
+.filter-panel-favorite { min-height: var(--control-md); }
+.filter-panel-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-top: var(--space-3); border-top: 1px solid var(--color-hairline); }
+.view-bar-compact { min-height: var(--control-sm); padding-inline: var(--space-3); }
+.view-bar-menu { display: grid; gap: var(--space-0-5); }
+.view-bar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-md);
+  text-align: left;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.view-bar-menu-item:not([aria-disabled='true']):hover, .view-bar-menu-item:focus-visible { background: var(--color-surface-muted); }
+.view-bar-menu-item:focus-visible { outline-offset: -2px; }
+.view-bar-menu-item[aria-checked='true'] { font-weight: 600; }
+.view-bar-menu-item[aria-disabled='true'] { color: var(--color-text-muted); cursor: default; }
+.view-bar-menu-item.is-danger { color: var(--color-danger); }
+.view-bar-menu-check { flex: none; display: inline-grid; place-items: center; width: var(--space-4); height: var(--space-4); }
+.view-bar-menu-label { flex: 1 1 auto; }
+.view-bar-menu-trailing { flex: none; display: inline-grid; place-items: center; color: var(--color-text-muted); }
+.view-bar-menu-detail { flex: none; margin-left: var(--space-4); color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 400; }
+.view-bar-menu-separator { height: 1px; margin: var(--space-1) var(--space-2); background: var(--color-hairline); }
+.view-bar-menu-hint { max-width: 32ch; margin: var(--space-1) var(--space-2) var(--space-0-5); padding-top: var(--space-2); border-top: 1px solid var(--color-hairline); color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.45; }
+.view-bar-view-menu .view-bar-form { padding: var(--space-2-5); }
+.view-bar-form { display: grid; gap: var(--space-2); min-width: 0; }
+.view-bar-form-label { margin: 0; color: var(--color-text); font-size: var(--text-sm); font-weight: 600; }
+.view-bar-form-input { width: 100%; }
+.view-bar-form-hint { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.45; }
+.view-bar-popover-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-1); }
+.saved-views-error { margin: 0; font-size: var(--text-sm); color: var(--color-danger); }
+.view-bar-error { position: absolute; top: calc(100% + var(--space-1)); right: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .view-bar-popover { animation: none; }
+}
+
 .film-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-8) var(--space-5); margin-top: var(--space-8); align-items: start; }
 .film-card { display: block; width: 100%; padding: 0; min-width: 0; text-align: left; border: 0; background: none; }
 .film-card:hover .poster { transform: translateY(-3px); box-shadow: var(--shadow-lifted); }
@@ -2858,10 +3017,11 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .updater-preference { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-4) 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .updater-preference h3, .updater-available h3 { margin: 0; font-size: var(--text-xl); letter-spacing: -.025em; }
 .updater-preference p { max-width: 520px; margin: var(--space-2) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.5; }
-.updater-checkbox { flex: 0 0 auto; display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+/* Case à cocher commune (réglages, panneau Filtres des bibliothèques). */
+.updater-checkbox, .check-field { flex: 0 0 auto; display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
 /* C1 (audit UX 22/09/2026) : case native 16×16 → cible 32×32, visuel 16 px
    préservé en ::before, marges négatives pour ne pas déplacer la mise en page. */
-.updater-checkbox input {
+.updater-checkbox input, .check-field input {
   appearance: none;
   -webkit-appearance: none;
   width: 32px;
@@ -2875,7 +3035,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   accent-color: var(--color-accent);
   cursor: pointer;
 }
-.updater-checkbox input::before {
+.updater-checkbox input::before, .check-field input::before {
   content: '';
   position: absolute;
   inset: 8px;
@@ -2884,11 +3044,11 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   background: var(--color-surface);
   box-sizing: border-box;
 }
-.updater-checkbox input:checked::before {
+.updater-checkbox input:checked::before, .check-field input:checked::before {
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
-.updater-checkbox input:checked::after {
+.updater-checkbox input:checked::after, .check-field input:checked::after {
   content: '';
   position: absolute;
   left: 12px;
@@ -2900,9 +3060,9 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   border-right: 0;
   transform: rotate(-45deg);
 }
-.updater-checkbox input:focus-visible { outline: none; }
-.updater-checkbox input:disabled { cursor: default; opacity: .55; }
-.updater-checkbox:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: var(--space-1); border-radius: var(--radius-xs); }
+.updater-checkbox input:focus-visible, .check-field input:focus-visible { outline: none; }
+.updater-checkbox input:disabled, .check-field input:disabled { cursor: default; opacity: .55; }
+.updater-checkbox:has(input:focus-visible), .check-field:has(input:focus-visible) { outline: 2px solid var(--color-focus); outline-offset: var(--space-1); border-radius: var(--radius-xs); }
 .updater-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 .updater-available { display: grid; gap: var(--space-3); margin-top: var(--space-5); padding: var(--space-4); border: 1px solid var(--color-accent); border-radius: var(--radius-md); background: var(--color-accent-soft); }
 .updater-available .card-kicker { margin-bottom: var(--space-1-5); }
@@ -3180,8 +3340,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 @media (max-width: 1250px) {
   .film-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .library-tools { flex-wrap: wrap; gap: var(--space-4); }
-  .library-tools .search { max-width: 100%; }
 }
 
 @media (max-width: 1000px) {
@@ -3520,12 +3678,8 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .library-tools > .category-switch { grid-column: 1 / -1; max-width: 100%; overflow-x: auto; }
   .library-tools > .category-switch .category-switch-segment { min-height: 38px; }
   .library-tools .view-bar { grid-column: 1 / -1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
-  .library-tools .view-bar .library-views { min-width: 0; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; }
-  .library-tools .view-bar .library-views::-webkit-scrollbar { display: none; }
-  .library-tools .view-bar .filter { min-height: 40px; }
   .library-tools .view-bar-actions { margin-left: 0; }
-  .library-tools .view-bar-icon,
-  .library-tools .view-bar-more { width: 40px; min-width: 40px; min-height: 40px; }
+  .library-tools .view-bar-action { min-height: 40px; }
   .film-grid,
   .library-main .artwork-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: var(--space-6) var(--space-3); margin-top: var(--space-6); }
   .library-main .artwork-card .poster { aspect-ratio: 4 / 3; }
@@ -3534,8 +3688,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .library-state,
   .results-state { min-height: 42vh; padding: var(--space-12) 0; }
   .empty-library { min-height: calc(100dvh - 330px); }
-  .view-bar-popover { position: fixed; z-index: 120; top: calc(66px + env(safe-area-inset-top)); right: 12px; left: 12px; width: auto; max-width: none; max-height: calc(100dvh - 132px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
-  .view-bar-overflow { width: auto; }
+  .view-bar-popover:not(.view-bar-floating) { position: fixed; z-index: 120; top: calc(66px + env(safe-area-inset-top)); right: 12px; left: 12px; width: auto; max-width: none; max-height: calc(100dvh - 132px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
 
   .detail-page-main,
   .editor-main { padding-top: calc(var(--space-20) + env(safe-area-inset-top)); padding-bottom: calc(var(--space-10) + env(safe-area-inset-bottom)); }
@@ -3643,7 +3796,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .library-header-actions > * { font-size: var(--text-xs); padding-inline: var(--space-2); }
   .film-grid,
   .library-main .artwork-grid { gap-inline: var(--space-2-5); }
-  .view-bar-popover { right: 8px; left: 8px; }
+  .view-bar-popover:not(.view-bar-floating) { right: 8px; left: 8px; }
   .tmdb-candidates-grid { gap: var(--space-2); }
   .poster-dialog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

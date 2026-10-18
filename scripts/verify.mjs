@@ -3745,8 +3745,8 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
   // La présentation est normalisée : Tous ouvre la rangée, puis les vues
   // propres au médium, puis Récent / Favori / Classement. L'ordre de la rangée
   // reste distinct des vues d'ouverture définies plus bas.
-  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'recent', 'favorites', 'ranking'], 'Les médiums notés ouvrent leur rangée par Tous')
-  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites'], 'L’Art ouvre sa rangée par Tous, sans classement ni watchlist')
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'recent', 'this-year', 'favorites', 'ranking'], 'Les médiums notés ouvrent leur rangée par Tous ; « Cette année » suit « Récent »')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'this-year', 'favorites'], 'L’Art ouvre sa rangée par Tous, sans classement ni watchlist ; « Cette année » suit « Récent »')
   assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les vues de base sont des présets intégrés du même modèle')
 
   const watchlist = RATED_BUILTIN_VIEWS.find((view) => view.id === 'watchlist')
@@ -3806,7 +3806,7 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   } = await import('../src/domain/libraryViews.ts')
   const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
 
-  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'in-progress', 'recent', 'favorites', 'ranking'], 'Séries et Livres : Tous, watchlist, En cours puis socle commun')
+  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'in-progress', 'recent', 'this-year', 'favorites', 'ranking'], 'Séries et Livres : Tous, watchlist, En cours puis socle commun (Récent, Cette année, Favori, Classement)')
 
   const clauses = []
   const binds = []
@@ -3822,17 +3822,17 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   assert.ok(!clauses.some((clause) => clause.startsWith('status =')), 'Un groupe actif ne doit pas coexister avec un statut exact')
 
   assert.equal(WATCHLIST_DEFAULT_VIEW_ID, 'watchlist', 'Films, Séries, Livres et Jeux conservent leur vue d’ouverture watchlist')
-  assert.equal(ARTWORKS_DEFAULT_VIEW_ID, 'favorites', 'Art conserve sa vue d’ouverture Favori, distincte de Tous en tête de rangée')
+  assert.equal(ARTWORKS_DEFAULT_VIEW_ID, 'all', 'Art ouvre sur Tous (18 octobre 2026 : Favori ne montrait qu’une petite partie de la collection)')
   assert.equal(defaultViewIdForMedium('series'), WATCHLIST_DEFAULT_VIEW_ID, 'Séries ouvre sur sa watchlist')
   assert.equal(defaultViewIdForMedium('books'), WATCHLIST_DEFAULT_VIEW_ID, 'Livres ouvre sur sa watchlist')
   assert.equal(defaultViewIdForMedium('games'), WATCHLIST_DEFAULT_VIEW_ID, 'Jeux ouvre sur sa watchlist')
-  assert.equal(defaultViewIdForMedium('artworks'), ARTWORKS_DEFAULT_VIEW_ID, 'Art ouvre sur Favori')
+  assert.equal(defaultViewIdForMedium('artworks'), ARTWORKS_DEFAULT_VIEW_ID, 'Art ouvre sur Tous')
   assert.equal(defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'films').id, WATCHLIST_DEFAULT_VIEW_ID, 'Films : la rangée commence par Tous, la bibliothèque par À voir')
   assert.equal(defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'series').name, 'À voir', 'Séries : la vue d’ouverture reste la watchlist titrée')
   assert.equal(defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'books').name, 'À lire', 'Livres : la vue d’ouverture reste la watchlist titrée')
   assert.equal(defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'games').name, 'À jouer', 'Jeux : la vue d’ouverture reste la watchlist titrée')
-  assert.equal(defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks').id, ARTWORKS_DEFAULT_VIEW_ID, 'Art : Tous ouvre la rangée, pas la vue d’ouverture')
-  assert.equal(titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks').map((view) => view.id).join('|'), 'all|recent|favorites', 'Art conserve seulement Tous, Récent et Favori')
+  assert.equal(defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks').id, ARTWORKS_DEFAULT_VIEW_ID, 'Art : la vue d’ouverture résolue est Tous, en tête de rangée')
+  assert.equal(titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks').map((view) => view.id).join('|'), 'all|recent|this-year|favorites', 'Art garde Tous, Récent, Cette année et Favori')
 
   const mainSource068 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
   const stylesSource068 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
@@ -3856,7 +3856,7 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   assert.match(mainSource068, /titledBuiltinViews\(RATED_BUILTIN_VIEWS, 'games'\)/, 'Jeux doit titrer sa watchlist « À jouer »')
   assert.doesNotMatch(mainSource068, /builtinViews=\{RATED_BUILTIN_VIEWS\}|builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'Aucune bibliothèque ne doit recevoir d’intitulés non titrés')
   assert.equal((mainSource068.match(/defaultBuiltinViewForMedium\(/g) ?? []).length, 5, 'Les cinq bibliothèques doivent résoudre explicitement leur vue d’ouverture')
-  assert.match(mainSource068, /defaultBuiltinViewForMedium\(UNRATED_BUILTIN_VIEWS, 'artworks'\)/, 'Art doit ouvrir explicitement sur Favori, pas sur la première vue de la rangée')
+  assert.match(mainSource068, /defaultBuiltinViewForMedium\(UNRATED_BUILTIN_VIEWS, 'artworks'\)/, 'Art doit résoudre explicitement sa vue d’ouverture (Tous), sans dépendre de l’ordre de la rangée')
   assert.match(categorySwitchSource068, /role="group"/, 'L’interrupteur annonce un groupe multi-sélection')
   assert.match(categorySwitchSource068, /aria-pressed=/, 'Chaque segment expose son état coché')
   assert.match(categorySwitchSource068, /effective\.length === 1\) return/, 'L’interrupteur garde toujours au moins une catégorie active')
@@ -4170,14 +4170,17 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
 
 assert.match(libraryViewBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
 assert.match(libraryViewBarSource, /Enregistrer comme vue/, 'La rangée doit permettre d’enregistrer le combo courant comme vue')
-assert.match(libraryViewBarSource, /INLINE_SAVED_VIEWS/, 'Le débordement des vues enregistrées doit rester borné dans la rangée')
-assert.match(libraryViewBarSource, /debut >= pointEntree/, 'Le point d’entrée du débordement doit retirer le premier bouton qui ne tient pas et tous les suivants, sans laisser de bouton rogné à droite')
+// 18 octobre 2026 : plus de menu « +n ». Toutes les vues enregistrées sont
+// rendues dans la rangée, qui défile ; la vue active est ramenée dans le champ.
+assert.doesNotMatch(libraryViewBarSource, /INLINE_SAVED_VIEWS|view-bar-more|library-views-overflow|vues? supplémentaires?/, 'Vues : aucune vue ne doit plus être reléguée dans un menu « +n »')
+assert.match(libraryViewBarSource, /\{savedViews\.map\(\(view\) => renderViewButton\(/, 'Vues : toutes les vues enregistrées sont rendues dans la rangée, sans plafond')
+assert.match(libraryViewBarSource, /querySelector<HTMLElement>\(`\[data-view-id="\$\{CSS\.escape\(activeView\.id\)\}"\]`\)[\s\S]*?scroller\.scrollTo\(/, 'Vues : la vue active est toujours ramenée dans le champ de la rangée')
 assert.match(libraryViewBarSource, /data-view-id=\{view\.id\}/, 'La mesure du débordement doit identifier chaque bouton de façon stable')
 assert.match(libraryViewBarSource, /aria-pressed=\{activeView\.id === view\.id\}/, 'Les vues intégrées et enregistrées doivent exposer leur état actif')
 assert.match(libraryViewBarSource, /event\.key === 'Home'[\s\S]*event\.key === 'End'/, 'La rangée doit permettre de rejoindre ses extrémités au clavier')
-assert.match(libraryViewBarSource, /aria-haspopup="menu"/, 'Le débordement doit s’annoncer comme menu')
-assert.match(libraryViewBarSource, /role="menuitem"/, 'Les entrées de débordement doivent être des éléments de menu')
-assert.match(libraryViewBarSource, /ArrowDown[\s\S]*ArrowUp/, 'Le menu de débordement doit rester navigable au clavier')
+assert.match(libraryViewBarSource, /className="view-pill-menu"[\s\S]*?aria-haspopup="menu"[\s\S]*?Options de la vue/, 'Vue enregistrée active : son menu « … » s’annonce comme menu, sur la pastille elle-même')
+assert.match(libraryViewBarSource, /role="menu" aria-label=\{`Vue « \$\{activeSavedView\.name\} »`\}[\s\S]*?role="menuitem"[\s\S]*?Renommer…[\s\S]*?Mettre à jour la vue[\s\S]*?Supprimer…/, 'Vue enregistrée active : renommer, mettre à jour et supprimer sont des éléments de menu')
+assert.match(libraryViewBarSource, /const onMenuKeyDown[\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/, 'Menus de la barre (tri, vue enregistrée) : navigables aux flèches, Début et Fin')
 assert.match(libraryViewBarSource, /onViewChange\(defaultBuiltinViewForMedium\(builtinViews, medium\)\)/, 'Supprimer une vue enregistrée doit revenir à la vue d’ouverture, pas au premier onglet visible')
 
 // Jalon 0.4.26 — Séries assistées TMDB, même parcours direct que Films.
@@ -4687,7 +4690,14 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const avatarSource0626 = readFileSync(new URL('../src/components/ProfileAvatar.tsx', import.meta.url), 'utf8')
   const stylesSource0626 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 
-  assert.match(stylesSource0626, /@media \(min-width: 1251px\) \{[\s\S]*\.library-tools \{[\s\S]*flex-wrap: nowrap/, 'Bibliothèques : au-delà de 1250 px la rangée d’outils doit rester sur une seule ligne')
+  // 18 octobre 2026 : la ligne d'outils suit sa largeur réelle (requête de
+  // conteneur, barre latérale comprise) : la barre de vues tient sur la ligne
+  // de la recherche, ou prend une ligne entière d'un seul bloc ; jamais un
+  // bouton isolé renvoyé à la ligne.
+  assert.match(stylesSource0626, /\.library-tools \{[^}]*container: library-tools \/ inline-size/, 'Bibliothèques : la ligne d’outils est un conteneur de requêtes')
+  assert.match(stylesSource0626, /\.view-bar \{[^}]*flex: 1 1 0;[^}]*min-width: 0;/, 'Bibliothèques : sur la ligne de la recherche, la barre de vues prend la place restante sans forcer de retour à la ligne')
+  assert.match(stylesSource0626, /@container library-tools \(width < \d+px\) \{[^}]*\.category-switch ~ \.view-bar \{ flex-basis: 100%; \}/, 'Bibliothèques : trop étroite, la barre de vues prend une ligne entière d’un seul bloc')
+  assert.match(stylesSource0626, /\.view-bar-actions \{[^}]*flex: none;/, 'Bibliothèques : les actions de la barre ne se compriment ni ne passent à la ligne')
   assert.match(stylesSource0626, /\.library-tools \.view-bar \.library-views \{[\s\S]*flex-wrap: nowrap/, 'Bibliothèques : la rangée des vues ne doit plus se replier sous la recherche')
   assert.match(stylesSource0626, /\.empty-library \{[\s\S]*flex: 1 1 auto[\s\S]*justify-content: center/, 'Bibliothèques : l’état vide doit occuper l’espace restant et rester centré')
   const toolsBeforeEmpty = mainSource0626.match(/className="library-tools"[\s\S]*?(?:library\.films|collection)\.length === 0 && isUnfiltered/g) ?? []
@@ -4715,14 +4725,19 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const artworkDetailSourceArt = readFileSync(new URL('../src/components/ArtworkDetail.tsx', import.meta.url), 'utf8')
   const stylesSourceArt = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 
-  // Rangée des vues : l'ancien « point médian » retirait des vues même quand la
-  // place suffisait (les trois vues de l'Art disparaissaient en 0.6.4).
-  assert.match(viewBarSourceArt, /const premierRogne = largeursEtOrigines\.find\(\(\{ debut, width \}\) => debut \+ width > conteneurBounds\.width \+ 0\.5\)/, 'Vues : seul un bouton qui dépasse réellement la rangée déclenche le débordement')
-  assert.match(viewBarSourceArt, /const pointEntree = premierRogne \? premierRogne\.debut : Number\.POSITIVE_INFINITY/, 'Vues : quand tout tient, aucune vue ne quitte la rangée')
+  // Rangée des vues (18 octobre 2026) : plus aucune mesure ne retire de vue
+  // (l'ancien « point médian » faisait disparaître celles de l'Art en 0.6.4).
+  // Toutes restent rendues ; la rangée défile et ne montre fondu et flèche que
+  // du côté où des vues sont réellement cachées.
+  assert.doesNotMatch(viewBarSourceArt, /\.hidden = true|premierRogne|pointEntree/, 'Vues : aucune vue n’est plus retirée de la rangée par une mesure')
   assert.doesNotMatch(viewBarSourceArt, /Math\.floor\(positions\.length \/ 2\)/, 'Vues : l’heuristique du point médian ne doit pas revenir')
-  assert.match(viewBarSourceArt, /for \(let passe = 0; passe < boutons\.length; passe \+= 1\) \{[\s\S]*?\.filter\(\(bouton\) => !bouton\.hidden\)/, 'Vues : le débordement se mesure dans l’état réellement affiché (la barre de vues suit la largeur de son contenu)')
-  assert.match(stylesSourceArt, /\.library-views > \.filter\[hidden\] \{ display: none; \}/, 'Vues : une vue envoyée dans « +n » ne doit plus rester affichée (display de .filter prioritaire sur hidden)')
-  assert.match(viewBarSourceArt, /inlineSaved\.map\(\(view\) => renderViewButton\(\{[^}]*\}, \(\) => applySavedView\(view\)\)\)/, 'Vues : une vue enregistrée cliquée dans la rangée doit appliquer sa forme, catégorie ou plateforme comme depuis le menu')
+  assert.match(viewBarSourceArt, /const start = scroller\.scrollLeft > 1[\s\S]*?const end = scroller\.scrollLeft \+ scroller\.clientWidth < scroller\.scrollWidth - 1/, 'Vues : fondu et flèches seulement du côté d’un débordement réel')
+  assert.match(viewBarSourceArt, /\{edges\.start && \([\s\S]*?\{edges\.end && \(/, 'Vues : les flèches de défilement n’existent que si des vues sont cachées')
+  assert.match(stylesSourceArt, /\.view-bar-scroller \{[^}]*overflow-x: auto;/, 'Vues : la rangée défile au lieu de cacher des vues')
+  assert.doesNotMatch(stylesSourceArt, /\.library-views > \.filter\[hidden\]|\.view-bar-more|\.view-bar-overflow/, 'Vues : plus de règle de masquage ni de menu de débordement')
+  assert.match(viewBarSourceArt, /savedViews\.map\(\(view\) => renderViewButton\(\{[^}]*\}, \(\) => applySavedView\(view\)\)\)/, 'Vues : une vue enregistrée cliquée dans la rangée applique sa forme, catégorie ou plateforme et son tri')
+  assert.match(viewBarSourceArt, /const applySavedView = \(view: SavedView\) => \{[\s\S]*?onExtraFiltersChange\(\{ \.\.\.EMPTY_LIBRARY_FILTERS \}\)[\s\S]*?onSortOverrideChange\(null\)[\s\S]*?onMediumFilterChange\(view\.criteria\.mediumFilter\)[\s\S]*?onViewChange\(/, 'Vues : appliquer une vue enregistrée remet filtres et tri à la volée à zéro, puis applique sa forme, catégorie ou plateforme')
+  assert.match(viewBarSourceArt, /const resetView = \(\) => \{[\s\S]*?onExtraFiltersChange\(\{ \.\.\.EMPTY_LIBRARY_FILTERS \}\)[\s\S]*?onSortOverrideChange\(null\)[\s\S]*?onMediumFilterChange\(baselineMediumFilter\)/, 'Vues : « Réinitialiser » revient exactement à la définition de la vue active (filtres, tri, forme, catégorie ou plateforme)')
 
   // Réinitialiser et appliquer une vue enregistrée déclenchent plusieurs
   // mises à jour dans le même geste : chacune doit partir de l'état courant,
@@ -4759,6 +4774,121 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   // Formulaire Art : Année et Exposition ne débordent plus de leur colonne.
   assert.match(stylesSourceArt, /\.form-row > \.field > :is\(input, select\) \{ min-width: 0; \}/, 'Formulaire : un champ ne doit pas déborder de sa colonne')
   assert.match(artworkFormSourceArt, /className="form-row form-row-halves"[\s\S]{0,200}artwork-location/, 'Formulaire Art : lieu et exposition partagent la rangée à parts égales')
+}
+
+// Barre de vues (18 octobre 2026) — liste déroulante Sylloge, vue « Cette
+// année », compteur accordé, tri en un clic, mise à jour d'une vue enregistrée.
+{
+  const selectSource = readFileSync(new URL('../src/components/Select.tsx', import.meta.url), 'utf8')
+  const viewBarSource = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
+  const mainSourceBar = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const stylesSourceBar = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  // Liste déroulante accessible : bouton listbox, options sélectionnées, clavier complet.
+  assert.match(selectSource, /aria-haspopup="listbox"[\s\S]*?aria-expanded=\{open\}[\s\S]*?aria-controls=\{open \? listboxId : undefined\}[\s\S]*?aria-labelledby=\{`\$\{labelledBy\} \$\{id\}`\}/, 'Select : le bouton annonce sa liste, son état et son libellé associé')
+  assert.match(selectSource, /role="listbox"[\s\S]*?aria-labelledby=\{labelledBy\}[\s\S]*?aria-activedescendant=/, 'Select : la liste est étiquetée et annonce l’option active')
+  assert.match(selectSource, /role="option"[\s\S]*?aria-selected=\{isSelected\}/, 'Select : chaque option expose son état sélectionné')
+  for (const key of ["'ArrowDown'", "'ArrowUp'", "'Home'", "'End'", "'Enter'", "' '", "'Escape'", "'Tab'"]) {
+    assert.ok(selectSource.includes(`case ${key}:`), `Select : la touche ${key} doit être gérée dans la liste`)
+  }
+  assert.match(selectSource, /case 'Escape':[\s\S]*?event\.stopPropagation\(\)[\s\S]*?closeList\(true\)/, 'Select : Échap ferme la liste seule et rend le focus au bouton')
+  assert.match(selectSource, /const findByTypeahead/, 'Select : la saisie de lettres atteint une option')
+  assert.match(selectSource, /document\.addEventListener\('pointerdown'/, 'Select : un clic à l’extérieur ferme la liste')
+  assert.match(selectSource, /window\.innerHeight - anchor\.bottom[\s\S]*?const openUp[\s\S]*?window\.innerWidth - VIEWPORT_MARGIN - width/, 'Select : la liste reste dans la fenêtre et s’ouvre vers le haut si la place manque')
+  assert.doesNotMatch(viewBarSource, /<select\b/, 'Barre de vues : plus aucun menu système dans les panneaux')
+  assert.ok((viewBarSource.match(/<Select\b/g) ?? []).length >= 3, 'Barre de vues : statut, note et filtre du médium passent par la liste Sylloge')
+  assert.match(stylesSourceBar, /\.select-listbox \{[^}]*position: fixed;[^}]*background: var\(--color-surface\);[^}]*box-shadow: var\(--shadow-popover\);/, 'Select : la liste flottante reprend surface et ombre communes')
+  assert.match(stylesSourceBar, /:where\(\.field input, \.field select, \.field textarea, \.search, \.view-bar-form-input, \.select-trigger,/, 'Select : le bouton reprend exactement le gabarit des champs')
+
+  // Vue « Cette année » dans les cinq médiums : terminées au sens strict, depuis le 1er janvier courant.
+  const {
+    RATED_BUILTIN_VIEWS,
+    PROGRESS_BUILTIN_VIEWS,
+    UNRATED_BUILTIN_VIEWS,
+    FINISHED_STATUS_BY_MEDIUM,
+    THIS_YEAR_VIEW_ID,
+    startOfCurrentYear,
+    titledBuiltinViews,
+    librarySortColumnLabel,
+  } = await import('../src/domain/libraryViews.ts')
+  const { FILM_STATUSES } = await import('../src/domain/film.ts')
+  const { SERIES_STATUSES } = await import('../src/domain/series.ts')
+  const { BOOK_STATUSES } = await import('../src/domain/book.ts')
+  const { GAME_STATUSES } = await import('../src/domain/game.ts')
+  const { ARTWORK_STATUSES } = await import('../src/domain/artwork.ts')
+  const { activeCriteriaLabel } = await import('../src/domain/libraryFilters.ts')
+  const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
+  const statusesByMedium = { films: FILM_STATUSES, series: SERIES_STATUSES, books: BOOK_STATUSES, games: GAME_STATUSES, artworks: ARTWORK_STATUSES }
+  const listsByMedium = { films: RATED_BUILTIN_VIEWS, series: PROGRESS_BUILTIN_VIEWS, books: PROGRESS_BUILTIN_VIEWS, games: RATED_BUILTIN_VIEWS, artworks: UNRATED_BUILTIN_VIEWS }
+  const fixedDay = new Date(2031, 5, 15)
+  for (const [medium, list] of Object.entries(listsByMedium)) {
+    const titled = titledBuiltinViews(list, medium, fixedDay)
+    const viewIds = titled.map((view) => view.id)
+    assert.equal(viewIds.indexOf(THIS_YEAR_VIEW_ID), viewIds.indexOf('recent') + 1, `${medium} : « Cette année » suit « Récent »`)
+    const thisYear = titled.find((view) => view.id === THIS_YEAR_VIEW_ID)
+    assert.equal(thisYear.name, 'Cette année', `${medium} : la vue s’intitule « Cette année »`)
+    assert.ok(statusesByMedium[medium].includes(thisYear.filters.status), `${medium} : la vue filtre sur un statut réel du médium`)
+    assert.ok(!/abandonn/.test(thisYear.filters.status), `${medium} : un abandon n’est pas une œuvre terminée`)
+    assert.equal(thisYear.filters.status, FINISHED_STATUS_BY_MEDIUM[medium], `${medium} : statut terminé du médium`)
+    assert.equal(thisYear.filters.statusGroup, null, `${medium} : le statut exact remplace le groupe « déjà consommé »`)
+    assert.equal(thisYear.filters.personalDateFrom, '2031-01-01', `${medium} : la date personnelle part du 1er janvier de l’année du calcul`)
+    assert.deepEqual(thisYear.sort, { column: 'recency', direction: 'desc' }, `${medium} : tri par récence décroissante`)
+  }
+  assert.equal(startOfCurrentYear(), `${new Date().getFullYear()}-01-01`, 'Cette année : l’année est calculée à l’exécution, jamais figée')
+  assert.equal(titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films').find((view) => view.id === THIS_YEAR_VIEW_ID).filters.personalDateFrom, `${new Date().getFullYear()}-01-01`, 'Cette année : sans date fournie, l’année courante s’applique')
+  const thisYearClauses = []
+  const thisYearBinds = []
+  appendLibraryFilterClauses(
+    titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films', fixedDay).find((view) => view.id === THIS_YEAR_VIEW_ID).filters,
+    { rating: true, year: true, personalDateColumn: 'watched_at', specificTextColumn: null, locationColumn: null, exhibitionColumn: null, progressColumn: null },
+    thisYearClauses,
+    thisYearBinds,
+    (value) => value,
+  )
+  assert.deepEqual(thisYearBinds, ['terminé', '2031-01-01'], 'Cette année (Films) : statut terminé et visionnage depuis le 1er janvier, en paramètres liés')
+  assert.ok(thisYearClauses.includes('status = $1') && thisYearClauses.includes('watched_at >= $2'), 'Cette année (Films) : clauses exactes, sans groupe « déjà consommé »')
+  assert.equal((mainSourceBar.match(/builtinViews=\{titledBuiltinViews\(/g) ?? []).length, 5, 'Cette année : les cinq bibliothèques reçoivent leurs vues adaptées au médium')
+
+  // Compteur accordé et libellés de tri propres au médium.
+  assert.equal(activeCriteriaLabel(1), '1 critère actif', 'Filtrer : singulier pour un critère')
+  assert.equal(activeCriteriaLabel(2), '2 critères actifs', 'Filtrer : pluriel au-delà')
+  assert.match(viewBarSource, /`Filtrer, \$\{activeCriteriaLabel\(panelFilterCount\)\}`/, 'Filtrer : le nom accessible utilise le compteur accordé')
+  assert.doesNotMatch(viewBarSource, /critères actifs`/, 'Filtrer : plus de pluriel figé dans la barre')
+  assert.equal(librarySortColumnLabel('personalDate', 'Découverte'), 'Découverte', 'Tri : la date personnelle prend le nom du médium')
+  assert.equal(librarySortColumnLabel('personalDate', null), 'Date personnelle', 'Tri : intitulé générique sans nom propre au médium')
+  assert.match(mainSourceBar, /GAME_FILTER_PANEL_CONFIG[\s\S]*?personalDateLabel: 'Partie'/, 'Jeux : la date personnelle s’appelle « Partie », comme sur la fiche')
+  assert.match(mainSourceBar, /ARTWORK_FILTER_PANEL_CONFIG[\s\S]*?personalDateLabel: 'Découverte'/, 'Art : la date personnelle s’appelle « Découverte »')
+
+  // Barre : actions libellées, tri en un clic, modifications proposées seulement quand elles existent.
+  assert.match(viewBarSource, /<span>Filtrer<\/span>/, 'Barre : « Filtrer » est un bouton libellé')
+  assert.match(viewBarSource, /aria-label=\{`Trier, actuellement : \$\{sortDescription\(effectiveSort\)\}`\}[\s\S]*?<span>\{columnLabel\(effectiveSort\.column\)\}<\/span>/, 'Barre : « Trier » affiche le tri effectif')
+  assert.match(viewBarSource, /const chooseSortColumn[\s\S]*?effectiveSort\.column === column[\s\S]*?effectiveSort\.direction === 'asc' \? 'desc' : 'asc'[\s\S]*?onSortOverrideChange\(sortsEqual\(next, activeView\.sort\) \? null : next\)/, 'Tri : une colonne s’applique en un clic, la colonne active s’inverse, le tri de la vue retrouvé redevient neutre')
+  assert.match(viewBarSource, /role="menuitemradio"[\s\S]*?aria-checked=\{checked\}[\s\S]*?Tri de la vue/, 'Tri : liste des colonnes à cocher et retour au tri de la vue')
+  assert.match(viewBarSource, /\{dirty && \([\s\S]*?Réinitialiser[\s\S]*?Mettre à jour[\s\S]*?Enregistrer/, 'Barre : réinitialiser, mettre à jour ou enregistrer seulement quand la vue active est modifiée')
+  assert.match(viewBarSource, /Nouvelle vue/, 'Barre : « Nouvelle vue » termine la rangée')
+
+  // Mise à jour d'une vue enregistrée : mêmes garanties qu'à la création.
+  const updateCalls = []
+  const updateDatabase = {
+    async select() { return [] },
+    async execute(query, bindValues) {
+      updateCalls.push({ query, bindValues })
+      return { rowsAffected: bindValues[3] === 'vue-absente' ? 0 : 1 }
+    },
+  }
+  const { SqliteSavedViewsRepository } = await import('../src/data/savedViewsRepository.ts')
+  const updateRepository = new SqliteSavedViewsRepository(async () => updateDatabase, () => 'inutilisé', () => '2026-10-18T10:00:00.000Z')
+  const updatedCriteria = await updateRepository.update('profil-a', 'artworks', 'vue-1', {
+    sort: { column: 'rating', direction: 'desc' },
+    mediumFilter: 'peinture',
+    filters: { status: 'découverte', statusGroup: null, favoritesOnly: true, minRating: 4, year: null, personalDateFrom: '2026-01-01', specificText: '', location: '', exhibition: '' },
+  })
+  assert.match(updateCalls[0].query, /^UPDATE saved_views\s+SET criteria_json = \$1, schema_version = \$2, updated_at = \$3\s+WHERE id = \$4 AND profile_id = \$5 AND medium = \$6/, 'Mise à jour : critères seuls, ciblés par vue, profil et médium')
+  assert.deepEqual(updateCalls[0].bindValues.slice(1), [2, '2026-10-18T10:00:00.000Z', 'vue-1', 'profil-a', 'artworks'], 'Mise à jour : schéma v2 et paramètres liés')
+  assert.deepEqual(updatedCriteria.sort, { column: 'title', direction: 'asc' }, 'Mise à jour : un tri par note demandé pour l’Art est réparé avant écriture')
+  assert.equal(updatedCriteria.filters.minRating, null, 'Mise à jour : pas de note minimale pour l’Art')
+  assert.equal(updatedCriteria.filters.personalDateFrom, '2026-01-01', 'Mise à jour : les critères valides sont conservés')
+  await assert.rejects(() => updateRepository.update('profil-a', 'films', 'vue-absente', updatedCriteria), /introuvable/, 'Mise à jour : une vue absente du profil échoue explicitement')
 }
 
 console.log('Vérification réussie : cinq bibliothèques locales, stockage SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');

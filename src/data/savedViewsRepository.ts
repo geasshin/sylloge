@@ -134,6 +134,33 @@ export class SqliteSavedViewsRepository {
     }
   }
 
+  /**
+   * Remplace les critères d'une vue enregistrée par le combo courant
+   * (« Mettre à jour la vue »). Mêmes garanties qu'à la création : critères
+   * réparés par le domaine, schéma v2, profil et médium ciblés explicitement.
+   */
+  async update(
+    profileId: string,
+    medium: SavedViewMedium,
+    id: string,
+    rawCriteria: SavedViewCriteria,
+  ): Promise<SavedViewCriteria> {
+    const criteria = deserializeSavedViewCriteria(medium, serializeSavedViewCriteria(rawCriteria))
+    assertSavedViewAllowed(medium, criteria)
+
+    const database = await this.loadDatabase()
+    const result = await database.execute(
+      `UPDATE saved_views
+       SET criteria_json = $1, schema_version = $2, updated_at = $3
+       WHERE id = $4 AND profile_id = $5 AND medium = $6`,
+      [serializeSavedViewCriteria(criteria), SAVED_VIEW_SCHEMA_VERSION, this.now(), id, profileId, medium],
+    )
+    if (result.rowsAffected !== 1) {
+      throw new Error('La vue à mettre à jour est introuvable dans le profil courant.')
+    }
+    return criteria
+  }
+
   async remove(profileId: string, id: string): Promise<void> {
     const database = await this.loadDatabase()
     const result = await database.execute(

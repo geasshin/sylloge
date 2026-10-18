@@ -71,6 +71,11 @@ export function hasActiveFilters(filters: LibraryFilters): boolean {
   return countActiveFilters(filters) > 0
 }
 
+/** Compteur accordé du bouton Filtrer : « 1 critère actif », « 2 critères actifs ». */
+export function activeCriteriaLabel(count: number): string {
+  return count > 1 ? `${count} critères actifs` : `${count} critère actif`
+}
+
 export type FilterChip = { key: keyof LibraryFilters; label: string }
 
 /** Récapitulatif lisible des critères actifs, affiché au-dessus des résultats. */

@@ -1174,7 +1174,7 @@ const GAME_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
   statusOptions: GAME_STATUSES.map((status) => ({ value: status, label: GAME_STATUS_LABELS[status] })),
   showRating: true,
   showYear: true,
-  personalDateLabel: 'Jeu',
+  personalDateLabel: 'Partie',
   specificTextField: null,
   showLocation: false,
   showExhibition: false,
@@ -1697,8 +1697,8 @@ function ArtworksLibrary({
   profileId,
   onLibraryChanged,
 }: ArtworksLibraryProps) {
-  // Tous ouvre la rangée, mais Art s'ouvre encore sur Favori : aucun statut
-  // ni progression n'existe pour cette collection.
+  // Tous ouvre la rangée et, depuis le 18 octobre 2026, la bibliothèque Art
+  // elle-même : « Favori » n'en montrait qu'une petite partie.
   const openingView = defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks')
   const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)

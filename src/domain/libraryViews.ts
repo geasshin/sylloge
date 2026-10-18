@@ -15,7 +15,8 @@ import { EMPTY_LIBRARY_FILTERS, mergeLibraryFilters, type LibraryFilters } from 
  * commun : « Tous » ouvre la rangée, puis les vues propres au médium et le
  * socle sémantique. Cet ordre ne définit pas la vue d'ouverture de la
  * bibliothèque, qui reste la watchlist — sauf pour l'Art, qui ouvre sur
- * « Favori » puisque cette collection n'a ni statut ni progression.
+ * « Tous » (décision du 18 octobre 2026 : « Favori » n'y montrait qu'une
+ * petite partie de la collection).
  */
 
 export const LIBRARY_SORT_COLUMNS = ['title', 'recency', 'rating', 'year', 'personalDate', 'added'] as const
@@ -41,6 +42,24 @@ export const LIBRARY_SORT_COLUMN_LABELS: Record<LibrarySortColumn, string> = {
 export const LIBRARY_SORT_DIRECTION_LABELS: Record<LibrarySortDirection, string> = {
   asc: 'Croissant',
   desc: 'Décroissant',
+}
+
+/**
+ * Intitulé d'une colonne de tri dans une bibliothèque : la date personnelle
+ * prend le nom que lui donne le médium (Visionnage, Début de la lecture,
+ * Partie, Découverte…), le même que dans le panneau Filtres.
+ */
+export function librarySortColumnLabel(column: LibrarySortColumn, personalDateLabel?: string | null): string {
+  return column === 'personalDate' && personalDateLabel ? personalDateLabel : LIBRARY_SORT_COLUMN_LABELS[column]
+}
+
+/** Sens par défaut d'une colonne choisie : alphabétique et chronologique d'œuvre croissants, le reste du plus récent ou du mieux noté. */
+export function defaultSortDirection(column: LibrarySortColumn): LibrarySortDirection {
+  return column === 'title' || column === 'year' ? 'asc' : 'desc'
+}
+
+export function sortsEqual(first: LibrarySort, second: LibrarySort): boolean {
+  return first.column === second.column && first.direction === second.direction
 }
 
 export type LibraryViewDefinition = {
@@ -88,6 +107,27 @@ const RECENT_VIEW: LibraryViewDefinition = {
   builtin: true,
 }
 
+export const THIS_YEAR_VIEW_ID = 'this-year'
+
+/**
+ * Vue « Cette année » (18 octobre 2026) : œuvres terminées depuis le 1er
+ * janvier de l'année en cours, de la plus récente à la moins récente.
+ * « Terminé » s'entend au sens strict — vu, lu, joué, découvert ; un abandon
+ * n'en fait pas partie, à la différence du groupe « consumed » de Récent.
+ * Ce statut diffère d'un médium à l'autre : la vue est complétée par
+ * titledBuiltinViews, qui fixe aussi l'année au moment de l'appel, jamais au
+ * chargement du module. Le gabarit seul retombe sur le groupe « consumed ».
+ * Seuls des critères existants sont employés (statut exact, date personnelle
+ * « à partir du ») : le contrat des vues enregistrées ne change pas.
+ */
+const THIS_YEAR_VIEW: LibraryViewDefinition = {
+  id: THIS_YEAR_VIEW_ID,
+  name: 'Cette année',
+  filters: { ...EMPTY_LIBRARY_FILTERS, statusGroup: 'consumed' },
+  sort: { column: 'recency', direction: 'desc' },
+  builtin: true,
+}
+
 const FAVORITES_VIEW: LibraryViewDefinition = {
   id: 'favorites',
   name: 'Favori',
@@ -106,8 +146,8 @@ const RANKING_VIEW: LibraryViewDefinition = {
 
 /**
  * Vue inventaire « Tous » : l'intégralité de la collection, sans filtre
- * métier. Elle ouvre toujours la rangée visible, sans être pour autant la vue
- * sélectionnée au démarrage d'une bibliothèque.
+ * métier. Elle ouvre toujours la rangée visible ; c'est aussi la vue
+ * d'ouverture de l'Art, mais pas celle des bibliothèques à watchlist.
  */
 export const ALL_VIEW: LibraryViewDefinition = {
   id: 'all',
@@ -117,11 +157,12 @@ export const ALL_VIEW: LibraryViewDefinition = {
   builtin: true,
 }
 
-/** Films et Jeux : Tous, puis watchlist, Récent, Favori et Classement. */
+/** Films et Jeux : Tous, puis watchlist, Récent, Cette année, Favori et Classement. */
 export const RATED_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
   ALL_VIEW,
   WATCHLIST_VIEW,
   RECENT_VIEW,
+  THIS_YEAR_VIEW,
   FAVORITES_VIEW,
   RANKING_VIEW,
 ]
@@ -132,6 +173,7 @@ export const PROGRESS_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
   WATCHLIST_VIEW,
   IN_PROGRESS_VIEW,
   RECENT_VIEW,
+  THIS_YEAR_VIEW,
   FAVORITES_VIEW,
   RANKING_VIEW,
 ]
@@ -139,11 +181,12 @@ export const PROGRESS_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
 /**
  * L'Art n'a ni note, ni statut, ni progression : ni « En cours », ni
  * « Classement », ni watchlist sémantique. La rangée visible commence malgré
- * tout par « Tous », puis suit le socle « Récent » / « Favori ».
+ * tout par « Tous », puis suit le socle « Récent » / « Cette année » / « Favori ».
  */
 export const UNRATED_BUILTIN_VIEWS: readonly LibraryViewDefinition[] = [
   ALL_VIEW,
   RECENT_VIEW,
+  THIS_YEAR_VIEW,
   FAVORITES_VIEW,
 ]
 
@@ -160,12 +203,49 @@ export const WATCHLIST_LABELS: Record<'films' | 'series' | 'books' | 'games' | '
   artworks: 'À découvrir',
 }
 
-/** Remplace l'intitulé générique de la watchlist par celui du médium. */
+/**
+ * Statut « arrivé au bout » de chaque médium, le même que celui que l'accueil
+ * compte comme terminé : un abandon n'en fait pas partie.
+ */
+export const FINISHED_STATUS_BY_MEDIUM: Record<keyof typeof WATCHLIST_LABELS, string> = {
+  films: 'terminé',
+  series: 'vue',
+  books: 'lu',
+  games: 'joué',
+  artworks: 'découverte',
+}
+
+/** 1er janvier de l'année en cours (heure locale), au format des dates personnelles. */
+export function startOfCurrentYear(today: Date = new Date()): string {
+  return `${String(today.getFullYear()).padStart(4, '0')}-01-01`
+}
+
+/**
+ * Adapte les vues intégrées au médium : intitulé de la watchlist, et pour
+ * « Cette année », statut terminé du médium et 1er janvier calculé à chaque
+ * appel (une fenêtre restée ouverte au Nouvel An suit la nouvelle année dès
+ * le rendu suivant).
+ */
 export function titledBuiltinViews(
   views: readonly LibraryViewDefinition[],
   medium: keyof typeof WATCHLIST_LABELS,
+  today: Date = new Date(),
 ): readonly LibraryViewDefinition[] {
-  return views.map((view) => view.id === 'watchlist' ? { ...view, name: WATCHLIST_LABELS[medium] } : view)
+  return views.map((view) => {
+    if (view.id === 'watchlist') return { ...view, name: WATCHLIST_LABELS[medium] }
+    if (view.id === THIS_YEAR_VIEW_ID) {
+      return {
+        ...view,
+        filters: {
+          ...view.filters,
+          status: FINISHED_STATUS_BY_MEDIUM[medium],
+          statusGroup: null,
+          personalDateFrom: startOfCurrentYear(today),
+        },
+      }
+    }
+    return view
+  })
 }
 
 export function builtinViewsForMedium(rated: boolean): readonly LibraryViewDefinition[] {
@@ -175,11 +255,11 @@ export function builtinViewsForMedium(rated: boolean): readonly LibraryViewDefin
 /**
  * Identifiants de vue d'ouverture. Ils sont indépendants de l'ordre visible :
  * les quatre bibliothèques avec watchlist démarrent dessus, Art démarre sur
- * Favori. Conserver deux constantes évite qu'une réorganisation de la rangée
+ * Tous. Conserver deux constantes évite qu'une réorganisation de la rangée
  * change silencieusement la vue sélectionnée.
  */
 export const WATCHLIST_DEFAULT_VIEW_ID = 'watchlist'
-export const ARTWORKS_DEFAULT_VIEW_ID = 'favorites'
+export const ARTWORKS_DEFAULT_VIEW_ID = 'all'
 
 /** Nom de la vue d'ouverture selon le médium. */
 export function defaultViewIdForMedium(medium: keyof typeof WATCHLIST_LABELS): string {
