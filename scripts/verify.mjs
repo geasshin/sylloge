@@ -3849,7 +3849,7 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   }
   assert.doesNotMatch(mainSource068, /builtinViewById\(UNRATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/, 'Art ne doit plus ouvrir sur la watchlist inexistante')
   assert.match(mainSource068, /<SeriesCategorySwitch/, 'Séries doit exposer l’interrupteur Télé|Animation')
-  assert.match(mainSource068, /<BookCategorySwitch/, 'Livres doit exposer l’interrupteur Livre|Manga|Comics')
+  assert.match(mainSource068, /filterConfig=\{BOOK_FILTER_PANEL_CONFIG\}/, 'Livres conserve ses catégories Livre|Manga|Comics dans le panneau Filtrer')
   assert.match(mainSource068, /category: seriesContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Séries')
   assert.match(mainSource068, /category: bookContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Livres')
   assert.match(mainSource068, /titledBuiltinViews\(PROGRESS_BUILTIN_VIEWS, 'books'\)/, 'Livres doit titrer sa watchlist « À lire »')
@@ -4889,6 +4889,48 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.equal(updatedCriteria.filters.minRating, null, 'Mise à jour : pas de note minimale pour l’Art')
   assert.equal(updatedCriteria.filters.personalDateFrom, '2026-01-01', 'Mise à jour : les critères valides sont conservés')
   await assert.rejects(() => updateRepository.update('profil-a', 'films', 'vue-absente', updatedCriteria), /introuvable/, 'Mise à jour : une vue absente du profil échoue explicitement')
+}
+
+// Barre des bibliothèques allégée (19 octobre 2026) — « Tout associer » rejoint
+// les actions d’en-tête, la recherche passe en pilule, « Nouvelle vue » sort de
+// la zone qui défile et les seuils de la ligne sont recalculés.
+{
+  const mainSourceLight = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const viewBarSourceLight = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
+  const stylesSourceLight = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  const headerActionBlocks = mainSourceLight.match(/<div className="library-header-actions">[\s\S]*?<\/div>/g) ?? []
+  assert.strictEqual(
+    headerActionBlocks.filter((block) => /<button\s+className="auto-associate-button"[\s\S]*?\{icon\('wand'\)\}[\s\S]*?<LibraryImportButton[\s\S]*?<LibraryExportFlow[\s\S]*?className="primary-button"/.test(block)).length,
+    4,
+    'En-tête : « Tout associer » (icône conservée) précède Importer, Exporter et Ajouter dans les bibliothèques associables',
+  )
+  const toolBlocks = mainSourceLight.match(/<div className="library-tools">[\s\S]*?<LibraryViewBar/g) ?? []
+  assert.ok(toolBlocks.length >= 5, 'Ligne d’outils : chaque bibliothèque garde sa ligne d’outils')
+  for (const block of toolBlocks) {
+    assert.doesNotMatch(block, /auto-associate-button/, 'Ligne d’outils : « Tout associer » ne revient pas à côté de la recherche')
+  }
+  assert.match(stylesSourceLight, /\.library-tools > \.search \{[^}]*flex: 0 0 344px;[^}]*border-radius: var\(--radius-pill\);/, 'Recherche : pilule comme les boutons, un peu plus large que son texte d’aide')
+  assert.match(stylesSourceLight, /\.search:has\(input:focus-visible\) \{ border-color: var\(--color-accent\); box-shadow: 0 0 0 1px var\(--color-accent\); \}/, 'Recherche : l’anneau de focus clavier reste celui du cadre, il suit la pilule')
+
+  // « Nouvelle vue » : après la zone qui défile (fondu et flèches compris), jamais dedans.
+  const scrollerStart = viewBarSourceLight.indexOf('<div className="view-bar-scroller"')
+  const edgesEnd = viewBarSourceLight.indexOf('{edges.end && (')
+  const newViewButton = viewBarSourceLight.indexOf('className="text-button view-bar-new"')
+  assert.ok(scrollerStart > 0 && edgesEnd > scrollerStart && newViewButton > edgesEnd, 'Nouvelle vue : le bouton suit la zone qui défile et ses fondus, hors du défilement')
+  assert.doesNotMatch(viewBarSourceLight.slice(scrollerStart, edgesEnd), /view-bar-new/, 'Nouvelle vue : rien de la zone qui défile ne peut la rogner')
+  assert.match(viewBarSourceLight, /className="view-bar-viewport"[\s\S]*?className="view-bar-scroller"[\s\S]*?\{edges\.start && \(/, 'Vues : le fondu et les flèches appartiennent au cadre des pastilles')
+  assert.match(stylesSourceLight, /\.view-bar-viewport \{[^}]*position: relative;[^}]*min-width: 0;/, 'Vues : le cadre des pastilles porte les fondus et peut rétrécir')
+  assert.match(viewBarSourceLight, /aria-label="Nouvelle vue"\s+data-tooltip="Nouvelle vue"/, 'Nouvelle vue : réduite à son « + », elle garde son nom accessible et son infobulle')
+  assert.match(stylesSourceLight, /\.view-bar:has\(\.view-bar-pending\) \.view-bar-new-label \{ display: none; \}/, 'Nouvelle vue : seule une vue modifiée sur une ligne étroite la réduit à son « + »')
+
+  // Seuils recalculés : une ligne à 1440 px (rail) pour toutes les bibliothèques.
+  const thresholds = [...stylesSourceLight.matchAll(/@container library-tools \(width < (\d+)px\) \{\s*([^{}]*?)\s*\{ flex-basis: 100%; \}/g)].map(([, width, selector]) => [selector.trim(), Number(width)])
+  const ownLine = Object.fromEntries(thresholds)
+  assert.ok(ownLine['.view-bar'] <= 1248 && ownLine['.category-switch ~ .view-bar'] <= 1248, 'Seuils : à 1440 px, barre latérale en rail, la barre de vues tient sur la ligne de la recherche')
+  assert.ok(ownLine['.view-bar'] < ownLine['.category-switch ~ .view-bar'], 'Seuils : une ligne qui porte aussi les catégories passe plus tôt sur deux lignes')
+  assert.doesNotMatch(stylesSourceLight, /\.auto-associate-button ~ \.(?:view-bar|search)/, 'Seuils : plus aucun seuil ne dépend de « Tout associer » dans la ligne')
+  assert.match(viewBarSourceLight, /new ResizeObserver\(\(\) => \{[\s\S]*?revealRef\.current\('auto'\)/, 'Vues : une rangée qui rétrécit ramène la vue active dans le champ')
 }
 
 console.log('Vérification réussie : cinq bibliothèques locales, stockage SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');

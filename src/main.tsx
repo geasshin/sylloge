@@ -42,7 +42,7 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { ProfileAvatar, ProfileAvatarPicker } from './components/ProfileAvatar.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 import { MobileAppShell } from './components/MobileAppShell.tsx'
-import { BookCategorySwitch, SeriesCategorySwitch } from './components/CategorySwitch.tsx'
+import { SeriesCategorySwitch } from './components/CategorySwitch.tsx'
 
 import type { TmdbSearchCandidate, TmdbFilmPresentation } from './data/tmdbService.ts'
 import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, resolveFilmDisplayPoster, resolveFilmDisplayDirector, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
@@ -805,6 +805,15 @@ function FilmsLibrary({
           <p className="library-subtitle">{librarySubtitle(library.films, 'film', 'films')}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Associer automatiquement les fiches non associées via TMDB"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="films"
             buttonLabel="Importer"
@@ -822,15 +831,6 @@ function FilmsLibrary({
       {/* 0.6.27 : la barre d'outils reste affichée même bibliothèque vide —
           les cinq médiums partagent exactement le même gabarit. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Associer automatiquement les fiches non associées via TMDB"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, titre original ou réalisation</span>
@@ -1299,6 +1299,15 @@ function SeriesLibrary({
           <p className="library-subtitle">{librarySubtitle(collection, 'série', 'séries')}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Normaliser les visuels et fiches via TMDB"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="series"
             buttonLabel="Importer"
@@ -1314,15 +1323,6 @@ function SeriesLibrary({
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Normaliser les visuels et fiches via TMDB"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
@@ -1542,6 +1542,15 @@ function GamesLibrary({
           <p className="library-subtitle">{librarySubtitle(collection, 'jeu', 'jeux')}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Normaliser les couvertures et fiches via IGDB"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="games"
             buttonLabel="Importer"
@@ -1557,15 +1566,6 @@ function GamesLibrary({
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Normaliser les couvertures et fiches via IGDB"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
@@ -1877,6 +1877,15 @@ function BooksLibrary({
           <p className="library-subtitle">{librarySubtitle(collection, 'livre', 'livres')}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Normaliser les couvertures et fiches via Open Library"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="books"
             buttonLabel="Importer"
@@ -1892,15 +1901,6 @@ function BooksLibrary({
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Normaliser les couvertures et fiches via Open Library"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
@@ -1911,18 +1911,14 @@ function BooksLibrary({
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
           />
         </label>
-        <BookCategorySwitch
-          selected={context.category.length > 0 ? context.category : [...ALL_BOOK_CATEGORIES]}
-          onSelectionChange={(selected) => onContextChange({ ...context, category: selected as BookCategory[] })}
-        />
         <LibraryViewBar
           profileId={profileId}
           medium="books"
           builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'books')}
           activeView={context.view}
           onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
-          filterConfig={{ ...BOOK_FILTER_PANEL_CONFIG, mediumFilter: null }}
-          mediumFilterValue="all"
+          filterConfig={BOOK_FILTER_PANEL_CONFIG}
+          mediumFilterValue={categoriesToStored(context.category, ALL_BOOK_CATEGORIES)}
           onMediumFilterChange={(stored) => {
             const selected = storedToCategories(stored)
             onContextChange((current) => ({ ...current, category: (selected.length > 0 ? selected : [...ALL_BOOK_CATEGORIES]) as BookCategory[] }))

@@ -1038,7 +1038,10 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   width: auto;
   min-width: 0;
 }
-.library-header { display: flex; align-items: end; justify-content: space-between; }
+/* En-tête : titre à gauche, actions à droite (Tout associer, Importer,
+   Exporter, Ajouter). Si la fenêtre est trop étroite, le groupe d’actions
+   passe sous le titre d’un seul bloc, toujours aligné à droite. */
+.library-header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--space-4); }
 .library-header h1 { font-size: var(--text-display); margin: 0; }
 /* ==========================================================================
    Boutons — une base, cinq rôles
@@ -1373,14 +1376,15 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .search input:focus { outline: none; }
 
 /* ==========================================================================
-   Ligne d’outils et barre de vues des bibliothèques (18 octobre 2026)
-   Association, recherche, catégories puis barre de vues, sur une ligne.
-   Quand la ligne ne peut plus contenir la barre sans écraser les vues, la
-   barre prend toute la ligne suivante, d’un seul bloc : aucun bouton n’est
-   renvoyé seul à la ligne et aucun libellé n’est coupé. Les seuils suivent
-   la largeur réelle de la ligne (requête de conteneur, barre latérale
-   comprise) et ce qu’elle porte : association et catégories (Séries,
-   Livres), association (Films, Jeux), recherche seule (Art).
+   Ligne d’outils et barre de vues des bibliothèques (18 puis 19 octobre 2026)
+   Recherche, catégories (Séries) puis barre de vues, sur une ligne ; « Tout
+   associer » a rejoint les actions d’en-tête. Les vues défilent dans leur
+   rangée. Quand la ligne ne peut plus leur laisser une place utile, la barre
+   prend toute la ligne suivante, d’un seul bloc : aucun bouton n’est renvoyé
+   seul à la ligne et aucun libellé n’est coupé. Les seuils suivent la largeur
+   réelle de la ligne (requête de conteneur, barre latérale comprise) et sont
+   mesurés dans l’état le plus chargé : vue modifiée (Réinitialiser, Mettre à
+   jour), compteur de filtres et tri au libellé le plus long.
    ========================================================================== */
 .library-tools {
   container: library-tools / inline-size;
@@ -1394,12 +1398,12 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   padding: var(--space-8) 0 var(--space-6);
   border-bottom: 1px solid var(--color-border);
 }
-.library-tools > .auto-associate-button, .library-tools > .category-switch { flex: none; }
-/* Recherche : la largeur de son texte d’aide (le plus long, celui des Films,
-   tient en 272 px ; ceux des Séries et Livres en 224 px). Elle ne s’élargit
-   que lorsque la barre de vues a sa propre ligne. */
-.library-tools > .search { flex: 0 0 272px; }
-.library-tools > .search:has(~ .category-switch) { flex-basis: 224px; }
+.library-tools > .category-switch { flex: none; }
+/* Recherche : pilule comme les boutons de la ligne, un peu plus large que son
+   texte d’aide (le plus long, celui des Films, tient en 272 px). Elle ne
+   s’élargit que lorsque la barre de vues a sa propre ligne. */
+.library-tools > .search { flex: 0 0 344px; padding-inline: var(--space-4); border-radius: var(--radius-pill); }
+.library-tools > .search:has(~ .category-switch) { flex-basis: 288px; }
 .view-bar {
   position: relative;
   flex: 1 1 0;
@@ -1408,25 +1412,49 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   align-items: center;
   gap: var(--space-3);
 }
-@container library-tools (width < 1230px) {
+/* Seuils mesurés le 19 octobre 2026 (Chromium, fenêtre de recette) : la barre
+   garde au moins 180 px de vues sur la ligne de la recherche dans l’état le
+   plus chargé, « Nouvelle vue » réduite à son « + ». En dessous, elle prend
+   la ligne suivante d’un seul bloc. Sans catégories : 344 + 12 + 180 + 8 + 34
+   + 12 + 493 (actions « Mettre à jour », compteur, « Début de lecture »).
+   Séries : 288 + 12 + 179 (catégories) + 12 + 180 + 8 + 34 + 12 + 517. */
+@container library-tools (width < 1240px) {
   .category-switch ~ .view-bar { flex-basis: 100%; }
   .library-tools > .search:has(~ .category-switch) { flex-grow: 1; max-width: none; }
 }
-@container library-tools (width < 1010px) {
-  .auto-associate-button ~ .view-bar { flex-basis: 100%; }
-  .auto-associate-button ~ .search { flex-grow: 1; max-width: none; }
-}
-@container library-tools (width < 830px) {
+@container library-tools (width < 1080px) {
   .view-bar { flex-basis: 100%; }
   .library-tools > .search { flex-grow: 1; max-width: none; }
 }
+/* Vue modifiée sur une ligne étroite : « Nouvelle vue » ne garde que son
+   « + », nommé par son infobulle, plutôt que d’écraser les vues. Au-delà, son
+   libellé tient avec Réinitialiser et Mettre à jour (Séries : 1330 px). */
+@container library-tools (width < 1170px) {
+  .view-bar:has(.view-bar-pending) .view-bar-new { width: var(--control-md); padding: 0; }
+  .view-bar:has(.view-bar-pending) .view-bar-new-label { display: none; }
+  .view-bar:has(.view-bar-pending) .view-bar-new[aria-expanded='false']:is(:hover, :focus-visible)::after { content: attr(data-tooltip); }
+}
+@container library-tools (width < 1330px) {
+  .category-switch ~ .view-bar:has(.view-bar-pending) .view-bar-new { width: var(--control-md); padding: 0; }
+  .category-switch ~ .view-bar:has(.view-bar-pending) .view-bar-new-label { display: none; }
+  .category-switch ~ .view-bar:has(.view-bar-pending) .view-bar-new[aria-expanded='false']:is(:hover, :focus-visible)::after { content: attr(data-tooltip); }
+}
 
 /* Rangée des vues : pastilles du contrôle segmenté de l’accueil (même piste,
-   vue active à l’encre pleine). Elle défile quand la place manque ; un fondu
-   et une flèche n’apparaissent que du côté où des vues sont réellement
-   cachées. La marge intérieure garde l’anneau de focus hors de la zone
-   rognée par le défilement. */
-.view-bar-views { position: relative; flex: 1 1 0; min-width: 0; display: flex; }
+   vue active à l’encre pleine). Seules les pastilles défilent quand la place
+   manque ; un fondu et une flèche n’apparaissent que du côté où des vues sont
+   réellement cachées. « Nouvelle vue » suit la rangée, hors de la zone qui
+   défile. La marge intérieure garde l’anneau de focus hors de la zone rognée
+   par le défilement. */
+.view-bar-views { flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
+.view-bar-viewport { position: relative; flex: 0 1 auto; min-width: 0; display: flex; }
+/* Ligne très étroite (barre latérale étendue dans une petite fenêtre) : les
+   vues gardent au moins 180 px et leur « + » ; si les actions d’une vue
+   modifiée ne tiennent plus à côté, elles passent dessous, d’un seul bloc. */
+@container library-tools (width < 760px) {
+  .view-bar { flex-wrap: wrap; row-gap: var(--space-3); }
+  .view-bar-views { min-width: calc(180px + var(--space-2) + var(--control-md)); }
+}
 .view-bar-scroller {
   flex: 1 1 auto;
   min-width: 0;
@@ -1443,7 +1471,10 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 .view-bar-scroller::-webkit-scrollbar { display: none; }
 .library-tools .view-bar .library-views { flex: none; flex-wrap: nowrap; max-width: none; }
-.view-pill { flex: none; display: inline-flex; align-items: center; gap: var(--space-1-5); }
+.view-pill { position: relative; flex: none; display: inline-flex; align-items: center; gap: var(--space-1-5); }
+/* L'annonce masquée de modification reste dans sa pastille et dans le
+   scroller, au lieu d'étendre le défilement horizontal de la page. */
+.view-pill > .visually-hidden { top: 0; left: 0; }
 /* Vue modifiée : un point à côté de son nom, en plus des actions proposées. */
 .view-pill-dot { flex: none; width: var(--space-1-5); height: var(--space-1-5); border-radius: var(--radius-pill); background: currentColor; }
 /* Vue enregistrée active : sa pastille porte son propre menu « … ». */
@@ -1466,8 +1497,29 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .view-pill-menu:hover, .view-pill-menu[aria-expanded='true'] { background: var(--veil-on-accent); }
 .view-pill-menu:focus-visible { outline-color: var(--color-on-accent); outline-offset: -2px; }
 .view-bar-separator { flex: none; width: 1px; height: var(--space-4); margin-inline: var(--space-1); background: var(--color-border-strong); }
-.view-bar-new { flex: none; gap: var(--space-1-5); white-space: nowrap; }
+.view-bar-new { position: relative; flex: none; gap: var(--space-1-5); white-space: nowrap; }
 .view-bar-new svg { flex: none; opacity: .72; }
+.view-bar-new:not(:disabled):hover svg, .view-bar-new[aria-expanded='true'] svg { opacity: 1; }
+/* Infobulle maison de la forme « + » (même pilule que celle du rail) : elle
+   n’est générée que lorsque le libellé est masqué. */
+.view-bar-new::after {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 50%;
+  z-index: 60;
+  padding: var(--space-1-5) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-tooltip-bg);
+  color: var(--color-tooltip-text);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: view-bar-tooltip-in var(--duration-fast) var(--ease-out);
+}
+@keyframes view-bar-tooltip-in { from { opacity: 0; } }
 .view-bar-edge {
   position: absolute;
   top: 0;
@@ -1591,7 +1643,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .saved-views-error { margin: 0; font-size: var(--text-sm); color: var(--color-danger); }
 .view-bar-error { position: absolute; top: calc(100% + var(--space-1)); right: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .view-bar-popover { animation: none; }
+  .view-bar-popover, .view-bar-new::after { animation: none; }
 }
 
 .film-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-8) var(--space-5); margin-top: var(--space-8); align-items: start; }
@@ -1796,8 +1848,10 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .progress-fields { border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--space-4); margin: 0; }
 .progress-fields legend { padding: 0 var(--space-2); color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 600; letter-spacing: 0.04em; }
 .stepper-field { gap: var(--space-2); }
-.stepper { display: flex; align-items: stretch; gap: var(--space-2); }
-.stepper-input { flex: 1; text-align: center; }
+/* Le champ numérique peut se réduire dans les deux colonnes d'avancement ;
+   sa largeur intrinsèque ne doit ni pousser les boutons ni les masquer. */
+.stepper { min-width: 0; display: flex; align-items: stretch; gap: var(--space-2); }
+.stepper-input { min-width: 0; flex: 1; text-align: center; }
 .stepper-field .stepper-readonly-label {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
@@ -3246,7 +3300,10 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .onboarding-import-summary dt { color: var(--color-text-muted); font: 600 var(--text-2xs) var(--font-label); text-transform: uppercase; }
 .onboarding-import-summary dd { margin: 0; font-size: var(--text-sm); font-weight: 700; }
 .onboarding-error { width: min(680px, 100%); margin: var(--space-4) auto 0 !important; }
-.library-header-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.library-header-actions { position: relative; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-2); margin-left: auto; }
+/* Le compte rendu d’export s’affiche sous le groupe, hors du flux : il ne
+   l’élargit pas et n’étire pas les boutons voisins. */
+.library-header-actions .transfer-action-message { position: absolute; top: calc(100% + var(--space-1)); right: 0; white-space: nowrap; }
 .duplicates-list { display: grid; gap: var(--space-4); margin: var(--space-5) 0; }
 .duplicates-header {
   position: sticky;
@@ -3503,7 +3560,9 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .custom-fields-add { justify-self: start; font-size: var(--text-md); }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  /* Une durée non nulle sur * activerait aussi les transitions de top/left
+     des listes positionnées par mesure : leur premier cadre serait décalé. */
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: 0s !important; }
   .film-card:hover .poster, .tmdb-candidate-card:hover:not(:disabled), .poster-dialog-item:hover:not(:disabled),
   .transfer-choice:hover:not(:disabled), .star-slot:hover { transform: none; }
 }

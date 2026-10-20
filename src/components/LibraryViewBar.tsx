@@ -108,8 +108,9 @@ function byName(first: SavedView, second: SavedView): number {
  * contrôle segmenté de l'accueil : vues intégrées, fin séparateur, vues
  * enregistrées, puis « Nouvelle vue ». Aucune vue n'est cachée dans un menu :
  * si la place manque, la rangée défile (molette, trackpad, flèches) et la vue
- * active est toujours ramenée dans le champ. La vue enregistrée active porte
- * son propre menu (renommer, mettre à jour, supprimer).
+ * active est toujours ramenée dans le champ. « Nouvelle vue » reste hors de la
+ * zone qui défile : elle n'est jamais rognée par son bord. La vue enregistrée
+ * active porte son propre menu (renommer, mettre à jour, supprimer).
  *
  * À droite, des actions libellées : « Filtrer » et son compteur, « Trier »
  * qui affiche le tri effectif ; quand les filtres ou le tri diffèrent de la
@@ -242,9 +243,9 @@ export function LibraryViewBar({
     // Les identifiants ne dépendent que du médium.
   }, [open, menuMode, ids.sort, ids.viewMenu])
 
-  // Panneaux ancrés dans la rangée qui défile (nouvelle vue, menu de la vue) :
-  // rendus hors de la zone de défilement pour ne jamais être rognés, ils
-  // suivent leur bouton et restent dans la fenêtre.
+  // Panneaux ancrés à la rangée des vues (nouvelle vue, menu de la vue
+  // enregistrée qui défile avec elle) : rendus hors de la zone de défilement
+  // pour ne jamais être rognés, ils suivent leur bouton et restent dans la fenêtre.
   useLayoutEffect(() => {
     if (open !== 'create' && open !== 'view-menu') return
     const place = () => {
@@ -321,26 +322,55 @@ export function LibraryViewBar({
   }
 
   // La vue active (enregistrée comprise) est toujours ramenée dans le champ.
-  useLayoutEffect(() => {
+  const revealActiveView = useCallback((behavior: ScrollBehavior): boolean => {
     const scroller = scrollerRef.current
     const pill = scroller?.querySelector<HTMLElement>(`[data-view-id="${CSS.escape(activeView.id)}"]`)
-    if (!scroller || !pill) return
+    if (!scroller || !pill) return false
     const scrollerBox = scroller.getBoundingClientRect()
     const pillBox = pill.getBoundingClientRect()
-    const padding = parseFloat(getComputedStyle(scroller).scrollPaddingInlineStart) || 0
+    // La marge garde la pastille hors du fondu ; une pastille plus large que
+    // la rangée moins ses deux marges est centrée, entière autant que possible.
+    const padding = Math.max(0, Math.min(
+      parseFloat(getComputedStyle(scroller).scrollPaddingInlineStart) || 0,
+      (scroller.clientWidth - pillBox.width) / 2,
+    ))
     const start = pillBox.left - scrollerBox.left + scroller.scrollLeft
     const end = start + pillBox.width
     let target = scroller.scrollLeft
     if (start - padding < scroller.scrollLeft) target = start - padding
     else if (end + padding > scroller.scrollLeft + scroller.clientWidth) target = end + padding - scroller.clientWidth
     if (Math.abs(target - scroller.scrollLeft) > 0.5) {
-      scroller.scrollTo({ left: Math.max(0, target), behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+      scroller.scrollTo({ left: Math.max(0, target), behavior })
     }
+    return true
+  }, [activeView.id])
+
+  useLayoutEffect(() => {
+    if (!revealActiveView(prefersReducedMotion() ? 'auto' : 'smooth')) return
     if (pendingFocusRef.current === activeView.id) {
       pendingFocusRef.current = null
-      scroller.querySelector<HTMLElement>(`button[data-view-id="${CSS.escape(activeView.id)}"]`)?.focus({ preventScroll: true })
+      scrollerRef.current?.querySelector<HTMLElement>(`button[data-view-id="${CSS.escape(activeView.id)}"]`)?.focus({ preventScroll: true })
     }
-  }, [activeView.id, savedViews])
+  }, [activeView.id, savedViews, revealActiveView])
+
+  // Une rangée qui rétrécit (actions de modification qui apparaissent, fenêtre
+  // plus étroite) garde elle aussi la vue active dans le champ.
+  const revealRef = useRef(revealActiveView)
+  useEffect(() => {
+    revealRef.current = revealActiveView
+  }, [revealActiveView])
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    let width = scroller.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (Math.abs(scroller.clientWidth - width) < 0.5) return
+      width = scroller.clientWidth
+      revealRef.current('auto')
+    })
+    observer.observe(scroller)
+    return () => observer.disconnect()
+  }, [])
 
   // ——— Actions sur les vues ——————————————————————————————————————————————
 
@@ -650,42 +680,50 @@ export function LibraryViewBar({
 
   return (
     <div className="view-bar" ref={rootRef}>
-      <div className="view-bar-views" data-overflow-start={edges.start || undefined} data-overflow-end={edges.end || undefined}>
-        <div className="view-bar-scroller" ref={scrollerRef}>
-          <div className="seg-group-form library-views" role="toolbar" aria-label="Vues" ref={trackRef} onKeyDown={onToolbarKeyDown}>
-            {builtinViews.map((view) => renderViewButton(view))}
-            {savedViews.length > 0 && <span className="view-bar-separator" aria-hidden="true" />}
-            {/* Une vue enregistrée s'applique avec sa forme, catégorie ou
-                plateforme et son tri, sans filtre à la volée resté par-dessus. */}
-            {savedViews.map((view) => renderViewButton({ id: view.id, name: view.name, filters: view.criteria.filters, sort: view.criteria.sort, builtin: false }, () => applySavedView(view)))}
+      <div className="view-bar-views">
+        {/* Seules les pastilles défilent : fondu et flèches restent dans ce
+            cadre, « Nouvelle vue » le suit sans jamais être rognée. */}
+        <div className="view-bar-viewport" data-overflow-start={edges.start || undefined} data-overflow-end={edges.end || undefined}>
+          <div className="view-bar-scroller" ref={scrollerRef}>
+            <div className="seg-group-form library-views" role="toolbar" aria-label="Vues" ref={trackRef} onKeyDown={onToolbarKeyDown}>
+              {builtinViews.map((view) => renderViewButton(view))}
+              {savedViews.length > 0 && <span className="view-bar-separator" aria-hidden="true" />}
+              {/* Une vue enregistrée s'applique avec sa forme, catégorie ou
+                  plateforme et son tri, sans filtre à la volée resté par-dessus. */}
+              {savedViews.map((view) => renderViewButton({ id: view.id, name: view.name, filters: view.criteria.filters, sort: view.criteria.sort, builtin: false }, () => applySavedView(view)))}
+            </div>
           </div>
-          <button
-            className="text-button view-bar-new"
-            type="button"
-            data-source="row"
-            aria-haspopup="dialog"
-            aria-expanded={open === 'create' && createSource === 'row'}
-            aria-controls={open === 'create' && createSource === 'row' ? ids.create : undefined}
-            onClick={(event) => openPopover('create', event.currentTarget)}
-          >
-            {ICONS.plus}
-            <span>Nouvelle vue</span>
-          </button>
+          {edges.start && (
+            <span className="view-bar-edge view-bar-edge-start">
+              <button className="view-bar-scroll" type="button" tabIndex={-1} aria-label="Faire défiler les vues vers la gauche" onClick={() => scrollViews(-1)}>
+                {ICONS.previous}
+              </button>
+            </span>
+          )}
+          {edges.end && (
+            <span className="view-bar-edge view-bar-edge-end">
+              <button className="view-bar-scroll" type="button" tabIndex={-1} aria-label="Faire défiler les vues vers la droite" onClick={() => scrollViews(1)}>
+                {ICONS.next}
+              </button>
+            </span>
+          )}
         </div>
-        {edges.start && (
-          <span className="view-bar-edge view-bar-edge-start">
-            <button className="view-bar-scroll" type="button" tabIndex={-1} aria-label="Faire défiler les vues vers la gauche" onClick={() => scrollViews(-1)}>
-              {ICONS.previous}
-            </button>
-          </span>
-        )}
-        {edges.end && (
-          <span className="view-bar-edge view-bar-edge-end">
-            <button className="view-bar-scroll" type="button" tabIndex={-1} aria-label="Faire défiler les vues vers la droite" onClick={() => scrollViews(1)}>
-              {ICONS.next}
-            </button>
-          </span>
-        )}
+        {/* Hors de la zone qui défile : toujours entière. Quand la ligne est
+            étroite, seul le « + » reste visible, nommé par son infobulle. */}
+        <button
+          className="text-button view-bar-new"
+          type="button"
+          data-source="row"
+          aria-label="Nouvelle vue"
+          data-tooltip="Nouvelle vue"
+          aria-haspopup="dialog"
+          aria-expanded={open === 'create' && createSource === 'row'}
+          aria-controls={open === 'create' && createSource === 'row' ? ids.create : undefined}
+          onClick={(event) => openPopover('create', event.currentTarget)}
+        >
+          {ICONS.plus}
+          <span className="view-bar-new-label">Nouvelle vue</span>
+        </button>
       </div>
 
       <div className="view-bar-actions">
