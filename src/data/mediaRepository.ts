@@ -1,6 +1,7 @@
 import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkCustomField, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
 import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
+import { seriesLibraryForCategory } from '../domain/seriesLibraries.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
 import type { LibrarySort } from '../domain/libraryViews.ts'
 import type { LibraryFilters } from '../domain/libraryFilters.ts'
@@ -15,7 +16,7 @@ import {
   type NativeBookWriter,
 } from './nativeBooks.ts'
 
-export type MediaProviderMedium = 'series' | 'books' | 'games'
+export type MediaProviderMedium = 'series' | 'anime' | 'books' | 'mangas' | 'games'
 
 export type MediaProviderReference = {
   providerName: 'TMDB' | 'Open Library' | 'IGDB'
@@ -125,6 +126,64 @@ type ArtworkRow = {
   created_at: string
   updated_at: string
 }
+
+/** Une bibliothèque = une table : Séries et Animation japonaise ne partagent plus rien. */
+export type SeriesTableLibrary = 'series' | 'anime'
+export type BookTableLibrary = 'books' | 'mangas'
+
+const seriesTable = (library: SeriesTableLibrary): string => library === 'anime' ? 'anime' : 'series'
+const bookTable = (library: BookTableLibrary): string => library === 'mangas' ? 'mangas' : 'books'
+const quoteTable = (library: BookTableLibrary): string => library === 'mangas' ? 'manga_quotes' : 'book_quotes'
+const quoteOwnerColumn = (library: BookTableLibrary): string => library === 'mangas' ? 'manga_id' : 'book_id'
+
+/**
+ * `anime` n'a pas de colonne de catégorie : la valeur est synthétisée pour
+ * conserver le type `Series` unique côté domaine.
+ */
+const seriesColumns = (library: SeriesTableLibrary): string => library === 'anime'
+  ? `
+  id,
+  profile_id,
+  title,
+  showrunner,
+  casting,
+  summary,
+  'animation' AS category,
+  status,
+  rating,
+  is_favorite,
+  seasons_seen,
+  seasons_total,
+  progress_updated_at,
+  started_at,
+  poster_url,
+  personal_note,
+  created_at,
+  updated_at`
+  : SERIES_COLUMNS
+
+/** `mangas` n'a pas de colonne de catégorie : valeur synthétisée de la même façon. */
+const bookColumns = (library: BookTableLibrary): string => library === 'mangas'
+  ? `
+  id,
+  profile_id,
+  title,
+  author,
+  year,
+  summary,
+  'manga' AS category,
+  status,
+  rating,
+  is_favorite,
+  volumes_read,
+  volumes_total,
+  progress_updated_at,
+  started_at,
+  cover_url,
+  personal_note,
+  created_at,
+  updated_at`
+  : BOOK_COLUMNS
 
 const SERIES_COLUMNS = `
   id,
@@ -261,6 +320,30 @@ export function toSeries(row: SeriesRow): Series {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })
+}
+
+/** Colonnes et valeurs d'une fiche Série pour la table de sa bibliothèque. */
+function seriesRowPayload(series: Series, library: SeriesTableLibrary): Array<[string, unknown]> {
+  return [
+    ['id', series.id],
+    ['profile_id', series.profileId],
+    ['title', series.title],
+    ['showrunner', series.showrunner],
+    ['casting', series.casting],
+    ['summary', series.summary],
+    ...(library === 'series' ? [['category', series.category] as [string, unknown]] : []),
+    ['status', series.status],
+    ['rating', series.rating],
+    ['is_favorite', series.isFavorite ? 1 : 0],
+    ['seasons_seen', series.seasonsSeen],
+    ['seasons_total', series.seasonsTotal],
+    ['progress_updated_at', series.progressUpdatedAt],
+    ['started_at', series.startedAt],
+    ['poster_url', series.posterUrl],
+    ['personal_note', series.personalNote],
+    ['created_at', series.createdAt],
+    ['updated_at', series.updatedAt],
+  ]
 }
 
 function toBookQuote(row: BookQuoteRow): BookQuote {
@@ -513,11 +596,11 @@ export class SqliteMediaRepository {
     return saved
   }
 
-  async listSeries(profileId: string): Promise<Series[]> {
+  async listSeries(profileId: string, library: SeriesTableLibrary = 'series'): Promise<Series[]> {
     const database = await this.loadDatabase()
     const rows = await database.select<SeriesRow[]>(
-      `SELECT ${SERIES_COLUMNS}
-       FROM series
+      `SELECT ${seriesColumns(library)}
+       FROM ${seriesTable(library)}
        WHERE profile_id = $1
        ORDER BY title COLLATE NOCASE ASC, created_at ASC`,
       [profileId],
@@ -526,7 +609,7 @@ export class SqliteMediaRepository {
     return rows.map(toSeries)
   }
 
-  async searchSeries(profileId: string, criteria: SeriesSearchCriteria): Promise<Series[]> {
+  async searchSeries(profileId: string, criteria: SeriesSearchCriteria, library: SeriesTableLibrary = 'series'): Promise<Series[]> {
     const database = await this.loadDatabase()
     const clauses = ['profile_id = $1']
     const bindValues: unknown[] = [profileId]
@@ -542,7 +625,8 @@ export class SqliteMediaRepository {
       )`)
     }
 
-    if (criteria.category !== 'all') {
+    // `anime` n'a plus de colonne de catégorie : sa table est déjà la partition.
+    if (library === 'series' && criteria.category !== 'all') {
       // Interrupteur 0.6.8 : la sélection peut compter plusieurs catégories.
       const selected = Array.isArray(criteria.category) ? criteria.category : [criteria.category]
       if (selected.length === 1) {
@@ -560,8 +644,8 @@ export class SqliteMediaRepository {
     appendLibraryFilterClauses(criteria.filters, SERIES_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<SeriesRow[]>(
-      `SELECT ${SERIES_COLUMNS}
-       FROM series
+      `SELECT ${seriesColumns(library)}
+       FROM ${seriesTable(library)}
        WHERE ${clauses.join('\n         AND ')}
        ORDER BY ${librarySortOrderBy(criteria.sort, SERIES_QUERY_COLUMNS)}`,
       bindValues,
@@ -570,11 +654,11 @@ export class SqliteMediaRepository {
     return rows.map(toSeries)
   }
 
-  async getSeries(profileId: string, id: string): Promise<Series | null> {
+  async getSeries(profileId: string, id: string, library: SeriesTableLibrary = 'series'): Promise<Series | null> {
     const database = await this.loadDatabase()
     const rows = await database.select<SeriesRow[]>(
-      `SELECT ${SERIES_COLUMNS}
-       FROM series
+      `SELECT ${seriesColumns(library)}
+       FROM ${seriesTable(library)}
        WHERE id = $1 AND profile_id = $2
        LIMIT 1`,
       [id, profileId],
@@ -586,6 +670,7 @@ export class SqliteMediaRepository {
   async createSeries(
     profileId: string,
     input: Omit<Series, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt'>,
+    library: SeriesTableLibrary = 'series',
   ): Promise<Series> {
     const database = await this.loadDatabase()
     const id = this.createId()
@@ -598,47 +683,12 @@ export class SqliteMediaRepository {
       createdAt: now,
       updatedAt: now,
     })
+    // `anime` ne porte pas de colonne de catégorie : la table est la partition.
+    const row = seriesRowPayload(series, library)
     const result = await database.execute(
-      `INSERT INTO series (
-         id,
-         profile_id,
-         title,
-         showrunner,
-         casting,
-         summary,
-         category,
-         status,
-         rating,
-         is_favorite,
-         seasons_seen,
-         seasons_total,
-         progress_updated_at,
-         started_at,
-         poster_url,
-         personal_note,
-         created_at,
-         updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
-      [
-        series.id,
-        series.profileId,
-        series.title,
-        series.showrunner,
-        series.casting,
-        series.summary,
-        series.category,
-        series.status,
-        series.rating,
-        series.isFavorite ? 1 : 0,
-        series.seasonsSeen,
-        series.seasonsTotal,
-        series.progressUpdatedAt,
-        series.startedAt,
-        series.posterUrl,
-        series.personalNote,
-        series.createdAt,
-        series.updatedAt,
-      ],
+      `INSERT INTO ${seriesTable(library)} (${row.map(([column]) => column).join(', ')})
+       VALUES (${row.map((_, index) => `$${index + 1}`).join(', ')})`,
+      row.map(([, value]) => value),
     )
 
     if (result.rowsAffected !== 1) {
@@ -652,9 +702,10 @@ export class SqliteMediaRepository {
     profileId: string,
     id: string,
     input: Omit<Series, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt'>,
+    library: SeriesTableLibrary = 'series',
   ): Promise<string> {
     const database = await this.loadDatabase()
-    const existing = await this.getSeries(profileId, id)
+    const existing = await this.getSeries(profileId, id, library)
     if (!existing) {
       throw new Error('La série à modifier est introuvable dans le profil courant.')
     }
@@ -665,47 +716,42 @@ export class SqliteMediaRepository {
       id,
       profileId,
       progressUpdatedAt: resolveProgressTimestamp(existing.seasonsSeen, input.seasonsSeen, existing.progressUpdatedAt, updatedAt),
-      createdAt: updatedAt,
+      // La date de création d'origine est conservée, y compris lors d'un déplacement.
+      createdAt: existing.createdAt,
       updatedAt,
     })
+
+    // Corriger le type déplace la même fiche : nouvel enregistrement dans la
+    // table cible, retrait de l'ancienne, identifiant et données préservés.
+    const targetLibrary = seriesLibraryForCategory(series.category)
+    if (targetLibrary !== library) {
+      const row = seriesRowPayload(series, targetLibrary)
+      await database.execute(
+        `INSERT INTO ${seriesTable(targetLibrary)} (${row.map(([column]) => column).join(', ')})
+         VALUES (${row.map((_, index) => `$${index + 1}`).join(', ')})`,
+        row.map(([, value]) => value),
+      )
+      await database.execute(
+        `UPDATE media_provider_links SET medium = $1
+         WHERE profile_id = $2 AND medium = $3 AND media_id = $4`,
+        [targetLibrary, profileId, library, id],
+      )
+      await database.execute(
+        `DELETE FROM ${seriesTable(library)} WHERE id = $1 AND profile_id = $2`,
+        [id, profileId],
+      )
+      return updatedAt
+    }
+
+    const entries = seriesRowPayload(series, library).filter(([column]) => column !== 'id' && column !== 'profile_id' && column !== 'created_at')
+    const assignments = entries.map(([column], index) => `${column} = $${index + 1}`)
+    const values = entries.map(([, value]) => value)
+    values.push(id, profileId)
     const result = await database.execute(
-      `UPDATE series
-       SET
-         title = $1,
-         showrunner = $2,
-         casting = $3,
-         summary = $4,
-         category = $5,
-         status = $6,
-         rating = $7,
-         is_favorite = $8,
-         seasons_seen = $9,
-         seasons_total = $10,
-         progress_updated_at = $11,
-         started_at = $12,
-         poster_url = $13,
-         personal_note = $14,
-         updated_at = $15
-       WHERE id = $16 AND profile_id = $17`,
-      [
-        series.title,
-        series.showrunner,
-        series.casting,
-        series.summary,
-        series.category,
-        series.status,
-        series.rating,
-        series.isFavorite ? 1 : 0,
-        series.seasonsSeen,
-        series.seasonsTotal,
-        series.progressUpdatedAt,
-        series.startedAt,
-        series.posterUrl,
-        series.personalNote,
-        series.updatedAt,
-        id,
-        profileId,
-      ],
+      `UPDATE ${seriesTable(library)}
+       SET ${assignments.join(',\n           ')}
+       WHERE id = $${values.length - 1} AND profile_id = $${values.length}`,
+      values,
     )
 
     if (result.rowsAffected !== 1) {
@@ -715,10 +761,10 @@ export class SqliteMediaRepository {
     return updatedAt
   }
 
-  async deleteSeries(profileId: string, id: string): Promise<void> {
+  async deleteSeries(profileId: string, id: string, library: SeriesTableLibrary = 'series'): Promise<void> {
     const database = await this.loadDatabase()
     const result = await database.execute(
-      `DELETE FROM series
+      `DELETE FROM ${seriesTable(library)}
        WHERE id = $1 AND profile_id = $2`,
       [id, profileId],
     )
@@ -728,19 +774,19 @@ export class SqliteMediaRepository {
     }
   }
 
-  async listBooks(profileId: string): Promise<Book[]> {
+  async listBooks(profileId: string, library: BookTableLibrary = 'books'): Promise<Book[]> {
     const database = await this.loadDatabase()
     const rows = await database.select<BookRow[]>(
-      `SELECT ${BOOK_COLUMNS}
-       FROM books
+      `SELECT ${bookColumns(library)}
+       FROM ${bookTable(library)}
        WHERE profile_id = $1
        ORDER BY title COLLATE NOCASE ASC, created_at ASC`,
       [profileId],
     )
     const quotes = await database.select<BookQuoteRow[]>(
-      `SELECT id, book_id, body, position, created_at
-       FROM book_quotes
-       WHERE book_id IN (SELECT id FROM books WHERE profile_id = $1)
+      `SELECT id, ${quoteOwnerColumn(library)} AS book_id, body, position, created_at
+       FROM ${quoteTable(library)}
+       WHERE ${quoteOwnerColumn(library)} IN (SELECT id FROM ${bookTable(library)} WHERE profile_id = $1)
        ORDER BY position ASC, created_at ASC`,
       [profileId],
     )
@@ -754,7 +800,7 @@ export class SqliteMediaRepository {
     return rows.map((row) => toBook(row, quotesByBook.get(row.id) ?? []))
   }
 
-  async searchBooks(profileId: string, criteria: BookSearchCriteria): Promise<Book[]> {
+  async searchBooks(profileId: string, criteria: BookSearchCriteria, library: BookTableLibrary = 'books'): Promise<Book[]> {
     const database = await this.loadDatabase()
     const clauses = ['profile_id = $1']
     const bindValues: unknown[] = [profileId]
@@ -770,7 +816,8 @@ export class SqliteMediaRepository {
       )`)
     }
 
-    if (criteria.category !== 'all') {
+    // `mangas` n'a plus de colonne de catégorie : sa table est déjà la partition.
+    if (library === 'books' && criteria.category !== 'all') {
       // Interrupteur 0.6.8 : la sélection peut compter plusieurs catégories.
       const selected = Array.isArray(criteria.category) ? criteria.category : [criteria.category]
       if (selected.length === 1) {
@@ -788,8 +835,8 @@ export class SqliteMediaRepository {
     appendLibraryFilterClauses(criteria.filters, BOOK_QUERY_COLUMNS, clauses, bindValues, escapeLikePattern)
 
     const rows = await database.select<BookRow[]>(
-      `SELECT ${BOOK_COLUMNS}
-       FROM books
+      `SELECT ${bookColumns(library)}
+       FROM ${bookTable(library)}
        WHERE ${clauses.join('\n         AND ')}
        ORDER BY ${librarySortOrderBy(criteria.sort, BOOK_QUERY_COLUMNS)}`,
       bindValues,
@@ -797,9 +844,9 @@ export class SqliteMediaRepository {
     if (rows.length === 0) return []
 
     const quotes = await database.select<BookQuoteRow[]>(
-      `SELECT id, book_id, body, position, created_at
-       FROM book_quotes
-       WHERE book_id IN (SELECT id FROM books WHERE profile_id = $1)
+      `SELECT id, ${quoteOwnerColumn(library)} AS book_id, body, position, created_at
+       FROM ${quoteTable(library)}
+       WHERE ${quoteOwnerColumn(library)} IN (SELECT id FROM ${bookTable(library)} WHERE profile_id = $1)
        ORDER BY position ASC, created_at ASC`,
       [profileId],
     )
@@ -815,11 +862,11 @@ export class SqliteMediaRepository {
     return rows.map((row) => toBook(row, quotesByBook.get(row.id) ?? []))
   }
 
-  async getBook(profileId: string, id: string): Promise<Book | null> {
+  async getBook(profileId: string, id: string, library: BookTableLibrary = 'books'): Promise<Book | null> {
     const database = await this.loadDatabase()
     const rows = await database.select<BookRow[]>(
-      `SELECT ${BOOK_COLUMNS}
-       FROM books
+      `SELECT ${bookColumns(library)}
+       FROM ${bookTable(library)}
        WHERE id = $1 AND profile_id = $2
        LIMIT 1`,
       [id, profileId],
@@ -828,9 +875,9 @@ export class SqliteMediaRepository {
     if (!row) return null
 
     const quotes = await database.select<BookQuoteRow[]>(
-      `SELECT id, book_id, body, position, created_at
-       FROM book_quotes
-       WHERE book_id = $1
+      `SELECT id, ${quoteOwnerColumn(library)} AS book_id, body, position, created_at
+       FROM ${quoteTable(library)}
+       WHERE ${quoteOwnerColumn(library)} = $1
        ORDER BY position ASC, created_at ASC`,
       [id],
     )
@@ -842,6 +889,7 @@ export class SqliteMediaRepository {
     profileId: string,
     input: Omit<Book, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'quotes'>,
     quotes: string[] = [],
+    library: BookTableLibrary = 'books',
   ): Promise<Book> {
     const id = this.createId()
     const now = this.now()
@@ -855,7 +903,7 @@ export class SqliteMediaRepository {
       quotes: createBookQuotes(id, quotes, now, this.createId),
     })
     const { quotes: createdQuotes, ...nativeBook } = book
-    await this.createBookNative({ book: nativeBook, quotes: createdQuotes })
+    await this.createBookNative({ book: nativeBook, quotes: createdQuotes, library })
     return book
   }
 
@@ -864,8 +912,9 @@ export class SqliteMediaRepository {
     id: string,
     input: Omit<Book, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'quotes'>,
     quotes?: string[],
+    library: BookTableLibrary = 'books',
   ): Promise<string> {
-    const existing = await this.getBook(profileId, id)
+    const existing = await this.getBook(profileId, id, library)
     if (!existing) {
       throw new Error('Le livre à modifier est introuvable dans le profil courant.')
     }
@@ -883,12 +932,12 @@ export class SqliteMediaRepository {
         : createBookQuotes(id, quotes, updatedAt, this.createId),
     })
     const { quotes: updatedQuotes, ...nativeBook } = book
-    await this.updateBookNative({ book: nativeBook, quotes: updatedQuotes })
+    await this.updateBookNative({ book: nativeBook, quotes: updatedQuotes, library })
     return updatedAt
   }
 
-  async deleteBook(profileId: string, id: string): Promise<void> {
-    await this.deleteBookNative(profileId, id)
+  async deleteBook(profileId: string, id: string, library: BookTableLibrary = 'books'): Promise<void> {
+    await this.deleteBookNative(profileId, id, library)
   }
 
 

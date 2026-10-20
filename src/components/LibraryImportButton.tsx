@@ -60,7 +60,7 @@ type ImportStep = 'choose-file' | 'container-source' | 'external-preview' | 'jso
 
 const IMPORT_MEDIUM_GRAMMAR = {
   films: { pluralLabel: 'films', gender: 'masculine' },
-  series: { pluralLabel: 'séries', gender: 'feminine' },
+  series: { pluralLabel: 'séries et animations japonaises', gender: 'feminine' },
   books: { pluralLabel: 'livres et mangas', gender: 'masculine' },
   games: { pluralLabel: 'jeux', gender: 'masculine' },
   artworks: { pluralLabel: 'œuvres', gender: 'feminine' },
@@ -83,12 +83,16 @@ type SeriesImportProps = BaseProps & {
   kind: 'series'
   profileId: string
   existing: Series[]
+  /** Bibliothèque ouverte : l'import écrit dans sa propre table. */
+  seriesLibrary?: 'series' | 'anime'
 }
 
 type BooksImportProps = BaseProps & {
   kind: 'books'
   profileId: string
   existing: Book[]
+  /** Bibliothèque ouverte : l'import écrit dans sa propre table. */
+  bookLibrary?: 'books' | 'mangas'
 }
 
 type GamesImportProps = BaseProps & {
@@ -397,11 +401,11 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         setReport(`${result.inserted} film${result.inserted > 1 ? 's' : ''} ajouté${result.inserted > 1 ? 's' : ''}, ${result.updated} mis à jour${result.removed > 0 ? `, ${result.removed} remplacé${result.removed > 1 ? 's' : ''}` : ''}.`)
       } else if (props.kind === 'series') {
         const prepared = prepareSeriesImport(mode, props.existing, imported as Series[])
-        const result = await writeSeriesImport(props.profileId, prepared, resolutions)
+        const result = await writeSeriesImport(props.profileId, prepared, resolutions, undefined, undefined, props.kind === 'series' ? props.seriesLibrary ?? 'series' : 'series')
         setReport(`${result.inserted} série${result.inserted > 1 ? 's' : ''} ajoutée${result.inserted > 1 ? 's' : ''}, ${result.updated} mise${result.updated > 1 ? 's' : ''} à jour${result.removed > 0 ? `, ${result.removed} remplacée${result.removed > 1 ? 's' : ''}` : ''}.`)
       } else if (props.kind === 'books') {
         const prepared = prepareBooksImport(mode, props.existing, imported as Book[])
-        const result = await writeBooksImport(props.profileId, prepared, resolutions)
+        const result = await writeBooksImport(props.profileId, prepared, resolutions, undefined, undefined, props.kind === 'books' ? props.bookLibrary ?? 'books' : 'books')
         setReport(`${result.inserted} livre${result.inserted > 1 ? 's' : ''} ajouté${result.inserted > 1 ? 's' : ''}, ${result.updated} mis à jour${result.removed > 0 ? `, ${result.removed} remplacé${result.removed > 1 ? 's' : ''}` : ''}.`)
       } else if (props.kind === 'games') {
         const prepared = prepareGamesImport(mode, props.existing, imported as Game[])
@@ -430,11 +434,17 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       </button>
       {open && (
         <AccessibleDialog
-          title={props.kind === 'books' ? 'Importer Livres et Mangas' : `Importer des ${props.mediumLabel}s`}
+          title={props.kind === 'books' ? 'Importer Livres et Mangas' : props.kind === 'series' ? 'Importer Séries et Animation japonaise' : `Importer des ${props.mediumLabel}s`}
           description="Le fichier est analysé avant toute écriture."
           onClose={close}
           closeDisabled={step === 'working' || choosingFile}
         >
+          {props.kind === 'series' && (
+            <p className="import-contextual-hint" role="note">
+              Import commun aux bibliothèques Séries et Animation japonaise. Les catégories du fichier sont conservées.
+              « Remplacer » remplace les deux bibliothèques.
+            </p>
+          )}
           {props.kind === 'books' && (
             <p className="import-contextual-hint" role="note">
               Import commun aux bibliothèques Livres et Mangas. Les catégories du fichier sont conservées.
@@ -676,7 +686,7 @@ type JsonImportPreviewProps = {
 }
 
 function JsonImportPreview({ kind, fileName, items, onChooseAnother, onContinue }: JsonImportPreviewProps) {
-  const mediumLabel = kind === 'films' ? 'Films' : 'Séries'
+  const mediumLabel = kind === 'films' ? 'Films' : 'Séries et Animation japonaise'
   const remainingCount = Math.max(0, items.length - 5)
 
   return (
@@ -691,7 +701,7 @@ function JsonImportPreview({ kind, fileName, items, onChooseAnother, onContinue 
         <p className="import-json-review-label">Titres détectés</p>
         <ol
           className="import-title-preview"
-          aria-label={kind === 'films' ? 'Titres des films détectés' : 'Titres des séries détectées'}
+          aria-label={kind === 'films' ? 'Titres des films détectés' : 'Titres des séries et animations japonaises détectées'}
         >
           {items.slice(0, 5).map((item, index) => (
             <li key={index + ':' + item.title}>{item.title}</li>

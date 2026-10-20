@@ -6,6 +6,7 @@ import {
 import { Poster } from './Poster.tsx'
 
 type SeriesTmdbSearchFlowProps = {
+  mediumLabel?: 'série' | 'animation japonaise'
   /** Fiche ouverte derrière la pop-up : contexte d'association, titre prérempli. */
   existing?: { title: string; posterUrl: string | null } | null
   /** Candidat en cours de traitement : la liste se fige pendant la préparation. */
@@ -32,7 +33,7 @@ type SearchState =
  * le parcours d'association des films : titre prérempli, encart contexte,
  * rendu compact dans la même pop-up floutée.
  */
-export function SeriesTmdbSearchFlow({ existing = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel, compact = false }: SeriesTmdbSearchFlowProps) {
+export function SeriesTmdbSearchFlow({ mediumLabel = 'série', existing = null, pendingCandidateId = null, selectionError = null, onSelectCandidate, onManual, onCancel, compact = false }: SeriesTmdbSearchFlowProps) {
   const [query, setQuery] = useState(() => existing?.title ?? '')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
 
@@ -83,11 +84,11 @@ export function SeriesTmdbSearchFlow({ existing = null, pendingCandidateId = nul
       )}
 
       <div className="editor-heading">
-        <h1 className="display-title">{existing ? 'Modifier l’association' : 'Rechercher une série'}</h1>
+        <h1 className="display-title">{existing ? 'Modifier l’association' : `Rechercher une ${mediumLabel}`}</h1>
         <p>
           {existing
             ? `Recherchez une autre correspondance TMDB pour « ${existing.title} ».`
-            : 'Recherchez une série dans TMDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.'}
+            : `Rechercher une ${mediumLabel} dans TMDB et choisir la bonne correspondance : le formulaire s’ouvre directement prérempli.`}
         </p>
       </div>
 
@@ -104,7 +105,7 @@ export function SeriesTmdbSearchFlow({ existing = null, pendingCandidateId = nul
 
       <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
-          <label htmlFor="series-tmdb-search-query">Titre de la série</label>
+          <label htmlFor="series-tmdb-search-query">Titre de la {mediumLabel}</label>
           <input
             id="series-tmdb-search-query"
             type="search"

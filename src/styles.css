@@ -7,6 +7,7 @@
 }
 
 :root {
+  --sidebar-expanded-width: 240px;
   /* ==========================================================================
      Fondation visuelle — jetons communs
      Une seule direction pour toute l’application (décision du 16 octobre
@@ -248,7 +249,7 @@ html { scrollbar-gutter: stable; }
   z-index: 40;
 }
 .sidebar-rail { width: 64px; }
-.sidebar-expanded { width: 208px; }
+.sidebar-expanded { width: var(--sidebar-expanded-width); }
 
 /* Accueil est le premier item du rail, au même niveau que les cinq
    bibliothèques ; le branding mobile reste dans le shell et le tiroir. */
@@ -308,7 +309,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 
 /* En rail, les icônes sont plus grandes et plus présentes */
-.nav-item svg { width: 21px; height: 21px; }
+.nav-item svg { width: 21px; height: 21px; flex-shrink: 0; }
 .sidebar-expanded .nav-item svg { width: 18px; height: 18px; }
 
 /* Mode étendu : libellés visibles, alignement à gauche */
@@ -429,7 +430,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 /* ——————————————————— Onglets et bilan de l’onglet ——————————————————— */
 
-/* Une seule ligne : onglets à gauche, bilan à droite, sans retour ni ellipse. */
+/* Sur le grand bureau : onglets à gauche, bilan à droite, sans ellipse. */
 .at-topbar {
   container: at-topbar / inline-size;
   display: flex;
@@ -444,9 +445,15 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .at-stats {
   display: flex;
   flex: 0 0 auto;
+  margin-inline-start: auto;
   align-items: center;
   gap: var(--space-4);
   white-space: nowrap;
+}
+/* Les sept bibliothèques gardent leurs libellés entiers : à petite largeur,
+   le bilan passe sur sa propre ligne plutôt que de sortir de la fenêtre. */
+@media (max-width: 1280px) {
+  .at-topbar { flex-wrap: wrap; row-gap: var(--space-3); }
 }
 .at-stat {
   display: flex;

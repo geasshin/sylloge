@@ -154,27 +154,34 @@ const SERIES: SeriesSeed[] = [
   ['Neon Genesis Evangelion', 'Hideaki Anno', 'animation', 'à voir', null, 0, null, 1, 230, false],
 ]
 
-export function seedSeries(): Row[] {
-  return SERIES.map(([title, showrunner, category, status, rating, favorite, seen, total, addedDaysAgo, hasPoster, casting]) => ({
-    id: `series-${slugify(title)}`,
-    profile_id: QA_PROFILE_ID,
-    title,
-    showrunner,
-    casting: casting ?? null,
-    summary: null,
-    category,
-    status,
-    rating,
-    is_favorite: favorite,
-    seasons_seen: seen,
-    seasons_total: total,
-    progress_updated_at: seen !== null ? at(addedDaysAgo) : null,
-    started_at: status === 'à voir' ? null : day(addedDaysAgo + 10),
-    poster_url: hasPoster ? poster(`series-${slugify(title)}`) : null,
-    personal_note: null,
-    created_at: at(addedDaysAgo),
-    updated_at: at(Math.max(0, addedDaysAgo - 1)),
-  }))
+/** Une bibliothèque = une table : Séries et Animation japonaise sont séparées. */
+export function seedSeries(): { series: Row[]; anime: Row[] } {
+  const series: Row[] = []
+  const anime: Row[] = []
+  for (const [title, showrunner, category, status, rating, favorite, seen, total, addedDaysAgo, hasPoster, casting] of SERIES) {
+    const row: Row = {
+      id: `series-${slugify(title)}`,
+      profile_id: QA_PROFILE_ID,
+      title,
+      showrunner,
+      casting: casting ?? null,
+      summary: null,
+      status,
+      rating,
+      is_favorite: favorite,
+      seasons_seen: seen,
+      seasons_total: total,
+      progress_updated_at: seen !== null ? at(addedDaysAgo) : null,
+      started_at: status === 'à voir' ? null : day(addedDaysAgo + 10),
+      poster_url: hasPoster ? poster(`series-${slugify(title)}`) : null,
+      personal_note: null,
+      created_at: at(addedDaysAgo),
+      updated_at: at(Math.max(0, addedDaysAgo - 1)),
+    }
+    if (category === 'animation') anime.push(row)
+    else series.push({ ...row, category })
+  }
+  return { series, anime }
 }
 
 // ─── Livres ─────────────────────────────────────────────────────────────────
@@ -199,19 +206,21 @@ const BOOKS: BookSeed[] = [
   ['Saga', 'Brian K. Vaughan, Fiona Staples', 2012, 'comics', 'en cours', 4, 0, 3, 11, 200, false],
 ]
 
-export function seedBooks(): { books: Row[]; quotes: Row[] } {
+/** Une bibliothèque = une table : Livres et Mangas sont séparés. */
+export function seedBooks(): { books: Row[]; mangas: Row[]; quotes: Row[]; mangaQuotes: Row[] } {
   const books: Row[] = []
+  const mangas: Row[] = []
   const quotes: Row[] = []
+  const mangaQuotes: Row[] = []
   BOOKS.forEach(([title, author, year, category, status, rating, favorite, read, total, addedDaysAgo, hasCover, bookQuotes]) => {
     const id = `book-${slugify(title)}`
-    books.push({
+    const row: Row = {
       id,
       profile_id: QA_PROFILE_ID,
       title,
       author,
       year,
       summary: null,
-      category,
       status,
       rating,
       is_favorite: favorite,
@@ -223,12 +232,16 @@ export function seedBooks(): { books: Row[]; quotes: Row[] } {
       personal_note: null,
       created_at: at(addedDaysAgo),
       updated_at: at(Math.max(0, addedDaysAgo - 1)),
-    })
+    }
+    const manga = category === 'manga'
+    if (manga) mangas.push(row)
+    else books.push({ ...row, category })
     ;(bookQuotes ?? []).forEach((body, position) => {
-      quotes.push({ id: `${id}-quote-${position}`, book_id: id, body, position, created_at: at(addedDaysAgo) })
+      if (manga) mangaQuotes.push({ id: `${id}-quote-${position}`, manga_id: id, body, position, created_at: at(addedDaysAgo) })
+      else quotes.push({ id: `${id}-quote-${position}`, book_id: id, body, position, created_at: at(addedDaysAgo) })
     })
   })
-  return { books, quotes }
+  return { books, mangas, quotes, mangaQuotes }
 }
 
 // ─── Jeux ───────────────────────────────────────────────────────────────────

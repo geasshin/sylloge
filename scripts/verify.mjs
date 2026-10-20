@@ -22,10 +22,12 @@ import {
 } from '../src/domain/libraryTransfer.ts'
 import { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument } from '../src/domain/libraryDocument.ts'
 import {
+  parseAnimeCollectionJson,
   parseArtworksCollectionJson,
   parseBooksCollectionJson,
   parseFilmsCollectionJson,
   parseGamesCollectionJson,
+  parseMangasCollectionJson,
   parseSeriesCollectionJson,
 } from '../src/domain/collectionJsonImport.ts'
 import {
@@ -609,14 +611,14 @@ const completeExport = createLibraryExport({
     films: [completeTransferFilm],
     series: [{
       id: 'series-1', profileId: 'default', title: '+Série, « test »', showrunner: 'Créatrice', casting: 'A, B',
-      summary: 'Une ligne\nDeuxième ligne', category: 'animation', status: 'en cours', rating: 4.5,
+      summary: 'Une ligne\nDeuxième ligne', category: 'série télé', status: 'en cours', rating: 4.5,
       isFavorite: true, seasonsSeen: 2, seasonsTotal: 3, progressUpdatedAt: '2026-07-18T10:00:00.000Z',
       startedAt: '2026-07-17', posterUrl: null, personalNote: 'Note série',
       createdAt: '2026-07-17T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
     }],
     books: [{
       id: 'book-1', profileId: 'default', title: 'Livre « test »', author: 'Autrice', year: 2025,
-      summary: null, category: 'manga', status: 'en cours', rating: 4, isFavorite: false,
+      summary: null, category: 'livre', status: 'en cours', rating: 4, isFavorite: false,
       volumesRead: 3, volumesTotal: 5, progressUpdatedAt: '2026-07-18T10:00:00.000Z',
       startedAt: '2026-07-16', coverUrl: null, personalNote: 'Avis, avec virgule',
       createdAt: '2026-07-16T10:00:00.000Z', updatedAt: '2026-07-18T10:00:00.000Z',
@@ -2035,7 +2037,13 @@ const tmdbModuleSource = readFileSync(new URL('../src-tauri/src/tmdb/mod.rs', im
 const tmdbCacheSource = readFileSync(new URL('../src-tauri/src/tmdb/cache.rs', import.meta.url), 'utf8')
 const tmdbClientSource = readFileSync(new URL('../src-tauri/src/tmdb/client.rs', import.meta.url), 'utf8')
 const tmdbSecretsSource = readFileSync(new URL('../src-tauri/src/tmdb/secrets.rs', import.meta.url), 'utf8')
-const tmdbEmbeddedKeySource = readFileSync(new URL('../src-tauri/src/tmdb/embedded_key.rs', import.meta.url), 'utf8')
+// Contrôler le vrai générateur avec une valeur factice, jamais un module local
+// ignoré qui peut contenir un secret. Fonctionne aussi dans un clone propre.
+const generatedTmdbFixture = spawnSync('python3', ['-c',
+  'from scripts.generate_embedded_key import render_embedded, DEFAULT_SEED; print(render_embedded("tmdb", DEFAULT_SEED, b"cle-factice-de-recette-0000000000"))',
+], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } })
+assert.equal(generatedTmdbFixture.status, 0, `Le générateur TMDB factice doit réussir : ${generatedTmdbFixture.stderr}`)
+const tmdbEmbeddedKeySource = generatedTmdbFixture.stdout
 const repositorySource = readFileSync(new URL('../src/data/filmsRepository.ts', import.meta.url), 'utf8')
 const metadataAssistanceSource = readFileSync(new URL('../src/domain/filmMetadataAssistance.ts', import.meta.url), 'utf8')
 const migrationSource = readFileSync(new URL('../src-tauri/migrations/0001_create_profiles_and_films.sql', import.meta.url), 'utf8')
@@ -2226,7 +2234,7 @@ assert.match(libraryImportButtonSource, /<JsonImportPreview[\s\S]*fileName=\{fil
 assert.match(libraryImportButtonSource, /items\.slice\(0, 5\)/, 'L’aperçu JSON doit limiter l’extrait affiché pour garder le dialogue lisible')
 assert.match(libraryImportButtonSource, /onContinue=\{\(\) => setStep\('mode'\)\}/, 'Le choix Remplacer ou Fusionner ne doit venir qu’après l’aperçu JSON')
 assert.match(collectionImportFlowSource, /title=\{duplicate\.existing\.title\}/, 'Le résolveur doit afficher le titre d’origine, avec sa casse et ses accents, et non la clé normalisée')
-assert.match(libraryImportButtonSource, /series: \{ pluralLabel: 'séries', gender: 'feminine' \}/, 'Le choix d’import doit accorder correctement le pluriel féminin Séries')
+assert.match(libraryImportButtonSource, /series: \{ pluralLabel: 'séries et animations japonaises', gender: 'feminine' \}/, 'L’import partagé doit nommer Séries et Animation japonaise et conserver les accords féminins')
 assert.match(libraryImportButtonSource, /games: \{ pluralLabel: 'jeux', gender: 'masculine' \}/, 'Le choix d’import doit employer le pluriel correct de Jeux')
 assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détectée' : 'détectées'/, 'Le choix d’import doit accorder les noms féminins au singulier et au pluriel')
 assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détecté' : 'détectés'/, 'Le choix d’import doit accorder les noms masculins au singulier et au pluriel')
@@ -2501,19 +2509,23 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   }
 
   const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
-  assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format v2')
-  assert.equal(document.version, 2, 'Le document doit porter la version 2')
+  assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format sylloge-library')
+  assert.equal(document.version, 3, 'Le document doit porter la version 3')
 
   const serialized = serializeLibraryDocument(document)
   const preview = validateLibraryDocument(serialized)
-  assert.equal(preview.errors.length, 0, `Un aller-retour v2 doit être valide : ${JSON.stringify(preview.errors)}`)
-  assert.deepEqual(preview.counts, { films: 1, series: 1, books: 1, games: 1, artworks: 1 }, 'Les compteurs doivent refléter chaque collection')
-  assert.equal(preview.document?.series[0]?.category, 'animation', 'La catégorie Série doit survivre à l’aller-retour')
-  assert.equal(preview.document?.books[0]?.quotes[0]?.body, 'Citation mémorable', 'Les citations doivent survivre à l’aller-retour')
+  assert.equal(preview.errors.length, 0, `Un aller-retour v3 doit être valide : ${JSON.stringify(preview.errors)}`)
+  assert.deepEqual(
+    preview.counts,
+    { films: 1, series: 0, anime: 1, books: 0, mangas: 1, games: 1, artworks: 1 },
+    'Les compteurs doivent refléter les sept sections et router animation/manga',
+  )
+  assert.equal(preview.document?.anime[0]?.category, 'animation', 'La catégorie Série doit survivre à l’aller-retour dans anime')
+  assert.equal(preview.document?.mangas[0]?.quotes[0]?.body, 'Citation mémorable', 'Les citations doivent survivre à l’aller-retour')
   assert.equal(preview.document?.games[0]?.platform, 'Dreamcast', 'La plateforme libre doit survivre à l’aller-retour')
-  assert.equal(parseFilmsCollectionJson(serialized).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit accepter un document v2')
-  assert.equal(parseSeriesCollectionJson(serialized).items?.[0]?.title, 'Série v2', 'L’import unitaire Séries doit accepter un document v2')
-  assert.equal(parseBooksCollectionJson(serialized).items?.[0]?.quotes[0]?.body, 'Citation mémorable', 'L’import unitaire Livres doit conserver les citations du document v2')
+  assert.equal(parseFilmsCollectionJson(serialized).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit accepter un document v3')
+  assert.equal(parseAnimeCollectionJson(serialized).items?.[0]?.title, 'Série v2', 'L’import unitaire Anime doit accepter une fiche animation')
+  assert.equal(parseMangasCollectionJson(serialized).items?.[0]?.quotes[0]?.body, 'Citation mémorable', 'L’import unitaire Mangas doit conserver les citations')
 
   const malformedFilmJson = parseFilmsCollectionJson('{ "films":')
   const malformedSeriesJson = parseSeriesCollectionJson('{ "series":')
@@ -2530,7 +2542,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
     films: library.films,
   })
   const v1Preview = validateLibraryDocument(v1Document)
-  assert.equal(v1Preview.document, null, 'Un document v1 doit être refusé par le validateur v2')
+  assert.equal(v1Preview.document?.films[0]?.title, 'Film v2', 'Un document v1 reste lisible et exposé dans le modèle v3')
   assert.equal(parseFilmsCollectionJson(v1Document).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit rester compatible avec un JSON Films v1')
   assert.equal(parseSeriesCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Séries')
   assert.equal(parseBooksCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Livres')
@@ -2551,7 +2563,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.match(emptySeriesJson.error ?? '', /aucune série/i, 'Le refus d’une collection Séries vide doit nommer le contenu absent')
 
   const invalidSeries = JSON.parse(serialized)
-  invalidSeries.series[0].seasonsSeen = 12
+  invalidSeries.anime[0].seasonsSeen = 12
   const invalidPreview = validateLibraryDocument(JSON.stringify(invalidSeries))
   assert.equal(invalidPreview.document, null, 'Une progression incohérente doit bloquer le document')
   assert.ok(invalidPreview.errors.some((error) => error.path.includes('seasonsSeen')), 'L’erreur doit cibler la progression invalide')
@@ -2769,7 +2781,7 @@ assert.match(stepperSource, /aria-label=\{`Ajouter 1 à \$\{label\}`\}/, 'Le bou
 assert.match(stepperSource, /aria-label=\{`Retirer 1 à \$\{label\}`\}/, 'Le bouton − doit rester accessible')
 assert.match(seriesDetailSource, /saison/, 'La fiche doit afficher l’avancement en saisons')
 assert.match(mainSource043, /icon\('series'\)\} Séries/, 'La sidebar doit proposer l’entrée Séries')
-assert.match(mainSource043, /label: 'Catégorie'/, 'La bibliothèque Séries doit offrir le filtre par catégorie')
+assert.match(mainSource043, /seriesForLibrary\(seriesCollection, scope\)/, 'Séries et Animation japonaise partitionnent les fiches existantes sans copie')
 assert.match(mainSource043, /searchSeries/, 'La recherche Séries doit reposer sur le repository')
 assert.match(mediaRepositorySource, /searchSeries/, 'Le repository doit exposer la recherche Séries')
 assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_QUERY_COLUMNS\)/, 'Le tri Séries doit reposer sur les colonnes documentées du médium')
@@ -3521,6 +3533,7 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     discoveredAt: '2026-07-22',
     imageUrl: null,
     personalNote: 'Souvenir personnel\nmultiligne.',
+    customFields: [],
     createdAt: timestamp,
     updatedAt: timestamp,
   }
@@ -3852,7 +3865,8 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
     assert.match(mainSource068, initializer.pattern, `${initializer.medium} : le contexte ouvre explicitement sur sa vue d’ouverture`)
   }
   assert.doesNotMatch(mainSource068, /builtinViewById\(UNRATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/, 'Art ne doit plus ouvrir sur la watchlist inexistante')
-  assert.match(mainSource068, /<SeriesCategorySwitch/, 'Séries doit exposer l’interrupteur Télé|Animation')
+  assert.doesNotMatch(mainSource068, /<SeriesCategorySwitch/, 'Séries et Animation japonaise sont deux bibliothèques, sans bascule de catégorie dans leur barre')
+  assert.match(mainSource068, /category: animeContext\.category, filters: resolved\.filters/, 'Animation japonaise a sa propre recherche SQLite')
   assert.doesNotMatch(mainSource068, /<BookCategorySwitch/, 'Livres et Mangas sont des bibliothèques séparées, sans bascule de catégorie dans la barre')
   assert.match(mainSource068, /category: mangaContext\.category, filters: resolved\.filters/, 'Mangas doit avoir sa propre recherche SQLite et ses catégories')
   assert.match(mainSource068, /category: seriesContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Séries')
@@ -3867,7 +3881,7 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   assert.match(categorySwitchSource068, /effective\.length === 1\) return/, 'L’interrupteur garde toujours au moins une catégorie active')
   const mediaRepositorySource068 = readFileSync(new URL('../src/data/mediaRepository.ts', import.meta.url), 'utf8')
   assert.match(mediaRepositorySource068, /category IN \(/, 'Le dépôt doit filtrer les sélections de catégories multiples en SQL paramétré')
-  assert.match(mainSource068, /categoriesToStored\(context\.category/, 'La vue enregistrée doit stocker la sélection partielle sans perte')
+  assert.match(mainSource068, /seriesLibraryStoredFilter\(library, context\.category\)/, 'Les vues séries conservent leur bibliothèque dans le schéma existant')
   assert.match(stylesSource068, /\.category-switch-segment/, 'L’interrupteur doit suivre la charte maison')
   assert.match(stylesSource068, /scrollbar-gutter: stable/, 'La place de la barre de défilement doit rester réservée (correctif du saut Favoris)')
 }
@@ -4010,7 +4024,9 @@ assert.doesNotMatch(savedViewsMigration13Source, /INSERT INTO saved_views_new \(
 assert.match(rustDatabaseSource, /0012_create_saved_views\.sql/, 'La migration 12 doit être enregistrée')
 assert.match(rustDatabaseSource, /0013_saved_views_unified_criteria\.sql/, 'La migration 13 doit être enregistrée')
 assert.doesNotMatch(libraryDocumentSource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans le document d’export (décision : local uniquement)')
-assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans les snapshots ni la portabilité native')
+// Le schéma complet est monté dans les tests ; la règle vise le code de production.
+const rustPortabilityProduction0421 = rustPortabilitySource0421.split('\n#[cfg(test)]\nmod tests {')[0]
+assert.doesNotMatch(rustPortabilityProduction0421, /saved_views/, 'Les vues enregistrées ne doivent pas entrer dans les snapshots ni la portabilité native')
 
 {
   const {
@@ -4399,7 +4415,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
     readFileSync(new URL('../src/components/GameForm.tsx', import.meta.url), 'utf8'),
     readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
   ]
-  assert.match(mainSource0610, /medium: 'série', step: 'search' \}/, 'Le bouton Ajouter une série doit ouvrir la pop-up de recherche TMDB')
+  assert.match(mainSource0610, /medium: 'série', step: 'search', seriesLibrary: scope \}/, 'Ajouter une série ou une animation ouvre la recherche TMDB en conservant la bibliothèque')
   assert.match(mainSource0610, /medium: 'livre', step: 'search', bookLibrary: scope \}/, 'Les boutons Ajouter un livre/manga ouvrent la recherche Open Library en conservant leur bibliothèque')
   assert.match(mainSource0610, /medium: 'jeu', step: 'search' \}/, 'Le bouton Ajouter un jeu doit ouvrir la pop-up de recherche IGDB')
   assert.match(mainSource0610, /medium: 'artwork', step: 'form'/, 'L’Art, sans fournisseur par règle du domaine, ouvre la pop-up directement au stade formulaire')
@@ -4940,4 +4956,4 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
 
 await import('./verify-book-libraries.mjs')
 
-console.log('Vérification réussie : six bibliothèques locales, cinq collections SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');
+console.log('Vérification réussie : sept bibliothèques locales, sept tables SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');

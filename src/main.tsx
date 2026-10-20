@@ -42,7 +42,7 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { ProfileAvatar, ProfileAvatarPicker } from './components/ProfileAvatar.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 import { MobileAppShell } from './components/MobileAppShell.tsx'
-import { SeriesCategorySwitch } from './components/CategorySwitch.tsx'
+
 
 import type { TmdbSearchCandidate, TmdbFilmPresentation } from './data/tmdbService.ts'
 import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, resolveFilmDisplayPoster, resolveFilmDisplayDirector, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
@@ -88,14 +88,14 @@ import {
   type LibraryFilters,
 } from './domain/libraryFilters.ts'
 import {
-  SERIES_CATEGORIES,
-  SERIES_CATEGORY_LABELS,
+
   SERIES_STATUS_LABELS,
   SERIES_STATUSES,
   type Series,
   type SeriesCategory,
 } from './domain/series.ts'
 import type { SeriesFormValues, SeriesWriteInput } from './domain/seriesForm.ts'
+import { seriesLibraryForCategory, seriesLibraryCategories, seriesLibraryStoredFilter, seriesForLibrary, type SeriesLibraryKey } from './domain/seriesLibraries.ts'
 import { seriesPresentationToInitialValues } from './domain/seriesMetadataAssistance.ts'
 import {
   BOOK_CATEGORY_LABELS,
@@ -130,6 +130,7 @@ import {
   HomeIcon,
   FilmIcon,
   SeriesIcon,
+  AnimeIcon,
   BookIcon,
   MangaIcon,
   GameIcon,
@@ -145,7 +146,7 @@ import {
 } from './components/icons.tsx'
 import './styles.css'
 
-type IconName = 'art' | 'book' | 'manga' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink' | 'arrow-left'
+type IconName = 'art' | 'book' | 'manga' | 'anime' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink' | 'arrow-left'
 export type { IconName }
 type SettingsSection = PortabilitySection
 
@@ -160,6 +161,8 @@ export function icon(name: IconName) {
       return <FilmIcon />
     case 'series':
       return <SeriesIcon />
+    case 'anime':
+      return <AnimeIcon />
     case 'book':
       return <BookIcon />
     case 'manga':
@@ -202,16 +205,18 @@ type SidebarProps = {
   onToggleExpanded: () => void
   count: number | null
   seriesCount: number | null
+  animeCount: number | null
   bookCount: number | null
   mangaCount: number | null
   gameCount: number | null
   artworkCount: number | null
   currentProfileName: string | null
   currentProfileAvatar: string | null
-  activeItem: 'artworks' | 'books' | 'mangas' | 'games' | 'home' | 'library' | 'series' | 'settings'
+  activeItem: 'artworks' | 'books' | 'mangas' | 'games' | 'home' | 'library' | 'series' | 'anime' | 'settings'
   onHome: () => void
   onLibrary: () => void
   onSeries: () => void
+  onAnime: () => void
   onBooks: () => void
   onMangas: () => void
   onGames: () => void
@@ -227,6 +232,7 @@ function Sidebar({
   onToggleExpanded,
   count,
   seriesCount,
+  animeCount,
   bookCount,
   mangaCount,
   gameCount,
@@ -237,6 +243,7 @@ function Sidebar({
   onHome,
   onLibrary,
   onSeries,
+  onAnime,
   onBooks,
   onMangas,
   onGames,
@@ -304,6 +311,18 @@ function Sidebar({
             <span className="nav-item-text">{icon('series')} Séries</span>
             {seriesCount !== null && <span className="nav-count">{seriesCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('series')}</span>
+          </button>
+          <button
+            className={`nav-item ${activeItem === 'anime' ? 'active' : ''}`}
+            type="button"
+            onClick={onAnime}
+            data-tooltip={labelFor('Animation japonaise')}
+            aria-label="Animation japonaise"
+            aria-current={activeItem === 'anime' ? 'page' : undefined}
+          >
+            <span className="nav-item-text">{icon('anime')} Animation japonaise</span>
+            {animeCount !== null && <span className="nav-count">{animeCount}</span>}
+            <span className="nav-item-peek" aria-hidden="true">{icon('anime')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'books' ? 'active' : ''}`}
@@ -724,30 +743,6 @@ type LibraryContext = {
   sortOverride: LibrarySort | null
 }
 
-const ALL_SERIES_CATEGORIES = SERIES_CATEGORIES as readonly SeriesCategory[]
-
-/**
- * Sélection de catégories → valeur stockée dans une vue enregistrée.
- * Liste vide ou complète = « all » ; sinon les catégories jointes par « | »,
- * sans perte pour une sélection partielle multiple.
- */
-function categoriesToStored(categories: readonly string[], complete: readonly string[]): string {
-  if (categories.length === 0 || categories.length === complete.length) return 'all'
-  return categories.join('|')
-}
-
-/** Valeur stockée (« all », catégorie, ou « a|b ») → liste pour l'interrupteur. */
-function storedToCategories(value: string): string[] {
-  if (value === 'all' || value.trim() === '') return []
-  return value.split('|').map((entry) => entry.trim()).filter(Boolean)
-}
-
-/** Libellé lisible des catégories actives d'une bibliothèque, null si toutes. */
-function categoriesLabel(categories: readonly string[], labels: Record<string, string>): string | null {
-  if (categories.length === 0) return null
-  const names = categories.map((category) => labels[category] ?? category)
-  return names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} et ${names[names.length - 1]}`
-}
 
 type SeriesLibraryContext = {
   query: string
@@ -1154,13 +1149,7 @@ const FILM_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
 }
 
 const SERIES_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
-  mediumFilter: {
-    label: 'Catégorie',
-    options: [
-      { value: 'all', label: 'Toutes' },
-      ...SERIES_CATEGORIES.map((category) => ({ value: category as string, label: SERIES_CATEGORY_LABELS[category] })),
-    ],
-  },
+  mediumFilter: null,
   statusOptions: SERIES_STATUSES.map((status) => ({ value: status, label: SERIES_STATUS_LABELS[status] })),
   showRating: true,
   showYear: false,
@@ -1249,6 +1238,8 @@ function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) 
 }
 
 type SeriesLibraryProps = {
+  library: SeriesLibraryKey
+  allSeries: Series[]
   profileName: string
   collection: Series[]
   context: SeriesLibraryContext
@@ -1267,6 +1258,8 @@ type SeriesSearchState =
   | { status: 'error' }
 
 function SeriesLibrary({
+  library,
+  allSeries,
   profileName,
   collection,
   context,
@@ -1278,9 +1271,12 @@ function SeriesLibrary({
   profileId,
   onLibraryChanged,
 }: SeriesLibraryProps) {
+  const label = library === 'anime' ? 'Animation japonaise' : 'Séries'
+  const singular = library === 'anime' ? 'animation japonaise' : 'série'
+  const plural = library === 'anime' ? 'animations japonaises' : 'séries'
   // L'ordre visible commence par Tous ; la vue d'ouverture reste la watchlist.
   const openingView = defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'series')
-  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_SERIES_CATEGORIES.length && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const isUnfiltered = context.query.trim() === '' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
@@ -1304,7 +1300,7 @@ function SeriesLibrary({
           .sort((a, b) => b.score - a.score)
         if (scored.length > 0 && scored[0].score >= MATCH_THRESHOLD) {
           const presentation = await previewTmdbSeries(scored[0].candidate.tmdbId, 'fr-FR')
-          await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation))
+          await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation), seriesLibraryForCategory(series.category))
           await mediaRepository.setMediaProviderLink({ profileId, medium: 'series', mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
           associatedCount += 1
         } else {
@@ -1320,11 +1316,11 @@ function SeriesLibrary({
   }
 
   return (
-    <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
+    <main className="main library-main" aria-label={`Bibliothèque ${label} du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <h1 className="display-title">Séries</h1>
-          <p className="library-subtitle">{librarySubtitle(collection, 'série', 'séries')}</p>
+          <h1 className="display-title">{label}</h1>
+          <p className="library-subtitle">{librarySubtitle(collection, singular, plural)}</p>
         </div>
         <div className="library-header-actions">
           <button
@@ -1339,14 +1335,15 @@ function SeriesLibrary({
           <LibraryImportButton
             kind="series"
             buttonLabel="Importer"
-            mediumLabel="série"
+            mediumLabel={singular}
+            seriesLibrary={library}
             profileId={profileId}
             profileName={profileName}
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="series" profileId={profileId} />
-          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une série</button>
+          <LibraryExportFlow kind="series" profileId={profileId} seriesLibrary={library} />
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une {singular}</button>
         </div>
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
@@ -1361,35 +1358,31 @@ function SeriesLibrary({
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
           />
         </label>
-        <SeriesCategorySwitch
-          selected={context.category.length > 0 ? context.category : [...ALL_SERIES_CATEGORIES]}
-          onSelectionChange={(selected) => onContextChange({ ...context, category: selected as SeriesCategory[] })}
-        />
         <LibraryViewBar
           profileId={profileId}
           medium="series"
+          seriesLibrary={library}
           builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'series')}
           activeView={context.view}
           onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
-          filterConfig={{ ...SERIES_FILTER_PANEL_CONFIG, mediumFilter: null }}
+          filterConfig={SERIES_FILTER_PANEL_CONFIG}
           mediumFilterValue="all"
           onMediumFilterChange={(stored) => {
-            const selected = storedToCategories(stored)
-            onContextChange((current) => ({ ...current, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] }))
+            onContextChange((current) => ({ ...current, category: seriesLibraryCategories(library, stored) }))
           }}
           extraFilters={context.extraFilters}
           onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: false }}
           sortOverride={context.sortOverride}
           onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
-          currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_SERIES_CATEGORIES), filters: resolved.filters }}
+          currentCriteria={{ sort: resolved.sort, mediumFilter: seriesLibraryStoredFilter(library, context.category), filters: resolved.filters }}
         />
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <h2>Votre bibliothèque Séries est vide.</h2>
-          <p>Ajoutez une première série, avec un titre seulement si vous le souhaitez.</p>
-          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une série</button>
+          <h2>La bibliothèque {label} est vide.</h2>
+          <p>Ajouter une première {singular}, avec un titre seulement si nécessaire.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une {singular}</button>
         </div>
       ) : (
         <>
@@ -1398,19 +1391,19 @@ function SeriesLibrary({
           ) : searchState.status === 'error' ? (
             <div className="results-state error-state" role="alert">
               <h2>La recherche locale a échoué.</h2>
-              <p>Vos séries restent enregistrées. Réessayez pour relire les résultats depuis SQLite.</p>
+              <p>Les fiches restent enregistrées. Réessayer pour relire les résultats depuis SQLite.</p>
               <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
             </div>
           ) : searchState.series.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>{isUnfiltered ? `Aucune série dans la vue « ${openingView.name} ».` : 'Aucune série ne correspond.'}</h2>
-              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à toutes les séries.'}</p>
+              <h2>{isUnfiltered ? `Aucune ${singular} dans la vue « ${openingView.name} ».` : `Aucune ${singular} ne correspond.`}</h2>
+              <p>{isUnfiltered ? 'La vue « Tous » affiche toute la bibliothèque.' : 'Modifier la recherche ou revenir à toutes les fiches.'}</p>
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', category: seriesLibraryCategories(library), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
-                Afficher toutes les séries
+                Afficher toutes les {plural}
               </button>
             </div>
           ) : (
@@ -1427,7 +1420,7 @@ function SeriesLibrary({
         onClose={() => setAutoAssociateOpen(false)}
         providerLabel="TMDB"
         pendingCount={collection.length}
-        confirmText="Normaliser toutes les séries via TMDB ?"
+        confirmText={`Normaliser toutes les fiches ${label} via TMDB ?`}
         run={runSeriesAssociation}
         onDone={onLibraryChanged}
       />
@@ -1927,10 +1920,11 @@ function BooksLibrary({
           <LibraryImportButton
             kind="books"
             buttonLabel="Importer"
-            mediumLabel="livre ou manga"
+            mediumLabel={singular}
+            bookLibrary={library}
             profileId={profileId}
             profileName={profileName}
-            existing={allBooks}
+            existing={collection}
             onDone={onLibraryChanged}
           />
           <LibraryExportFlow kind="books" profileId={profileId} bookLibrary={library} />
@@ -2023,12 +2017,13 @@ function BooksLibrary({
  * Écran d'où une fiche a été ouverte. C'est à la fois la cible du bouton
  * retour et la clé sous laquelle la position de défilement est mémorisée.
  */
-type ReturnKey = 'home' | 'library' | 'series' | 'books' | 'mangas' | 'games' | 'artworks'
+type ReturnKey = 'home' | 'library' | 'series' | 'anime' | 'books' | 'mangas' | 'games' | 'artworks'
 
 type View =
   | { name: 'home' }
   | { name: 'library' }
   | { name: 'series' }
+  | { name: 'anime' }
   | { name: 'settings' }
   | { name: 'create'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null }
   | { name: 'tmdb-search' }
@@ -2052,6 +2047,8 @@ function returnView(key: ReturnKey): View {
       return { name: 'library' }
     case 'series':
       return { name: 'series' }
+    case 'anime':
+      return { name: 'anime' }
     case 'books':
       return { name: 'books' }
     case 'mangas':
@@ -2066,6 +2063,10 @@ function returnView(key: ReturnKey): View {
 /** Retour d'une fiche Livres ou Mangas : il nomme l'écran d'origine réel. */
 function bookBackLabel(returnTo: ReturnKey): string {
   return returnTo === 'home' ? 'Retour à l’accueil' : returnTo === 'mangas' ? 'Retour aux mangas' : 'Retour aux livres'
+}
+
+function seriesBackLabel(returnTo: ReturnKey): string {
+  return returnTo === 'home' ? 'Retour à l’accueil' : returnTo === 'anime' ? 'Retour à l’animation japonaise' : 'Retour aux séries'
 }
 
 function sortFilms(films: Film[]): Film[] {
@@ -2164,7 +2165,9 @@ function App() {
   const [libraryContext, setLibraryContext] = useState<LibraryContext>({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [seriesCollection, setSeriesCollection] = useState<Series[]>([])
   const [seriesSearchState, setSeriesSearchState] = useState<SeriesSearchState>({ status: 'loading' })
-  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [seriesContext, setSeriesContext] = useState<SeriesLibraryContext>({ query: '', category: seriesLibraryCategories('series'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [animeContext, setAnimeContext] = useState<SeriesLibraryContext>({ query: '', category: seriesLibraryCategories('anime'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [animeSearchState, setAnimeSearchState] = useState<SeriesSearchState>({ status: 'loading' })
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [bookCollection, setBookCollection] = useState<Book[]>([])
   const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
@@ -2194,7 +2197,7 @@ function App() {
       directement au stade formulaire. */
   type AddFlow =
     | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null; tmdbPresentation?: TmdbFilmPresentation; editFilmId?: string }
-    | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; providerLink?: MediaProviderReference | null; editSeriesId?: string }
+    | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; providerLink?: MediaProviderReference | null; editSeriesId?: string; seriesLibrary?: SeriesLibraryKey }
     | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; providerLink?: MediaProviderReference | null; editBookId?: string; bookLibrary?: BookLibraryKey }
     | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues; providerLink?: MediaProviderReference | null; editGameId?: string }
     | { medium: 'artwork'; step: 'form'; editArtworkId?: string }
@@ -2254,8 +2257,11 @@ function App() {
     if (libraryState.status !== 'ready') return
     let cancelled = false
 
-    mediaRepository.listSeries(libraryState.library.profile.id).then(
-      (series) => { if (!cancelled) setSeriesCollection(series) },
+    Promise.all([
+      mediaRepository.listSeries(libraryState.library.profile.id, 'series'),
+      mediaRepository.listSeries(libraryState.library.profile.id, 'anime'),
+    ]).then(
+      ([series, anime]) => { if (!cancelled) setSeriesCollection([...series, ...anime]) },
       (error: unknown) => {
         console.error('Impossible de charger les séries depuis SQLite.', error)
         if (!cancelled) setSeriesCollection([])
@@ -2271,8 +2277,11 @@ function App() {
     if (libraryState.status !== 'ready') return
     let cancelled = false
 
-    mediaRepository.listBooks(libraryState.library.profile.id).then(
-      (books) => { if (!cancelled) setBookCollection(books) },
+    Promise.all([
+      mediaRepository.listBooks(libraryState.library.profile.id, 'books'),
+      mediaRepository.listBooks(libraryState.library.profile.id, 'mangas'),
+    ]).then(
+      ([books, mangas]) => { if (!cancelled) setBookCollection([...books, ...mangas]) },
       (error: unknown) => {
         console.error('Impossible de charger les livres depuis SQLite.', error)
         if (!cancelled) setBookCollection([])
@@ -2370,7 +2379,7 @@ function App() {
     setSeriesSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
       const resolved = resolveLibraryQuery(seriesContext.view, seriesContext.extraFilters, seriesContext.sortOverride)
-      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: seriesContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+      mediaRepository.searchSeries(libraryState.library.profile.id, { query: seriesContext.query, category: seriesContext.category, filters: resolved.filters, sort: resolved.sort }, 'series').then(
         (series) => {
           if (!cancelled) setSeriesSearchState({ status: 'ready', series })
         },
@@ -2390,10 +2399,32 @@ function App() {
   useEffect(() => {
     if (libraryState.status !== 'ready') return
     let cancelled = false
+    setAnimeSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      const resolved = resolveLibraryQuery(animeContext.view, animeContext.extraFilters, animeContext.sortOverride)
+      mediaRepository.searchSeries(libraryState.library.profile.id, { query: animeContext.query, category: animeContext.category, filters: resolved.filters, sort: resolved.sort }, 'anime').then(
+        (series) => {
+          if (!cancelled) setAnimeSearchState({ status: 'ready', series })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher l’animation japonaise dans SQLite.', error)
+          if (!cancelled) setAnimeSearchState({ status: 'error' })
+        },
+      )
+    }, animeContext.query ? 140 : 0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [animeContext, libraryState, seriesSearchAttempt])
+
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
     setBookSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
       const resolved = resolveLibraryQuery(bookContext.view, bookContext.extraFilters, bookContext.sortOverride)
-      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: bookContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+      mediaRepository.searchBooks(libraryState.library.profile.id, { query: bookContext.query, category: bookContext.category, filters: resolved.filters, sort: resolved.sort }, 'books').then(
         (books) => {
           if (!cancelled) setBookSearchState({ status: 'ready', books })
         },
@@ -2416,7 +2447,7 @@ function App() {
     setMangaSearchState({ status: 'loading' })
     const timeout = window.setTimeout(() => {
       const resolved = resolveLibraryQuery(mangaContext.view, mangaContext.extraFilters, mangaContext.sortOverride)
-      mediaRepository.searchBooks(libraryState.library.profile.id, { query: mangaContext.query, category: mangaContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+      mediaRepository.searchBooks(libraryState.library.profile.id, { query: mangaContext.query, category: mangaContext.category, filters: resolved.filters, sort: resolved.sort }, 'mangas').then(
         (books) => {
           if (!cancelled) setMangaSearchState({ status: 'ready', books })
         },
@@ -2569,8 +2600,10 @@ function App() {
   }
 
   const activeBookLibrary: BookLibraryKey = view.name === 'mangas' || (view.name === 'book-detail' && bookCollection.find((book) => book.id === view.bookId)?.category === 'manga') ? 'mangas' : 'books'
+  const activeSeriesLibrary: SeriesLibraryKey = view.name === 'anime' || (view.name === 'series-detail' && seriesCollection.find((series) => series.id === view.seriesId)?.category === 'animation') ? 'anime' : 'series'
   const count = libraryState.status === 'ready' ? libraryState.library.films.length : null
-  const seriesCount = libraryState.status === 'ready' ? seriesCollection.length : null
+  const seriesCount = libraryState.status === 'ready' ? seriesForLibrary(seriesCollection, 'series').length : null
+  const animeCount = libraryState.status === 'ready' ? seriesForLibrary(seriesCollection, 'anime').length : null
   const bookCount = libraryState.status === 'ready' ? booksForLibrary(bookCollection, 'books').length : null
   const mangaCount = libraryState.status === 'ready' ? booksForLibrary(bookCollection, 'mangas').length : null
   const gameCount = libraryState.status === 'ready' ? gameCollection.length : null
@@ -2680,7 +2713,8 @@ function App() {
         setAddFlow({
           medium: 'série',
           step: 'search',
-          initialValues: seriesPresentationToInitialValues(presentation),
+          seriesLibrary: addFlow.seriesLibrary,
+          initialValues: { ...seriesPresentationToInitialValues(presentation), category: addFlow.seriesLibrary === 'anime' ? 'animation' : 'série télé' },
           providerLink: { providerName: 'TMDB', providerId: String(presentation.tmdbId) },
         })
         return
@@ -2709,7 +2743,7 @@ function App() {
     setCandidateSelection({ pendingId: candidate.tmdbId, error: null })
     try {
       const presentation = await previewTmdbSeries(candidate.tmdbId)
-      await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation))
+      await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation), seriesLibraryForCategory(series.category))
       await mediaRepository.setMediaProviderLink({ profileId, medium: 'series', mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
       const refreshed = await mediaRepository.getSeries(profileId, series.id)
       setSeriesCollection((current) => current.map((entry) => entry.id === series.id
@@ -2962,7 +2996,8 @@ function App() {
         onSwitchProfile={async (profileId) => {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
           setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setSeriesContext({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setSeriesContext({ query: '', category: seriesLibraryCategories('series'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setAnimeContext({ query: '', category: seriesLibraryCategories('anime'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setBookContext({ query: '', category: bookLibraryCategories('books'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setMangaContext({ query: '', category: bookLibraryCategories('mangas'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setGameContext({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
@@ -3035,20 +3070,24 @@ function App() {
         }}
       />
     )
-  } else if (view.name === 'series') {
+  } else if (view.name === 'series' || view.name === 'anime') {
+    const scope = view.name
     content = (
       <SeriesLibrary
+        key={scope}
+        library={scope}
+        allSeries={seriesCollection}
         profileName={libraryState.library.profile.name}
-        collection={seriesCollection}
-        context={seriesContext}
-        searchState={seriesSearchState}
-        onContextChange={setSeriesContext}
+        collection={seriesForLibrary(seriesCollection, scope)}
+        context={scope === 'anime' ? animeContext : seriesContext}
+        searchState={scope === 'anime' ? animeSearchState : seriesSearchState}
+        onContextChange={scope === 'anime' ? setAnimeContext : setSeriesContext}
         onRetrySearch={() => setSeriesSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => {
           setCandidateSelection({ pendingId: null, error: null })
-          setAddFlow({ medium: 'série', step: 'search' })
+          setAddFlow({ medium: 'série', step: 'search', seriesLibrary: scope })
         }}
-        onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id, returnTo: 'series' })}
+        onOpen={(series) => leaveLibrary({ name: 'series-detail', seriesId: series.id, returnTo: scope })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
@@ -3060,7 +3099,7 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux séries">
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label={seriesBackLabel(view.returnTo)}>
               {icon('arrow-left')}
             </button>
           </header>
@@ -3075,13 +3114,13 @@ function App() {
         <SeriesDetail
           series={series}
           onBack={() => goBackTo(view.returnTo)}
-          backLabel="Retour aux séries"
+          backLabel={seriesBackLabel(view.returnTo)}
           onEdit={async () => {
             const series = seriesCollection.find((entry) => entry.id === view.seriesId)
             if (series) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
               const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, 'series', series.id)
-              setAddFlow({ medium: 'série', step: 'search', initialValues: seriesToFormValues(series), providerLink, editSeriesId: series.id })
+              setAddFlow({ medium: 'série', step: 'search', initialValues: seriesToFormValues(series), providerLink, editSeriesId: series.id, seriesLibrary: seriesLibraryForCategory(series.category) })
             }
           }}
           onAssociate={() => {
@@ -3089,14 +3128,15 @@ function App() {
             setAssociateTarget({ medium: 'série', id: view.seriesId })
           }}
           onPosterEdit={async (url: string | null) => {
-            await mediaRepository.updateSeries(library.profile.id, series.id, { ...series, posterUrl: url })
+            await mediaRepository.updateSeries(library.profile.id, series.id, { ...series, posterUrl: url }, seriesLibraryForCategory(series.category))
             setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...series, posterUrl: url } : entry)))
           }}
           onDelete={async () => {
-            await mediaRepository.deleteSeries(library.profile.id, view.seriesId)
+            await mediaRepository.deleteSeries(library.profile.id, view.seriesId, seriesLibraryForCategory(series.category))
             setSeriesCollection((current) => current.filter((entry) => entry.id !== view.seriesId))
+            setSeriesSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
-            setView({ name: 'series' })
+            goBackTo(view.returnTo)
           }}
         />
       )
@@ -3159,11 +3199,11 @@ function App() {
             setAssociateTarget({ medium: 'livre', id: view.bookId })
           }}
           onCoverEdit={async (url: string | null) => {
-            await mediaRepository.updateBook(library.profile.id, book.id, { ...book, coverUrl: url })
+            await mediaRepository.updateBook(library.profile.id, book.id, { ...book, coverUrl: url }, undefined, bookLibraryForCategory(book.category))
             setBookCollection((current) => current.map((entry) => (entry.id === book.id ? { ...book, coverUrl: url } : entry)))
           }}
           onDelete={async () => {
-            await mediaRepository.deleteBook(library.profile.id, view.bookId)
+            await mediaRepository.deleteBook(library.profile.id, view.bookId, bookLibraryForCategory(book.category))
             setBookCollection((current) => current.filter((entry) => entry.id !== view.bookId))
             setBookSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
@@ -3321,8 +3361,8 @@ function App() {
               ? 'home'
               : view.name === 'settings'
                 ? 'settings'
-                : view.name === 'series' || view.name === 'series-detail'
-                  ? 'series'
+                : view.name === 'series' || view.name === 'anime' || view.name === 'series-detail'
+                  ? activeSeriesLibrary
                   : view.name === 'books' || view.name === 'mangas' || view.name === 'book-detail'
                     ? activeBookLibrary
                     : view.name === 'games' || view.name === 'game-detail'
@@ -3334,6 +3374,7 @@ function App() {
           onHome={() => leaveLibrary({ name: 'home' })}
           onLibrary={returnToLibrary}
           onSeries={() => leaveLibrary({ name: 'series' })}
+          onAnime={() => leaveLibrary({ name: 'anime' })}
           onBooks={() => leaveLibrary({ name: 'books' })}
           onMangas={() => leaveLibrary({ name: 'mangas' })}
           onGames={() => leaveLibrary({ name: 'games' })}
@@ -3349,6 +3390,7 @@ function App() {
         onToggleExpanded={() => setSidebarExpanded((value) => !value)}
         count={count}
         seriesCount={seriesCount}
+        animeCount={animeCount}
         bookCount={bookCount}
         mangaCount={mangaCount}
         gameCount={gameCount}
@@ -3362,8 +3404,8 @@ function App() {
             ? 'home'
             : view.name === 'settings'
               ? 'settings'
-              : view.name === 'series' || view.name === 'series-detail'
-                ? 'series'
+              : view.name === 'series' || view.name === 'anime' || view.name === 'series-detail'
+                ? activeSeriesLibrary
                 : view.name === 'books' || view.name === 'mangas' || view.name === 'book-detail'
                   ? activeBookLibrary
                   : view.name === 'games' || view.name === 'game-detail'
@@ -3375,6 +3417,7 @@ function App() {
         onHome={() => leaveLibrary({ name: 'home' })}
         onLibrary={returnToLibrary}
         onSeries={() => leaveLibrary({ name: 'series' })}
+        onAnime={() => leaveLibrary({ name: 'anime' })}
         onBooks={() => leaveLibrary({ name: 'books' })}
         onMangas={() => leaveLibrary({ name: 'mangas' })}
         onGames={() => leaveLibrary({ name: 'games' })}
@@ -3411,7 +3454,7 @@ function App() {
             aria-modal="true"
             aria-label={{
               film: 'Ajouter un film',
-              série: 'Ajouter une série',
+              série: addFlow.medium === 'série' && addFlow.editSeriesId ? 'Modifier la fiche' : addFlow.medium === 'série' && addFlow.seriesLibrary === 'anime' ? 'Ajouter une animation japonaise' : 'Ajouter une série',
               livre: addFlow.medium === 'livre' && addFlow.editBookId ? 'Modifier la fiche' : addFlow.medium === 'livre' && addFlow.bookLibrary === 'mangas' ? 'Ajouter un manga' : 'Ajouter un livre',
               jeu: 'Ajouter un jeu',
               artwork: 'Ajouter une œuvre',
@@ -3487,10 +3530,11 @@ function App() {
             {addFlow.medium === 'série' && !addFlow.initialValues && (
               <SeriesTmdbSearchFlow
                 compact
+                mediumLabel={addFlow.seriesLibrary === 'anime' ? 'animation japonaise' : 'série'}
                 pendingCandidateId={candidateSelection.pendingId}
                 selectionError={candidateSelection.error}
                 onSelectCandidate={selectTmdbSeriesCandidate}
-                onManual={() => setAddFlow({ medium: 'série', step: 'search', initialValues: {} as never })}
+                onManual={() => setAddFlow({ ...addFlow, initialValues: {} as never })}
                 onCancel={() => setAddFlow(null)}
               />
             )}
@@ -3503,6 +3547,7 @@ function App() {
                 <SeriesForm
                   embeddedInDialog
                   series={editSeriesId ? seriesCollection.find((entry) => entry.id === editSeriesId) : undefined}
+                  creationCategory={editSeriesId ? undefined : addFlow.seriesLibrary === 'anime' ? 'animation' : 'série télé'}
                   initialValues={initialValues}
                   providerLink={addFlow.providerLink ?? null}
                   onCancel={() => setAddFlow(null)}
@@ -3510,12 +3555,12 @@ function App() {
                     const library = libraryState.library
                     let targetId = editSeriesId
                     if (editSeriesId) {
-                      await mediaRepository.updateSeries(library.profile.id, editSeriesId, input)
+                      await mediaRepository.updateSeries(library.profile.id, editSeriesId, input, addFlow.seriesLibrary ?? 'series')
                       const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId)
                       if (!refreshed) throw new Error('La série enregistrée ne peut pas être relue depuis SQLite.')
                       setSeriesCollection((current) => current.map((entry) => entry.id === editSeriesId ? refreshed : entry))
                     } else {
-                      const series = await mediaRepository.createSeries(library.profile.id, input)
+                      const series = await mediaRepository.createSeries(library.profile.id, input, addFlow.seriesLibrary ?? 'series')
                       targetId = series.id
                       if (addFlow.providerLink) {
                         await mediaRepository.setMediaProviderLink({
@@ -3527,9 +3572,12 @@ function App() {
                       }
                       setSeriesCollection((current) => [...current, series])
                     }
+                    setSeriesSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'series-detail', seriesId: targetId!, returnTo: 'series' })
+                    const returnTo = editSeriesId && view.name === 'series-detail' && view.returnTo === 'home'
+                      ? 'home' : seriesLibraryForCategory(input.category)
+                    leaveLibrary({ name: 'series-detail', seriesId: targetId!, returnTo })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3562,12 +3610,12 @@ function App() {
                     const { quotes, ...bookInput } = input
                     let targetId = editBookId
                     if (editBookId) {
-                      await mediaRepository.updateBook(library.profile.id, editBookId, bookInput, quotes)
+                      await mediaRepository.updateBook(library.profile.id, editBookId, bookInput, quotes, addFlow.bookLibrary ?? 'books')
                       const refreshed = await mediaRepository.getBook(library.profile.id, editBookId)
                       if (!refreshed) throw new Error('Le livre enregistré ne peut pas être relu depuis SQLite.')
                       setBookCollection((current) => sortBooks(current.map((entry) => entry.id === editBookId ? refreshed : entry)))
                     } else {
-                      const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes)
+                      const book = await mediaRepository.createBook(library.profile.id, bookInput, quotes, addFlow.bookLibrary ?? 'books')
                       targetId = book.id
                       if (addFlow.providerLink) {
                         await mediaRepository.setMediaProviderLink({

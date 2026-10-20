@@ -1,8 +1,10 @@
 import type { CulturalLibrary } from '../data/libraryRepository.ts'
+import type { Book } from './book.ts'
+import type { Series } from './series.ts'
 import { filmsCsvExportFileName, serializeFilmsCsvExport } from './csvFilmExport.ts'
 import { createLibraryExport } from './libraryTransfer.ts'
 
-export type CsvCollectionMedium = 'films' | 'series' | 'books' | 'games' | 'artworks'
+export type CsvCollectionMedium = 'films' | 'series' | 'anime' | 'books' | 'mangas' | 'games' | 'artworks'
 
 export type CsvCollectionExport = {
   contents: string
@@ -18,10 +20,19 @@ export type CollectionCsvContract = {
   entityHeaders: readonly string[]
 }
 
+/**
+ * Le dépôt peut exposer les nouvelles sections (`anime`, `mangas`) ou seulement
+ * les listes historiques : la catégorie suffit alors à partitionner.
+ */
+type CsvLibrary = CulturalLibrary & {
+  anime?: Series[]
+  mangas?: Book[]
+}
+
 type CsvExportDefinition = CollectionCsvContract & {
   fileNamePrefix: string
   mediumLabel: string
-  rows: (library: CulturalLibrary) => CsvCell[][]
+  rows: (library: CsvLibrary) => CsvCell[][]
 }
 
 const COMMON_HEADERS = [
@@ -46,6 +57,16 @@ export const COLLECTION_CSV_CONTRACTS: Record<Exclude<CsvCollectionMedium, 'film
       'series_poster_url', 'series_personal_note', 'series_created_at', 'series_updated_at',
     ],
   },
+  anime: {
+    // Mêmes colonnes que Séries, sans `category` : la bibliothèque est le type.
+    format: 'sylloge-anime-csv',
+    entityHeaders: [
+      'anime_id', 'anime_profile_id', 'anime_title', 'anime_showrunner', 'anime_casting',
+      'anime_summary', 'anime_status', 'anime_rating', 'anime_is_favorite',
+      'anime_seasons_seen', 'anime_seasons_total', 'anime_progress_updated_at', 'anime_started_at',
+      'anime_poster_url', 'anime_personal_note', 'anime_created_at', 'anime_updated_at',
+    ],
+  },
   books: {
     format: 'sylloge-books-csv',
     entityHeaders: [
@@ -53,6 +74,16 @@ export const COLLECTION_CSV_CONTRACTS: Record<Exclude<CsvCollectionMedium, 'film
       'book_category', 'book_status', 'book_rating', 'book_is_favorite', 'book_volumes_read',
       'book_volumes_total', 'book_progress_updated_at', 'book_started_at', 'book_cover_url',
       'book_personal_note', 'book_quotes_json', 'book_created_at', 'book_updated_at',
+    ],
+  },
+  mangas: {
+    // Mêmes colonnes que Livres, sans `category` : citations incluses.
+    format: 'sylloge-mangas-csv',
+    entityHeaders: [
+      'manga_id', 'manga_profile_id', 'manga_title', 'manga_author', 'manga_year', 'manga_summary',
+      'manga_status', 'manga_rating', 'manga_is_favorite', 'manga_volumes_read',
+      'manga_volumes_total', 'manga_progress_updated_at', 'manga_started_at', 'manga_cover_url',
+      'manga_personal_note', 'manga_quotes_json', 'manga_created_at', 'manga_updated_at',
     ],
   },
   games: {
@@ -79,26 +110,51 @@ const DEFINITIONS: Record<Exclude<CsvCollectionMedium, 'films'>, CsvExportDefini
     ...COLLECTION_CSV_CONTRACTS.series,
     fileNamePrefix: 'sylloge-series',
     mediumLabel: 'série',
-    rows: (library) => library.series.map((series) => [
+    // La section Séries ne contient que des séries télé ; l’animation part
+    // dans son propre CSV même si le dépôt ne fournit pas encore `anime`.
+    rows: (library) => library.series
+      .filter((series) => series.category !== 'animation')
+      .map((series) => [
+        series.id, series.profileId, series.title, series.showrunner, series.casting, series.summary,
+        series.category, series.status, series.rating, series.isFavorite, series.seasonsSeen,
+        series.seasonsTotal, series.progressUpdatedAt, series.startedAt, series.posterUrl,
+        series.personalNote, series.createdAt, series.updatedAt,
+      ]),
+  },
+  anime: {
+    ...COLLECTION_CSV_CONTRACTS.anime,
+    fileNamePrefix: 'sylloge-anime',
+    mediumLabel: 'animation',
+    rows: (library) => animeCollection(library).map((series) => [
       series.id, series.profileId, series.title, series.showrunner, series.casting, series.summary,
-      series.category, series.status, series.rating, series.isFavorite, series.seasonsSeen,
+      series.status, series.rating, series.isFavorite, series.seasonsSeen,
       series.seasonsTotal, series.progressUpdatedAt, series.startedAt, series.posterUrl,
       series.personalNote, series.createdAt, series.updatedAt,
     ]),
   },
   books: {
     ...COLLECTION_CSV_CONTRACTS.books,
-    format: 'sylloge-books-csv',
     fileNamePrefix: 'sylloge-books',
     mediumLabel: 'livre',
-    rows: (library) => library.books.map((book) => [
-      book.id, book.profileId, book.title, book.author, book.year, book.summary, book.category,
+    rows: (library) => library.books
+      .filter((book) => book.category !== 'manga')
+      .map((book) => [
+        book.id, book.profileId, book.title, book.author, book.year, book.summary, book.category,
+        book.status, book.rating, book.isFavorite, book.volumesRead, book.volumesTotal,
+        book.progressUpdatedAt, book.startedAt, book.coverUrl, book.personalNote,
+        quotesCell(book),
+        book.createdAt, book.updatedAt,
+      ]),
+  },
+  mangas: {
+    ...COLLECTION_CSV_CONTRACTS.mangas,
+    fileNamePrefix: 'sylloge-mangas',
+    mediumLabel: 'manga',
+    rows: (library) => mangasCollection(library).map((book) => [
+      book.id, book.profileId, book.title, book.author, book.year, book.summary,
       book.status, book.rating, book.isFavorite, book.volumesRead, book.volumesTotal,
       book.progressUpdatedAt, book.startedAt, book.coverUrl, book.personalNote,
-      JSON.stringify(book.quotes
-        .slice()
-        .sort((left, right) => left.position - right.position)
-        .map((quote) => quote.body)),
+      quotesCell(book),
       book.createdAt, book.updatedAt,
     ]),
   },
@@ -125,6 +181,21 @@ const DEFINITIONS: Record<Exclude<CsvCollectionMedium, 'films'>, CsvExportDefini
       artwork.updatedAt,
     ]),
   },
+}
+
+function animeCollection(library: CsvLibrary): Series[] {
+  return library.anime ?? library.series.filter((entry) => entry.category === 'animation')
+}
+
+function mangasCollection(library: CsvLibrary): Book[] {
+  return library.mangas ?? library.books.filter((entry) => entry.category === 'manga')
+}
+
+function quotesCell(book: Book): string {
+  return JSON.stringify(book.quotes
+    .slice()
+    .sort((left, right) => left.position - right.position)
+    .map((quote) => quote.body))
 }
 
 /**

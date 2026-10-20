@@ -23,10 +23,12 @@ import {
   type SeriesMergePlan,
 } from '../domain/importMerge.ts'
 import {
+  importAnimeIntoProfile,
   importArtworksIntoProfile,
   importBooksIntoProfile,
   importFilmsIntoProfile,
   importGamesIntoProfile,
+  importMangasIntoProfile,
   importSeriesIntoProfile,
   type CollectionImportResult,
 } from './nativePortability.ts'
@@ -159,11 +161,14 @@ export async function writeSeriesImport(
   resolutions: Map<string, DuplicateResolution>,
   regenerateId: () => string = () => crypto.randomUUID(),
   now: () => string = () => new Date().toISOString(),
+  library: 'series' | 'anime' = 'series',
 ): Promise<CollectionImportResult> {
   const timestamp = now()
+  // Une bibliothèque = une table : l'import écrit dans celle qui est ouverte.
+  const importIntoProfile = library === 'anime' ? importAnimeIntoProfile : importSeriesIntoProfile
 
   if (prepared.mode === 'replace' || prepared.mergePlan === null) {
-    return importSeriesIntoProfile({
+    return importIntoProfile({
       profileId,
       replaceExisting: prepared.mode === 'replace',
       inserts: prepared.imported.map((series) => ({
@@ -177,7 +182,7 @@ export async function writeSeriesImport(
   }
 
   const writePlan = resolveSeriesMerge([], prepared.mergePlan, resolutions, timestamp)
-  return importSeriesIntoProfile({
+  return importIntoProfile({
     profileId,
     replaceExisting: false,
     inserts: writePlan.inserts.map((series) => ({ ...series, id: regenerateId(), profileId })),
@@ -192,8 +197,10 @@ export async function writeBooksImport(
   resolutions: Map<string, DuplicateResolution>,
   regenerateId: () => string = () => crypto.randomUUID(),
   now: () => string = () => new Date().toISOString(),
+  library: 'books' | 'mangas' = 'books',
 ): Promise<CollectionImportResult> {
   const timestamp = now()
+  const importIntoProfile = library === 'mangas' ? importMangasIntoProfile : importBooksIntoProfile
   const remapBook = (book: Book, id: string): Book => ({
     ...book,
     id,
@@ -207,7 +214,7 @@ export async function writeBooksImport(
   })
 
   if (prepared.mode === 'replace' || prepared.mergePlan === null) {
-    return importBooksIntoProfile({
+    return importIntoProfile({
       profileId,
       replaceExisting: prepared.mode === 'replace',
       inserts: prepared.imported.map((book) => remapBook(book, regenerateId())),
@@ -216,7 +223,7 @@ export async function writeBooksImport(
   }
 
   const writePlan = resolveBookMerge([], prepared.mergePlan, resolutions, timestamp)
-  return importBooksIntoProfile({
+  return importIntoProfile({
     profileId,
     replaceExisting: false,
     inserts: writePlan.inserts.map((book) => remapBook(book, regenerateId())),

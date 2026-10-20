@@ -34,7 +34,9 @@ export type CulturalLibrary = {
   profile: Profile
   films: Film[]
   series: Series[]
+  anime: Series[]
   books: Book[]
+  mangas: Book[]
   games: Game[]
   artworks: Artwork[]
 }
@@ -74,6 +76,20 @@ function prepareNativeLibraryImport(
     })
   })
 
+  const mangas = (document.mangas ?? []).map((manga) => {
+    const id = createId()
+    return normalizeBook({
+      ...manga,
+      id,
+      profileId: profile.id,
+      quotes: manga.quotes.map((quote) => ({
+        ...quote,
+        id: createId(),
+        bookId: id,
+      })),
+    })
+  })
+
   const payload: NativeImportLibraryDocumentPayload = {
     profile,
     films: document.films.map((film) => ({
@@ -86,6 +102,11 @@ function prepareNativeLibraryImport(
       id: createId(),
       profileId: profile.id,
     })),
+    anime: (document.anime ?? []).map((series) => ({
+      ...normalizeSeries(series),
+      id: createId(),
+      profileId: profile.id,
+    })),
     books: books.map((book, index) => ({
       ...book,
       quotes: document.books[index].quotes.map((quote) => ({
@@ -93,6 +114,10 @@ function prepareNativeLibraryImport(
         id: createId(),
         bookId: book.id,
       })),
+    })),
+    mangas: mangas.map(({ quotes: mangaQuotes, ...manga }) => ({
+      ...manga,
+      quotes: mangaQuotes,
     })),
     games: document.games.map((game) => ({
       ...normalizeGame(game),
@@ -106,7 +131,7 @@ function prepareNativeLibraryImport(
     })),
   }
 
-  for (const book of payload.books) {
+  for (const book of [...payload.books, ...payload.mangas]) {
     for (const quote of book.quotes) {
       if (quote.bookId !== book.id) {
         throw new Error('Le remapping des citations du livre est incohérent.')
@@ -160,10 +185,12 @@ export class SqliteLibraryRepository {
       throw new Error(`Le profil local ${profileId} est introuvable.`)
     }
 
-    const [filmLibrary, series, books, games, artworks] = await Promise.all([
+    const [filmLibrary, series, anime, books, mangas, games, artworks] = await Promise.all([
       filmsRepository.loadLibrary(profileId),
-      this.media.listSeries(profileId),
-      this.media.listBooks(profileId),
+      this.media.listSeries(profileId, 'series'),
+      this.media.listSeries(profileId, 'anime'),
+      this.media.listBooks(profileId, 'books'),
+      this.media.listBooks(profileId, 'mangas'),
       this.media.listGames(profileId),
       this.media.listArtworks(profileId),
     ])
@@ -172,7 +199,9 @@ export class SqliteLibraryRepository {
       profile: toProfile(profileRow),
       films: filmLibrary.films,
       series,
+      anime,
       books,
+      mangas,
       games,
       artworks,
     }
@@ -215,7 +244,9 @@ export class SqliteLibraryRepository {
       result.profileId !== profileId
       || result.filmCount !== payload.films.length
       || result.seriesCount !== payload.series.length
+      || (result.animeCount ?? 0) !== payload.anime.length
       || result.bookCount !== payload.books.length
+      || (result.mangaCount ?? 0) !== payload.mangas.length
       || result.gameCount !== payload.games.length
       || result.artworkCount !== payload.artworks.length
     ) {
@@ -239,7 +270,9 @@ export class SqliteLibraryRepository {
       result.profileId !== profile.id
       || result.filmCount !== payload.films.length
       || result.seriesCount !== payload.series.length
+      || (result.animeCount ?? 0) !== payload.anime.length
       || result.bookCount !== payload.books.length
+      || (result.mangaCount ?? 0) !== payload.mangas.length
       || result.gameCount !== payload.games.length
       || result.artworkCount !== payload.artworks.length
     ) {

@@ -231,6 +231,7 @@ function Harness() {
           onHome={() => setScreen('home')}
           onLibrary={() => setScreen('films')}
           onSeries={() => setScreen('series')}
+          onAnime={() => setScreen('series')}
           onBooks={() => setScreen('books')}
           onMangas={() => setScreen('books')}
           onGames={() => setScreen('games')}

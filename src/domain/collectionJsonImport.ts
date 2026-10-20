@@ -10,6 +10,8 @@ export type CollectionJsonImportResult<T> =
   | { items: T[]; error: null }
   | { items: null; error: string }
 
+const INVALID_LIBRARY = 'Le fichier n’est pas une bibliothèque Sylloge v1, v2 ou v3 valide. Aucune donnée n’a été écrite.'
+
 export function parseFilmsCollectionJson(contents: string): CollectionJsonImportResult<Film> {
   const libraryPreview = validateLibraryDocument(contents)
   if (libraryPreview.document !== null) {
@@ -27,17 +29,15 @@ export function parseFilmsCollectionJson(contents: string): CollectionJsonImport
 
   return {
     items: null,
-    error: 'Le fichier n’est pas un export Sylloge valide (JSON Films v1 ou bibliothèque v2). Aucune donnée n’a été écrite.',
+    error: 'Le fichier n’est pas un export Sylloge valide (JSON Films v1 ou bibliothèque v3). Aucune donnée n’a été écrite.',
   }
 }
 
+/** Import unitaire de la bibliothèque Séries : les fiches animation sont exclues. */
 export function parseSeriesCollectionJson(contents: string): CollectionJsonImportResult<Series> {
   const preview = validateLibraryDocument(contents)
   if (preview.document === null) {
-    return {
-      items: null,
-      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
-    }
+    return { items: null, error: INVALID_LIBRARY }
   }
 
   return preview.document.series.length > 0
@@ -45,13 +45,23 @@ export function parseSeriesCollectionJson(contents: string): CollectionJsonImpor
     : { items: null, error: 'Ce fichier Sylloge ne contient aucune série à importer.' }
 }
 
+/** Import unitaire de la bibliothèque Animation japonaise. */
+export function parseAnimeCollectionJson(contents: string): CollectionJsonImportResult<Series> {
+  const preview = validateLibraryDocument(contents)
+  if (preview.document === null) {
+    return { items: null, error: INVALID_LIBRARY }
+  }
+
+  return preview.document.anime.length > 0
+    ? { items: preview.document.anime, error: null }
+    : { items: null, error: 'Ce fichier Sylloge ne contient aucune animation japonaise à importer.' }
+}
+
+/** Import unitaire de la bibliothèque Livres : les mangas sont exclus. */
 export function parseBooksCollectionJson(contents: string): CollectionJsonImportResult<Book> {
   const preview = validateLibraryDocument(contents)
   if (preview.document === null) {
-    return {
-      items: null,
-      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
-    }
+    return { items: null, error: INVALID_LIBRARY }
   }
 
   return preview.document.books.length > 0
@@ -59,13 +69,22 @@ export function parseBooksCollectionJson(contents: string): CollectionJsonImport
     : { items: null, error: 'Ce fichier Sylloge ne contient aucun livre à importer.' }
 }
 
+/** Import unitaire de la bibliothèque Mangas. */
+export function parseMangasCollectionJson(contents: string): CollectionJsonImportResult<Book> {
+  const preview = validateLibraryDocument(contents)
+  if (preview.document === null) {
+    return { items: null, error: INVALID_LIBRARY }
+  }
+
+  return preview.document.mangas.length > 0
+    ? { items: preview.document.mangas, error: null }
+    : { items: null, error: 'Ce fichier Sylloge ne contient aucun manga à importer.' }
+}
+
 export function parseGamesCollectionJson(contents: string): CollectionJsonImportResult<Game> {
   const preview = validateLibraryDocument(contents)
   if (preview.document === null) {
-    return {
-      items: null,
-      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
-    }
+    return { items: null, error: INVALID_LIBRARY }
   }
 
   return preview.document.games.length > 0
@@ -76,10 +95,7 @@ export function parseGamesCollectionJson(contents: string): CollectionJsonImport
 export function parseArtworksCollectionJson(contents: string): CollectionJsonImportResult<Artwork> {
   const preview = validateLibraryDocument(contents)
   if (preview.document === null) {
-    return {
-      items: null,
-      error: 'Le fichier n’est pas une bibliothèque Sylloge v2 valide. Aucune donnée n’a été écrite.',
-    }
+    return { items: null, error: INVALID_LIBRARY }
   }
 
   return preview.document.artworks.length > 0

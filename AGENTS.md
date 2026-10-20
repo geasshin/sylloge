@@ -14,8 +14,8 @@ Les documents sous docs/archive et les anciens plans sous docs/plans sont histor
 ## Base produit
 
 - Application personnelle locale sur Mac.
-- Cinq bibliothèques : Films, Séries, Livres, Jeux et Art.
-- Une seule direction visuelle pour toute l’application, accueil compris : monochrome neutre et froid (décision du 16 octobre 2026). Les écrans peuvent être recomposés quand l’usage le justifie ; les fonctions, les données et les cinq bibliothèques sont préservées. DESIGN.md décrit le système en vigueur.
+- Sept bibliothèques : Films, Séries, Animation japonaise, Livres, Mangas, Jeux et Art. Une seule base `sylloge.db`, une table par bibliothèque (`films`, `series`, `anime`, `books`, `mangas`, `games`, `artworks`). Une bibliothèque n’est jamais une simple valeur de catégorie dans la table d’une autre : toute nouvelle bibliothèque suit ce modèle.
+- Une seule direction visuelle pour toute l’application, accueil compris : monochrome neutre et froid (décision du 16 octobre 2026). Les écrans peuvent être recomposés quand l’usage le justifie ; les fonctions, les données et les sept bibliothèques sont préservées. DESIGN.md décrit le système en vigueur.
 - Cible desktop macOS uniquement. La présentation mobile n’est plus maintenue comme cible.
 - Ne pas élargir le périmètre vers de nouveaux médias, comptes, synchronisation, cloud ou distribution publique sans décision explicite.
 
