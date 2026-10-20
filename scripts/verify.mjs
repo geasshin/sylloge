@@ -912,6 +912,27 @@ const completeExport = createLibraryExport({
   assert.equal(unknownStatusPreview.document, null, 'Un statut non reconnu doit bloquer l’import avant toute écriture')
   assert.match(unknownStatusPreview.errors[0].message, /pas reconnu/i, 'Le statut refusé doit être expliqué localement')
 
+  const frenchFilmStatusesSource = {
+    name: 'statuts-francais.csv',
+    kind: 'csv',
+    csvCandidates: [csvCandidate('Titre,Statut\nFilm à voir,À voir\nFilm déjà vu,Vu\n', 'statuts-francais.csv')],
+    markdownPages: [],
+  }
+  const frenchFilmStatusesSession = prepareFilmCsvImport(frenchFilmStatusesSource)
+  const frenchFilmStatusesConfiguration = initialFilmImportConfiguration(frenchFilmStatusesSession)
+  const frenchFilmStatusesPreview = previewFilmCsvImport(
+    frenchFilmStatusesSession,
+    frenchFilmStatusesSource,
+    frenchFilmStatusesConfiguration,
+    '2026-07-18T10:00:00.000Z',
+  )
+  assert.deepEqual(
+    frenchFilmStatusesPreview.document?.films.map((film) => film.status),
+    ['à découvrir', 'terminé'],
+    'Les statuts français courants « À voir » et « Vu » doivent être reconnus dans un CSV Films',
+  )
+  assert.equal(frenchFilmStatusesPreview.errors.length, 0, 'Les statuts français reconnus ne doivent pas bloquer les fiches CSV')
+
   const ambiguousRatingSource = {
     name: 'notes-ambigues.csv',
     kind: 'csv',
@@ -1994,6 +2015,7 @@ const formSource = readFileSync(new URL('../src/components/FilmForm.tsx', import
 const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', import.meta.url), 'utf8')
 const portabilitySource = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
 const accessibleDialogSource = readFileSync(new URL('../src/components/AccessibleDialog.tsx', import.meta.url), 'utf8')
+const dialogFocusSource = readFileSync(new URL('../src/components/FocusDialog.tsx', import.meta.url), 'utf8')
 const libraryExportFlowSource = readFileSync(new URL('../src/components/LibraryExportFlow.tsx', import.meta.url), 'utf8')
 const transferSource = readFileSync(new URL('../src/domain/libraryTransfer.ts', import.meta.url), 'utf8')
 const csvTransferSource = readFileSync(new URL('../src/domain/csvFilmExport.ts', import.meta.url), 'utf8')
@@ -2002,6 +2024,7 @@ const backupServiceSource = readFileSync(new URL('../src/data/backupService.ts',
 const nativePortabilityBridgeSource = readFileSync(new URL('../src/data/nativePortability.ts', import.meta.url), 'utf8')
 const nativePortabilitySource = readFileSync(new URL('../src-tauri/src/portability.rs', import.meta.url), 'utf8')
 const libraryImportButtonSource = readFileSync(new URL('../src/components/LibraryImportButton.tsx', import.meta.url), 'utf8')
+const collectionImportFlowSource = readFileSync(new URL('../src/components/CollectionImportFlow.tsx', import.meta.url), 'utf8')
 const filmCsvImportFlowSource = readFileSync(new URL('../src/components/FilmCsvImportFlow.tsx', import.meta.url), 'utf8')
 // Le code de production de portability.rs s'arrête avant `mod tests` : les tests
 // d'intégration manipulent volontairement le cache TMDB pour prouver son exclusion,
@@ -2039,33 +2062,46 @@ assert.match(mainSource, /searchFilms/, 'La recherche et les filtres doivent app
 assert.match(mainSource, /getFilm/, 'La fiche doit être relue depuis SQLite')
 assert.match(mainSource, /libraryContext/, 'Le contexte de recherche et de filtre doit rester porté par la bibliothèque')
 assert.match(mainSource, /const scrollMemory = useRef\(new Map<string, number>\(\)\)[\s\S]*pendingScrollRestore/, 'Chaque écran doit mémoriser sa position de consultation')
-assert.match(mainSource, /const goBackTo = \(key: ReturnKey\)[\s\S]*pendingScrollRestore\.current = \{ key, top: scrollMemory\.current\.get\(key\) \?\? 0 \}/, 'Le retour d’une fiche doit retrouver l’écran et la position d’origine')
+assert.match(mainSource, /const goBackTo = \(key: ReturnKey\)[\s\S]*pendingScrollRestore\.current = \{ key, top: scrollMemory\.current\.get\(key\) \?\? 0, restoreBookFocus: view\.name === 'book-detail' \}/, 'Le retour d’une fiche doit retrouver l’écran et la position d’origine, et restaurer le focus des livres/mangas')
+assert.match(mainSource, /pending\.restoreBookFocus[\s\S]*matching\[opener\?\.index \?\? 0\] \?\? fallback\)\?\.focus\(\{ preventScroll: true \}\)/, 'Le retour livre/manga focalise sa carte ou le repère de navigation si elle a disparu')
 assert.match(mainSource, /returnTo: 'home' \}/, 'Les fiches ouvertes depuis l’accueil doivent y revenir')
 assert.doesNotMatch(mainSource, /onBack=\{\(\) => setView\(\{ name: 'series' \}\)\}/, 'Une fiche ne doit plus renvoyer à sa bibliothèque sans passer par l’écran d’origine')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
 assert.match(posterSource, /alt={`\$\{label\} de/, 'Un visuel chargé doit conserver un texte alternatif pertinent pour son médium')
-assert.doesNotMatch(atriumHomeSource, /Reprendre|Aussi en cours|IN_PROGRESS|progressLabel|ProgressBar/, 'Le premier écran de l’accueil ne doit plus contenir un module de reprise ou sa colonne')
+assert.doesNotMatch(atriumHomeSource, /Aussi en cours|IN_PROGRESS|ProgressBar|label="Reprendre/, 'L’accueil ne doit pas réintroduire un module de reprise ni de barre de progression')
+assert.match(atriumHomeSource, /function progressOf\(unit: 'Saison' \| 'Tome', seen: number \| null, total: number \| null\)[\s\S]*if \(seen === null \|\| total === null \|\| seen < 1 \|\| total < seen\) return null[\s\S]*`\$\{unit\} \$\{seen\} sur \$\{total\}`/, 'La progression s’écrit « Saison 2 sur 4 » ou « Tome 11 sur 18 », et rien quand elle est inconnue')
+assert.match(atriumHomeSource, /progressLabel: progressOf\('Saison', entry\.seasonsSeen, entry\.seasonsTotal\)[\s\S]*progressLabel: progressOf\('Tome', entry\.volumesRead, entry\.volumesTotal\)/, 'Seules les séries et les livres portent une étiquette de progression, depuis leurs champs réels')
 assert.match(atriumHomeSource, /film: \['à découvrir', 'en attente'\]/, 'Les deux statuts Films non consommés doivent rester dans les derniers ajouts')
-assert.match(atriumHomeSource, /const additions = entries[\s\S]*QUEUE_STATUSES\[entry\.medium\]\.includes\(entry\.status \?\? ''\)[\s\S]*second\.createdAt\.localeCompare\(first\.createdAt\)/, 'Les derniers ajouts ne doivent contenir que des œuvres non consommées, de la plus récente à la plus ancienne')
+assert.match(atriumHomeSource, /const queue = entries[\s\S]*QUEUE_STATUSES\[entry\.medium\]\.includes\(entry\.status \?\? ''\)[\s\S]*second\.createdAt\.localeCompare\(first\.createdAt\)/, 'La file d’attente ne contient que des œuvres non consommées, de la plus récente à la plus ancienne')
+assert.match(atriumHomeSource, /const additions = \[\.\.\.entries\]\.sort\(\(first, second\) => second\.createdAt\.localeCompare\(first\.createdAt\)\)/, 'Les derniers ajouts couvrent tous les statuts de l’onglet, du plus récent au plus ancien')
 assert.match(atriumHomeSource, /const recent = entries[\s\S]*entry\.recentAt !== null[\s\S]*second\.recentAt!\.localeCompare\(first\.recentAt!\)/, 'La file Récemment doit rester dérivée des dates personnelles réelles, de la plus récente à la plus ancienne')
 assert.match(atriumHomeSource, /contributor: film\.director[\s\S]*contributor: entry\.showrunner[\s\S]*contributor: entry\.author[\s\S]*contributor: entry\.developer[\s\S]*contributor: entry\.artist/, 'Les cinq cartes récentes doivent reprendre les crédits réels de chaque médium')
-assert.match(atriumHomeSource, /const favorites = entries[\s\S]*entry\.isFavorite && \(\(entry\.rating !== null && entry\.rating >= 4\.5\) \|\| entry\.medium === 'art'\)[\s\S]*\.sort\([\s\S]*second\.rating/, 'Les favoris doivent aussi avoir au moins 4,5/5, avec les favoris Art sans note à la fin')
-assert.match(atriumHomeSource, /const MEDIUM_DRAWN = 3/, 'Chaque module d’inspiration doit montrer trois œuvres au plus')
+assert.match(atriumHomeSource, /const favorites = entries\s*\.filter\(\(entry\) => entry\.isFavorite\)\s*\.sort\(\(first, second\) => \(second\.rating \?\? -1\) - \(first\.rating \?\? -1\)/, 'La rangée Coups de cœur reprend tous les coups de cœur de l’onglet, sans condition de note, les mieux notés d’abord')
+assert.match(atriumHomeSource, /const MEDIUM_DRAWN = 6/, 'La pioche du jour remplit une rangée de bureau : six œuvres au plus')
 assert.match(atriumHomeSource, /function drawForMedium[\s\S]*previousKeys: string\[\] = \[\][\s\S]*selection\.every\(\(entry\) => previousKeys\.includes\(entry\.key\)\)/, 'Un rafraîchissement doit renouveler le tirage quand le médium propose assez d’œuvres')
-assert.match(atriumHomeSource, /const refreshMediumSelection = \(medium: MediumFilterKey\)[\s\S]*\[medium\]: \{[\s\S]*previousKeys: currentSelection\.map\(\(entry\) => entry\.key\)/, 'Chaque rafraîchissement doit mémoriser la sélection du seul médium ciblé')
-assert.match(atriumHomeSource, /className="at-refresh-button"[\s\S]*onClick=\{\(\) => refreshMediumSelection\(medium\)\}[\s\S]*aria-controls=\{`at-medium-items-\$\{medium\}`\}[\s\S]*<RefreshIcon \/>/, 'Chaque module doit avoir son propre bouton icône de rafraîchissement')
-assert.doesNotMatch(atriumHomeSource, /refreshMediumSelections|Rafraîchir<\/span>|showMediumLabel|at-work-medium/, 'La page ne doit plus avoir de rafraîchissement global ni de surtitre médium dans les rangées')
-assert.match(atriumHomeSource, /const byMedium = useMemo\([\s\S]*MEDIUM_ORDER\.map[\s\S]*\.filter\(\(\{ entries \}\) => entries\.length > 0\)/, 'Les modules par médium ne doivent jamais afficher une collection vide')
+assert.match(atriumHomeSource, /drawForMedium\(entries, `\$\{selectionDay\}-\$\{current\.key\}-\$\{pickState\[current\.key\]\?\.revision \?\? 0\}`/, 'La pioche reste un tirage quotidien reproductible, propre à l’onglet affiché')
+assert.match(atriumHomeSource, /const refreshPick = \(\) => \{[\s\S]*\[tab\]: \{[\s\S]*revision: \(previous\[tab\]\?\.revision \?\? 0\) \+ 1[\s\S]*previousKeys: pick\.map\(\(entry\) => entry\.key\)/, 'Un rafraîchissement renouvelle la pioche du seul onglet affiché')
+assert.match(atriumHomeSource, /id="at-pick"[\s\S]*className="at-refresh-button"[\s\S]*onClick=\{refreshPick\}[\s\S]*aria-controls="at-pick-voie"[\s\S]*<RefreshIcon \/>/, 'La pioche a son propre bouton icône de rafraîchissement, relié à sa voie')
+assert.doesNotMatch(atriumHomeSource, /refreshMediumSelections|Rafraîchir<\/span>|showMediumLabel/, 'La page ne doit pas avoir de rafraîchissement global')
+assert.match(atriumHomeSource, /<span className="at-work-title">\{entry\.title\}<\/span>[\s\S]{0,240}\{showMedium && <span className="at-work-medium">/, 'Le médium suit le titre de la carte, jamais en surtitre')
+assert.match(atriumHomeSource, /const cardProps = \{ showMedium: isAll,/, 'Le libellé de médium n’apparaît sur les cartes que sous l’onglet Tout')
+assert.match(atriumHomeSource, /function FileRow[\s\S]*?if \(entries\.length === 0\) return null/, 'Une rangée vide est masquée')
+assert.match(atriumHomeSource, /entries\.length === 0 \? \(\s*<p className="at-empty-tab">\{current\.empty\}<\/p>/, 'Un onglet sans œuvre reste affiché, avec une phrase d’état vide')
 assert.match(atriumHomeSource, /<section id=\{id\} className=\{`at-section/, 'Chaque file doit exposer un identifiant stable pour les ancres et la QA')
 assert.match(atriumHomeSource, /aria-labelledby=\{`\$\{id\}-titre`\}/, 'Chaque file reste rattachée à son titre par aria-labelledby')
-assert.match(atriumHomeSource, /<div className="at-files">[\s\S]*<\/div>[\s\S]*<div className="at-medium-grid"/, 'Les rangées récentes doivent précéder les modules par médium')
-assert.match(atriumHomeSource, /<ActivityCalendar activityMap=\{activityMap\} \/>/, 'Le calendrier annuel reste porté par l’accueil')
-assert.match(atriumHomeSource, /const mediumStats = MEDIUM_ORDER\.map[\s\S]*FINISHED_STATUSES\[medium\][\s\S]*thisYear: finished\.filter/, 'Les compteurs par bibliothèque restent alimentés par les données réelles')
-assert.match(atriumHomeSource, /className="at-cal-dots"[\s\S]*mediums\.map\(\(medium\)[\s\S]*data-medium=\{medium\}/, 'Les jours du calendrier doivent montrer toutes les catégories présentes avec leurs couleurs')
+assert.match(atriumHomeSource, /role="tablist"[\s\S]*<TabStatistics[\s\S]*role="tabpanel"[\s\S]*<FeaturedCarousel[\s\S]*<div className="at-files">[\s\S]*id="at-favorites"[\s\S]*id="at-progress"[\s\S]*id="at-queue"[\s\S]*id="at-recent"[\s\S]*id="at-additions"[\s\S]*id="at-pick"[\s\S]*<\/div>[\s\S]*className="at-section at-activity"[\s\S]*<ActivityCalendar/, 'Ordre de l’accueil : onglets et bilan, une, rangées (coups de cœur, en cours, attente, terminés, ajouts, pioche), puis activité')
+assert.doesNotMatch(atriumHomeSource, /at-medium-table|at-medium-grid|at-overview|<table/, 'Le tableau et la grille par médium ne reviennent pas sur l’accueil')
+assert.match(atriumHomeSource, /const activityMap = useMemo\(\(\) => buildActivityMap\(entries\), \[entries\]\)[\s\S]*<ActivityCalendar activityMap=\{activityMap\}/, 'Le calendrier d’activité reste porté par l’accueil et suit l’onglet')
+assert.match(atriumHomeSource, /function isFinished\(entry: HomeEntry\): boolean \{\s*return entry\.status === FINISHED_STATUSES\[entry\.medium\]/, 'Une œuvre terminée est celle qui a le statut d’arrivée de son médium')
+assert.match(atriumHomeSource, /function buildTabStats[\s\S]*entries\.filter\(isFinished\)[\s\S]*Array\.from\(\{ length: 12 \}[\s\S]*thisMonth: months\[11\]\.count/, 'Le bilan compte les œuvres terminées, celles du mois civil et les douze derniers mois depuis les dates réelles')
+assert.match(atriumHomeSource, /const stats = buildTabStats\(entries, new Date\(\)\)/, 'Le bilan suit l’onglet affiché')
+assert.match(atriumHomeSource, /'œuvres terminées'[\s\S]*'films vus'[\s\S]*'séries vues'[\s\S]*'livres lus'[\s\S]*'jeux joués'[\s\S]*'œuvres découvertes'[\s\S]*<span>ce mois-ci<\/span>/, 'Chaque onglet accorde le libellé de son bilan, suivi de « ce mois-ci »')
+assert.match(atriumHomeSource, /className="at-spark" aria-hidden="true"[\s\S]*title=\{`\$\{month\.label\} : \$\{month\.count\}`\}[\s\S]*sur 12 mois/, 'Les douze barres sont décoratives et titrées ; le total sur douze mois reste lisible par les technologies d’assistance')
+assert.match(atriumHomeSource, /className="at-cal-dots"[\s\S]*mediums\.map\(\(medium\)[\s\S]*data-medium=\{medium\}/, 'Les jours du calendrier doivent montrer toutes les catégories présentes avec leurs repères accessibles')
 assert.match(atriumHomeSource, /function WorkPoster[\s\S]*resolveFilmPoster\(entry\.filmId/, 'La carte d’accueil doit relire l’affiche réelle d’un film associé')
 assert.match(atriumHomeSource, /function usableContributor[\s\S]*non\|none[\s\S]*function WorkCard[\s\S]*resolveFilmContributor\(entry\.filmId/, 'Les crédits absents ou de remplissage doivent être masqués, et le réalisateur du cache local doit pouvoir compléter la carte')
 assert.match(atriumHomeSource, /const contributor = showContributor \? usableContributor\(entry\.contributor\) \?\? cachedContributor : null/, 'Les cartes affichent uniquement le nom du crédit, sans préfixe de champ')
-assert.match(atriumHomeSource, /id="at-additions"[\s\S]*showContributor[\s\S]*id="at-recent"[\s\S]*showContributor/, 'Les crédits doivent apparaître dans les derniers ajouts et les œuvres récentes')
+assert.match(atriumHomeSource, /id="at-recent"[\s\S]*showContributor[\s\S]*id="at-additions"[\s\S]*showContributor/, 'Les crédits doivent apparaître dans les œuvres récemment terminées et les derniers ajouts')
 assert.match(tmdbServiceSource, /export async function resolveFilmDisplayPoster[\s\S]*selectedPosterUrl[\s\S]*presentation\.posterUrl/, 'L’affiche d’un film associé doit venir du cache TMDB, comme dans la bibliothèque')
 assert.match(tmdbServiceSource, /export async function resolveFilmDisplayDirector[\s\S]*getFilmTmdbCache\(filmId\)[\s\S]*presentation\.directors/, 'Le réalisateur affiché sur les cartes doit être lu depuis le cache TMDB local')
 assert.match(mainSource, /resolveFilmDisplayPoster\(film\.id, film\.posterUrl\)[\s\S]*resolveFilmPoster=\{resolveFilmDisplayPoster\}/, 'Bibliothèque et accueil doivent partager la même règle d’affiche')
@@ -2076,19 +2112,41 @@ assert.doesNotMatch(atriumHomeSource, /at-door|Tout voir|Six autres|at-jour|anni
 assert.doesNotMatch(atriumHomeSource, /Ma bibliothèque/, 'L’accueil ne se présente plus comme une page « Ma bibliothèque »')
 assert.match(mainSource, /className=\{`nav-item sidebar-home-item \$\{activeItem === 'home' \? 'active' : ''\}`\}[\s\S]*<span className="nav-item-text">\{icon\('home'\)\} Accueil<\/span>/, 'La sidebar doit présenter Accueil avec le pictogramme maison dans le rail des destinations')
 assert.match(stylesSource, /\.at-files \.at-lane \{[^}]*--at-lane-count: 6;/s, 'Les rangées d’accueil doivent viser six cartes sur le bureau')
-assert.match(stylesSource, /\.at-medium-grid \{[^}]*display: flex;[^}]*justify-content: center;/s, 'Les modules par médium doivent centrer leur dernière rangée, même si une bibliothèque est vide')
-assert.match(stylesSource, /\.at-medium-items \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/s, 'Chaque module par médium doit afficher ses trois œuvres en colonnes équilibrées')
+assert.doesNotMatch(stylesSource, /\.at-medium-(?:table|grid|panel|items|head|section)|\.at-overview|\.at-empty-home/, 'Les styles de l’ancien accueil (tableau, bandeau centré, grille par médium) sont supprimés')
+assert.match(stylesSource, /\.at-topbar \{[^}]*justify-content: space-between;[^}]*flex-wrap: nowrap;[^}]*white-space: nowrap;/s, 'Onglets et bilan tiennent sur une seule ligne, sans retour')
+assert.match(stylesSource, /\.at-stats \{[^}]*flex: 0 0 auto;[^}]*white-space: nowrap;/s, 'Le bilan de l’onglet ne se replie ni ne s’abrège')
+assert.match(stylesSource, /\.at-activity-panel \{[^}]*border: 1px solid var\(--color-border\);[^}]*\}\s*\.at-activity-body \{[^}]*grid-template-columns: minmax\(0, 340px\) minmax\(0, 1fr\);/s, 'Le panneau d’activité occupe la largeur des rangées : calendrier, puis mois affiché')
 assert.doesNotMatch(stylesSource, /\.at-files \.at-work \{/, 'Les rangées d’accueil conservent leur présentation précédente, sans cartes espacées supplémentaires')
-assert.match(stylesSource, /\.at-medium-head \{[^}]*display: flex;[^}]*justify-content: space-between;/s, 'Chaque bouton de rafraîchissement doit rester aligné dans son propre en-tête de médium')
+assert.doesNotMatch(stylesSource, /\.at-activity-panel \{[^}]*width:/s, 'Le panneau d’activité ne doit plus être centré et plus étroit que les rangées')
 assert.match(stylesSource, /\.at-cal-days \{[^}]*grid-auto-rows: 31px;[^}]*min-height: 201px;/s, 'Le calendrier compact doit conserver sa hauteur entre les mois')
-assert.match(stylesSource, /--color-star-active: #B78322/, 'Les notes de l’accueil doivent reprendre un doré lisible sur le thème clair')
+assert.match(stylesSource, /--color-star-active: var\(--color-text\)/, 'Les notes doivent utiliser la même encre monochrome lisible dans les deux thèmes')
+assert.match(stylesSource, /--color-heart-active: var\(--color-text\)/, 'Les coups de cœur doivent utiliser l’encre commune, pas une couleur décorative')
 assert.match(stylesSource, /@font-face\s*\{[^}]*font-family: "Syne";[^}]*src: url\("\.\/assets\/fonts\/Syne-VariableFont_wght\.ttf"\)[^}]*font-weight: 400 800;/s, 'La fonte Syne doit être chargée depuis le fichier local du projet')
 assert.match(stylesSource, /--font-display: "Syne", var\(--font-ui\)/, 'Syne doit devenir la voix typographique des titres avec une pile de repli locale')
 assert.match(stylesSource, /h1, h2, h3, h4 \{ font-family: var\(--font-display\); text-transform: uppercase; \}/, 'Les titres structurels de l’application doivent partager Syne et les capitales')
 assert.match(stylesSource, /\.detail-page-main \.display-title \{[^}]*font-family: var\(--font-ui\);[^}]*text-transform: none;/s, 'Les titres des œuvres sur les fiches doivent garder leur casse naturelle et la police de lecture')
-assert.match(stylesSource, /\.at-file-head \.at-section-title \{[^}]*font-size: 22px;[^}]*font-weight: 750;[^}]*text-transform: uppercase;/s, 'Les titres des rangées d’accueil doivent être renforcés et adopter les capitales espacées')
-assert.match(atriumHomeSource, /label="Récents"/, 'La rangée des œuvres consommées doit s’intituler « Récents »')
-assert.match(stylesSource, /\.at-medium-table tbody th \{[^}]*font-family: var\(--font-display\);[^}]*text-transform: uppercase;/s, 'Les catégories du tableau d’activité doivent suivre la voix Syne en capitales')
+assert.match(stylesSource, /\.at-file-head \.at-section-title \{[^}]*font-size: var\(--text-2xl\);[^}]*font-weight: 700;[^}]*text-transform: uppercase;/s, 'Les titres des rangées d’accueil doivent être renforcés et adopter les capitales espacées')
+assert.match(atriumHomeSource, /queue: 'En attente', recent: 'Récemment terminés'[\s\S]*queue: 'À voir', recent: 'Récemment vus'[\s\S]*queue: 'À voir', recent: 'Récemment vues'[\s\S]*queue: 'À lire', recent: 'Récemment lus'[\s\S]*queue: 'À jouer', recent: 'Récemment joués'[\s\S]*queue: 'À découvrir', recent: 'Récemment découvertes'/, 'Les rangées d’attente et de récents portent le libellé accordé à l’onglet')
+assert.match(atriumHomeSource, /label=\{current\.queue\}[\s\S]*label=\{current\.recent\}/, 'Les titres de rangées suivent l’onglet affiché')
+assert.match(atriumHomeSource, /label: 'Tout'[\s\S]*label: 'Films'[\s\S]*label: 'Séries'[\s\S]*label: 'Livres'[\s\S]*label: 'Mangas'[\s\S]*label: 'Jeux'[\s\S]*label: 'Art'/, 'L’accueil propose les onglets Tout, Films, Séries, Livres, Mangas, Jeux et Art')
+assert.match(atriumHomeSource, /className="seg-group-form at-tabs" role="tablist"[\s\S]*role="tab"[\s\S]*className=\{`seg-pill-btn\$\{item\.key === tab \? ' on' : ''\}`\}[\s\S]*aria-selected=\{item\.key === tab\}[\s\S]*aria-controls="at-tab-panel"[\s\S]*tabIndex=\{item\.key === tab \? 0 : -1\}/, 'Les onglets reprennent le contrôle segmenté commun et le motif ARIA (sélection, panneau, tabulation itinérante)')
+assert.match(atriumHomeSource, /case 'ArrowRight'[\s\S]*case 'ArrowLeft'[\s\S]*case 'Home'[\s\S]*case 'End'[\s\S]*tabRefs\.current\[next\]\?\.focus\(\)/, 'Les onglets se parcourent aux flèches, avec Début et Fin, et le focus suit la sélection')
+assert.match(atriumHomeSource, /const HOME_TAB_STORAGE_KEY = 'sylloge-home-tab'[\s\S]*HOME_TABS\.find\(\(tab\) => tab\.slug === stored\)\?\.key \?\? 'tout'/, 'Le dernier onglet est mémorisé ; une valeur inconnue revient à « Tout »')
+assert.match(atriumHomeSource, /const entries = useMemo\([\s\S]*allEntries\.filter\(\(entry\) => entry\.medium === current\.key\)/, 'L’onglet filtre toute la page')
+assert.match(atriumHomeSource, /function pickFeatured[\s\S]*entries\.filter\(\(entry\) => entry\.isFavorite\)\.sort\(byRecentActivity\)\.slice\(0, FEATURED_FAVORITES\)[\s\S]*entries\.filter\(isFinished\)[\s\S]*entry\.status === 'en cours'[\s\S]*second\.createdAt\.localeCompare\(first\.createdAt\)\)\.slice\(0, FEATURED_FALLBACK\)/, 'À la une : les coups de cœur de l’onglet, sinon les dernières terminées, les œuvres en cours, puis les derniers ajouts')
+assert.match(atriumHomeSource, /const FEATURED_FAVORITES = 8\s*const FEATURED_FALLBACK = 5/, 'À la une : huit coups de cœur au plus, cinq œuvres de repli')
+assert.match(atriumHomeSource, /const FEATURED_DELAY = 8000[\s\S]*const canRotate = count > 1 && !reducedMotion\s*const rotating = canRotate && !paused && !hovered && !keyboardInside && pageVisible[\s\S]*\[rotating, current, count, cycle\]/, 'La une avance seule toutes les huit secondes, sauf mouvement réduit, survol, focus clavier, pause, page cachée ou œuvre unique ; une action manuelle relance le compte')
+assert.match(atriumHomeSource, /aria-roledescription="carrousel"[\s\S]*'Reprendre le défilement' : 'Mettre en pause le défilement'[\s\S]*aria-live=\{rotating \? 'off' : 'polite'\}[\s\S]*label=\{`\$\{position \+ 1\} sur \$\{count\}`\}[\s\S]*aria-roledescription="diapositive"/, 'La une suit le motif de carrousel accessible : rôle, pause étiquetée, annonce hors lecture automatique, position de chaque diapositive')
+assert.match(atriumHomeSource, /\{count > 1 && \(\s*<div className="at-hero-controls">/, 'Une seule œuvre à la une : ni minuterie, ni flèches, ni points')
+assert.match(atriumHomeSource, /function WorkPoster[\s\S]*?usePosterSource\(entry, resolveFilmPoster\)[\s\S]*function usePosterSource[\s\S]*?resolveFilmPoster\(entry\.filmId as string\)[\s\S]*function FeaturedSlide[\s\S]*?usePosterSource\(entry, resolveFilmPoster\)/, 'Cartes et une relisent l’affiche réelle d’un film associé')
+assert.match(atriumHomeSource, /function FeaturedSlide[\s\S]*?const contributor = usableContributor\(entry\.contributor\) \?\? cachedContributor/, 'La une masque aussi les crédits factices')
+assert.match(atriumHomeSource, /className="at-slide-note"[\s\S]*className="primary-button" onClick=\{entry\.onOpen\}[\s\S]{0,120}Ouvrir la fiche/, 'La une cite la critique et ouvre la fiche de l’œuvre')
+assert.match(stylesSource, /\.at-hero \{[^}]*--at-hero-height: 420px;[^}]*height: var\(--at-hero-height\);/s, 'La une a une hauteur fixe : la première rangée reste visible au premier écran')
+assert.match(stylesSource, /\.at-slide \{[^}]*transition: opacity 0s linear var\(--duration-base\)[^}]*\}\s*\.at-slide\.is-active \{[^}]*transition: opacity var\(--duration-base\) var\(--ease-out\)/s, 'Le fondu enchaîné de la une utilise les jetons de durée')
+assert.match(stylesSource, /@media \(prefers-reduced-motion: reduce\) \{\s*\.at-work:hover \.poster \{ transform: none; \}\s*\.at-slide,\s*\.at-slide\.is-active,[^}]*transition: none;/, 'Le fondu de la une est retiré en mouvement réduit')
+assert.match(stylesSource, /\.at-slide-title \{[^}]*font-family: var\(--font-ui\);[^}]*text-transform: none;/s, 'Le titre à la une garde la police de lecture et sa casse naturelle')
+assert.match(stylesSource, /\.at-slide-note \{[^}]*-webkit-line-clamp: 3;[^}]*font-family: var\(--font-personal\);/s, 'L’extrait de critique garde la voix serif, sur trois lignes au plus')
+assert.doesNotMatch(stylesSource, /\[data-medium=/, 'Aucune couleur par médium sur l’accueil')
 assert.match(stylesSource, /\.at-cal-nav h3 \{[^}]*text-transform: uppercase;/s, 'Le mois affiché dans le calendrier doit suivre la règle de capitales des titres')
 assert.match(stylesSource, /\.at-work-title \{[^}]*font-family: var\(--font-ui\)/s, 'Les titres d’œuvres de l’accueil doivent rester dans la police de lecture')
 assert.match(stylesSource, /\.film-card-info b \{[^}]*font-family: var\(--font-ui\)/s, 'Les titres des cartes des cinq bibliothèques doivent rester dans la police de lecture')
@@ -2108,6 +2166,7 @@ assert.match(tauriLibrarySource, /portability::clear_backup_settings/, 'La comma
 assert.match(formSource, /<Poster\s+title=\{previewTitle\}\s+src=\{previewUrl\}/s, 'L’aperçu du formulaire doit réutiliser le fallback typographique')
 assert.match(formSource, /values\.watchedAt \|\| today/, 'La date de visionnage est préremplie avec la date du jour (0.6.0 : plus de bouton « Utiliser aujourd’hui »)')
 assert.match(formSource, /onCancel/, 'Le formulaire doit permettre une annulation avant toute écriture')
+assert.match(formSource, /\{ \.\.\.EMPTY_FILM_FORM, \.\.\.initialValues \}/, 'La saisie manuelle transmet des valeurs partielles : le formulaire Film doit les compléter avec les valeurs vides, comme Séries, Livres et Jeux')
 assert.match(formSource, /initialValues/, 'Le formulaire doit accepter des valeurs initiales éditables')
 assert.match(formSource, /onSave\(result\.data, provenance\)/, 'Le formulaire doit transmettre la provenance interne seulement à la validation finale')
 assert.match(tmdbSearchFlowSource, /Saisir manuellement/, 'La recherche TMDB doit proposer une issue vers la saisie manuelle')
@@ -2162,6 +2221,15 @@ assert.match(libraryImportButtonSource, /JSON[\s\S]*CSV[\s\S]*ZIP compatible/, '
 assert.match(libraryImportButtonSource, /setOpen\(true\)/, 'Le premier clic doit ouvrir le dialogue d’import')
 assert.doesNotMatch(libraryImportButtonSource, /setOpen\(true\)[^}]*pickAndPrepare/s, 'Le premier clic ne doit pas ouvrir immédiatement le sélecteur de fichiers')
 assert.match(libraryImportButtonSource, /writingRef\.current/, 'Un double déclenchement ne doit jamais lancer deux écritures concurrentes')
+assert.match(libraryImportButtonSource, /props\.kind === 'films' \|\| props\.kind === 'series' \? 'json-preview' : 'mode'/, 'Les imports JSON Films et Séries doivent passer par un aperçu avant le choix de traitement')
+assert.match(libraryImportButtonSource, /<JsonImportPreview[\s\S]*fileName=\{fileName\}[\s\S]*items=\{props\.kind === 'films' \? filmsImported : seriesImported\}/, 'L’aperçu JSON doit identifier le fichier et recevoir les fiches analysées')
+assert.match(libraryImportButtonSource, /items\.slice\(0, 5\)/, 'L’aperçu JSON doit limiter l’extrait affiché pour garder le dialogue lisible')
+assert.match(libraryImportButtonSource, /onContinue=\{\(\) => setStep\('mode'\)\}/, 'Le choix Remplacer ou Fusionner ne doit venir qu’après l’aperçu JSON')
+assert.match(collectionImportFlowSource, /title=\{duplicate\.existing\.title\}/, 'Le résolveur doit afficher le titre d’origine, avec sa casse et ses accents, et non la clé normalisée')
+assert.match(libraryImportButtonSource, /series: \{ pluralLabel: 'séries', gender: 'feminine' \}/, 'Le choix d’import doit accorder correctement le pluriel féminin Séries')
+assert.match(libraryImportButtonSource, /games: \{ pluralLabel: 'jeux', gender: 'masculine' \}/, 'Le choix d’import doit employer le pluriel correct de Jeux')
+assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détectée' : 'détectées'/, 'Le choix d’import doit accorder les noms féminins au singulier et au pluriel')
+assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détecté' : 'détectés'/, 'Le choix d’import doit accorder les noms masculins au singulier et au pluriel')
 assert.match(filmCsvImportFlowSource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
 assert.match(filmCsvImportFlowSource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
 assert.doesNotMatch(filmCsvImportFlowSource, /Nouveau profil|Créer le nouveau profil/, 'L’import CSV ou Notion ne doit plus créer de profil')
@@ -2175,9 +2243,13 @@ assert.match(filmCsvImportFlowSource, /Fonctionnalité future, non importée/, '
 assert.doesNotMatch(filmCsvImportFlowSource, /champs Films reconnus/, 'Le sélecteur Notion ne doit jamais afficher un compteur de champs reconnus')
 assert.match(filmCsvImportFlowSource, /Pages de notes associées/, 'Les pages de notes historiques doivent apparaître comme une source texte distincte')
 assert.match(filmCsvImportFlowSource, /Évaluation/, 'La destination numérique doit être distinguée de Note personnelle')
-assert.match(accessibleDialogSource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
-assert.match(accessibleDialogSource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
-assert.match(accessibleDialogSource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
+assert.match(dialogFocusSource, /document\.addEventListener\('keydown', keepFocusInDialog, true\)/, 'Le dialogue doit intercepter le clavier même lorsque le focus a quitté un contrôle')
+assert.match(accessibleDialogSource, /useDialogFocus\(dialogRef, onClose, closeDisabled\)/, 'Les assistants doivent utiliser le clavier commun')
+assert.match(posterDialogSource, /useDialogFocus\(dialogRef, onClose, saving \|\| addOpen\)/, 'La galerie doit utiliser le clavier commun sans fermer une fenêtre imbriquée')
+assert.match(dialogFocusSource, /if \(!isTopDialog\(\)\) return/, 'Seule la fenêtre supérieure doit intercepter le clavier')
+assert.match(dialogFocusSource, /returnFocusRef\.current\.focus\(\{ preventScroll: true \}\)/, 'La fermeture doit restaurer le focus sans déplacer la page')
+assert.match(dialogFocusSource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
+assert.match(dialogFocusSource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
 assert.match(portabilitySource, /Sauvegarde Sylloge/, 'L’export global doit être nommé Sauvegarde Sylloge dans les Paramètres')
 assert.match(portabilitySource, /fullLibrary/, 'Le hub de portabilité doit charger les cinq collections pour ses actions par médium')
 // Jalon 0.4.29 : un seul bouton Exporter par médium, dialogue de formats JSON/CSV.
@@ -2443,6 +2515,13 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.equal(parseSeriesCollectionJson(serialized).items?.[0]?.title, 'Série v2', 'L’import unitaire Séries doit accepter un document v2')
   assert.equal(parseBooksCollectionJson(serialized).items?.[0]?.quotes[0]?.body, 'Citation mémorable', 'L’import unitaire Livres doit conserver les citations du document v2')
 
+  const malformedFilmJson = parseFilmsCollectionJson('{ "films":')
+  const malformedSeriesJson = parseSeriesCollectionJson('{ "series":')
+  assert.equal(malformedFilmJson.items, null, 'Un JSON Films mal formé ne doit fournir aucune fiche à écrire')
+  assert.equal(malformedSeriesJson.items, null, 'Un JSON Séries mal formé ne doit fournir aucune fiche à écrire')
+  assert.match(malformedFilmJson.error ?? '', /aucune donnée n’a été écrite/i, 'L’erreur JSON Films doit confirmer l’absence d’écriture')
+  assert.match(malformedSeriesJson.error ?? '', /aucune donnée n’a été écrite/i, 'L’erreur JSON Séries doit confirmer l’absence d’écriture')
+
   const v1Document = JSON.stringify({
     format: 'sylloge-films',
     version: 1,
@@ -2455,6 +2534,21 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   assert.equal(parseFilmsCollectionJson(v1Document).items?.[0]?.title, 'Film v2', 'L’import unitaire Films doit rester compatible avec un JSON Films v1')
   assert.equal(parseSeriesCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Séries')
   assert.equal(parseBooksCollectionJson(v1Document).items, null, 'Un JSON Films v1 ne doit jamais être interprété comme un import Livres')
+
+  const emptyCollectionsDocument = serializeLibraryDocument(createLibraryDocument({
+    profile: library.profile,
+    films: [],
+    series: [],
+    books: [],
+    games: [],
+    artworks: [],
+  }, '2026-07-19T12:00:00.000Z'))
+  const emptyFilmJson = parseFilmsCollectionJson(emptyCollectionsDocument)
+  const emptySeriesJson = parseSeriesCollectionJson(emptyCollectionsDocument)
+  assert.equal(emptyFilmJson.items, null, 'Un document v2 sans films doit être refusé avant Remplacer ou Fusionner')
+  assert.match(emptyFilmJson.error ?? '', /aucun film/i, 'Le refus d’une collection Films vide doit nommer le contenu absent')
+  assert.equal(emptySeriesJson.items, null, 'Un document v2 sans séries doit être refusé avant Remplacer ou Fusionner')
+  assert.match(emptySeriesJson.error ?? '', /aucune série/i, 'Le refus d’une collection Séries vide doit nommer le contenu absent')
 
   const invalidSeries = JSON.parse(serialized)
   invalidSeries.series[0].seasonsSeen = 12
@@ -2841,12 +2935,15 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   const simpleBook = validateBookForm({
     ...base,
     category: 'livre',
+    status: 'en cours',
     volumesRead: '2',
     volumesTotal: '3',
   })
   assert.equal(simpleBook.success, true)
-  assert.equal(simpleBook.data.volumesRead, null, 'Un livre simple ne doit pas persister un compteur de tomes masqué')
-  assert.equal(simpleBook.data.volumesTotal, null, 'Un livre simple ne doit pas persister un total de tomes masqué')
+  assert.equal(simpleBook.data.volumesRead, 2, 'Corriger le type en Livre conserve les tomes lus, désormais visibles dans le formulaire')
+  assert.equal(simpleBook.data.volumesTotal, 3, 'Corriger le type en Livre conserve le total de tomes')
+  assert.equal(minimal.data.volumesRead, null, 'Un livre sans progression ne crée aucun compteur')
+  assert.equal(minimal.data.volumesTotal, null, 'Un livre sans progression ne crée aucun total')
 
   assert.equal(resolveBookStatusForTotalChange('lu', 12, 13), 'en cours', 'Un nouveau tome fait repasser une œuvre lue en cours')
   assert.equal(resolveBookStatusForTotalChange('lu', 12, 12), 'lu', 'Une œuvre à jour reste lue')
@@ -3024,7 +3121,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   )
 }
 
-assert.match(mainSource045, /BOOK_CATEGORIES\.map/, 'La bibliothèque Livres doit offrir le filtre Livre, Manga et Comics')
+assert.match(mainSource045, /booksForLibrary\(bookCollection, scope\)/, 'Livres et Mangas présentent des collections séparées, les comics restant dans Livres')
 assert.match(mainSource045, /searchBooks/, 'La recherche Livres doit reposer sur le repository SQLite')
 assert.match(mainSource045, /kind="books"/, 'La bibliothèque Livres doit proposer son import unitaire')
 assert.match(mainSource045, /LibraryExportFlow kind="books"/, 'La bibliothèque Livres doit proposer son export dédié')
@@ -3548,6 +3645,58 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
   assert.deepEqual(snapshotDocument?.artworks[0], existingArtwork, 'Le snapshot global doit inclure fidèlement l’Art')
 }
 
+// Lot imports Films/Séries — doublons entre la collection locale et le fichier.
+{
+  const timestamp = '2026-07-22T16:00:00.000Z'
+  const { planFilmMerge, planSeriesMerge, resolveFilmMerge, resolveSeriesMerge } = await import('../src/domain/importMerge.ts')
+  const existingFilm = {
+    id: 'film-local', profileId: 'default', title: 'Étoile bleue', originalTitle: null, year: null,
+    status: 'terminé', isFavorite: true, rating: 5, watchedAt: '2026-07-01',
+    personalNote: 'Avis local conservé.', director: null, summary: null,
+    providerName: null, providerId: null, posterUrl: null, createdAt: timestamp, updatedAt: timestamp,
+  }
+  const importedFilm = {
+    ...existingFilm, id: 'film-imported', profileId: 'source', title: ' etoile bleue ',
+    year: 2020, status: 'à découvrir', rating: null, isFavorite: false, watchedAt: null,
+    personalNote: null, director: 'Camille Test',
+  }
+  const newFilm = { ...importedFilm, id: 'film-new', title: 'Film inédit' }
+  const filmPlan = planFilmMerge([existingFilm], [importedFilm, newFilm])
+  assert.equal(filmPlan.duplicates.length, 1, 'La fusion Films doit repérer un titre identique après normalisation des accents, de la casse et des espaces')
+  assert.equal(filmPlan.additions.length, 1, 'La fusion Films doit garder les fiches sans correspondance comme ajouts')
+  const keptFilm = resolveFilmMerge([], filmPlan, new Map([['etoile bleue', 'keep-existing']]), timestamp).updates[0]
+  assert.equal(keptFilm.director, 'Camille Test', 'La fusion Films doit compléter les champs descriptifs vides')
+  assert.equal(keptFilm.status, existingFilm.status, 'La fusion Films doit préserver le statut personnel local')
+  assert.equal(keptFilm.rating, existingFilm.rating, 'La fusion Films doit préserver la note locale')
+  assert.equal(keptFilm.personalNote, existingFilm.personalNote, 'La fusion Films doit préserver l’avis local')
+  const importedFilmChoice = resolveFilmMerge([], filmPlan, new Map([['etoile bleue', 'keep-imported']]), timestamp).updates[0]
+  assert.equal(importedFilmChoice.id, existingFilm.id, 'Le choix de la fiche importée doit conserver l’identité SQLite locale')
+  assert.equal(importedFilmChoice.status, importedFilm.status, 'Le choix de la fiche importée doit appliquer ses données explicitement choisies')
+
+  const existingSeries = {
+    id: 'series-local', profileId: 'default', title: 'Été calme', showrunner: null, casting: null,
+    summary: null, category: 'série télé', status: 'en cours', rating: 4, isFavorite: true,
+    seasonsSeen: 2, seasonsTotal: 5, progressUpdatedAt: timestamp, startedAt: '2026-06-01',
+    posterUrl: null, personalNote: 'Progression locale conservée.', createdAt: timestamp, updatedAt: timestamp,
+  }
+  const importedSeries = {
+    ...existingSeries, id: 'series-imported', profileId: 'source', title: 'ete calme',
+    showrunner: 'Alex Test', summary: 'Résumé factice', status: 'à voir', rating: null,
+    isFavorite: false, seasonsSeen: 0, seasonsTotal: null, progressUpdatedAt: null,
+    startedAt: null, personalNote: null,
+  }
+  const seriesPlan = planSeriesMerge([existingSeries], [importedSeries])
+  assert.equal(seriesPlan.duplicates.length, 1, 'La fusion Séries doit ignorer casse et accents pour détecter un doublon')
+  const keptSeries = resolveSeriesMerge([], seriesPlan, new Map([['ete calme', 'keep-existing']]), timestamp).updates[0]
+  assert.equal(keptSeries.showrunner, 'Alex Test', 'La fusion Séries doit compléter les champs éditoriaux vides')
+  assert.equal(keptSeries.status, existingSeries.status, 'La fusion Séries doit préserver le statut personnel local')
+  assert.equal(keptSeries.seasonsSeen, existingSeries.seasonsSeen, 'La fusion Séries doit préserver la progression locale')
+  assert.equal(keptSeries.personalNote, existingSeries.personalNote, 'La fusion Séries doit préserver l’avis local')
+  const importedSeriesChoice = resolveSeriesMerge([], seriesPlan, new Map([['ete calme', 'keep-imported']]), timestamp).updates[0]
+  assert.equal(importedSeriesChoice.id, existingSeries.id, 'Le choix de la fiche Série importée doit conserver l’identité locale')
+  assert.equal(importedSeriesChoice.status, importedSeries.status, 'Le choix de la fiche Série importée doit appliquer son statut explicitement')
+}
+
 // Jalon 0.4.11 — résolveur de doublons praticable à grande échelle.
 {
   const { countModifiedDuplicateResolutions, filterDuplicatesByTitle } = await import('../src/domain/importMerge.ts')
@@ -3600,8 +3749,8 @@ const mainSource0419 = readFileSync(new URL('../src/main.tsx', import.meta.url),
   // La présentation est normalisée : Tous ouvre la rangée, puis les vues
   // propres au médium, puis Récent / Favori / Classement. L'ordre de la rangée
   // reste distinct des vues d'ouverture définies plus bas.
-  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'recent', 'favorites', 'ranking'], 'Les médiums notés ouvrent leur rangée par Tous')
-  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'favorites'], 'L’Art ouvre sa rangée par Tous, sans classement ni watchlist')
+  assert.deepEqual(RATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'recent', 'this-year', 'favorites', 'ranking'], 'Les médiums notés ouvrent leur rangée par Tous ; « Cette année » suit « Récent »')
+  assert.deepEqual(UNRATED_BUILTIN_VIEWS.map((view) => view.id), ['all', 'recent', 'this-year', 'favorites'], 'L’Art ouvre sa rangée par Tous, sans classement ni watchlist ; « Cette année » suit « Récent »')
   assert.ok(RATED_BUILTIN_VIEWS.every((view) => view.builtin), 'Les vues de base sont des présets intégrés du même modèle')
 
   const watchlist = RATED_BUILTIN_VIEWS.find((view) => view.id === 'watchlist')
@@ -3661,7 +3810,7 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   } = await import('../src/domain/libraryViews.ts')
   const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
 
-  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'in-progress', 'recent', 'favorites', 'ranking'], 'Séries et Livres : Tous, watchlist, En cours puis socle commun')
+  assert.deepEqual(PROGRESS_BUILTIN_VIEWS.map((view) => view.id), ['all', 'watchlist', 'in-progress', 'recent', 'this-year', 'favorites', 'ranking'], 'Séries et Livres : Tous, watchlist, En cours puis socle commun (Récent, Cette année, Favori, Classement)')
 
   const clauses = []
   const binds = []
@@ -3677,17 +3826,17 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   assert.ok(!clauses.some((clause) => clause.startsWith('status =')), 'Un groupe actif ne doit pas coexister avec un statut exact')
 
   assert.equal(WATCHLIST_DEFAULT_VIEW_ID, 'watchlist', 'Films, Séries, Livres et Jeux conservent leur vue d’ouverture watchlist')
-  assert.equal(ARTWORKS_DEFAULT_VIEW_ID, 'favorites', 'Art conserve sa vue d’ouverture Favori, distincte de Tous en tête de rangée')
+  assert.equal(ARTWORKS_DEFAULT_VIEW_ID, 'all', 'Art ouvre sur Tous (18 octobre 2026 : Favori ne montrait qu’une petite partie de la collection)')
   assert.equal(defaultViewIdForMedium('series'), WATCHLIST_DEFAULT_VIEW_ID, 'Séries ouvre sur sa watchlist')
   assert.equal(defaultViewIdForMedium('books'), WATCHLIST_DEFAULT_VIEW_ID, 'Livres ouvre sur sa watchlist')
   assert.equal(defaultViewIdForMedium('games'), WATCHLIST_DEFAULT_VIEW_ID, 'Jeux ouvre sur sa watchlist')
-  assert.equal(defaultViewIdForMedium('artworks'), ARTWORKS_DEFAULT_VIEW_ID, 'Art ouvre sur Favori')
+  assert.equal(defaultViewIdForMedium('artworks'), ARTWORKS_DEFAULT_VIEW_ID, 'Art ouvre sur Tous')
   assert.equal(defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'films').id, WATCHLIST_DEFAULT_VIEW_ID, 'Films : la rangée commence par Tous, la bibliothèque par À voir')
   assert.equal(defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'series').name, 'À voir', 'Séries : la vue d’ouverture reste la watchlist titrée')
   assert.equal(defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'books').name, 'À lire', 'Livres : la vue d’ouverture reste la watchlist titrée')
   assert.equal(defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'games').name, 'À jouer', 'Jeux : la vue d’ouverture reste la watchlist titrée')
-  assert.equal(defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks').id, ARTWORKS_DEFAULT_VIEW_ID, 'Art : Tous ouvre la rangée, pas la vue d’ouverture')
-  assert.equal(titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks').map((view) => view.id).join('|'), 'all|recent|favorites', 'Art conserve seulement Tous, Récent et Favori')
+  assert.equal(defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks').id, ARTWORKS_DEFAULT_VIEW_ID, 'Art : la vue d’ouverture résolue est Tous, en tête de rangée')
+  assert.equal(titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks').map((view) => view.id).join('|'), 'all|recent|this-year|favorites', 'Art garde Tous, Récent, Cette année et Favori')
 
   const mainSource068 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
   const stylesSource068 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
@@ -3704,14 +3853,15 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   }
   assert.doesNotMatch(mainSource068, /builtinViewById\(UNRATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/, 'Art ne doit plus ouvrir sur la watchlist inexistante')
   assert.match(mainSource068, /<SeriesCategorySwitch/, 'Séries doit exposer l’interrupteur Télé|Animation')
-  assert.match(mainSource068, /<BookCategorySwitch/, 'Livres doit exposer l’interrupteur Livre|Manga|Comics')
+  assert.doesNotMatch(mainSource068, /<BookCategorySwitch/, 'Livres et Mangas sont des bibliothèques séparées, sans bascule de catégorie dans la barre')
+  assert.match(mainSource068, /category: mangaContext\.category, filters: resolved\.filters/, 'Mangas doit avoir sa propre recherche SQLite et ses catégories')
   assert.match(mainSource068, /category: seriesContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Séries')
   assert.match(mainSource068, /category: bookContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Livres')
   assert.match(mainSource068, /titledBuiltinViews\(PROGRESS_BUILTIN_VIEWS, 'books'\)/, 'Livres doit titrer sa watchlist « À lire »')
   assert.match(mainSource068, /titledBuiltinViews\(RATED_BUILTIN_VIEWS, 'games'\)/, 'Jeux doit titrer sa watchlist « À jouer »')
   assert.doesNotMatch(mainSource068, /builtinViews=\{RATED_BUILTIN_VIEWS\}|builtinViews=\{UNRATED_BUILTIN_VIEWS\}/, 'Aucune bibliothèque ne doit recevoir d’intitulés non titrés')
   assert.equal((mainSource068.match(/defaultBuiltinViewForMedium\(/g) ?? []).length, 5, 'Les cinq bibliothèques doivent résoudre explicitement leur vue d’ouverture')
-  assert.match(mainSource068, /defaultBuiltinViewForMedium\(UNRATED_BUILTIN_VIEWS, 'artworks'\)/, 'Art doit ouvrir explicitement sur Favori, pas sur la première vue de la rangée')
+  assert.match(mainSource068, /defaultBuiltinViewForMedium\(UNRATED_BUILTIN_VIEWS, 'artworks'\)/, 'Art doit résoudre explicitement sa vue d’ouverture (Tous), sans dépendre de l’ordre de la rangée')
   assert.match(categorySwitchSource068, /role="group"/, 'L’interrupteur annonce un groupe multi-sélection')
   assert.match(categorySwitchSource068, /aria-pressed=/, 'Chaque segment expose son état coché')
   assert.match(categorySwitchSource068, /effective\.length === 1\) return/, 'L’interrupteur garde toujours au moins une catégorie active')
@@ -4025,14 +4175,17 @@ assert.doesNotMatch(rustPortabilitySource0421, /saved_views/, 'Les vues enregist
 
 assert.match(libraryViewBarSource, /Confirmer la suppression/, 'La suppression d’une vue doit demander une confirmation explicite')
 assert.match(libraryViewBarSource, /Enregistrer comme vue/, 'La rangée doit permettre d’enregistrer le combo courant comme vue')
-assert.match(libraryViewBarSource, /INLINE_SAVED_VIEWS/, 'Le débordement des vues enregistrées doit rester borné dans la rangée')
-assert.match(libraryViewBarSource, /debut >= pointEntree/, 'Le point médian doit déclencher l’overflow plutôt que de laisser des boutons rognés à droite')
+// 18 octobre 2026 : plus de menu « +n ». Toutes les vues enregistrées sont
+// rendues dans la rangée, qui défile ; la vue active est ramenée dans le champ.
+assert.doesNotMatch(libraryViewBarSource, /INLINE_SAVED_VIEWS|view-bar-more|library-views-overflow|vues? supplémentaires?/, 'Vues : aucune vue ne doit plus être reléguée dans un menu « +n »')
+assert.match(libraryViewBarSource, /\{savedViews\.map\(\(view\) => renderViewButton\(/, 'Vues : toutes les vues enregistrées sont rendues dans la rangée, sans plafond')
+assert.match(libraryViewBarSource, /querySelector<HTMLElement>\(`\[data-view-id="\$\{CSS\.escape\(activeView\.id\)\}"\]`\)[\s\S]*?scroller\.scrollTo\(/, 'Vues : la vue active est toujours ramenée dans le champ de la rangée')
 assert.match(libraryViewBarSource, /data-view-id=\{view\.id\}/, 'La mesure du débordement doit identifier chaque bouton de façon stable')
 assert.match(libraryViewBarSource, /aria-pressed=\{activeView\.id === view\.id\}/, 'Les vues intégrées et enregistrées doivent exposer leur état actif')
 assert.match(libraryViewBarSource, /event\.key === 'Home'[\s\S]*event\.key === 'End'/, 'La rangée doit permettre de rejoindre ses extrémités au clavier')
-assert.match(libraryViewBarSource, /aria-haspopup="menu"/, 'Le débordement doit s’annoncer comme menu')
-assert.match(libraryViewBarSource, /role="menuitem"/, 'Les entrées de débordement doivent être des éléments de menu')
-assert.match(libraryViewBarSource, /ArrowDown[\s\S]*ArrowUp/, 'Le menu de débordement doit rester navigable au clavier')
+assert.match(libraryViewBarSource, /className="view-pill-menu"[\s\S]*?aria-haspopup="menu"[\s\S]*?Options de la vue/, 'Vue enregistrée active : son menu « … » s’annonce comme menu, sur la pastille elle-même')
+assert.match(libraryViewBarSource, /role="menu" aria-label=\{`Vue « \$\{activeSavedView\.name\} »`\}[\s\S]*?role="menuitem"[\s\S]*?Renommer…[\s\S]*?Mettre à jour la vue[\s\S]*?Supprimer…/, 'Vue enregistrée active : renommer, mettre à jour et supprimer sont des éléments de menu')
+assert.match(libraryViewBarSource, /const onMenuKeyDown[\s\S]*?ArrowDown[\s\S]*?ArrowUp[\s\S]*?Home[\s\S]*?End/, 'Menus de la barre (tri, vue enregistrée) : navigables aux flèches, Début et Fin')
 assert.match(libraryViewBarSource, /onViewChange\(defaultBuiltinViewForMedium\(builtinViews, medium\)\)/, 'Supprimer une vue enregistrée doit revenir à la vue d’ouverture, pas au premier onglet visible')
 
 // Jalon 0.4.26 — Séries assistées TMDB, même parcours direct que Films.
@@ -4247,7 +4400,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
     readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
   ]
   assert.match(mainSource0610, /medium: 'série', step: 'search' \}/, 'Le bouton Ajouter une série doit ouvrir la pop-up de recherche TMDB')
-  assert.match(mainSource0610, /medium: 'livre', step: 'search' \}/, 'Le bouton Ajouter un livre doit ouvrir la pop-up de recherche Open Library')
+  assert.match(mainSource0610, /medium: 'livre', step: 'search', bookLibrary: scope \}/, 'Les boutons Ajouter un livre/manga ouvrent la recherche Open Library en conservant leur bibliothèque')
   assert.match(mainSource0610, /medium: 'jeu', step: 'search' \}/, 'Le bouton Ajouter un jeu doit ouvrir la pop-up de recherche IGDB')
   assert.match(mainSource0610, /medium: 'artwork', step: 'form'/, 'L’Art, sans fournisseur par règle du domaine, ouvre la pop-up directement au stade formulaire')
   assert.match(mainSource0610, /<SeriesTmdbSearchFlow\s+compact/, 'La recherche Séries doit vivre dans la pop-up, sans page pleine page')
@@ -4357,11 +4510,11 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(mainSource0621, /tmdbPresentation\?: TmdbFilmPresentation/, 'Le flux Film doit conserver temporairement la présentation TMDB détaillée')
   assert.match(mainSource0621, /tmdbPresentation: presentation/, 'La sélection TMDB doit transmettre sa présentation au formulaire d’ajout')
   assert.match(mainSource0621, /tmdbPresentation=\{addFlow\.tmdbPresentation \?\? null\}/, 'La pop-up Film doit recevoir la présentation TMDB conservée')
-  assert.match(stylesSource0621, /\.film-form-film \.field-title[\s\S]*?padding-right: 34px/, 'Film : le champ titre doit libérer la zone de la croix')
+  assert.match(stylesSource0621, /\.film-form-film \.field-title[\s\S]*?padding-right: var\(--control-md\)/, 'Film : le champ titre doit libérer la zone de la croix')
   assert.match(stylesSource0621, /\.film-form-film \.form-poster-frame[\s\S]*?width: min\(100%, 306px\)/, 'Film : l’affiche doit réserver la place du grand verdict sous elle')
   assert.match(stylesSource0621, /\.film-poster-verdict \.rate-value[\s\S]*?display: none/, 'Film : aucun libellé numérique de note ne doit être visible')
-  assert.match(stylesSource0621, /\.film-poster-verdict \.star-fill[\s\S]*?color: var\(--color-star-active\)/, 'Film : les étoiles actives doivent prendre la couleur dorée dédiée')
-  assert.match(stylesSource0621, /\.film-poster-verdict \.heart-input\.on[\s\S]*?color: var\(--color-heart-active\)/, 'Film : le cœur actif doit prendre la couleur rouge dédiée')
+  assert.match(stylesSource0621, /\.film-poster-verdict \.star-fill[\s\S]*?color: var\(--color-star-active\)/, 'Film : les étoiles actives doivent prendre l’encre monochrome dédiée')
+  assert.match(stylesSource0621, /\.film-poster-verdict \.heart-input\.on[\s\S]*?color: var\(--color-heart-active\)/, 'Film : le cœur actif doit prendre l’encre monochrome dédiée')
   for (const source of otherFormSources0621) {
     assert.doesNotMatch(source, /film-form-film|film-poster-verdict|film-provider-facts/, 'Le prototype 0.6.21 doit rester strictement limité au Film')
   }
@@ -4376,8 +4529,8 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(filmSource0622, /className="verdict-row film-status-row(?:\s[^"]*)?"[\s\S]*\{verdictVisible && \([\s\S]*className="date-row"/, 'Film : la date doit partager la ligne des statuts')
   assert.match(filmSource0622, /className="verdict-row film-status-row(?:\s[^"]*)?"[\s\S]*className="date-row"[\s\S]*className="film-provider-facts"/, 'Film : les faits TMDB doivent suivre directement la ligne statut/date')
   assert.doesNotMatch(filmSource0622, /secondary-fields|id="originalTitle"|id="year"|id="director"|id="summary"/, 'Film : les champs éditoriaux redondants ne doivent plus être rendus sous la fiche')
-  assert.match(stylesSource0622, /\.film-status-row[\s\S]*?flex-wrap: nowrap[\s\S]*?gap: 8px/, 'Film : la ligne statut/date ne doit pas passer à la ligne')
-  assert.match(stylesSource0622, /\.film-status-row \.seg-pill-btn[\s\S]*?padding: 7px 9px[\s\S]*?font-size: 11px/, 'Film : les statuts doivent laisser une place compacte à la date')
+  assert.match(stylesSource0622, /\.film-status-row[\s\S]*?flex-wrap: nowrap[\s\S]*?gap: var\(--space-2\)/, 'Film : la ligne statut/date ne doit pas passer à la ligne')
+  assert.match(stylesSource0622, /\.film-status-row \.seg-pill-btn[\s\S]*?padding: 0 var\(--space-2\)[\s\S]*?font-size: var\(--text-xs\)/, 'Film : les statuts doivent laisser une place compacte à la date')
   assert.match(stylesSource0622, /\.film-status-row \.date-row input\[type="date"\][\s\S]*?width: 106px/, 'Film : la date doit occuper une largeur compacte à droite des statuts')
 }
 
@@ -4407,7 +4560,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(stylesSource0623, /\.form-side-with-verdict[\s\S]*grid-template-rows: minmax\(0, 1fr\) 58px/, 'Les cinq médiums doivent réserver la même zone de verdict sous le visuel')
   assert.match(stylesSource0623, /\.status-date-row \.seg-group-form[\s\S]*flex: 0 0 auto/, 'Le fond gris des statuts ne doit pas s’étirer dans l’espace restant')
   assert.match(stylesSource0623, /\.form-poster-verdict \.rate-value[\s\S]*display: none/, 'Les verdicts sous visuel ne doivent pas afficher de valeur numérique')
-  assert.match(stylesSource0623, /\.form-poster-verdict \.heart-input\.on[\s\S]*color: var\(--color-heart-active\)/, 'Les cœurs actifs doivent conserver la couleur rouge dédiée')
+  assert.match(stylesSource0623, /\.form-poster-verdict \.heart-input\.on[\s\S]*color: var\(--color-heart-active\)/, 'Les cœurs actifs doivent conserver l’encre monochrome dédiée')
 }
 
 // Jalon 0.6.24 — modifications fidèles, types segmentés, informations fournisseur
@@ -4542,7 +4695,14 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const avatarSource0626 = readFileSync(new URL('../src/components/ProfileAvatar.tsx', import.meta.url), 'utf8')
   const stylesSource0626 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 
-  assert.match(stylesSource0626, /@media \(min-width: 1251px\) \{[\s\S]*\.library-tools \{[\s\S]*flex-wrap: nowrap/, 'Bibliothèques : au-delà de 1250 px la rangée d’outils doit rester sur une seule ligne')
+  // 18 octobre 2026 : la ligne d'outils suit sa largeur réelle (requête de
+  // conteneur, barre latérale comprise) : la barre de vues tient sur la ligne
+  // de la recherche, ou prend une ligne entière d'un seul bloc ; jamais un
+  // bouton isolé renvoyé à la ligne.
+  assert.match(stylesSource0626, /\.library-tools \{[^}]*container: library-tools \/ inline-size/, 'Bibliothèques : la ligne d’outils est un conteneur de requêtes')
+  assert.match(stylesSource0626, /\.view-bar \{[^}]*flex: 1 1 0;[^}]*min-width: 0;/, 'Bibliothèques : sur la ligne de la recherche, la barre de vues prend la place restante sans forcer de retour à la ligne')
+  assert.match(stylesSource0626, /@container library-tools \(width < \d+px\) \{[^}]*\.category-switch ~ \.view-bar \{ flex-basis: 100%; \}/, 'Bibliothèques : trop étroite, la barre de vues prend une ligne entière d’un seul bloc')
+  assert.match(stylesSource0626, /\.view-bar-actions \{[^}]*flex: none;/, 'Bibliothèques : les actions de la barre ne se compriment ni ne passent à la ligne')
   assert.match(stylesSource0626, /\.library-tools \.view-bar \.library-views \{[\s\S]*flex-wrap: nowrap/, 'Bibliothèques : la rangée des vues ne doit plus se replier sous la recherche')
   assert.match(stylesSource0626, /\.empty-library \{[\s\S]*flex: 1 1 auto[\s\S]*justify-content: center/, 'Bibliothèques : l’état vide doit occuper l’espace restant et rester centré')
   const toolsBeforeEmpty = mainSource0626.match(/className="library-tools"[\s\S]*?(?:library\.films|collection)\.length === 0 && isUnfiltered/g) ?? []
@@ -4554,9 +4714,230 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const compactAvatarBranch = avatarSource0626.match(/compact \? \(([\s\S]*?)\) : \(/)?.[1] ?? ''
   assert.match(compactAvatarBranch, /profile-avatar-pencil/, 'Onboarding : le crayon superposé doit ouvrir le sélecteur de photo')
   assert.doesNotMatch(compactAvatarBranch, /secondary-button/, 'Onboarding : le mode compact ne doit pas afficher de bouton « Choisir une photo »')
-  assert.match(stylesSource0626, /\.theme-preview-light \{ background: #F6F6F7; \}/, 'Onboarding : la vignette claire doit reprendre le canevas réel de l’application')
-  assert.match(stylesSource0626, /\.theme-preview-dark \{ background: #161618; \}/, 'Onboarding : la vignette sombre doit reprendre l’anthracite réel de l’application')
+  assert.match(stylesSource0626, /--color-preview-light-canvas: #F6F6F7;[\s\S]*\.theme-preview-light \{ background: var\(--color-preview-light-canvas\); \}/, 'Onboarding : la vignette claire doit reprendre le canevas réel de l’application')
+  assert.match(stylesSource0626, /--color-preview-dark-canvas: #161618;[\s\S]*\.theme-preview-dark \{ background: var\(--color-preview-dark-canvas\); \}/, 'Onboarding : la vignette sombre doit reprendre l’anthracite réel de l’application')
   assert.doesNotMatch(stylesSource0626, /theme-preview-[\s\S]{0,400}#5[bB]3[aA]68/, 'Onboarding : aucune couleur d’accent inventée ne doit rester dans les vignettes')
 }
 
-console.log('Vérification réussie : Films SQLite canoniques, métadonnées assistées sans source ni réseau, cache TMDB Rust isolé et non portable, JSON et CSV v1 historiques réimportables, CSV et Notion mappés et prévisualisés, ZIP natif borné et imports bloqués avant toute écriture invalide. Socle multi-médiums 0.4.2 : migration 10, document sylloge-library v2, repository des quatre médiums, progression horodatée et import atomique régénérant les identifiants. Séries 0.4.3 : saisie manuelle complète, compteur de saisons +/−, bascule Vue ↔ En cours, vues globale/télé/animation triées par progression interne. Profils et portabilité 0.4.4 : import unifié JSON/CSV/ZIP Notion, remplacer/fusionner dans le profil courant, restauration globale atomique réservée à un profil vide. Livres 0.4.5 : saisie manuelle, tomes Manga/Comics et citations personnelles ordonnées. Livres 0.4.6 : recherche locale, vues Livre/Manga/Comics, import/export JSON v2 et snapshots fidèles avec citations. Jeux 0.4.7 et Art 0.4.8 : CRUD local contractuel. Cohérence 0.4.9 : recherche et filtres Jeux/Art, imports/exports JSON dédiés, fusion atomique et snapshots mixtes fidèles. Déblocage QA 0.4.10 : espacement des profils, focus de recherche sobre et snapshots désactivables sans suppression des fichiers existants. Résolution de doublons 0.4.11 : recherche, compteurs, choix persistants pendant le filtrage et confirmation protégée. Parcours Film 0.4.13 : recherche TMDB temporisée, issue manuelle, contexte d’association et champs sans autocorrection. CSV 0.4.15–0.4.16 : contrats unitaires, réimport des quatre collections, mapping externe explicite et blocage atomique avant toute écriture invalide. Vues 0.4.19 : Tous, Récents, Favoris et Classement cohérents sur les cinq médiums, ordres résolus en colonnes SQL documentées, Art sans classement par note. Filtres 0.4.20 : panneau partagé borné par médium, critères combinés en paramètres liés, puces actives et réinitialisation explicite. Vues enregistrées 0.4.21 : migration 12, couples filtres + tri nommés isolés par profil et médium, critères versionnés et réparés à la lecture, jamais de SQL persisté ni de portabilité. Modèle unifié 0.4.23 : une vue est un préset filtres + tri, intégrée ou enregistrée ; tri explicite borné par médium, migration 13 sans colonne view, critères v1 convertis à la lecture. Rangée 0.4.24 : vues intégrées et enregistrées dans une même ligne à débordement borné, popovers Filtre et Tri à la volée, combo enregistrable comme vue. Création 0.4.25 : le clic sur un résultat préremplit directement le formulaire ou associe la fiche existante, sans écran intermédiaire. Séries 0.4.26 : recherche TMDB TV temporisée, préremplissage éditorial borné (showrunner, casting, saisons connues, affiche), données personnelles jamais préremplies, sans cache ni écriture avant validation. Livres 0.4.27 : recherche Open Library sans clé ni compte, User-Agent identifié, préférence francophone, préremplissage éditorial borné (auteur, année, couverture, résumé quand il existe). Jeux 0.4.28 : recherche RAWG avec clé embarquée obfusquée hors dépôt, jamais loguée, préremplissage éditorial borné (développeur, année, cover), plateforme et données personnelles jamais préremplies, attribution visible. Transferts 0.4.29 : un seul bouton Exporter par médium, dialogue accessible de formats JSON/CSV, aucune écriture avant choix explicite, export global nommé Sauvegarde Sylloge. Uniformisation 0.6.7 : les fiches Séries, Livres, Jeux et Art reprennent les trois boutons explicites du modèle Film, plus aucun menu caché ; l’association directe s’ouvre dans la même pop-up floutée avec recherche préremplie, fusion éditoriale bornée et données personnelles intactes ; l’Art reste sans fournisseur par règle du domaine. Pop-up 0.6.19 : pop-up commune d’ajout et de modification, champs éditoriaux sans toggle et grille Art 16:10 pleine largeur. Composition 0.6.20 : hauteur stable dictée par l’affiche, avis intégré sous le verdict, contenu long défilable et actions ancrées dans la colonne droite. Prototype Film 0.6.21 : champ titre dégagé, verdict doré/rouge sous l’affiche, faits TMDB conservés en ajout et modification. Correction Film 0.6.22 : date compacte sur la ligne des statuts, fiche TMDB immobile et formulaire éditorial allégé. Extension 0.6.23 : gabarit de verdict sous visuel et ligne statut/date partagés par les cinq médiums, fond segmenté Film borné à ses boutons, ajout et modification alignés. Fidélité 0.6.24 : modifications relues depuis SQLite, verdicts purgés au retour en liste d’attente, types Série/Livre segmentés, provenance fournisseur persistante, informations enrichies encadrées et Art étendu sur toute la largeur. Paramètres 0.6.25 : navigation dédiée verrouillée, identité locale avec avatar borné, thème persistant et onboarding en trois étapes avec restauration validée avant écriture. Gabarits 0.6.26 : outils de bibliothèque fixes sur une ligne et toujours visibles même bibliothèque vide, états vides centrés pleine largeur, onboarding plein cadre avec crayon d’avatar et vignettes de thème fidèles.')
+// Bibliothèque Art (18 octobre 2026) — vues visibles, filtres et vues
+// enregistrées réellement appliqués, visuel ajoutable dès la création.
+{
+  const mainSourceArt = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const viewBarSourceArt = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
+  const posterSourceArt = readFileSync(new URL('../src/components/Poster.tsx', import.meta.url), 'utf8')
+  const posterUrlDialogSourceArt = readFileSync(new URL('../src/components/PosterUrlDialog.tsx', import.meta.url), 'utf8')
+  const artworkFormSourceArt = readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8')
+  const artworkDetailSourceArt = readFileSync(new URL('../src/components/ArtworkDetail.tsx', import.meta.url), 'utf8')
+  const stylesSourceArt = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  // Rangée des vues (18 octobre 2026) : plus aucune mesure ne retire de vue
+  // (l'ancien « point médian » faisait disparaître celles de l'Art en 0.6.4).
+  // Toutes restent rendues ; la rangée défile et ne montre fondu et flèche que
+  // du côté où des vues sont réellement cachées.
+  assert.doesNotMatch(viewBarSourceArt, /\.hidden = true|premierRogne|pointEntree/, 'Vues : aucune vue n’est plus retirée de la rangée par une mesure')
+  assert.doesNotMatch(viewBarSourceArt, /Math\.floor\(positions\.length \/ 2\)/, 'Vues : l’heuristique du point médian ne doit pas revenir')
+  assert.match(viewBarSourceArt, /const start = scroller\.scrollLeft > 1[\s\S]*?const end = scroller\.scrollLeft \+ scroller\.clientWidth < scroller\.scrollWidth - 1/, 'Vues : fondu et flèches seulement du côté d’un débordement réel')
+  assert.match(viewBarSourceArt, /\{edges\.start && \([\s\S]*?\{edges\.end && \(/, 'Vues : les flèches de défilement n’existent que si des vues sont cachées')
+  assert.match(stylesSourceArt, /\.view-bar-scroller \{[^}]*overflow-x: auto;/, 'Vues : la rangée défile au lieu de cacher des vues')
+  assert.doesNotMatch(stylesSourceArt, /\.library-views > \.filter\[hidden\]|\.view-bar-more|\.view-bar-overflow/, 'Vues : plus de règle de masquage ni de menu de débordement')
+  assert.match(viewBarSourceArt, /savedViews\.map\(\(view\) => renderViewButton\(\{[^}]*\}, \(\) => applySavedView\(view\)\)\)/, 'Vues : une vue enregistrée cliquée dans la rangée applique sa forme, catégorie ou plateforme et son tri')
+  assert.match(viewBarSourceArt, /const applySavedView = \(view: SavedView\) => \{[\s\S]*?onExtraFiltersChange\(\{ \.\.\.EMPTY_LIBRARY_FILTERS \}\)[\s\S]*?onSortOverrideChange\(null\)[\s\S]*?onMediumFilterChange\(view\.criteria\.mediumFilter\)[\s\S]*?onViewChange\(/, 'Vues : appliquer une vue enregistrée remet filtres et tri à la volée à zéro, puis applique sa forme, catégorie ou plateforme')
+  assert.match(viewBarSourceArt, /const resetView = \(\) => \{[\s\S]*?onExtraFiltersChange\(\{ \.\.\.EMPTY_LIBRARY_FILTERS \}\)[\s\S]*?onSortOverrideChange\(null\)[\s\S]*?onMediumFilterChange\(baselineMediumFilter\)/, 'Vues : « Réinitialiser » revient exactement à la définition de la vue active (filtres, tri, forme, catégorie ou plateforme)')
+
+  // Réinitialiser et appliquer une vue enregistrée déclenchent plusieurs
+  // mises à jour dans le même geste : chacune doit partir de l'état courant,
+  // sinon seule la dernière survit (forme, catégorie ou plateforme perdue).
+  const viewBarBlocksArt = mainSourceArt.match(/<LibraryViewBar[\s\S]*?\/>/g) ?? []
+  assert.strictEqual(viewBarBlocksArt.length, 5, 'Vues : les cinq bibliothèques utilisent la rangée commune')
+  for (const block of viewBarBlocksArt) {
+    assert.doesNotMatch(block, /onContextChange\(\{ \.\.\.context/, 'Vues : les rappels de la rangée ne doivent pas reconstruire le contexte depuis une copie figée')
+    assert.ok((block.match(/onContextChange\(\(current\) => \(\{ \.\.\.current,/g) ?? []).length >= 3, 'Vues : vue, filtres et tri doivent être des mises à jour fonctionnelles')
+  }
+  assert.strictEqual((mainSourceArt.match(/onContextChange: Dispatch<SetStateAction<\w+LibraryContext>>/g) ?? []).length, 4, 'Vues : Séries, Livres, Jeux et Art acceptent une mise à jour fonctionnelle du contexte')
+  assert.match(mainSourceArt, /onContextChange: Dispatch<SetStateAction<LibraryContext>>/, 'Vues : Films accepte une mise à jour fonctionnelle du contexte')
+
+  // Visuel à la création : crayon posé sur le visuel et fiche créée ouverte.
+  assert.match(posterSourceArt, /onEdit \? 'poster-editable' : ''/, 'Visuel : un visuel modifiable doit porter son propre repère de positionnement')
+  assert.match(stylesSourceArt, /\.poster-editable \{ position: relative; \}/, 'Visuel : le crayon doit rester dans l’angle du visuel, même sans conteneur positionné')
+  assert.doesNotMatch(mainSourceArt, /artworkId: editArtworkId \?\? ''/, 'Art : la fiche ouverte après un ajout ne doit plus viser un identifiant vide')
+  assert.match(mainSourceArt, /targetId = artwork\.id[\s\S]{0,400}leaveLibrary\(\{ name: 'artwork-detail', artworkId: targetId, returnTo: 'artworks' \}\)/, 'Art : l’ajout doit ouvrir la fiche de l’œuvre créée')
+
+  // Libellés accordés au genre du visuel : « le visuel », « l’affiche », « la couverture ».
+  assert.match(posterSourceArt, /Visuel: 'le visuel'/, 'Libellés : le visuel est masculin')
+  assert.match(posterSourceArt, /Affiche: 'l’affiche'/, 'Libellés : l’affiche s’élide')
+  assert.doesNotMatch(posterSourceArt + posterUrlDialogSourceArt, /Modifier la \$\{label/, 'Libellés : « Modifier la visuel » et « Modifier la affiche » ne doivent pas revenir')
+  assert.doesNotMatch(posterUrlDialogSourceArt, /à la visuel/, 'Libellés : « revenir à la visuel » ne doit pas revenir')
+
+  // Visuels d'Art : montrés entiers sur fond neutre dans la carte, la fiche et l'aperçu.
+  assert.match(stylesSourceArt, /\.poster\.artwork-visual \{ background: var\(--color-surface-muted\); \}/, 'Art : le visuel repose sur le fond neutre thémé')
+  assert.match(stylesSourceArt, /\.poster\.artwork-visual img \{ object-fit: contain; \}/, 'Art : le visuel d’une œuvre n’est jamais rogné')
+  assert.doesNotMatch(stylesSourceArt, /\.artwork-card \.poster img \{[^}]*object-fit: cover/, 'Art : aucune règle de carte ne doit rogner le visuel')
+  assert.match(mainSourceArt, /<Poster title=\{artwork\.title\} src=\{artwork\.imageUrl\} label="Visuel" className="artwork-visual" \/>/, 'Art : la carte utilise le visuel entier')
+  assert.match(artworkDetailSourceArt, /className="detail-poster artwork-visual"/, 'Art : la fiche utilise le visuel entier')
+  assert.match(artworkFormSourceArt, /className="form-poster-preview-lg artwork-visual"/, 'Art : l’aperçu d’ajout utilise le visuel entier')
+
+  // Formulaire Art : Année et Exposition ne débordent plus de leur colonne.
+  assert.match(stylesSourceArt, /\.form-row > \.field > :is\(input, select\) \{ min-width: 0; \}/, 'Formulaire : un champ ne doit pas déborder de sa colonne')
+  assert.match(artworkFormSourceArt, /className="form-row form-row-halves"[\s\S]{0,200}artwork-location/, 'Formulaire Art : lieu et exposition partagent la rangée à parts égales')
+}
+
+// Barre de vues (18 octobre 2026) — liste déroulante Sylloge, vue « Cette
+// année », compteur accordé, tri en un clic, mise à jour d'une vue enregistrée.
+{
+  const selectSource = readFileSync(new URL('../src/components/Select.tsx', import.meta.url), 'utf8')
+  const viewBarSource = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
+  const mainSourceBar = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const stylesSourceBar = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  // Liste déroulante accessible : bouton listbox, options sélectionnées, clavier complet.
+  assert.match(selectSource, /aria-haspopup="listbox"[\s\S]*?aria-expanded=\{open\}[\s\S]*?aria-controls=\{open \? listboxId : undefined\}[\s\S]*?aria-labelledby=\{`\$\{labelledBy\} \$\{id\}`\}/, 'Select : le bouton annonce sa liste, son état et son libellé associé')
+  assert.match(selectSource, /role="listbox"[\s\S]*?aria-labelledby=\{labelledBy\}[\s\S]*?aria-activedescendant=/, 'Select : la liste est étiquetée et annonce l’option active')
+  assert.match(selectSource, /role="option"[\s\S]*?aria-selected=\{isSelected\}/, 'Select : chaque option expose son état sélectionné')
+  for (const key of ["'ArrowDown'", "'ArrowUp'", "'Home'", "'End'", "'Enter'", "' '", "'Escape'", "'Tab'"]) {
+    assert.ok(selectSource.includes(`case ${key}:`), `Select : la touche ${key} doit être gérée dans la liste`)
+  }
+  assert.match(selectSource, /case 'Escape':[\s\S]*?event\.stopPropagation\(\)[\s\S]*?closeList\(true\)/, 'Select : Échap ferme la liste seule et rend le focus au bouton')
+  assert.match(selectSource, /const findByTypeahead/, 'Select : la saisie de lettres atteint une option')
+  assert.match(selectSource, /document\.addEventListener\('pointerdown'/, 'Select : un clic à l’extérieur ferme la liste')
+  assert.match(selectSource, /window\.innerHeight - anchor\.bottom[\s\S]*?const openUp[\s\S]*?window\.innerWidth - VIEWPORT_MARGIN - width/, 'Select : la liste reste dans la fenêtre et s’ouvre vers le haut si la place manque')
+  assert.doesNotMatch(viewBarSource, /<select\b/, 'Barre de vues : plus aucun menu système dans les panneaux')
+  assert.ok((viewBarSource.match(/<Select\b/g) ?? []).length >= 3, 'Barre de vues : statut, note et filtre du médium passent par la liste Sylloge')
+  assert.match(stylesSourceBar, /\.select-listbox \{[^}]*position: fixed;[^}]*background: var\(--color-surface\);[^}]*box-shadow: var\(--shadow-popover\);/, 'Select : la liste flottante reprend surface et ombre communes')
+  assert.match(stylesSourceBar, /:where\(\.field input, \.field select, \.field textarea, \.search, \.view-bar-form-input, \.select-trigger,/, 'Select : le bouton reprend exactement le gabarit des champs')
+
+  // Vue « Cette année » dans les cinq médiums : terminées au sens strict, depuis le 1er janvier courant.
+  const {
+    RATED_BUILTIN_VIEWS,
+    PROGRESS_BUILTIN_VIEWS,
+    UNRATED_BUILTIN_VIEWS,
+    FINISHED_STATUS_BY_MEDIUM,
+    THIS_YEAR_VIEW_ID,
+    startOfCurrentYear,
+    titledBuiltinViews,
+    librarySortColumnLabel,
+  } = await import('../src/domain/libraryViews.ts')
+  const { FILM_STATUSES } = await import('../src/domain/film.ts')
+  const { SERIES_STATUSES } = await import('../src/domain/series.ts')
+  const { BOOK_STATUSES } = await import('../src/domain/book.ts')
+  const { GAME_STATUSES } = await import('../src/domain/game.ts')
+  const { ARTWORK_STATUSES } = await import('../src/domain/artwork.ts')
+  const { activeCriteriaLabel } = await import('../src/domain/libraryFilters.ts')
+  const { appendLibraryFilterClauses } = await import('../src/data/libraryViewQuery.ts')
+  const statusesByMedium = { films: FILM_STATUSES, series: SERIES_STATUSES, books: BOOK_STATUSES, games: GAME_STATUSES, artworks: ARTWORK_STATUSES }
+  const listsByMedium = { films: RATED_BUILTIN_VIEWS, series: PROGRESS_BUILTIN_VIEWS, books: PROGRESS_BUILTIN_VIEWS, games: RATED_BUILTIN_VIEWS, artworks: UNRATED_BUILTIN_VIEWS }
+  const fixedDay = new Date(2031, 5, 15)
+  for (const [medium, list] of Object.entries(listsByMedium)) {
+    const titled = titledBuiltinViews(list, medium, fixedDay)
+    const viewIds = titled.map((view) => view.id)
+    assert.equal(viewIds.indexOf(THIS_YEAR_VIEW_ID), viewIds.indexOf('recent') + 1, `${medium} : « Cette année » suit « Récent »`)
+    const thisYear = titled.find((view) => view.id === THIS_YEAR_VIEW_ID)
+    assert.equal(thisYear.name, 'Cette année', `${medium} : la vue s’intitule « Cette année »`)
+    assert.ok(statusesByMedium[medium].includes(thisYear.filters.status), `${medium} : la vue filtre sur un statut réel du médium`)
+    assert.ok(!/abandonn/.test(thisYear.filters.status), `${medium} : un abandon n’est pas une œuvre terminée`)
+    assert.equal(thisYear.filters.status, FINISHED_STATUS_BY_MEDIUM[medium], `${medium} : statut terminé du médium`)
+    assert.equal(thisYear.filters.statusGroup, null, `${medium} : le statut exact remplace le groupe « déjà consommé »`)
+    assert.equal(thisYear.filters.personalDateFrom, '2031-01-01', `${medium} : la date personnelle part du 1er janvier de l’année du calcul`)
+    assert.deepEqual(thisYear.sort, { column: 'recency', direction: 'desc' }, `${medium} : tri par récence décroissante`)
+  }
+  assert.equal(startOfCurrentYear(), `${new Date().getFullYear()}-01-01`, 'Cette année : l’année est calculée à l’exécution, jamais figée')
+  assert.equal(titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films').find((view) => view.id === THIS_YEAR_VIEW_ID).filters.personalDateFrom, `${new Date().getFullYear()}-01-01`, 'Cette année : sans date fournie, l’année courante s’applique')
+  const thisYearClauses = []
+  const thisYearBinds = []
+  appendLibraryFilterClauses(
+    titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films', fixedDay).find((view) => view.id === THIS_YEAR_VIEW_ID).filters,
+    { rating: true, year: true, personalDateColumn: 'watched_at', specificTextColumn: null, locationColumn: null, exhibitionColumn: null, progressColumn: null },
+    thisYearClauses,
+    thisYearBinds,
+    (value) => value,
+  )
+  assert.deepEqual(thisYearBinds, ['terminé', '2031-01-01'], 'Cette année (Films) : statut terminé et visionnage depuis le 1er janvier, en paramètres liés')
+  assert.ok(thisYearClauses.includes('status = $1') && thisYearClauses.includes('watched_at >= $2'), 'Cette année (Films) : clauses exactes, sans groupe « déjà consommé »')
+  assert.equal((mainSourceBar.match(/builtinViews=\{titledBuiltinViews\(/g) ?? []).length, 5, 'Cette année : les cinq bibliothèques reçoivent leurs vues adaptées au médium')
+
+  // Compteur accordé et libellés de tri propres au médium.
+  assert.equal(activeCriteriaLabel(1), '1 critère actif', 'Filtrer : singulier pour un critère')
+  assert.equal(activeCriteriaLabel(2), '2 critères actifs', 'Filtrer : pluriel au-delà')
+  assert.match(viewBarSource, /`Filtrer, \$\{activeCriteriaLabel\(panelFilterCount\)\}`/, 'Filtrer : le nom accessible utilise le compteur accordé')
+  assert.doesNotMatch(viewBarSource, /critères actifs`/, 'Filtrer : plus de pluriel figé dans la barre')
+  assert.equal(librarySortColumnLabel('personalDate', 'Découverte'), 'Découverte', 'Tri : la date personnelle prend le nom du médium')
+  assert.equal(librarySortColumnLabel('personalDate', null), 'Date personnelle', 'Tri : intitulé générique sans nom propre au médium')
+  assert.match(mainSourceBar, /GAME_FILTER_PANEL_CONFIG[\s\S]*?personalDateLabel: 'Partie'/, 'Jeux : la date personnelle s’appelle « Partie », comme sur la fiche')
+  assert.match(mainSourceBar, /ARTWORK_FILTER_PANEL_CONFIG[\s\S]*?personalDateLabel: 'Découverte'/, 'Art : la date personnelle s’appelle « Découverte »')
+
+  // Barre : actions libellées, tri en un clic, modifications proposées seulement quand elles existent.
+  assert.match(viewBarSource, /<span>Filtrer<\/span>/, 'Barre : « Filtrer » est un bouton libellé')
+  assert.match(viewBarSource, /aria-label=\{`Trier, actuellement : \$\{sortDescription\(effectiveSort\)\}`\}[\s\S]*?<span>\{columnLabel\(effectiveSort\.column\)\}<\/span>/, 'Barre : « Trier » affiche le tri effectif')
+  assert.match(viewBarSource, /const chooseSortColumn[\s\S]*?effectiveSort\.column === column[\s\S]*?effectiveSort\.direction === 'asc' \? 'desc' : 'asc'[\s\S]*?onSortOverrideChange\(sortsEqual\(next, activeView\.sort\) \? null : next\)/, 'Tri : une colonne s’applique en un clic, la colonne active s’inverse, le tri de la vue retrouvé redevient neutre')
+  assert.match(viewBarSource, /role="menuitemradio"[\s\S]*?aria-checked=\{checked\}[\s\S]*?Tri de la vue/, 'Tri : liste des colonnes à cocher et retour au tri de la vue')
+  assert.match(viewBarSource, /\{dirty && \([\s\S]*?Réinitialiser[\s\S]*?Mettre à jour[\s\S]*?Enregistrer/, 'Barre : réinitialiser, mettre à jour ou enregistrer seulement quand la vue active est modifiée')
+  assert.match(viewBarSource, /Nouvelle vue/, 'Barre : « Nouvelle vue » termine la rangée')
+
+  // Mise à jour d'une vue enregistrée : mêmes garanties qu'à la création.
+  const updateCalls = []
+  const updateDatabase = {
+    async select() { return [] },
+    async execute(query, bindValues) {
+      updateCalls.push({ query, bindValues })
+      return { rowsAffected: bindValues[3] === 'vue-absente' ? 0 : 1 }
+    },
+  }
+  const { SqliteSavedViewsRepository } = await import('../src/data/savedViewsRepository.ts')
+  const updateRepository = new SqliteSavedViewsRepository(async () => updateDatabase, () => 'inutilisé', () => '2026-10-18T10:00:00.000Z')
+  const updatedCriteria = await updateRepository.update('profil-a', 'artworks', 'vue-1', {
+    sort: { column: 'rating', direction: 'desc' },
+    mediumFilter: 'peinture',
+    filters: { status: 'découverte', statusGroup: null, favoritesOnly: true, minRating: 4, year: null, personalDateFrom: '2026-01-01', specificText: '', location: '', exhibition: '' },
+  })
+  assert.match(updateCalls[0].query, /^UPDATE saved_views\s+SET criteria_json = \$1, schema_version = \$2, updated_at = \$3\s+WHERE id = \$4 AND profile_id = \$5 AND medium = \$6/, 'Mise à jour : critères seuls, ciblés par vue, profil et médium')
+  assert.deepEqual(updateCalls[0].bindValues.slice(1), [2, '2026-10-18T10:00:00.000Z', 'vue-1', 'profil-a', 'artworks'], 'Mise à jour : schéma v2 et paramètres liés')
+  assert.deepEqual(updatedCriteria.sort, { column: 'title', direction: 'asc' }, 'Mise à jour : un tri par note demandé pour l’Art est réparé avant écriture')
+  assert.equal(updatedCriteria.filters.minRating, null, 'Mise à jour : pas de note minimale pour l’Art')
+  assert.equal(updatedCriteria.filters.personalDateFrom, '2026-01-01', 'Mise à jour : les critères valides sont conservés')
+  await assert.rejects(() => updateRepository.update('profil-a', 'films', 'vue-absente', updatedCriteria), /introuvable/, 'Mise à jour : une vue absente du profil échoue explicitement')
+}
+
+// Barre des bibliothèques allégée (19 octobre 2026) — « Tout associer » rejoint
+// les actions d’en-tête, la recherche passe en pilule, « Nouvelle vue » sort de
+// la zone qui défile et les seuils de la ligne sont recalculés.
+{
+  const mainSourceLight = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const viewBarSourceLight = readFileSync(new URL('../src/components/LibraryViewBar.tsx', import.meta.url), 'utf8')
+  const stylesSourceLight = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+
+  const headerActionBlocks = mainSourceLight.match(/<div className="library-header-actions">[\s\S]*?<\/div>/g) ?? []
+  assert.strictEqual(
+    headerActionBlocks.filter((block) => /<button\s+className="auto-associate-button"[\s\S]*?\{icon\('wand'\)\}[\s\S]*?<LibraryImportButton[\s\S]*?<LibraryExportFlow[\s\S]*?className="primary-button"/.test(block)).length,
+    4,
+    'En-tête : « Tout associer » (icône conservée) précède Importer, Exporter et Ajouter dans les bibliothèques associables',
+  )
+  const toolBlocks = mainSourceLight.match(/<div className="library-tools">[\s\S]*?<LibraryViewBar/g) ?? []
+  assert.ok(toolBlocks.length >= 5, 'Ligne d’outils : chaque bibliothèque garde sa ligne d’outils')
+  for (const block of toolBlocks) {
+    assert.doesNotMatch(block, /auto-associate-button/, 'Ligne d’outils : « Tout associer » ne revient pas à côté de la recherche')
+  }
+  assert.match(stylesSourceLight, /\.library-tools > \.search \{[^}]*flex: 0 0 344px;[^}]*border-radius: var\(--radius-pill\);/, 'Recherche : pilule comme les boutons, un peu plus large que son texte d’aide')
+  assert.match(stylesSourceLight, /\.search:has\(input:focus-visible\) \{ border-color: var\(--color-accent\); box-shadow: 0 0 0 1px var\(--color-accent\); \}/, 'Recherche : l’anneau de focus clavier reste celui du cadre, il suit la pilule')
+
+  // « Nouvelle vue » : après la zone qui défile (fondu et flèches compris), jamais dedans.
+  const scrollerStart = viewBarSourceLight.indexOf('<div className="view-bar-scroller"')
+  const edgesEnd = viewBarSourceLight.indexOf('{edges.end && (')
+  const newViewButton = viewBarSourceLight.indexOf('className="text-button view-bar-new"')
+  assert.ok(scrollerStart > 0 && edgesEnd > scrollerStart && newViewButton > edgesEnd, 'Nouvelle vue : le bouton suit la zone qui défile et ses fondus, hors du défilement')
+  assert.doesNotMatch(viewBarSourceLight.slice(scrollerStart, edgesEnd), /view-bar-new/, 'Nouvelle vue : rien de la zone qui défile ne peut la rogner')
+  assert.match(viewBarSourceLight, /className="view-bar-viewport"[\s\S]*?className="view-bar-scroller"[\s\S]*?\{edges\.start && \(/, 'Vues : le fondu et les flèches appartiennent au cadre des pastilles')
+  assert.match(stylesSourceLight, /\.view-bar-viewport \{[^}]*position: relative;[^}]*min-width: 0;/, 'Vues : le cadre des pastilles porte les fondus et peut rétrécir')
+  assert.match(viewBarSourceLight, /aria-label="Nouvelle vue"\s+data-tooltip="Nouvelle vue"/, 'Nouvelle vue : réduite à son « + », elle garde son nom accessible et son infobulle')
+  assert.match(stylesSourceLight, /\.view-bar:has\(\.view-bar-pending\) \.view-bar-new-label \{ display: none; \}/, 'Nouvelle vue : seule une vue modifiée sur une ligne étroite la réduit à son « + »')
+
+  // Seuils recalculés : une ligne à 1440 px (rail) pour toutes les bibliothèques.
+  const thresholds = [...stylesSourceLight.matchAll(/@container library-tools \(width < (\d+)px\) \{\s*([^{}]*?)\s*\{ flex-basis: 100%; \}/g)].map(([, width, selector]) => [selector.trim(), Number(width)])
+  const ownLine = Object.fromEntries(thresholds)
+  assert.ok(ownLine['.view-bar'] <= 1248 && ownLine['.category-switch ~ .view-bar'] <= 1248, 'Seuils : à 1440 px, barre latérale en rail, la barre de vues tient sur la ligne de la recherche')
+  assert.ok(ownLine['.view-bar'] < ownLine['.category-switch ~ .view-bar'], 'Seuils : une ligne qui porte aussi les catégories passe plus tôt sur deux lignes')
+  assert.doesNotMatch(stylesSourceLight, /\.auto-associate-button ~ \.(?:view-bar|search)/, 'Seuils : plus aucun seuil ne dépend de « Tout associer » dans la ligne')
+  assert.match(viewBarSourceLight, /new ResizeObserver\(\(\) => \{[\s\S]*?revealRef\.current\('auto'\)/, 'Vues : une rangée qui rétrécit ramène la vue active dans le champ')
+}
+
+await import('./verify-book-libraries.mjs')
+
+console.log('Vérification réussie : six bibliothèques locales, cinq collections SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');

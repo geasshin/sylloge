@@ -1,93 +1,75 @@
-# Sylloge — contrat visuel V1
+# Base visuelle de Sylloge
 
-> **Statut :** direction validée par Aurélien le 22 août 2026 (jalon `0.5.1`), à partir des maquettes `sylloge-design-051/04-direction-validee` (bibliothèque) et `09-fiche-v5` (fiche film). Ce contrat fait foi pour tous les écrans du train `0.6.0`. Il remplace la version « Archive calme » antérieure.
+**Décision produit du 16 octobre 2026 :** une seule direction pour toute l’application, accueil compris. Monochrome neutre et froid, dérivé de l’anthracite des bibliothèques. Le papier chaud et l’accent violet propres à l’accueil sont abandonnés. Les écrans peuvent être recomposés quand l’usage le justifie. Cible desktop macOS uniquement.
 
-## Principes
+Ce document est en cours de réécriture pendant le lot d’harmonisation (branche `design/harmonisation`). À la fin du lot, il décrira les jetons et composants réellement livrés : espacements, typographie, couleurs, arrondis, boutons, champs, fenêtres, cartes et rangées.
 
-- Une bibliothèque personnelle chaleureuse : papier chaud, œuvres en couleur, interface qui s'efface.
-- Deux matières jamais mélangées : **l'œuvre** (données fixes, posées sur le papier sans conteneur) et **la personne** (statut, note, avis, toujours identifiables comme siens).
-- Le violet encre ne colore que trois choses : l'action principale, le coup de cœur, l'élément actif d'une navigation ou d'une vue. Tout le reste reste neutre ; la couleur vient des affiches et couvertures.
-- Densité moyenne, respiration constante, pas de look SaaS ni de dashboard.
+## Règles pendant le lot
 
-## Tokens par rôle
+- Toute valeur d’espacement, de taille de texte, d’arrondi ou de couleur passe par un jeton commun de `src/styles.css`. Pas de valeur isolée pour corriger un écran.
+- Un même rôle garde la même apparence partout : bouton principal, bouton secondaire, bouton icône, champ, onglet de vue, fenêtre modale, carte d’œuvre.
+- Garder les thèmes clair et sombre lisibles, les contrôles accessibles au clavier et les libellés explicites.
+- Vérifier chaque écran modifié dans `qa-app.html`, en clair et en sombre, à 1440 × 900 et à la plus petite fenêtre desktop prise en charge.
 
-- Fonds : `--color-canvas: #FAF9F6` (papier), `--color-surface: #FFFFFF` (cartes et champs), surfaces discrètes en `rgba(31,29,26,0.05)`.
-- Texte : `--color-text: #1F1D1A`, `--color-text-muted: #6E6A61`, `--color-text-subtle: #A39E93`.
-- Structure : `--color-border: #E8E4DC`, filets internes `#EFECE5`.
-- Interaction : `--color-accent: #5B3A68` (violet encre), `--color-accent-soft: #F0E8F3`.
-- Voix personnelle : `--color-personal: #473952` (prune profond) pour les avis rédigés.
-- Danger : `#9C3B2E`.
+L’ancien contrat visuel uniforme est conservé dans [les archives](docs/archive/DESIGN-contrat-visuel-2026-08-22.md) comme trace historique.
 
-## Typographie — hiérarchie d’interface
+## Fondation transversale livrée
 
-- **Titres d’interface** : Syne variable, chargée depuis le fichier local du projet. Titres de pages, bibliothèques et sections en capitales ; une hiérarchie courte distingue les pages (environ 48 px, graisse 800), les rangées principales (18-19 px, graisse 700) et les catégories par médium (16 px, graisse 700). L’interlettrage positif reste modéré pour préserver la lecture des capitales.
-- **Titres d’œuvres** : pile système sans-serif (`-apple-system…`) et casse d’origine dans les rangées, les cartes et les fiches. Ce choix reste provisoire pour les fiches détaillées, jusqu’à validation visuelle.
-- **Texte courant et métadonnées** : pile système sans-serif, en casse naturelle et dans des tailles plus compactes que les titres. Les libellés techniques peuvent rester en capitales monospaces.
-- **Voix personnelle** : tout avis rédigé par la personne est en serif système (`ui-serif, "New York", Georgia, serif`), 15-15.5 px, interligne 1.8, teinte prune, filet vertical violet à gauche. Cette règle vaut pour les cinq médiums.
+Ce socle ne recompose ni l’accueil, ni les fiches, ni les onglets de vues. Les choix de composition de ces surfaces restent un lot distinct.
 
-## Formes et composants
+### Jetons de `src/styles.css`
 
-- Arrondis généreux : affiches et grandes cartes 14-20 px, contrôles et champs en **pilule pleine** (`border-radius: 99px`), menus 12 px.
-- Bouton principal : pilule violette pleine, texte blanc, ombre portée très légère.
-- Boutons secondaires : pilule bordée sur carte blanche.
-- Actions tertiaires : texte violet ou gris sur pastille grise au survol.
-- Segmented control (statuts) : groupe sur fond discret, élément actif en pastille encre pleine avec ombre courte.
-- Élément actif de navigation : pilule encre pleine, texte papier, compteur tabulaire discret.
-- Champ de recherche : pilule blanche bordée, placeholder subtil, `autoCorrect="off"` conservé.
-- Ombres : uniquement sous les visuels et les éléments flottants, douces, jamais décoratives ailleurs.
+- Clair : canevas `#F6F6F7`, surface `#FFFFFF`, texte `#17171A`, action encre `#232327`.
+- Sombre : canevas `#161618`, surface `#232326`, texte et action `#EDEDEF`.
+- Les statuts, notes, cœurs, sélections et critiques utilisent l’encre monochrome. Rouge réservé au danger, jaune aux avertissements ; les visuels des œuvres gardent leurs couleurs.
+- Les voiles, ombres, bordures, placeholders et chevrons de champs ont leurs jetons thémés. Les vignettes de choix du thème gardent des jetons fixes propres au thème représenté.
+- Texte : `10 / 11 / 12 / 13 / 15 / 18 / 22 / 28 / 36 / 48px`, base `13px`. Graisses `400 / 500 / 600 / 700 / 800`.
+- Syne locale en capitales pour pages et sections ; système sans-serif et casse naturelle pour les œuvres et l’UI ; serif pour la critique ; monospace pour les micro-libellés techniques.
+- Espacements : `2 / 4 / 6 / 8 / 10 / 12 / 16 / 20 / 24 / 32 / 40 / 48 / 64 / 80px`. Les filets de `1px`, le masquage accessible, les zéros et les unités de structure restent des exceptions intentionnelles. Gouttière desktop commune `64px` ; les petites media queries existantes sont conservées, sans nouvelle cible mobile.
+- Arrondis : `4 / 8 / 12 / 16 / 20 / 999px`.
+- Mouvement : `120 / 180ms`, courbe `cubic-bezier(.2,.8,.2,1)` ; les élévations et pressions sont neutralisées en mouvement réduit.
 
-## Sidebar
+### Contrôles et fenêtres
 
-- Sur le même fond papier que le contenu, sans bordure verticale.
-- Marque « Sylloge » + surtitre espacé, items en pilules avec glyphe et compteur, Paramètres en bas.
-- Aucune section « Bibliothèque » : les cinq médiums sont directement visibles.
+- Boutons à libellé : police UI `13px / 600`, hauteur commune `34px`, variantes compactes `28px` et grandes `40px`. Les icônes et glyphes conservent une taille optique propre.
+- Primaire : encre pleine. Secondaire : contour discret. Texte et retour : sans fond au repos. Danger : rouge sobre. Actions icône : rondes. Survol et pression exclus pour les contrôles désactivés ; focus clavier en encre, contrasté sur les visuels.
+- Champs et recherche : bordure, rayon `8px`, focus et hauteur `34px` communs ; les zones de texte restent extensibles. Les variantes de titre et de critique ont leur échelle dédiée. La recherche des bibliothèques prend la pilule (`--radius-pill`) des boutons de sa ligne.
+- Fenêtres : largeurs `440 / 640 / 880px`, au plus `92vw`, rayon `20px`, marge intérieure `24px`, voile/flou/ombre et fermeture partagés. La galerie d’affiches défile sans comprimer son pied ; l’éditeur garde sa grille et ses actions fixes.
+- Le clavier des fenêtres d’ajout, d’association, de transfert et d’affiches est commun : Tab reste dans la fenêtre supérieure, Échap respecte les écritures en cours et le focus revient au déclencheur à la fermeture.
+- Les surtitres « Collection personnelle » sont retirés. Les catégories de livres/séries et les formes d’Art restent visibles : elles apportent une information, pas une décoration.
+- Visuels : le crayon de modification appartient au visuel lui-même (`poster-editable`) et reste dans son angle bas droit, en fiche comme dans la fenêtre d’ajout. Les visuels d’Art, de tous formats, s’affichent entiers (`object-fit: contain`) sur `--color-surface-muted` dans la carte 16:10, la fiche 3:4 et l’aperçu d’ajout 2:3 ; affiches et couvertures des autres médiums restent plein cadre.
 
-## Composition d'une fiche (référence : maquette 09-fiche-v5)
+La recette navigateur utilise uniquement `qa-app.html`, SQLite mémoire et les fixtures. Elle ne remplace pas une validation native macOS ni une vérification exhaustive des parcours métier.
 
-Ordre de lecture unique, du fixe vers le personnel :
+## Accueil
 
-1. Colonne gauche collante : **affiche** grande (320 px), puis **statut** en segmented control, puis **note /5 cliquable et coup de cœur**, puis action d'affiche discrète.
-2. Bloc droit haut : surtitre du médium, **titre** en grand, titre original, ligne de faits (année · pays · durée · genres).
-3. Grille d'informations de l'œuvre en deux colonnes à filets fins (réalisation, scénario, distribution, musique, pays, sortie — adaptées par médium), puis **résumé** en voix encyclopédie avec « Lire la suite », puis mention d'attribution fournisseur en subtil.
-4. Séparateur hairline, puis **la partie personnelle dans la continuité immédiate** : date de visionnage ou de lecture seule, critique en voix personnelle serif-prune, action Modifier discrète.
+Composition « à la une avec onglets », une seule colonne : onglets, une, rangées et activité partagent les mêmes bords, avec la gouttière commune `64px`.
 
-Interdits de fiche : aucune donnée personnelle au milieu des données fournisseur ; aucune carte blanche autour de la partie personnelle ; aucune métadonnée technique affichée (dates d'ajout/modification restent en base, non rendues).
+- **Onglets** Tout · Films · Séries · Livres · Mangas · Jeux · Art : contrôle segmenté commun (`seg-group-form` / `seg-pill-btn`), motif ARIA tablist (flèches, Début, Fin). L’onglet filtre toute la page, bilan compris, et le dernier est mémorisé (`sylloge-home-tab`). Une bibliothèque vide garde son onglet et une phrase d’état vide.
+- **Bilan** à droite, sur la même ligne : œuvres terminées et terminées ce mois-ci (chiffres `--text-xl` 700, libellés accordés à l’onglet en `--text-sm`), puis douze barres mensuelles de `6 × 24px` (mois courant à l’encre, autres en `--color-text-subtle`, barres décoratives titrées au survol). Quand la ligne est trop étroite (barre latérale étendue sur une petite fenêtre), l’histogramme s’efface plutôt que de replier le bilan.
+- **À la une** : hauteur fixe `420px`, rayon `20px`. Fond tiré de la même affiche, flouté, sous `--color-scrim` ; sans visuel, le même voile sur `--color-surface-muted`. Le voile est sombre dans les deux thèmes : la une remappe localement l’encre, le focus, les étoiles et le bouton principal sur `--color-on-scrim`. Titre en police UI `--text-4xl`, casse naturelle ; extrait de critique en serif, trois lignes au plus. Coups de cœur de l’onglet (huit au plus), sinon dernières œuvres terminées, en cours, puis derniers ajouts. Défilement toutes les huit secondes, en pause au survol, sous le focus clavier, page cachée ou en mouvement réduit ; fondu enchaîné `--duration-base`.
+- **Rangées** : coups de cœur, en cours, file d’attente, récemment terminés, derniers ajouts, pioche du jour. Titres Syne en capitales `--text-2xl`, en-têtes de hauteur `--control-md`, six cartes de largeur égale sur le bureau ; une rangée vide n’est pas affichée. Sous « Tout », le médium suit le titre de la carte.
+- **Activité** : le calendrier mensuel et la liste des œuvres terminées du mois, dans un panneau de la largeur des rangées. Pastilles à l’encre, aucune couleur par médium.
 
-## Composition des formulaires en pop-up
+## Barre de vues des bibliothèques
 
-- L'ajout et le bouton Modifier utilisent le même gabarit prérempli pour les cinq médiums.
-- Sur ordinateur, la pop-up garde une géométrie stable en deux colonnes. L'affiche fixe la hauteur de la scène à gauche ; le changement de statut ne doit jamais déplacer ni agrandir la fenêtre.
-- Socle partagé 0.6.20 : dans la colonne droite, l'ordre visible reste titre, données utiles, statut, date et avis personnel. Les actions demeurent ancrées en bas.
-- Prototype Film 0.6.21 : le champ titre réserve la place de la croix ; l’affiche est ramenée à 306 px et garde sous elle une zone stable de verdict. En « Terminé » ou « Abandonné », cette zone montre seulement cinq grandes étoiles dorées à l’activation et un cœur rouge à l’activation, sans libellé numérique visible.
-- Correction Film 0.6.22 : la date de visionnage partage la même rangée compacte que les statuts, à droite d’« Abandonné ». La fiche TMDB reste donc immobile et immédiatement sous cette rangée, quel que soit le statut. Le formulaire ne rend plus de champs secondaires Titre original, Année, Réalisation ou Résumé sous cette fiche.
-- Extension 0.6.23 : le gabarit de verdict sous le visuel est maintenant partagé par Films, Séries, Livres, Jeux et Art. Les quatre médiums avec statut placent leur date sur la même ligne que leur groupe de statuts ; l’Art conserve sa règle propre, sans statut ni note, avec cœur et date sous le visuel. Le groupe segmenté reste à sa largeur intrinsèque, y compris quand aucune date n’est affichée, afin que son fond s’arrête après le dernier bouton.
-- Fidélité 0.6.24 : les types Série et Livre reprennent le contrôle segmenté des statuts. Pour une fiche liée, y compris une ancienne association démontrable par son image officielle, les informations fournisseur sont regroupées dans un encadré sobre immédiatement après le statut ; les champs éditoriaux bruts restent réservés aux créations manuelles. Changer un statut vers la liste d’attente efface immédiatement les données personnelles incompatibles, tandis que les citations Livre sont seulement masquées afin de pouvoir réapparaître si la lecture reprend.
-- Pour le Film assisté ou associé, une fiche technique discrète dans la colonne droite présente les faits TMDB déjà récupérés : sortie, durée, réalisation, cinq interprètes principaux et titre original pertinent. Elle ne dépend jamais du statut personnel.
-- Le bouton Modifier réutilise le même composant et la même scène que l’ajout pour les cinq médiums ; les champs spécifiques restent présents selon le domaine (catégorie, progression, plateforme, données Art).
-- Les informations supplémentaires d'une fiche existante défilent à l'intérieur de la colonne droite. Les actions Annuler et Enregistrer restent ancrées en bas et visibles.
-- Sur écran étroit, le formulaire repasse en une colonne et retrouve un défilement vertical classique.
-- L'Art suit la même composition sans note ni statut, conformément au domaine.
+Décisions du 18 octobre 2026 : vues nettement distinctes et toutes visibles, actions libellées, tri en un clic, listes déroulantes Sylloge. Allègement du 19 octobre 2026 : « Tout associer » rejoint l’en-tête, recherche en pilule, vues défilantes.
 
-## Bibliothèques
+- **En-tête** : titre et sous-titre à gauche ; à droite « Tout associer » (Films, Séries, Livres, Mangas, Jeux ; icône conservée, gabarit des boutons secondaires), Importer, Exporter puis le bouton principal d’ajout. Si la fenêtre est trop étroite, ce groupe passe sous le titre d’un seul bloc. Le compte rendu d’un export s’affiche sous le groupe, hors du flux : il ne l’élargit pas.
+- **Ligne d’outils** : recherche en pilule (`344px`, `288px` à côté des catégories), catégories (Séries) puis barre de vues, sur une ligne à 1440 px. C’est une requête de conteneur (`library-tools`, barre latérale comprise) dont les seuils sont mesurés dans l’état le plus chargé (vue enregistrée modifiée, compteur de filtres, tri au libellé le plus long) : la barre garde au moins `180px` de vues sur la ligne de la recherche, sinon elle prend la ligne suivante d’un seul bloc ; sur une ligne très étroite, les actions d’une vue modifiée passent sous les vues, d’un seul bloc. Aucun bouton n’est renvoyé seul à la ligne, aucun libellé n’est coupé. `scripts/qa-library-toolbar.js` vérifie ces règles dans `qa-app.html` (six bibliothèques, 1440 × 900 et 1000 × 760, barre latérale en rail et étendue, état propre et état le plus chargé).
+- **Vues** : pastilles du contrôle segmenté de l’accueil (`seg-group-form` / `seg-pill-btn`), vue active à l’encre pleine. Vues intégrées, filet, vues enregistrées, puis « Nouvelle vue », hors de la zone qui défile et toujours entière ; une vue modifiée sur une ligne étroite la réduit à son « + », nommé par son infobulle. Aucune vue dans un menu : la rangée défile (molette, trackpad, flèches) avec fondu et flèche seulement du côté où des vues sont cachées, et la vue active est toujours ramenée dans le champ, y compris quand la rangée rétrécit. Un seul arrêt de tabulation, flèches, Début et Fin. Une vue modifiée porte un point ; la vue enregistrée active porte son menu « … » (renommer, mettre à jour, supprimer).
+- **Vues intégrées** : Tous, watchlist du médium, En cours (Séries, Livres, Mangas), Récent, Cette année (terminé au sens strict depuis le 1er janvier, année calculée à l’exécution), Favori, Classement (médiums notés). Art s’ouvre sur Tous.
+- **Actions** : boutons secondaires libellés de `--control-md` : « Filtrer » et son compteur accordé, « Trier » qui affiche le tri effectif. Quand filtres, tri, forme, catégorie ou plateforme s’écartent de la vue active, « Réinitialiser » et « Enregistrer » (vue intégrée) ou « Mettre à jour » (vue enregistrée) apparaissent devant elles, séparés par un filet.
+- **Panneaux** : rayon `--radius-md`, ombre `--shadow-popover`, apparition `--duration-base` neutralisée en mouvement réduit. Filtres sur deux colonnes alignées (un champ resté seul et le texte libre prennent la ligne), case commune, « Réinitialiser » et « Fermer ». Tri : liste des colonnes à cocher, application immédiate, second clic qui inverse le sens, « Tri de la vue ». La date personnelle porte le nom du médium dans le filtre comme dans le tri : Visionnage, Début de visionnage, Début de lecture, Partie, Découverte.
+- **Liste déroulante** (`Select.tsx`) : bouton au gabarit des champs (`aria-haspopup="listbox"`), liste flottante qui reste dans la fenêtre, option cochée à l’encre, option active sur `--color-surface-muted`. Flèches, Début, Fin, Page, Entrée ou Espace, Échap qui rend le focus, saisie de lettres, clic extérieur. Elle reste dans le DOM de son panneau : focus et clic extérieur des fenêtres qui la contiennent sont préservés. Les formulaires d’ajout et de modification gardent encore leurs menus système.
 
-- Rangée d'outils : vues à gauche (onglets soulignés violets à l'actif), recherche pilule et actions filtre/tri à droite, séparateur vertical.
-- Grilles d'affiches : titre, sous-titre, étoiles et pastille de statut sous le visuel ; survol par léger soulèvement et ombre accrue ; fallback neutre inchangé.
-- Sous-titre éditorial sous le titre de page (ex. « 128 films dont 12 coups de cœur »).
+## Livres et Mangas
 
-## Accessibilité et mouvement
+Décision du 19 octobre 2026 : six destinations dans l’interface (Films, Séries, Livres, Mangas, Jeux, Art), cinq collections de données. Livres et Mangas lisent la même table `books`, partagée selon sa catégorie existante : aucune migration, formats JSON et CSV inchangés. Pas de bibliothèque Comics : les anciens comics restent dans Livres.
 
-- Focus clavier visible partout : anneau `--color-accent-soft` épaissi, jamais supprimé.
-- Contrastes : texte principal sur papier et sur carte ≥ 7:1, muted ≥ 4.5:1 ; le prune personnel ≥ 7:1 sur papier.
-- Transitions courtes (90-160 ms) sur élévation et couleurs uniquement ; rien qui dépend d'une animation pour être compris ; respect de `prefers-reduced-motion` (tout devient instantané).
-- Cibles tactiles et clic ≥ 30 px ; étoiles notables séparées d'au moins 2 px.
-
-## Affiches et couvertures
-
-- Rendues en `img` avec texte alternatif pertinent, toujours en couleur, sans filtre, teinte, dégradé ni recadrage destructeur.
-- Fallback neutre typographique explicite quand l'image manque ou échoue ; jamais de fausse couverture générée.
-
-## Anti-directions
-
-- Pas de look SaaS, dashboard, verre, néon, dégradés décoratifs ou métriques inventées.
-- Pas de données fabriquées pour meubler un écran : les états vides sont sobres et honnêtes.
-- Aucune note pour l'Art, aucun préremplissage de données personnelles par un fournisseur : ces règles produit priment sur le design.
+- **Navigation** : Mangas a sa propre entrée dans la barre latérale (pictogramme d’une série de tomes, distinct du livre ouvert de Livres, le seul repère visible en rail), son compteur, son onglet d’accueil et son bilan. Recherche, vue, filtres et tri sont mémorisés séparément pour chacune.
+- **Barre** : aucune bascule de catégorie. Dans Livres, « Filtrer » propose un champ Type (Livre, Comics) seulement si d’anciens comics existent ou si une vue l’a restreint : une catégorie active n’est jamais un filtre invisible.
+- **Création** : le bouton d’ajout et la recherche Open Library portent le nom de la bibliothèque ouverte ; le type n’est pas demandé, il découle de la bibliothèque. En modification, le champ Type reste disponible : le corriger déplace la même fiche dans l’autre bibliothèque, sans doublon ni perte d’avancement. Les compteurs déjà renseignés restent visibles et modifiables, même après un passage en Livre.
+- **Fiche** : le retour et la suppression ramènent à l’écran d’origine (accueil, Livres ou Mangas).
+- **Vues enregistrées** : distinctes par bibliothèque (une vue Mangas est une vue Livres de catégorie manga, au schéma v2 existant) ; les anciennes vues v1 et v2 sont lues sans réécriture. Les noms restent uniques entre Livres et Mangas, ce que l’aide de création et le message d’erreur disent.
+- **Transferts** : l’export JSON ou CSV ne contient que la bibliothèque ouverte, les autres collections vides. L’import reste commun aux deux et annonce, avant toute écriture, que « Remplacer » vaut pour Livres et Mangas, comics compris.

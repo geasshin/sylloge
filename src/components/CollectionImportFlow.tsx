@@ -38,29 +38,35 @@ export type CollectionImportState<F, D> = {
 
 type ModeChoiceProps = {
   mediumLabel: string
+  mediumPluralLabel: string
+  mediumGender: 'feminine' | 'masculine'
   importedCount: number
   existingCount: number
   onChoose: (mode: 'replace' | 'merge') => void
   onCancel: () => void
 }
 
-export function ImportModeChoice({ mediumLabel, importedCount, existingCount, onChoose, onCancel }: ModeChoiceProps) {
+export function ImportModeChoice({ mediumLabel, mediumPluralLabel, mediumGender, importedCount, existingCount, onChoose, onCancel }: ModeChoiceProps) {
+  const detectedWord = mediumGender === 'feminine'
+    ? importedCount === 1 ? 'détectée' : 'détectées'
+    : importedCount === 1 ? 'détecté' : 'détectés'
+
   return (
     <div className="assistant-content">
       <p className="assistant-introduction">
-        {importedCount} {mediumLabel}{importedCount > 1 ? 's' : ''} détecté{importedCount > 1 ? 's' : ''} dans le fichier.
+        {importedCount} {importedCount === 1 ? mediumLabel : mediumPluralLabel} {detectedWord} dans le fichier.
         Votre collection actuelle en contient {existingCount}. Choisissez comment les importer.
       </p>
       <div className="assistant-choice-grid">
         <button className="transfer-choice" type="button" onClick={() => onChoose('replace')}>
           <span className="card-kicker">Repartir de zéro</span>
           <b>Remplacer</b>
-          <small>Vide votre collection actuelle de {mediumLabel}s et installe uniquement le fichier importé.</small>
+          <small>Remplace votre collection actuelle de {mediumPluralLabel} par les fiches du fichier.</small>
         </button>
         <button className="transfer-choice" type="button" onClick={() => onChoose('merge')}>
           <span className="card-kicker">Conserver l’existant</span>
           <b>Fusionner</b>
-          <small>Garde vos {mediumLabel}s actuels, ajoute les nouveautés et préserve vos notes et favoris.</small>
+          <small>Conserve vos {mediumPluralLabel} {mediumGender === 'feminine' ? 'actuelles' : 'actuels'}, ajoute les nouveautés et préserve vos notes et favoris.</small>
         </button>
       </div>
       <p className="import-contextual-hint">
@@ -73,7 +79,7 @@ export function ImportModeChoice({ mediumLabel, importedCount, existingCount, on
   )
 }
 
-type DuplicateItemProps<F> = {
+type DuplicateItemProps<F extends { title: string }> = {
   title: string
   existing: F
   imported: F
@@ -82,7 +88,7 @@ type DuplicateItemProps<F> = {
   renderSummary: (item: F, origin: 'existing' | 'imported') => ReactNode
 }
 
-function DuplicateItem<F>({ title, existing, imported, resolution, onResolve, renderSummary }: DuplicateItemProps<F>) {
+function DuplicateItem<F extends { title: string }>({ title, existing, imported, resolution, onResolve, renderSummary }: DuplicateItemProps<F>) {
   return (
     <div className="duplicate-item">
       <p className="duplicate-title"><b>{title}</b></p>
@@ -110,7 +116,7 @@ function DuplicateItem<F>({ title, existing, imported, resolution, onResolve, re
   )
 }
 
-type DuplicatesResolverProps<F, D extends { normalizedTitle: string; existing: F; imported: F }> = {
+type DuplicatesResolverProps<F extends { title: string }, D extends { normalizedTitle: string; existing: F; imported: F }> = {
   duplicates: D[]
   resolutions: Map<string, DuplicateResolution>
   onResolve: (normalizedTitle: string, resolution: DuplicateResolution) => void
@@ -119,7 +125,7 @@ type DuplicatesResolverProps<F, D extends { normalizedTitle: string; existing: F
   renderSummary: (item: F, origin: 'existing' | 'imported') => ReactNode
 }
 
-export function DuplicatesResolver<F, D extends { normalizedTitle: string; existing: F; imported: F }>({
+export function DuplicatesResolver<F extends { title: string }, D extends { normalizedTitle: string; existing: F; imported: F }>({
   duplicates,
   resolutions,
   onResolve,
@@ -184,7 +190,7 @@ export function DuplicatesResolver<F, D extends { normalizedTitle: string; exist
         {visibleDuplicates.length > 0 ? visibleDuplicates.map((duplicate) => (
           <DuplicateItem
             key={duplicate.normalizedTitle}
-            title={duplicate.normalizedTitle}
+            title={duplicate.existing.title}
             existing={duplicate.existing}
             imported={duplicate.imported}
             resolution={resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'}

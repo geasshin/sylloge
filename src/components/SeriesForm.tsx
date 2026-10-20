@@ -118,7 +118,6 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <p className="eyebrow">Série</p>
       <h1 className="display-title">{series ? 'Modifier la fiche' : 'Ajouter une série'}</h1>
     </div>
   )
@@ -241,6 +240,7 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
               <textarea
                 id="series-personalNote"
                 name="personalNote"
+                aria-label="Critique personnelle"
                 rows={5}
                 placeholder="Qu’as-tu pensé de cette série ?"
                 value={values.personalNote}

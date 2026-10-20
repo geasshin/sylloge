@@ -198,7 +198,6 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
 
         {/* Bloc œuvre puis partie personnelle, dans la même respiration */}
         <div className="detail-body">
-          <p className="eyebrow">Film</p>
           <h1 className="display-title">{displayTitle}</h1>
           {displayOriginalTitle && displayOriginalTitle !== displayTitle && (
             <p className="original-title">{displayOriginalTitle}</p>

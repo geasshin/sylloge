@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-/** Service Jeux IGDB (couvertures verticales), même contrat que le service RAWG. */
+/** Service Jeux IGDB : types des candidats et commandes du backend. */
 
 export type IgdbGameCandidate = {
   gameId: number

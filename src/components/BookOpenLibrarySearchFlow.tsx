@@ -17,6 +17,7 @@ type BookOpenLibrarySearchFlowProps = {
   onCancel: () => void
   /** Rendu compact dans une pop-up : sans <main>, ni barre d'action, ni titre répété. */
   compact?: boolean
+  mediumLabel?: 'livre' | 'manga'
 }
 
 type SearchState =
@@ -32,7 +33,7 @@ type SearchState =
  * Le mode « fiche existante » reprend le parcours d'association des films :
  * titre prérempli, encart contexte, rendu compact dans la même pop-up floutée.
  */
-export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey = null, selectionError = null, onSelectCandidate, onManual, onCancel, compact = false }: BookOpenLibrarySearchFlowProps) {
+export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey = null, selectionError = null, onSelectCandidate, onManual, onCancel, compact = false, mediumLabel = 'livre' }: BookOpenLibrarySearchFlowProps) {
   const [query, setQuery] = useState(() => existing?.title ?? '')
   const [searchState, setSearchState] = useState<SearchState>({ status: 'idle' })
 
@@ -83,12 +84,11 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
       )}
 
       <div className="editor-heading">
-        <p className="eyebrow">Livre</p>
-        <h1 className="display-title">{existing ? 'Modifier l’association' : 'Rechercher un livre'}</h1>
+        <h1 className="display-title">{existing ? 'Modifier l’association' : `Rechercher un ${mediumLabel}`}</h1>
         <p>
           {existing
-            ? `Recherchez une autre correspondance Open Library pour « ${existing.title} ».`
-            : 'Recherchez un livre dans Open Library et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.'}
+            ? `Rechercher une autre correspondance Open Library pour « ${existing.title} ».`
+            : `Rechercher un ${mediumLabel} dans Open Library et choisir la bonne correspondance : le formulaire s’ouvre directement prérempli.`}
         </p>
       </div>
 
@@ -105,7 +105,7 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
 
       <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
-          <label htmlFor="book-ol-search-query">Titre du livre</label>
+          <label htmlFor="book-ol-search-query">Titre du {mediumLabel}</label>
           <input
             id="book-ol-search-query"
             type="search"

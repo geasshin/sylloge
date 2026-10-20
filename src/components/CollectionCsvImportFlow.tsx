@@ -26,7 +26,7 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
   const [mapping, setMapping] = useState<CollectionCsvMapping>(session.initialMapping)
   const [step, setStep] = useState<'mapping' | 'preview'>(session.sourceKind === 'sylloge-csv-v1' ? 'preview' : 'mapping')
   const preview = previewCollectionCsvImport(session, mapping)
-  const mediumLabel = { series: 'Séries', books: 'Livres', games: 'Jeux', artworks: 'Art' }[kind]
+  const mediumLabel = { series: 'Séries', books: 'Livres et Mangas', games: 'Jeux', artworks: 'Art' }[kind]
   const groups = collectionCsvFieldGroups(kind)
 
   return (

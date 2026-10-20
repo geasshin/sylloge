@@ -232,6 +232,7 @@ function Harness() {
           onLibrary={() => setScreen('films')}
           onSeries={() => setScreen('series')}
           onBooks={() => setScreen('books')}
+          onMangas={() => setScreen('books')}
           onGames={() => setScreen('games')}
           onArtworks={() => setScreen('artworks')}
           onSettings={() => setTheme(theme === 'light' ? 'dark' : 'light')}

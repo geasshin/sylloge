@@ -56,7 +56,15 @@ import {
 import { CollectionCsvImportFlow } from './CollectionCsvImportFlow.tsx'
 import { FilmCsvImportFlow } from './FilmCsvImportFlow.tsx'
 
-type ImportStep = 'choose-file' | 'container-source' | 'external-preview' | 'mode' | 'duplicates' | 'working' | 'done'
+type ImportStep = 'choose-file' | 'container-source' | 'external-preview' | 'json-preview' | 'mode' | 'duplicates' | 'working' | 'done'
+
+const IMPORT_MEDIUM_GRAMMAR = {
+  films: { pluralLabel: 'films', gender: 'masculine' },
+  series: { pluralLabel: 'séries', gender: 'feminine' },
+  books: { pluralLabel: 'livres et mangas', gender: 'masculine' },
+  games: { pluralLabel: 'jeux', gender: 'masculine' },
+  artworks: { pluralLabel: 'œuvres', gender: 'feminine' },
+} as const
 
 type BaseProps = {
   buttonLabel: string
@@ -195,7 +203,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     else if (props.kind === 'games') setGamesImported(parsed.items as Game[])
     else setArtworksImported(parsed.items as Artwork[])
     setImportedCount(parsed.items.length)
-    setStep('mode')
+    setStep(props.kind === 'films' || props.kind === 'series' ? 'json-preview' : 'mode')
   }
 
   const prepareContainerCandidate = (
@@ -422,11 +430,17 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       </button>
       {open && (
         <AccessibleDialog
-          title={`Importer des ${props.mediumLabel}s`}
+          title={props.kind === 'books' ? 'Importer Livres et Mangas' : `Importer des ${props.mediumLabel}s`}
           description="Le fichier est analysé avant toute écriture."
           onClose={close}
           closeDisabled={step === 'working' || choosingFile}
         >
+          {props.kind === 'books' && (
+            <p className="import-contextual-hint" role="note">
+              Import commun aux bibliothèques Livres et Mangas. Les catégories du fichier sont conservées.
+              « Remplacer » remplace les deux bibliothèques, comics compris.
+            </p>
+          )}
           {step === 'choose-file' && (
             <div className="assistant-content">
               <section className="assistant-stage">
@@ -523,9 +537,20 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
               }}
             />
           )}
+          {step === 'json-preview' && (props.kind === 'films' || props.kind === 'series') && (
+            <JsonImportPreview
+              kind={props.kind}
+              fileName={fileName}
+              items={props.kind === 'films' ? filmsImported : seriesImported}
+              onChooseAnother={reset}
+              onContinue={() => setStep('mode')}
+            />
+          )}
           {step === 'mode' && (
             <ImportModeChoice
               mediumLabel={props.mediumLabel}
+              mediumPluralLabel={IMPORT_MEDIUM_GRAMMAR[props.kind].pluralLabel}
+              mediumGender={IMPORT_MEDIUM_GRAMMAR[props.kind].gender}
               importedCount={importedCount}
               existingCount={props.existing.length}
               onChoose={chooseMode}
@@ -639,5 +664,52 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
         </AccessibleDialog>
       )}
     </>
+  )
+}
+
+type JsonImportPreviewProps = {
+  kind: 'films' | 'series'
+  fileName: string | null
+  items: Array<{ title: string }>
+  onChooseAnother: () => void
+  onContinue: () => void
+}
+
+function JsonImportPreview({ kind, fileName, items, onChooseAnother, onContinue }: JsonImportPreviewProps) {
+  const mediumLabel = kind === 'films' ? 'Films' : 'Séries'
+  const remainingCount = Math.max(0, items.length - 5)
+
+  return (
+    <div className="assistant-content import-json-review-content">
+      <section className="assistant-stage import-json-review" aria-labelledby="import-json-review-title">
+        <p className="card-kicker">Vérification du fichier</p>
+        <h3 id="import-json-review-title">Aperçu de {mediumLabel}</h3>
+        <dl className="assistant-source-summary">
+          <div><dt>Fichier sélectionné</dt><dd title={fileName ?? undefined}>{fileName ?? 'Nom du fichier inconnu'}</dd></div>
+          <div><dt>Fiches reconnues</dt><dd>{items.length}</dd></div>
+        </dl>
+        <p className="import-json-review-label">Titres détectés</p>
+        <ol
+          className="import-title-preview"
+          aria-label={kind === 'films' ? 'Titres des films détectés' : 'Titres des séries détectées'}
+        >
+          {items.slice(0, 5).map((item, index) => (
+            <li key={index + ':' + item.title}>{item.title}</li>
+          ))}
+        </ol>
+        {remainingCount > 0 && (
+          <p className="import-title-preview-note">
+            Les 5 premiers titres sont affichés. {remainingCount === 1 ? 'Une autre fiche n’est pas listée.' : `${remainingCount} autres fiches ne sont pas listées.`}
+          </p>
+        )}
+        <p className="import-contextual-hint">
+          Rien n’est encore écrit. Continue pour choisir entre Remplacer et Fusionner.
+        </p>
+        <div className="assistant-actions">
+          <button className="secondary-button" type="button" onClick={onChooseAnother}>Choisir un autre fichier</button>
+          <button className="primary-button" type="button" onClick={onContinue}>Continuer vers Remplacer ou Fusionner</button>
+        </div>
+      </section>
+    </div>
   )
 }

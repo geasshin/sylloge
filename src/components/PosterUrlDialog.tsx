@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { posterLabelAfterA, posterLabelWithArticle, type PosterLabel } from './Poster.tsx'
 
 /**
  * Dialogue de modification du visuel d'une fiche par URL.
@@ -15,7 +16,7 @@ export function PosterUrlDialog({
 }: {
   open: boolean
   title: string
-  label: 'Affiche' | 'Couverture' | 'Visuel'
+  label: PosterLabel
   currentUrl: string | null
   onClose: () => void
   /** Reçoit l'URL saisie, ou null si l'utilisateur a vidé le champ. */
@@ -54,10 +55,11 @@ export function PosterUrlDialog({
 
   return (
     <AccessibleDialog
-      title={`Modifier la ${label.toLocaleLowerCase('fr')}`}
-      description={`Colle l'adresse d'une image pour « ${title} »`}
+      title={`Modifier ${posterLabelWithArticle(label)}`}
+      description={`Coller l’adresse d’une image pour « ${title} ».`}
       closeDisabled={saving}
       onClose={onClose}
+      size="md"
     >
       <div className="assistant-content poster-url-dialog">
         <label className="field">
@@ -70,7 +72,7 @@ export function PosterUrlDialog({
             autoFocus
           />
         </label>
-        <p className="import-hint">Colle simplement le lien d’une image trouvée sur le web. Laisse vide pour revenir à la visuel par défaut.</p>
+        <p className="import-hint">Le lien d’une image trouvée sur le web suffit. Laisser vide pour revenir {posterLabelAfterA(label)} par défaut.</p>
         {error && <p className="validation-errors" role="alert">{error}</p>}
         <div className="assistant-actions assistant-actions-single">
           <button className="primary-button" type="button" disabled={saving} onClick={() => void submit()}>

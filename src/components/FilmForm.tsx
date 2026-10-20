@@ -13,6 +13,7 @@ import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts
 import type { TmdbFilmPresentation } from '../data/tmdbService.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
+import { FocusDialog } from './FocusDialog.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
 /** Une URL d'affiche n'est prévisualisée que si elle est http(s) valide. */
@@ -64,7 +65,7 @@ type FilmFormProps = {
 }
 
 export function FilmForm({ film, initialValues, provenance = null, tmdbPresentation = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, fetchTmdbCache, onCancel, onSave }: FilmFormProps) {
-  const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...(initialValues ?? EMPTY_FILM_FORM) })
+  const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...EMPTY_FILM_FORM, ...initialValues })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -178,7 +179,6 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
   // « Film / Ajouter un film » empilé ne fait que doubler l'information.
   const heading = compactHeading || embeddedInDialog ? null : (
     <div className="editor-heading">
-      <p className="eyebrow">Film</p>
       <h1 className="display-title">{film ? 'Modifier la fiche' : 'Ajouter un film'}</h1>
     </div>
   )
@@ -279,6 +279,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
             <textarea
               id="personalNote"
               name="personalNote"
+              aria-label="Critique personnelle"
               rows={5}
               placeholder="Qu’as-tu pensé de ce film ?"
               value={values.personalNote}
@@ -320,11 +321,11 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
     return (
       <>
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget && !saving) onCancel() }}>
-          <div className="editor-dialog" role="dialog" aria-modal="true" aria-label={film ? 'Modifier la fiche' : 'Ajouter un film'}>
+          <FocusDialog className="editor-dialog" onClose={onCancel} closeDisabled={saving} aria-label={film ? 'Modifier la fiche' : 'Ajouter un film'}>
             <button className="poster-dialog-close editor-dialog-close" type="button" onClick={onCancel} disabled={saving} aria-label="Fermer">×</button>
             {heading}
             {form}
-          </div>
+          </FocusDialog>
         </div>
         {posterEditor}
       </>

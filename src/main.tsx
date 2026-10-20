@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccessibleDialog } from './components/AccessibleDialog.tsx'
+import { FocusDialog } from './components/FocusDialog.tsx'
 import { ImportHint } from './components/ImportHint.tsx'
 import { ArtworkDetail } from './components/ArtworkDetail.tsx'
 import { ArtworkForm } from './components/ArtworkForm.tsx'
@@ -20,6 +21,7 @@ import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlo
 import { GameIgdbSearchFlow } from './components/GameIgdbSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
+import { statusTone } from './components/VerdictControls.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
 import { updaterCredentialService } from './data/updaterCredentials.ts'
@@ -40,7 +42,7 @@ import { LibraryImportButton } from './components/LibraryImportButton.tsx'
 import { ProfileAvatar, ProfileAvatarPicker } from './components/ProfileAvatar.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 import { MobileAppShell } from './components/MobileAppShell.tsx'
-import { BookCategorySwitch, SeriesCategorySwitch } from './components/CategorySwitch.tsx'
+import { SeriesCategorySwitch } from './components/CategorySwitch.tsx'
 
 import type { TmdbSearchCandidate, TmdbFilmPresentation } from './data/tmdbService.ts'
 import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, resolveFilmDisplayPoster, resolveFilmDisplayDirector, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
@@ -96,7 +98,6 @@ import {
 import type { SeriesFormValues, SeriesWriteInput } from './domain/seriesForm.ts'
 import { seriesPresentationToInitialValues } from './domain/seriesMetadataAssistance.ts'
 import {
-  BOOK_CATEGORIES,
   BOOK_CATEGORY_LABELS,
   BOOK_STATUS_LABELS,
   BOOK_STATUSES,
@@ -104,6 +105,7 @@ import {
   type BookCategory,
 } from './domain/book.ts'
 import type { BookFormValues, BookWriteInput } from './domain/bookForm.ts'
+import { bookLibraryForCategory, bookLibraryCategories, bookLibraryStoredFilter, booksForLibrary, type BookLibraryKey } from './domain/bookLibraries.ts'
 import { bookPresentationToInitialValues } from './domain/bookMetadataAssistance.ts'
 import {
   buildGamePlatformFilters,
@@ -129,6 +131,7 @@ import {
   FilmIcon,
   SeriesIcon,
   BookIcon,
+  MangaIcon,
   GameIcon,
   ArtIcon,
   SettingsIcon,
@@ -142,7 +145,7 @@ import {
 } from './components/icons.tsx'
 import './styles.css'
 
-type IconName = 'art' | 'book' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink' | 'arrow-left'
+type IconName = 'art' | 'book' | 'manga' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink' | 'arrow-left'
 export type { IconName }
 type SettingsSection = PortabilitySection
 
@@ -159,6 +162,8 @@ export function icon(name: IconName) {
       return <SeriesIcon />
     case 'book':
       return <BookIcon />
+    case 'manga':
+      return <MangaIcon />
     case 'game':
       return <GameIcon />
     case 'art':
@@ -198,15 +203,17 @@ type SidebarProps = {
   count: number | null
   seriesCount: number | null
   bookCount: number | null
+  mangaCount: number | null
   gameCount: number | null
   artworkCount: number | null
   currentProfileName: string | null
   currentProfileAvatar: string | null
-  activeItem: 'artworks' | 'books' | 'games' | 'home' | 'library' | 'series' | 'settings'
+  activeItem: 'artworks' | 'books' | 'mangas' | 'games' | 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
   onSeries: () => void
   onBooks: () => void
+  onMangas: () => void
   onGames: () => void
   onArtworks: () => void
   onSettings: () => void
@@ -221,6 +228,7 @@ function Sidebar({
   count,
   seriesCount,
   bookCount,
+  mangaCount,
   gameCount,
   artworkCount,
   currentProfileName,
@@ -230,6 +238,7 @@ function Sidebar({
   onLibrary,
   onSeries,
   onBooks,
+  onMangas,
   onGames,
   onArtworks,
   onSettings,
@@ -266,6 +275,7 @@ function Sidebar({
             type="button"
             onClick={onHome}
             data-tooltip={labelFor('Accueil')}
+            aria-label="Accueil"
             aria-current={activeItem === 'home' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('home')} Accueil</span>
@@ -276,6 +286,7 @@ function Sidebar({
             type="button"
             onClick={onLibrary}
             data-tooltip={labelFor('Films')}
+            aria-label="Films"
             aria-current={activeItem === 'library' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('film')} Films</span>
@@ -287,6 +298,7 @@ function Sidebar({
             type="button"
             onClick={onSeries}
             data-tooltip={labelFor('Séries')}
+            aria-label="Séries"
             aria-current={activeItem === 'series' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('series')} Séries</span>
@@ -298,6 +310,7 @@ function Sidebar({
             type="button"
             onClick={onBooks}
             data-tooltip={labelFor('Livres')}
+            aria-label="Livres"
             aria-current={activeItem === 'books' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('book')} Livres</span>
@@ -305,10 +318,23 @@ function Sidebar({
             <span className="nav-item-peek" aria-hidden="true">{icon('book')}</span>
           </button>
           <button
+            className={`nav-item ${activeItem === 'mangas' ? 'active' : ''}`}
+            type="button"
+            onClick={onMangas}
+            data-tooltip={labelFor('Mangas')}
+            aria-label="Mangas"
+            aria-current={activeItem === 'mangas' ? 'page' : undefined}
+          >
+            <span className="nav-item-text">{icon('manga')} Mangas</span>
+            {mangaCount !== null && <span className="nav-count">{mangaCount}</span>}
+            <span className="nav-item-peek" aria-hidden="true">{icon('manga')}</span>
+          </button>
+          <button
             className={`nav-item ${activeItem === 'games' ? 'active' : ''}`}
             type="button"
             onClick={onGames}
             data-tooltip={labelFor('Jeux')}
+            aria-label="Jeux"
             aria-current={activeItem === 'games' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('game')} Jeux</span>
@@ -320,6 +346,7 @@ function Sidebar({
             type="button"
             onClick={onArtworks}
             data-tooltip={labelFor('Art')}
+            aria-label="Art"
             aria-current={activeItem === 'artworks' ? 'page' : undefined}
           >
             <span className="nav-item-text">{icon('art')} Art</span>
@@ -359,6 +386,7 @@ function Sidebar({
               type="button"
               onClick={onSettings}
               data-tooltip={labelFor('Paramètres')}
+              aria-label="Paramètres"
             >
               <span className="nav-item-text">{icon('settings')} Paramètres</span>
               <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
@@ -406,7 +434,7 @@ function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
           {film.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${film.status === 'à découvrir' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(film.status)}`}>
           {FILM_STATUS_LABELS[film.status]}
         </span>
       </span>
@@ -446,7 +474,7 @@ const ONBOARDING_STEPS: Array<{ id: OnboardingStep; label: string }> = [
 
 const THEME_OPTIONS: Array<{ id: ThemePreference; label: string; detail: string }> = [
   { id: 'system', label: 'Système', detail: 'Suit automatiquement le réglage de cet appareil.' },
-  { id: 'light', label: 'Clair', detail: 'Papier chaud et contrastes doux.' },
+  { id: 'light', label: 'Clair', detail: 'Fond neutre et contrastes doux.' },
   { id: 'dark', label: 'Sombre', detail: 'Surfaces profondes pour une lumière réduite.' },
 ]
 
@@ -670,7 +698,6 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="library-state empty-library">
-      <p className="state-kicker">Collection personnelle</p>
       <h2>Votre bibliothèque Films est vide.</h2>
       <p>Ajoutez un premier film, avec un titre seulement si vous le souhaitez.</p>
       <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un film</button>
@@ -698,7 +725,6 @@ type LibraryContext = {
 }
 
 const ALL_SERIES_CATEGORIES = SERIES_CATEGORIES as readonly SeriesCategory[]
-const ALL_BOOK_CATEGORIES = BOOK_CATEGORIES as readonly BookCategory[]
 
 /**
  * Sélection de catégories → valeur stockée dans une vue enregistrée.
@@ -766,7 +792,7 @@ type FilmsLibraryProps = {
   library: FilmLibrary
   context: LibraryContext
   searchState: SearchState
-  onContextChange: (context: LibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<LibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (film: Film) => void
@@ -793,11 +819,19 @@ function FilmsLibrary({
     <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Films</h1>
           <p className="library-subtitle">{librarySubtitle(library.films, 'film', 'films')}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Associer automatiquement les fiches non associées via TMDB"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="films"
             buttonLabel="Importer"
@@ -813,17 +847,8 @@ function FilmsLibrary({
       </header>
 
       {/* 0.6.27 : la barre d'outils reste affichée même bibliothèque vide —
-          les cinq médiums partagent exactement le même gabarit. */}
+          les six bibliothèques partagent exactement le même gabarit. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Associer automatiquement les fiches non associées via TMDB"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, titre original ou réalisation</span>
@@ -842,15 +867,15 @@ function FilmsLibrary({
           medium="films"
           builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'films')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={FILM_FILTER_PANEL_CONFIG}
           mediumFilterValue="all"
           onMediumFilterChange={() => {}}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: 'all', filters: resolved.filters }}
         />
       </div>
@@ -940,6 +965,7 @@ function AutoAssociateDialog({
       description="Recherche automatique des fiches sur TMDB"
       closeDisabled={phase === 'running'}
       onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
+      size="md"
     >
       <div className="assistant-content">
         {phase === 'confirm' && (
@@ -1048,6 +1074,7 @@ function AutoAssociateEditsDialog({
       description={`Recherche automatique sur ${providerLabel}`}
       closeDisabled={phase === 'running'}
       onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
+      size="md"
     >
       <div className="assistant-content">
         {phase === 'confirm' && (
@@ -1144,13 +1171,7 @@ const SERIES_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
 }
 
 const BOOK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
-  mediumFilter: {
-    label: 'Catégorie',
-    options: [
-      { value: 'all', label: 'Tous' },
-      ...BOOK_CATEGORIES.map((category) => ({ value: category as string, label: BOOK_CATEGORY_LABELS[category] })),
-    ],
-  },
+  mediumFilter: null,
   statusOptions: BOOK_STATUSES.map((status) => ({ value: status, label: BOOK_STATUS_LABELS[status] })),
   showRating: true,
   showYear: true,
@@ -1160,12 +1181,28 @@ const BOOK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
   showExhibition: false,
 }
 
+/**
+ * Livres sans bascule de catégorie : le type n’apparaît dans « Filtrer » que
+ * si d’anciens comics existent ou qu’une vue l’a restreint, pour qu’une
+ * catégorie active ne soit jamais un filtre invisible.
+ */
+const BOOK_TYPE_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
+  ...BOOK_FILTER_PANEL_CONFIG,
+  mediumFilter: {
+    label: 'Type',
+    options: [
+      { value: 'all', label: 'Tous' },
+      ...bookLibraryCategories('books').map((category) => ({ value: category as string, label: BOOK_CATEGORY_LABELS[category] })),
+    ],
+  },
+}
+
 const GAME_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
   mediumFilter: null,
   statusOptions: GAME_STATUSES.map((status) => ({ value: status, label: GAME_STATUS_LABELS[status] })),
   showRating: true,
   showYear: true,
-  personalDateLabel: 'Jeu',
+  personalDateLabel: 'Partie',
   specificTextField: null,
   showLocation: false,
   showExhibition: false,
@@ -1202,7 +1239,7 @@ function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) 
           {series.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {series.showrunner && <small>{series.showrunner}</small>}
-        <span className={`status-line ${series.status === 'à voir' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(series.status)}`}>
           {SERIES_STATUS_LABELS[series.status]}
           {progress ? ` · ${progress}` : ''}
         </span>
@@ -1216,7 +1253,7 @@ type SeriesLibraryProps = {
   collection: Series[]
   context: SeriesLibraryContext
   searchState: SeriesSearchState
-  onContextChange: (context: SeriesLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<SeriesLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (series: Series) => void
@@ -1286,11 +1323,19 @@ function SeriesLibrary({
     <main className="main library-main" aria-label={`Bibliothèque Séries du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Séries</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'série', 'séries')}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Normaliser les visuels et fiches via TMDB"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="series"
             buttonLabel="Importer"
@@ -1306,15 +1351,6 @@ function SeriesLibrary({
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Normaliser les visuels et fiches via TMDB"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
@@ -1334,24 +1370,23 @@ function SeriesLibrary({
           medium="series"
           builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'series')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={{ ...SERIES_FILTER_PANEL_CONFIG, mediumFilter: null }}
           mediumFilterValue="all"
           onMediumFilterChange={(stored) => {
             const selected = storedToCategories(stored)
-            onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] })
+            onContextChange((current) => ({ ...current, category: (selected.length > 0 ? selected : [...ALL_SERIES_CATEGORIES]) as SeriesCategory[] }))
           }}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: false }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_SERIES_CATEGORIES), filters: resolved.filters }}
         />
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Séries est vide.</h2>
           <p>Ajoutez une première série, avec un titre seulement si vous le souhaitez.</p>
           <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une série</button>
@@ -1417,7 +1452,7 @@ function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
           {book.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${book.status === 'à lire' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(book.status)}`}>
           {BOOK_STATUS_LABELS[book.status]}
           {progress ? ` · ${progress}` : ''}
         </span>
@@ -1440,7 +1475,7 @@ function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
           {game.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${game.status === 'à jouer' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(game.status)}`}>
           {GAME_STATUS_LABELS[game.status]}
         </span>
       </span>
@@ -1453,7 +1488,7 @@ type GamesLibraryProps = {
   collection: Game[]
   context: GameLibraryContext
   searchState: GameSearchState
-  onContextChange: (context: GameLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<GameLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (game: Game) => void
@@ -1531,11 +1566,19 @@ function GamesLibrary({
     <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Jeux</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'jeu', 'jeux')}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Normaliser les couvertures et fiches via IGDB"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="games"
             buttonLabel="Importer"
@@ -1551,15 +1594,6 @@ function GamesLibrary({
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Normaliser les couvertures et fiches via IGDB"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
@@ -1575,7 +1609,7 @@ function GamesLibrary({
           medium="games"
           builtinViews={titledBuiltinViews(RATED_BUILTIN_VIEWS, 'games')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={{
             ...GAME_FILTER_PANEL_CONFIG,
             mediumFilter: {
@@ -1584,18 +1618,17 @@ function GamesLibrary({
             },
           }}
           mediumFilterValue={context.platform}
-          onMediumFilterChange={(platform) => onContextChange({ ...context, platform })}
+          onMediumFilterChange={(platform) => onContextChange((current) => ({ ...current, platform }))}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: context.platform, filters: resolved.filters }}
         />
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Jeux est vide.</h2>
           <p>Ajoutez un premier jeu, avec un titre seulement si vous le souhaitez.</p>
           <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un jeu</button>
@@ -1647,14 +1680,14 @@ function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void
 
   return (
     <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${artwork.title}`}>
-      <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" />
+      <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" className="artwork-visual" />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{artwork.title}</b>
           {artwork.isFavorite && <i aria-label="Favori">♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
-        <span className={`status-line ${artwork.status === 'à découvrir' ? 'to-discover' : ''}`}>
+        <span className={`status-line tone-${statusTone(artwork.status)}`}>
           {ARTWORK_STATUS_LABELS[artwork.status]}
         </span>
       </span>
@@ -1667,7 +1700,7 @@ type ArtworksLibraryProps = {
   collection: Artwork[]
   context: ArtworkLibraryContext
   searchState: ArtworkSearchState
-  onContextChange: (context: ArtworkLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<ArtworkLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (artwork: Artwork) => void
@@ -1692,8 +1725,8 @@ function ArtworksLibrary({
   profileId,
   onLibraryChanged,
 }: ArtworksLibraryProps) {
-  // Tous ouvre la rangée, mais Art s'ouvre encore sur Favori : aucun statut
-  // ni progression n'existe pour cette collection.
+  // Tous ouvre la rangée et, depuis le 18 octobre 2026, la bibliothèque Art
+  // elle-même : « Favori » n'en montrait qu'une petite partie.
   const openingView = defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks')
   const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
@@ -1702,7 +1735,6 @@ function ArtworksLibrary({
     <main className="main library-main artwork-library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
           <h1 className="display-title">Art</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'œuvre', 'œuvres')}</p>
         </div>
@@ -1737,21 +1769,20 @@ function ArtworksLibrary({
           medium="artworks"
           builtinViews={titledBuiltinViews(UNRATED_BUILTIN_VIEWS, 'artworks')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
           filterConfig={ARTWORK_FILTER_PANEL_CONFIG}
           mediumFilterValue={context.form}
-          onMediumFilterChange={(form) => onContextChange({ ...context, form: form as ArtworkSearchCriteria['form'] })}
+          onMediumFilterChange={(form) => onContextChange((current) => ({ ...current, form: form as ArtworkSearchCriteria['form'] }))}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: false, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
           currentCriteria={{ sort: resolved.sort, mediumFilter: context.form, filters: resolved.filters }}
         />
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
           <h2>Votre bibliothèque Art est vide.</h2>
           <p>Ajoutez une première œuvre, avec un titre seulement si vous le souhaitez.</p>
           <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une œuvre</button>
@@ -1788,11 +1819,13 @@ function ArtworksLibrary({
 }
 
 type BooksLibraryProps = {
+  library: BookLibraryKey
+  allBooks: Book[]
   profileName: string
   collection: Book[]
   context: BookLibraryContext
   searchState: BookSearchState
-  onContextChange: (context: BookLibraryContext) => void
+  onContextChange: Dispatch<SetStateAction<BookLibraryContext>>
   onRetrySearch: () => void
   onCreate: () => void
   onOpen: (book: Book) => void
@@ -1806,6 +1839,8 @@ type BookSearchState =
   | { status: 'error' }
 
 function BooksLibrary({
+  library,
+  allBooks,
   profileName,
   collection,
   context,
@@ -1819,8 +1854,14 @@ function BooksLibrary({
 }: BooksLibraryProps) {
   // L'ordre visible commence par Tous ; la vue d'ouverture reste la watchlist.
   const openingView = defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'books')
-  const isUnfiltered = context.query.trim() === '' && context.category.length === ALL_BOOK_CATEGORIES.length && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
+  const categories = bookLibraryCategories(library)
+  const label = library === 'mangas' ? 'Mangas' : 'Livres'
+  const singular = library === 'mangas' ? 'manga' : 'livre'
+  const plural = library === 'mangas' ? 'mangas' : 'livres'
+  const isUnfiltered = context.query.trim() === '' && context.category.length === categories.length && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const storedCategory = bookLibraryStoredFilter(library, context.category)
+  const typeFilterVisible = library === 'books' && (storedCategory !== 'all' || collection.some((book) => book.category === 'comics'))
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   const runBooksAssociation = async ({ onProgress, isCancelled }: {
@@ -1867,38 +1908,37 @@ function BooksLibrary({
   }
 
   return (
-    <main className="main library-main" aria-label={`Bibliothèque Livres du profil ${profileName}`}>
+    <main className="main library-main" aria-label={`Bibliothèque ${label} du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <p className="eyebrow">Collection personnelle</p>
-          <h1 className="display-title">Livres</h1>
-          <p className="library-subtitle">{librarySubtitle(collection, 'livre', 'livres')}</p>
+          <h1 className="display-title">{label}</h1>
+          <p className="library-subtitle">{librarySubtitle(collection, singular, plural)}</p>
         </div>
         <div className="library-header-actions">
+          <button
+            className="auto-associate-button"
+            type="button"
+            onClick={() => setAutoAssociateOpen(true)}
+            title="Normaliser les couvertures et fiches via Open Library"
+          >
+            {icon('wand')}
+            <span>Tout associer</span>
+          </button>
           <LibraryImportButton
             kind="books"
             buttonLabel="Importer"
-            mediumLabel="livre"
+            mediumLabel="livre ou manga"
             profileId={profileId}
             profileName={profileName}
-            existing={collection}
+            existing={allBooks}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="books" profileId={profileId} />
-          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un livre</button>
+          <LibraryExportFlow kind="books" profileId={profileId} bookLibrary={library} />
+          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un {singular}</button>
         </div>
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
-        <button
-          className="auto-associate-button"
-          type="button"
-          onClick={() => setAutoAssociateOpen(true)}
-          title="Normaliser les couvertures et fiches via Open Library"
-        >
-          {icon('wand')}
-          <span>Tout associer</span>
-        </button>
         <label className="search">
           {icon('search')}
           <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
@@ -1909,36 +1949,31 @@ function BooksLibrary({
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
           />
         </label>
-        <BookCategorySwitch
-          selected={context.category.length > 0 ? context.category : [...ALL_BOOK_CATEGORIES]}
-          onSelectionChange={(selected) => onContextChange({ ...context, category: selected as BookCategory[] })}
-        />
         <LibraryViewBar
           profileId={profileId}
           medium="books"
+          bookLibrary={library}
           builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'books')}
           activeView={context.view}
-          onViewChange={(view) => onContextChange({ ...context, view })}
-          filterConfig={{ ...BOOK_FILTER_PANEL_CONFIG, mediumFilter: null }}
-          mediumFilterValue="all"
+          onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
+          filterConfig={typeFilterVisible ? BOOK_TYPE_FILTER_PANEL_CONFIG : BOOK_FILTER_PANEL_CONFIG}
+          mediumFilterValue={library === 'books' ? storedCategory : 'all'}
           onMediumFilterChange={(stored) => {
-            const selected = storedToCategories(stored)
-            onContextChange({ ...context, category: (selected.length > 0 ? selected : [...ALL_BOOK_CATEGORIES]) as BookCategory[] })
+            onContextChange((current) => ({ ...current, category: bookLibraryCategories(library, stored) }))
           }}
           extraFilters={context.extraFilters}
-          onExtraFiltersChange={(extraFilters) => onContextChange({ ...context, extraFilters })}
+          onExtraFiltersChange={(extraFilters) => onContextChange((current) => ({ ...current, extraFilters }))}
           sortCapabilities={{ rating: true, year: true }}
           sortOverride={context.sortOverride}
-          onSortOverrideChange={(sortOverride) => onContextChange({ ...context, sortOverride })}
-          currentCriteria={{ sort: resolved.sort, mediumFilter: categoriesToStored(context.category, ALL_BOOK_CATEGORIES), filters: resolved.filters }}
+          onSortOverrideChange={(sortOverride) => onContextChange((current) => ({ ...current, sortOverride }))}
+          currentCriteria={{ sort: resolved.sort, mediumFilter: storedCategory, filters: resolved.filters }}
         />
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <p className="state-kicker">Collection personnelle</p>
-          <h2>Votre bibliothèque Livres est vide.</h2>
-          <p>Ajoutez un premier livre, manga ou comics, avec un titre seulement si vous le souhaitez.</p>
-          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un livre</button>
+          <h2>La bibliothèque {label} est vide.</h2>
+          <p>Ajouter un premier {singular}, avec un titre seulement si nécessaire.</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un {singular}</button>
         </div>
       ) : (
         <>
@@ -1947,19 +1982,19 @@ function BooksLibrary({
           ) : searchState.status === 'error' ? (
             <div className="results-state error-state" role="alert">
               <h2>La recherche locale a échoué.</h2>
-              <p>Vos livres restent enregistrés. Réessayez pour relire les résultats depuis SQLite.</p>
+              <p>Les {plural} restent enregistrés. Réessayer pour relire les résultats depuis SQLite.</p>
               <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
             </div>
           ) : searchState.books.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>{isUnfiltered ? `Aucun livre dans la vue « ${openingView.name} ».` : 'Aucun livre ne correspond.'}</h2>
-              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à tous les livres.'}</p>
+              <h2>{isUnfiltered ? `Aucun ${singular} dans la vue « ${openingView.name} ».` : `Aucun ${singular} ne correspond.`}</h2>
+              <p>{isUnfiltered ? 'La vue « Tous » affiche toute la bibliothèque.' : `Modifier la recherche ou revenir à tous les ${plural}.`}</p>
               <button
                 className="state-action"
                 type="button"
-                onClick={() => onContextChange({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
+                onClick={() => onContextChange({ query: '', category: [...categories], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
-                Afficher tous les livres
+                Afficher tous les {plural}
               </button>
             </div>
           ) : (
@@ -1976,7 +2011,7 @@ function BooksLibrary({
         onClose={() => setAutoAssociateOpen(false)}
         providerLabel="Open Library"
         pendingCount={collection.length}
-        confirmText="Normaliser tous les livres via Open Library ?"
+        confirmText={`Normaliser tous les ${plural} via Open Library ?`}
         run={runBooksAssociation}
         onDone={onLibraryChanged}
       />
@@ -1988,7 +2023,7 @@ function BooksLibrary({
  * Écran d'où une fiche a été ouverte. C'est à la fois la cible du bouton
  * retour et la clé sous laquelle la position de défilement est mémorisée.
  */
-type ReturnKey = 'home' | 'library' | 'series' | 'books' | 'games' | 'artworks'
+type ReturnKey = 'home' | 'library' | 'series' | 'books' | 'mangas' | 'games' | 'artworks'
 
 type View =
   | { name: 'home' }
@@ -2001,6 +2036,7 @@ type View =
   | { name: 'detail'; filmId: string; returnTo: ReturnKey }
   | { name: 'series-detail'; seriesId: string; returnTo: ReturnKey }
   | { name: 'books' }
+  | { name: 'mangas' }
   | { name: 'book-detail'; bookId: string; returnTo: ReturnKey }
   | { name: 'games' }
   | { name: 'game-detail'; gameId: string; returnTo: ReturnKey }
@@ -2018,11 +2054,18 @@ function returnView(key: ReturnKey): View {
       return { name: 'series' }
     case 'books':
       return { name: 'books' }
+    case 'mangas':
+      return { name: 'mangas' }
     case 'games':
       return { name: 'games' }
     default:
       return { name: 'artworks' }
   }
+}
+
+/** Retour d'une fiche Livres ou Mangas : il nomme l'écran d'origine réel. */
+function bookBackLabel(returnTo: ReturnKey): string {
+  return returnTo === 'home' ? 'Retour à l’accueil' : returnTo === 'mangas' ? 'Retour aux mangas' : 'Retour aux livres'
 }
 
 function sortFilms(films: Film[]): Film[] {
@@ -2125,7 +2168,9 @@ function App() {
   const [seriesSearchAttempt, setSeriesSearchAttempt] = useState(0)
   const [bookCollection, setBookCollection] = useState<Book[]>([])
   const [bookSearchState, setBookSearchState] = useState<BookSearchState>({ status: 'loading' })
-  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [bookContext, setBookContext] = useState<BookLibraryContext>({ query: '', category: bookLibraryCategories('books'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [mangaContext, setMangaContext] = useState<BookLibraryContext>({ query: '', category: bookLibraryCategories('mangas'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+  const [mangaSearchState, setMangaSearchState] = useState<BookSearchState>({ status: 'loading' })
   const [bookSearchAttempt, setBookSearchAttempt] = useState(0)
   const [gameCollection, setGameCollection] = useState<Game[]>([])
   const [gameSearchState, setGameSearchState] = useState<GameSearchState>({ status: 'loading' })
@@ -2150,7 +2195,7 @@ function App() {
   type AddFlow =
     | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null; tmdbPresentation?: TmdbFilmPresentation; editFilmId?: string }
     | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; providerLink?: MediaProviderReference | null; editSeriesId?: string }
-    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; providerLink?: MediaProviderReference | null; editBookId?: string }
+    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; providerLink?: MediaProviderReference | null; editBookId?: string; bookLibrary?: BookLibraryKey }
     | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues; providerLink?: MediaProviderReference | null; editGameId?: string }
     | { medium: 'artwork'; step: 'form'; editArtworkId?: string }
   const [addFlow, setAddFlow] = useState<AddFlow | null>(null)
@@ -2159,7 +2204,8 @@ function App() {
   const [tmdbNotice, setTmdbNotice] = useState<{ filmId: string; message: string } | null>(null)
   /** Position de défilement mémorisée par écran (accueil et bibliothèques). */
   const scrollMemory = useRef(new Map<string, number>())
-  const pendingScrollRestore = useRef<{ key: string; top: number } | null>(null)
+  const pendingScrollRestore = useRef<{ key: string; top: number; restoreBookFocus?: boolean } | null>(null)
+  const bookOpenerRef = useRef<{ key: ReturnKey; label: string; index: number } | null>(null)
   /** L'accueil défile dans sa propre colonne, les bibliothèques dans la fenêtre. */
   const homeScrollRef = useRef<HTMLElement | null>(null)
 
@@ -2365,6 +2411,29 @@ function App() {
   }, [bookContext, libraryState, bookSearchAttempt])
 
   useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+    setMangaSearchState({ status: 'loading' })
+    const timeout = window.setTimeout(() => {
+      const resolved = resolveLibraryQuery(mangaContext.view, mangaContext.extraFilters, mangaContext.sortOverride)
+      mediaRepository.searchBooks(libraryState.library.profile.id, { query: mangaContext.query, category: mangaContext.category, filters: resolved.filters, sort: resolved.sort }).then(
+        (books) => {
+          if (!cancelled) setMangaSearchState({ status: 'ready', books })
+        },
+        (error: unknown) => {
+          console.error('Impossible de rechercher les mangas dans SQLite.', error)
+          if (!cancelled) setMangaSearchState({ status: 'error' })
+        },
+      )
+    }, mangaContext.query ? 140 : 0)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [mangaContext, libraryState, bookSearchAttempt])
+
+  useEffect(() => {
     let cancelled = false
 
     void (async () => {
@@ -2426,17 +2495,30 @@ function App() {
   useEffect(() => {
     const pending = pendingScrollRestore.current
     if (pending === null || view.name !== pending.key) return
+    if (pending.restoreBookFocus && ((pending.key === 'books' && bookSearchState.status === 'loading')
+      || (pending.key === 'mangas' && mangaSearchState.status === 'loading'))) return
 
-    pendingScrollRestore.current = null
     const frame = window.requestAnimationFrame(() => {
+      pendingScrollRestore.current = null
       // L'accueil défile dans sa colonne sur grand écran, dans la fenêtre
       // ensuite : on écrit aux deux endroits, seul le vrai conteneur répond.
       const home = homeScrollRef.current
       if (home) home.scrollTop = pending.top
       window.scrollTo({ top: pending.top })
+      if (pending.restoreBookFocus) {
+        const opener = bookOpenerRef.current
+        const matching = opener?.key === pending.key
+          ? [...document.querySelectorAll<HTMLElement>('main button[aria-label]')].filter((button) => button.getAttribute('aria-label') === opener.label)
+          : []
+        // Après une suppression ou un changement de bibliothèque, la carte
+        // peut avoir disparu : le repère de navigation reste une cible utile.
+        const label = pending.key === 'home' ? 'Accueil' : pending.key === 'mangas' ? 'Mangas' : 'Livres'
+        const fallback = document.querySelector<HTMLElement>(`.sidebar nav button[aria-label="${label}"]`)
+        ;(matching[opener?.index ?? 0] ?? fallback)?.focus({ preventScroll: true })
+      }
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [view])
+  }, [view, bookSearchState, mangaSearchState])
 
   /** Position de défilement de l'écran affiché, quel que soit son conteneur. */
   const currentScroll = () => {
@@ -2446,6 +2528,12 @@ function App() {
 
   const leaveLibrary = (nextView: View) => {
     scrollMemory.current.set(view.name, currentScroll())
+    if (nextView.name === 'book-detail' && view.name === nextView.returnTo) {
+      const active = document.activeElement
+      const label = active?.getAttribute('aria-label')
+      const matching = [...document.querySelectorAll('main button[aria-label]')].filter((button) => button.getAttribute('aria-label') === label)
+      bookOpenerRef.current = label ? { key: nextView.returnTo, label, index: Math.max(0, matching.indexOf(active as Element)) } : null
+    }
     setView(nextView)
     if (homeScrollRef.current) homeScrollRef.current.scrollTop = 0
     window.scrollTo({ top: 0 })
@@ -2453,7 +2541,7 @@ function App() {
 
   /** Retour depuis une fiche : l'écran d'origine retrouve sa place exacte. */
   const goBackTo = (key: ReturnKey) => {
-    pendingScrollRestore.current = { key, top: scrollMemory.current.get(key) ?? 0 }
+    pendingScrollRestore.current = { key, top: scrollMemory.current.get(key) ?? 0, restoreBookFocus: view.name === 'book-detail' }
     setView(returnView(key))
     if (homeScrollRef.current) homeScrollRef.current.scrollTop = 0
     window.scrollTo({ top: 0 })
@@ -2480,9 +2568,11 @@ function App() {
     })
   }
 
+  const activeBookLibrary: BookLibraryKey = view.name === 'mangas' || (view.name === 'book-detail' && bookCollection.find((book) => book.id === view.bookId)?.category === 'manga') ? 'mangas' : 'books'
   const count = libraryState.status === 'ready' ? libraryState.library.films.length : null
   const seriesCount = libraryState.status === 'ready' ? seriesCollection.length : null
-  const bookCount = libraryState.status === 'ready' ? bookCollection.length : null
+  const bookCount = libraryState.status === 'ready' ? booksForLibrary(bookCollection, 'books').length : null
+  const mangaCount = libraryState.status === 'ready' ? booksForLibrary(bookCollection, 'mangas').length : null
   const gameCount = libraryState.status === 'ready' ? gameCollection.length : null
   const artworkCount = libraryState.status === 'ready' ? artworkCollection.length : null
   let content
@@ -2541,7 +2631,8 @@ function App() {
         setAddFlow({
           medium: 'livre',
           step: 'search',
-          initialValues: bookPresentationToInitialValues(presentation),
+          bookLibrary: addFlow.bookLibrary,
+          initialValues: { ...bookPresentationToInitialValues(presentation), category: addFlow.bookLibrary === 'mangas' ? 'manga' : 'livre' },
           providerLink: { providerName: 'Open Library', providerId: presentation.workKey },
         })
         return
@@ -2555,8 +2646,8 @@ function App() {
     }
   }
 
-  // Même parcours direct pour les Jeux via RAWG (jalon 0.4.28), clé
-  // embarquée côté backend, jamais exposée au frontend.
+  // Même parcours direct pour les Jeux via IGDB, identifiants
+  // embarqués côté backend, jamais exposés au frontend.
   const selectIgdbGameCandidate = async (candidate: IgdbGameCandidate) => {
     setCandidateSelection({ pendingId: candidate.gameId, error: null })
     try {
@@ -2740,7 +2831,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">Accueil</h1></div>
         </header>
         <LoadingState />
       </main>
@@ -2749,7 +2840,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">Accueil</h1></div>
         </header>
         <ErrorState onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
       </main>
@@ -2758,7 +2849,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><p className="eyebrow">Bibliothèque locale</p><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">Accueil</h1></div>
         </header>
       </main>
     )
@@ -2872,7 +2963,8 @@ function App() {
           const selectedLibrary = await filmsRepository.selectProfile(profileId)
           setLibraryContext({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setSeriesContext({ query: '', category: [...ALL_SERIES_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
-          setBookContext({ query: '', category: [...ALL_BOOK_CATEGORIES], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setBookContext({ query: '', category: bookLibraryCategories('books'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
+          setMangaContext({ query: '', category: bookLibraryCategories('mangas'), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setGameContext({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setArtworkContext({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
           setLibraryState({ status: 'ready', library: selectedLibrary })
@@ -3009,20 +3101,24 @@ function App() {
         />
       )
     }
-  } else if (view.name === 'books') {
+  } else if (view.name === 'books' || view.name === 'mangas') {
+    const scope = view.name
     content = (
       <BooksLibrary
+        key={scope}
+        library={scope}
+        allBooks={bookCollection}
         profileName={libraryState.library.profile.name}
-        collection={bookCollection}
-        context={bookContext}
-        searchState={bookSearchState}
-        onContextChange={setBookContext}
+        collection={booksForLibrary(bookCollection, scope)}
+        context={scope === 'mangas' ? mangaContext : bookContext}
+        searchState={scope === 'mangas' ? mangaSearchState : bookSearchState}
+        onContextChange={scope === 'mangas' ? setMangaContext : setBookContext}
         onRetrySearch={() => setBookSearchAttempt((attempt) => attempt + 1)}
         onCreate={() => {
           setBookSelection({ pendingKey: null, error: null })
-          setAddFlow({ medium: 'livre', step: 'search' })
+          setAddFlow({ medium: 'livre', step: 'search', bookLibrary: scope })
         }}
-        onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id, returnTo: 'books' })}
+        onOpen={(book) => leaveLibrary({ name: 'book-detail', bookId: book.id, returnTo: scope })}
         profileId={libraryState.library.profile.id}
         onLibraryChanged={() => setLoadAttempt((attempt) => attempt + 1)}
       />
@@ -3034,7 +3130,7 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux livres">
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label={bookBackLabel(view.returnTo)}>
               {icon('arrow-left')}
             </button>
           </header>
@@ -3049,13 +3145,13 @@ function App() {
         <BookDetail
           book={book}
           onBack={() => goBackTo(view.returnTo)}
-          backLabel="Retour aux livres"
+          backLabel={bookBackLabel(view.returnTo)}
           onEdit={async () => {
             const book = bookCollection.find((entry) => entry.id === view.bookId)
             if (book) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
               const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, 'books', book.id)
-              setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), providerLink, editBookId: book.id })
+              setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), providerLink, editBookId: book.id, bookLibrary: bookLibraryForCategory(book.category) })
             }
           }}
           onAssociate={() => {
@@ -3071,7 +3167,7 @@ function App() {
             setBookCollection((current) => current.filter((entry) => entry.id !== view.bookId))
             setBookSearchAttempt((attempt) => attempt + 1)
             requestAutomaticBackup(library)
-            setView({ name: 'books' })
+            goBackTo(view.returnTo)
           }}
         />
       )
@@ -3227,8 +3323,8 @@ function App() {
                 ? 'settings'
                 : view.name === 'series' || view.name === 'series-detail'
                   ? 'series'
-                  : view.name === 'books' || view.name === 'book-detail'
-                    ? 'books'
+                  : view.name === 'books' || view.name === 'mangas' || view.name === 'book-detail'
+                    ? activeBookLibrary
                     : view.name === 'games' || view.name === 'game-detail'
                       ? 'games'
                       : view.name === 'artworks' || view.name === 'artwork-detail'
@@ -3239,6 +3335,7 @@ function App() {
           onLibrary={returnToLibrary}
           onSeries={() => leaveLibrary({ name: 'series' })}
           onBooks={() => leaveLibrary({ name: 'books' })}
+          onMangas={() => leaveLibrary({ name: 'mangas' })}
           onGames={() => leaveLibrary({ name: 'games' })}
           onArtworks={() => leaveLibrary({ name: 'artworks' })}
           onSettings={() => showSettingsSection('profiles')}
@@ -3253,6 +3350,7 @@ function App() {
         count={count}
         seriesCount={seriesCount}
         bookCount={bookCount}
+        mangaCount={mangaCount}
         gameCount={gameCount}
         artworkCount={artworkCount}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
@@ -3266,8 +3364,8 @@ function App() {
               ? 'settings'
               : view.name === 'series' || view.name === 'series-detail'
                 ? 'series'
-                : view.name === 'books' || view.name === 'book-detail'
-                  ? 'books'
+                : view.name === 'books' || view.name === 'mangas' || view.name === 'book-detail'
+                  ? activeBookLibrary
                   : view.name === 'games' || view.name === 'game-detail'
                     ? 'games'
                     : view.name === 'artworks' || view.name === 'artwork-detail'
@@ -3278,6 +3376,7 @@ function App() {
         onLibrary={returnToLibrary}
         onSeries={() => leaveLibrary({ name: 'series' })}
         onBooks={() => leaveLibrary({ name: 'books' })}
+        onMangas={() => leaveLibrary({ name: 'mangas' })}
         onGames={() => leaveLibrary({ name: 'games' })}
         onArtworks={() => leaveLibrary({ name: 'artworks' })}
         onSettings={() => showSettingsSection('profiles')}
@@ -3305,14 +3404,15 @@ function App() {
       )}
       {addFlow && libraryState.status === 'ready' && (
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAddFlow(null) }}>
-          <div
+          <FocusDialog
             className="editor-dialog dialog-add-flow"
+            onClose={() => setAddFlow(null)}
             role="dialog"
             aria-modal="true"
             aria-label={{
               film: 'Ajouter un film',
               série: 'Ajouter une série',
-              livre: 'Ajouter un livre',
+              livre: addFlow.medium === 'livre' && addFlow.editBookId ? 'Modifier la fiche' : addFlow.medium === 'livre' && addFlow.bookLibrary === 'mangas' ? 'Ajouter un manga' : 'Ajouter un livre',
               jeu: 'Ajouter un jeu',
               artwork: 'Ajouter une œuvre',
             }[addFlow.medium]}
@@ -3438,10 +3538,11 @@ function App() {
             {addFlow.medium === 'livre' && !addFlow.initialValues && (
               <BookOpenLibrarySearchFlow
                 compact
+                mediumLabel={addFlow.bookLibrary === 'mangas' ? 'manga' : 'livre'}
                 pendingCandidateKey={bookSelection.pendingKey}
                 selectionError={bookSelection.error}
                 onSelectCandidate={selectOpenLibraryBookCandidate}
-                onManual={() => setAddFlow({ medium: 'livre', step: 'search', initialValues: {} as never })}
+                onManual={() => setAddFlow({ ...addFlow, initialValues: {} as never })}
                 onCancel={() => setAddFlow(null)}
               />
             )}
@@ -3452,6 +3553,7 @@ function App() {
                 <BookForm
                   embeddedInDialog
                   book={editBookId ? bookCollection.find((entry) => entry.id === editBookId) : undefined}
+                  creationCategory={editBookId ? undefined : addFlow.bookLibrary === 'mangas' ? 'manga' : 'livre'}
                   initialValues={initialValues}
                   providerLink={addFlow.providerLink ?? null}
                   onCancel={() => setAddFlow(null)}
@@ -3480,7 +3582,9 @@ function App() {
                     setBookSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'book-detail', bookId: targetId!, returnTo: 'books' })
+                    const returnTo = editBookId && view.name === 'book-detail' && view.returnTo === 'home'
+                      ? 'home' : bookLibraryForCategory(input.category)
+                    leaveLibrary({ name: 'book-detail', bookId: targetId!, returnTo })
                     window.scrollTo({ top: 0 })
                   }}
                 />
@@ -3548,31 +3652,37 @@ function App() {
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: ArtworkWriteInput) => {
                     const library = libraryState.library
+                    // La fiche ouverte après l’enregistrement est celle de l’œuvre
+                    // modifiée ou tout juste créée, comme pour les autres médiums.
+                    let targetId: string
                     if (editArtworkId) {
                       await mediaRepository.updateArtwork(library.profile.id, editArtworkId, input)
                       const refreshed = await mediaRepository.getArtwork(library.profile.id, editArtworkId)
                       if (!refreshed) throw new Error('L’œuvre enregistrée ne peut pas être relue depuis SQLite.')
                       setArtworkCollection((current) => sortArtworks(current.map((entry) => entry.id === editArtworkId ? refreshed : entry)))
+                      targetId = editArtworkId
                     } else {
                       const artwork = await mediaRepository.createArtwork(library.profile.id, input)
                       setArtworkCollection((current) => sortArtworks([...current, artwork]))
+                      targetId = artwork.id
                     }
                     setArtworkSearchAttempt((attempt) => attempt + 1)
                     requestAutomaticBackup(library)
                     setAddFlow(null)
-                    leaveLibrary({ name: 'artwork-detail', artworkId: editArtworkId ?? '', returnTo: 'artworks' })
+                    leaveLibrary({ name: 'artwork-detail', artworkId: targetId, returnTo: 'artworks' })
                     window.scrollTo({ top: 0 })
                   }}
                 />
               )
             })()}
-          </div>
+          </FocusDialog>
         </div>
       )}
       {associateTarget && libraryState.status === 'ready' && (
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) setAssociateTarget(null) }}>
-          <div
+          <FocusDialog
             className="editor-dialog dialog-associate"
+            onClose={() => setAssociateTarget(null)}
             role="dialog"
             aria-modal="true"
             aria-label="Modifier l’association"
@@ -3624,7 +3734,7 @@ function App() {
               }
               return null
             })()}
-          </div>
+          </FocusDialog>
         </div>
       )}
       {backupNotice && (

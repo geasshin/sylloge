@@ -8,6 +8,7 @@ import {
   serializeLibraryDocument,
 } from '../domain/libraryDocument.ts'
 import type { CulturalLibrary } from '../data/libraryRepository.ts'
+import { booksForLibrary, type BookLibraryKey } from '../domain/bookLibraries.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 
 export type LibraryExportMedium = CsvCollectionMedium
@@ -25,6 +26,7 @@ type ExportFormat = 'json' | 'csv'
 type LibraryExportFlowProps = {
   kind: LibraryExportMedium
   profileId: string
+  bookLibrary?: BookLibraryKey
 }
 
 function collectionOnly(library: CulturalLibrary, kind: LibraryExportMedium): CulturalLibrary {
@@ -44,18 +46,19 @@ function collectionOnly(library: CulturalLibrary, kind: LibraryExportMedium): Cu
  * Sylloge (document complet versionné) ou CSV (tableur) — puis écrit le
  * fichier choisi. Aucune écriture n'a lieu avant le choix explicite.
  */
-export function LibraryExportFlow({ kind, profileId }: LibraryExportFlowProps) {
+export function LibraryExportFlow({ kind, profileId, bookLibrary }: LibraryExportFlowProps) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState<ExportFormat | null>(null)
   const [message, setMessage] = useState<string | null>(null)
-  const mediumLabel = MEDIUM_LABELS[kind]
+  const mediumLabel = kind === 'books' && bookLibrary === 'mangas' ? 'Mangas' : MEDIUM_LABELS[kind]
 
   const runExport = async (format: ExportFormat) => {
     if (saving !== null) return
     setSaving(format)
     setMessage(null)
     try {
-      const library = await libraryRepository.loadLibrary(profileId)
+      const loaded = await libraryRepository.loadLibrary(profileId)
+      const library = kind === 'books' && bookLibrary ? { ...loaded, books: booksForLibrary(loaded.books, bookLibrary) } : loaded
       if (format === 'json') {
         const document = createLibraryDocument(collectionOnly(library, kind))
         const savedName = await saveExportJson(libraryExportFileName(document.exportedAt), serializeLibraryDocument(document))
@@ -85,9 +88,10 @@ export function LibraryExportFlow({ kind, profileId }: LibraryExportFlowProps) {
       {open && (
         <AccessibleDialog
           title={`Exporter ${mediumLabel}`}
-          description="Choisissez le format du fichier. La bibliothèque locale n'est pas modifiée."
+          description="Choisir le format du fichier. La bibliothèque locale n’est pas modifiée."
           closeDisabled={saving !== null}
           onClose={() => setOpen(false)}
+          size="md"
         >
           <div className="export-format-options">
             <button
