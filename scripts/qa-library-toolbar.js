@@ -20,7 +20,7 @@ async (page) => {
     await page.waitForFunction(() => !document.querySelector('.results-state[role="status"]'))
     await page.waitForTimeout(220)
   }
-  const libraries = [['Films', 'films'], ['Séries', 'series'], ['Livres', 'books'], ['Mangas', 'books'], ['Jeux', 'games'], ['Art', 'artworks']]
+  const libraries = [['Films', 'films'], ['Séries', 'series'], ['Animation japonaise', 'series'], ['Livres', 'books'], ['Mangas', 'books'], ['Jeux', 'games'], ['Art', 'artworks']]
   for (const theme of ['light', 'dark']) {
     await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full')
     await page.locator('.atrium-home').waitFor()
@@ -121,7 +121,7 @@ async (page) => {
             assert(metrics.activeContained || metrics.activeWidth > metrics.scrollerWidth, 'vue-active-visible-quand-elle-tient', { ...context, active: metrics.activeWidth, available: metrics.scrollerWidth })
             assert(metrics.singleRovingStop, 'un-seul-arrêt-de-tabulation-des-vues', context)
             if (width === 1440 && sidebar === 'rail') assert(metrics.toolRows === 1 && metrics.viewBarRows === 1, 'une-ligne-à-1440-rail', { ...context, toolRows: metrics.toolRows, barRows: metrics.viewBarRows })
-            const addLabel = { Films: 'Ajouter un film', Séries: 'Ajouter une série', Livres: 'Ajouter un livre', Mangas: 'Ajouter un manga', Jeux: 'Ajouter un jeu', Art: 'Ajouter une œuvre' }[library]
+            const addLabel = { Films: 'Ajouter un film', Séries: 'Ajouter une série', 'Animation japonaise': 'Ajouter une animation japonaise', Livres: 'Ajouter un livre', Mangas: 'Ajouter un manga', Jeux: 'Ajouter un jeu', Art: 'Ajouter une œuvre' }[library]
             assert(metrics.headerLabels.join('|') === `${library === 'Art' ? '' : 'Tout associer|'}Importer|Exporter|${addLabel}`, 'ordre-des-actions-en-tête', { ...context, labels: metrics.headerLabels })
           }
         }

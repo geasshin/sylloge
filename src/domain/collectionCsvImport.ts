@@ -50,6 +50,16 @@ const COMMON_HEADERS = [
   'format', 'version', 'exported_at', 'profile_id', 'profile_name', 'profile_created_at', 'profile_updated_at',
 ] as const
 
+/** Préfixe des colonnes propres à chaque section du contrat CSV Sylloge v1. */
+const SYLLOGE_CSV_PREFIXES: Record<CollectionCsvImportKind, string> = {
+  series: 'series',
+  anime: 'anime',
+  books: 'book',
+  mangas: 'manga',
+  games: 'game',
+  artworks: 'artwork',
+}
+
 const FIELDS: Record<CollectionCsvImportKind, readonly CollectionCsvField[]> = {
   series: [
     field('title', 'Titre', ['titre', 'title', 'name']),
@@ -66,12 +76,43 @@ const FIELDS: Record<CollectionCsvImportKind, readonly CollectionCsvField[]> = {
     field('posterUrl', 'URL d’affiche', ['affiche', 'poster', 'poster url', 'image']),
     field('personalNote', 'Avis', ['avis', 'note personnelle', 'personal note', 'review', 'commentaire']),
   ],
+  anime: [
+    // Pas de champ `category` : la bibliothèque Animation japonaise est le type.
+    field('title', 'Titre', ['titre', 'title', 'name']),
+    field('showrunner', 'Showrunner', ['showrunner', 'createur', 'créateur', 'creator']),
+    field('casting', 'Casting', ['casting', 'cast', 'acteurs', 'actors']),
+    field('summary', 'Résumé', ['resume', 'résumé', 'summary', 'description', 'synopsis']),
+    field('status', 'Statut', ['statut', 'status', 'state']),
+    field('rating', 'Note', ['note', 'rating', 'score']),
+    field('isFavorite', 'Coup de cœur', ['favori', 'favorite', 'coup de coeur', 'coup de cœur', 'heart']),
+    field('seasonsSeen', 'Saisons vues', ['saisons vues', 'seasons seen', 'saisons vues total']),
+    field('seasonsTotal', 'Saisons au total', ['saisons total', 'saisons au total', 'seasons total', 'total seasons']),
+    field('startedAt', 'Début de visionnage', ['debut de visionnage', 'début de visionnage', 'started at', 'start date']),
+    field('posterUrl', 'URL d’affiche', ['affiche', 'poster', 'poster url', 'image']),
+    field('personalNote', 'Avis', ['avis', 'note personnelle', 'personal note', 'review', 'commentaire']),
+  ],
   books: [
     field('title', 'Titre', ['titre', 'title', 'name']),
     field('author', 'Auteur', ['auteur', 'author', 'autrice']),
     field('year', 'Année', ['annee', 'année', 'year', 'publication year']),
     field('summary', 'Résumé', ['resume', 'résumé', 'summary', 'description', 'synopsis']),
     field('category', 'Catégorie', ['categorie', 'catégorie', 'category', 'type']),
+    field('status', 'Statut', ['statut', 'status', 'state']),
+    field('rating', 'Note', ['note', 'rating', 'score']),
+    field('isFavorite', 'Coup de cœur', ['favori', 'favorite', 'coup de coeur', 'coup de cœur', 'heart']),
+    field('volumesRead', 'Tomes lus', ['tomes lus', 'volumes read', 'volumes lus']),
+    field('volumesTotal', 'Tomes au total', ['tomes total', 'tomes au total', 'volumes total', 'total volumes']),
+    field('startedAt', 'Début de lecture', ['debut de lecture', 'début de lecture', 'started at', 'start date']),
+    field('coverUrl', 'URL de couverture', ['couverture', 'cover', 'cover url', 'image']),
+    field('personalNote', 'Avis', ['avis', 'note personnelle', 'personal note', 'review', 'commentaire']),
+    field('quotes', 'Citations JSON', ['citations json', 'quotes json', 'citations', 'quotes']),
+  ],
+  mangas: [
+    // Pas de champ `category` : la bibliothèque Mangas est le type.
+    field('title', 'Titre', ['titre', 'title', 'name']),
+    field('author', 'Auteur', ['auteur', 'author', 'autrice']),
+    field('year', 'Année', ['annee', 'année', 'year', 'publication year']),
+    field('summary', 'Résumé', ['resume', 'résumé', 'summary', 'description', 'synopsis']),
     field('status', 'Statut', ['statut', 'status', 'state']),
     field('rating', 'Note', ['note', 'rating', 'score']),
     field('isFavorite', 'Coup de cœur', ['favori', 'favorite', 'coup de coeur', 'coup de cœur', 'heart']),
@@ -125,7 +166,9 @@ const FIELD_GROUPS: Array<{ id: string; label: string; summary: string; keys: Re
     summary: 'titre et description de l’œuvre — optionnel, récupérable plus tard via la recherche assistée',
     keys: {
       series: ['title', 'showrunner', 'casting', 'summary', 'category', 'posterUrl'],
+      anime: ['title', 'showrunner', 'casting', 'summary', 'posterUrl'],
       books: ['title', 'author', 'year', 'summary', 'category', 'coverUrl'],
+      mangas: ['title', 'author', 'year', 'summary', 'coverUrl'],
       games: ['title', 'developer', 'platform', 'year', 'coverUrl'],
       artworks: ['title', 'artist', 'year', 'form', 'location', 'exhibition', 'imageUrl'],
     },
@@ -136,7 +179,9 @@ const FIELD_GROUPS: Array<{ id: string; label: string; summary: string; keys: Re
     summary: 'statut, note, coup de cœur, progression, dates et avis — l’essentiel de ton import',
     keys: {
       series: ['status', 'rating', 'isFavorite', 'seasonsSeen', 'seasonsTotal', 'startedAt', 'personalNote'],
+      anime: ['status', 'rating', 'isFavorite', 'seasonsSeen', 'seasonsTotal', 'startedAt', 'personalNote'],
       books: ['status', 'rating', 'isFavorite', 'volumesRead', 'volumesTotal', 'startedAt', 'personalNote', 'quotes'],
+      mangas: ['status', 'rating', 'isFavorite', 'volumesRead', 'volumesTotal', 'startedAt', 'personalNote', 'quotes'],
       games: ['status', 'rating', 'isFavorite', 'playedAt', 'personalNote'],
       artworks: ['status', 'isFavorite', 'discoveredAt', 'personalNote'],
     },
@@ -286,11 +331,11 @@ function parseSyllogeRow(
   line: number,
   errors: ImportValidationError[],
 ): CollectionCsvItem | null {
-  const prefix = kind === 'series' ? 'series' : kind === 'artworks' ? 'artwork' : kind.slice(0, -1)
+  const prefix = SYLLOGE_CSV_PREFIXES[kind]
   const values: Record<string, string | null> = {}
   for (const fieldDefinition of FIELDS[kind]) {
     const header = fieldDefinition.key === 'quotes'
-      ? 'book_quotes_json'
+      ? `${prefix}_quotes_json`
       : `${prefix}_${snakeCase(fieldDefinition.key)}`
     values[fieldDefinition.key] = source[header] ?? null
   }
@@ -302,14 +347,14 @@ function parseSyllogeRow(
   const updatedAt = source[`${prefix}_updated_at`]
   if (!isIsoUtc(createdAt)) errors.push({ path: `Ligne ${line}.${prefix}_created_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
   if (!isIsoUtc(updatedAt)) errors.push({ path: `Ligne ${line}.${prefix}_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
-  if (kind === 'series') {
-    const progressUpdatedAt = source.series_progress_updated_at
-    if (progressUpdatedAt && !isIsoUtc(progressUpdatedAt)) errors.push({ path: `Ligne ${line}.series_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
+  if (kind === 'series' || kind === 'anime') {
+    const progressUpdatedAt = source[`${prefix}_progress_updated_at`]
+    if (progressUpdatedAt && !isIsoUtc(progressUpdatedAt)) errors.push({ path: `Ligne ${line}.${prefix}_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
     return { ...item, createdAt, updatedAt, progressUpdatedAt: progressUpdatedAt || null } as Series
   }
-  if (kind === 'books') {
-    const progressUpdatedAt = source.book_progress_updated_at
-    if (progressUpdatedAt && !isIsoUtc(progressUpdatedAt)) errors.push({ path: `Ligne ${line}.book_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
+  if (kind === 'books' || kind === 'mangas') {
+    const progressUpdatedAt = source[`${prefix}_progress_updated_at`]
+    if (progressUpdatedAt && !isIsoUtc(progressUpdatedAt)) errors.push({ path: `Ligne ${line}.${prefix}_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
     return { ...item, createdAt, updatedAt, progressUpdatedAt: progressUpdatedAt || null } as Book
   }
   return { ...item, createdAt, updatedAt } as Game | Artwork
@@ -351,10 +396,11 @@ function parseGenericRow(
     if (normalized.warning) warnings.push(`${label} ${normalized.warning}`)
     return normalized.value ?? ''
   }
-  if (kind === 'series') {
+  if (kind === 'series' || kind === 'anime') {
     const result = validateSeriesForm({
       title: value('title'), showrunner: value('showrunner'), casting: value('casting'), summary: value('summary'),
-      category: (normalizeEnumValue(value('category'), SERIES_CATEGORIES).value ?? 'série télé') as SeriesFormValues['category'],
+      category: (normalizeEnumValue(value('category'), SERIES_CATEGORIES).value
+        ?? (kind === 'anime' ? 'animation' : 'série télé')) as SeriesFormValues['category'],
       status: status('série', 'à voir') as SeriesFormValues['status'],
       rating: rating()?.toString() ?? '',
       isFavorite: favorite(), seasonsSeen: count('seasonsSeen', 'Saisons vues :'), seasonsTotal: count('seasonsTotal', 'Saisons total :'),
@@ -364,11 +410,12 @@ function parseGenericRow(
     for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
     return { id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data, progressUpdatedAt: null, createdAt: importedAt, updatedAt: importedAt }
   }
-  if (kind === 'books') {
+  if (kind === 'books' || kind === 'mangas') {
     const quotes = parseQuotes(value('quotes'), line, errors, importedAt)
     const result = validateBookForm({
       title: value('title'), author: value('author'), year: count('year', 'Année :'), summary: value('summary'),
-      category: (normalizeEnumValue(value('category'), BOOK_CATEGORIES).value ?? 'livre') as BookFormValues['category'],
+      category: (normalizeEnumValue(value('category'), BOOK_CATEGORIES).value
+        ?? (kind === 'mangas' ? 'manga' : 'livre')) as BookFormValues['category'],
       status: status('livre', 'à lire') as BookFormValues['status'],
       rating: rating()?.toString() ?? '',
       isFavorite: favorite(), volumesRead: count('volumesRead', 'Tomes lus :'), volumesTotal: count('volumesTotal', 'Tomes total :'),

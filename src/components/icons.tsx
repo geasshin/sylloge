@@ -48,6 +48,17 @@ export function SeriesIcon({ size = 17 }: IconProps) {
   )
 }
 
+/** Animation : deux cellulos décalés et un signe de lecture, sans motif culturel. */
+export function AnimeIcon({ size = 17 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+      <path {...strokeProps} d="M6 3.5h9.5A1.5 1.5 0 0 1 17 5v8" />
+      <rect {...strokeProps} x="3" y="6.5" width="11" height="10" rx="1.5" />
+      <path {...strokeProps} d="m7 9 4 2.5L7 14Z" />
+    </svg>
+  )
+}
+
 export function BookIcon({ size = 17 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">

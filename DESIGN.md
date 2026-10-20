@@ -45,7 +45,7 @@ La recette navigateur utilise uniquement `qa-app.html`, SQLite mémoire et les f
 
 Composition « à la une avec onglets », une seule colonne : onglets, une, rangées et activité partagent les mêmes bords, avec la gouttière commune `64px`.
 
-- **Onglets** Tout · Films · Séries · Livres · Mangas · Jeux · Art : contrôle segmenté commun (`seg-group-form` / `seg-pill-btn`), motif ARIA tablist (flèches, Début, Fin). L’onglet filtre toute la page, bilan compris, et le dernier est mémorisé (`sylloge-home-tab`). Une bibliothèque vide garde son onglet et une phrase d’état vide.
+- **Onglets** Tout · Films · Séries · Animation japonaise · Livres · Mangas · Jeux · Art : contrôle segmenté commun (`seg-group-form` / `seg-pill-btn`), motif ARIA tablist (flèches, Début, Fin). L’onglet filtre toute la page, bilan compris, et le dernier est mémorisé (`sylloge-home-tab`). Une bibliothèque vide garde son onglet et une phrase d’état vide.
 - **Bilan** à droite, sur la même ligne : œuvres terminées et terminées ce mois-ci (chiffres `--text-xl` 700, libellés accordés à l’onglet en `--text-sm`), puis douze barres mensuelles de `6 × 24px` (mois courant à l’encre, autres en `--color-text-subtle`, barres décoratives titrées au survol). Quand la ligne est trop étroite (barre latérale étendue sur une petite fenêtre), l’histogramme s’efface plutôt que de replier le bilan.
 - **À la une** : hauteur fixe `420px`, rayon `20px`. Fond tiré de la même affiche, flouté, sous `--color-scrim` ; sans visuel, le même voile sur `--color-surface-muted`. Le voile est sombre dans les deux thèmes : la une remappe localement l’encre, le focus, les étoiles et le bouton principal sur `--color-on-scrim`. Titre en police UI `--text-4xl`, casse naturelle ; extrait de critique en serif, trois lignes au plus. Coups de cœur de l’onglet (huit au plus), sinon dernières œuvres terminées, en cours, puis derniers ajouts. Défilement toutes les huit secondes, en pause au survol, sous le focus clavier, page cachée ou en mouvement réduit ; fondu enchaîné `--duration-base`.
 - **Rangées** : coups de cœur, en cours, file d’attente, récemment terminés, derniers ajouts, pioche du jour. Titres Syne en capitales `--text-2xl`, en-têtes de hauteur `--control-md`, six cartes de largeur égale sur le bureau ; une rangée vide n’est pas affichée. Sous « Tout », le médium suit le titre de la carte.
@@ -65,7 +65,7 @@ Décisions du 18 octobre 2026 : vues nettement distinctes et toutes visibles, ac
 
 ## Livres et Mangas
 
-Décision du 19 octobre 2026 : six destinations dans l’interface (Films, Séries, Livres, Mangas, Jeux, Art), cinq collections de données. Livres et Mangas lisent la même table `books`, partagée selon sa catégorie existante : aucune migration, formats JSON et CSV inchangés. Pas de bibliothèque Comics : les anciens comics restent dans Livres.
+Décision du 19 octobre 2026 : Mangas devient une bibliothèque distincte. Depuis le 20 octobre 2026, chaque bibliothèque possède sa propre table dans l’unique base `sylloge.db` (`books` pour Livres, `mangas` pour Mangas). Pas de bibliothèque Comics : les comics restent dans Livres, avec leur catégorie.
 
 - **Navigation** : Mangas a sa propre entrée dans la barre latérale (pictogramme d’une série de tomes, distinct du livre ouvert de Livres, le seul repère visible en rail), son compteur, son onglet d’accueil et son bilan. Recherche, vue, filtres et tri sont mémorisés séparément pour chacune.
 - **Barre** : aucune bascule de catégorie. Dans Livres, « Filtrer » propose un champ Type (Livre, Comics) seulement si d’anciens comics existent ou si une vue l’a restreint : une catégorie active n’est jamais un filtre invisible.
@@ -73,3 +73,13 @@ Décision du 19 octobre 2026 : six destinations dans l’interface (Films, Séri
 - **Fiche** : le retour et la suppression ramènent à l’écran d’origine (accueil, Livres ou Mangas).
 - **Vues enregistrées** : distinctes par bibliothèque (une vue Mangas est une vue Livres de catégorie manga, au schéma v2 existant) ; les anciennes vues v1 et v2 sont lues sans réécriture. Les noms restent uniques entre Livres et Mangas, ce que l’aide de création et le message d’erreur disent.
 - **Transferts** : l’export JSON ou CSV ne contient que la bibliothèque ouverte, les autres collections vides. L’import reste commun aux deux et annonce, avant toute écriture, que « Remplacer » vaut pour Livres et Mangas, comics compris.
+
+## Séries et Animation japonaise
+
+Décision du 20 octobre 2026 : sept bibliothèques, sept tables dans l’unique base `sylloge.db` : `films`, `series`, `anime`, `books`, `mangas`, `games`, `artworks`. La migration 0020 recopie les fiches historiques avec leur identifiant et tous leurs champs, déplace citations et liens fournisseurs, puis les retire de leur ancienne table. Aucune bibliothèque ne partage plus la table d’une autre.
+
+- **Reprise de l’existant** : toutes les fiches `animation` sont incluses, sans détection du pays ni requête fournisseur. Ce classement global est confirmé ; les exceptions peuvent être corrigées dans le champ Type de la fiche, qui déplace la même fiche vers l’autre table sans perte.
+- **Navigation et accueil** : entrée, icône, compteur, onglet, bilan et rangées distincts. « Tout » reste l’union sans doublons. Recherche, vues, filtres, tri et position de retour indépendants ; retour depuis l’accueil préservé.
+- **Création et modification** : pas de bascule de catégorie dans les bibliothèques ; la création manuelle ou TMDB hérite de la bibliothèque ouverte. Type reste modifiable sur une fiche existante, pour déplacer cette même fiche sans recréation.
+- **Vues** : schéma v2 inchangé ; les anciennes vues `animation` deviennent des vues du médium `anime`, les vues manga du médium `mangas`. Les noms redeviennent propres à chaque bibliothèque.
+- **Transferts et association** : document JSON en version 3, avec une section par bibliothèque. Export, import, « Tout associer » et « Remplacer » portent sur la bibliothèque ouverte. Les fichiers v1 et v2 restent lisibles.

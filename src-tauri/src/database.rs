@@ -118,6 +118,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0019_profile_identity_and_first_run.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 20,
+            description: "split_anime_and_mangas",
+            sql: include_str!("../migrations/0020_split_anime_and_mangas.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

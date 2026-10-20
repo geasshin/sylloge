@@ -32,24 +32,26 @@ function localDayKey(value: string): string {
 }
 
 /** Clé de médium interne aux modules de l'accueil. */
-type MediumFilterKey = 'film' | 'série' | 'livre' | 'manga' | 'jeu' | 'art'
+type MediumFilterKey = 'film' | 'série' | 'animation' | 'livre' | 'manga' | 'jeu' | 'art'
 
 const MEDIUM_CARD_LABELS: Record<MediumFilterKey, string> = {
   film: 'Film',
   'série': 'Série',
+  animation: 'Animation japonaise',
   livre: 'Livre',
   manga: 'Manga',
   jeu: 'Jeu',
   art: 'Art',
 }
 
-/** Ordre de lecture des six bibliothèques, partagé par tous les modules. */
-const MEDIUM_ORDER: MediumFilterKey[] = ['film', 'série', 'livre', 'manga', 'jeu', 'art']
+/** Ordre de lecture des sept bibliothèques, partagé par tous les modules. */
+const MEDIUM_ORDER: MediumFilterKey[] = ['film', 'série', 'animation', 'livre', 'manga', 'jeu', 'art']
 
 /** Statut d'attente par médium : la file d'attente réelle de l'accueil. */
 const QUEUE_STATUSES: Record<MediumFilterKey, readonly string[]> = {
   film: ['à découvrir', 'en attente'],
   'série': ['à voir'],
+  animation: ['à voir'],
   livre: ['à lire'],
   manga: ['à lire'],
   jeu: ['à jouer'],
@@ -60,6 +62,7 @@ const QUEUE_STATUSES: Record<MediumFilterKey, readonly string[]> = {
 const FINISHED_STATUSES: Record<MediumFilterKey, string> = {
   film: 'terminé',
   'série': 'vue',
+  animation: 'vue',
   livre: 'lu',
   manga: 'lu',
   jeu: 'joué',
@@ -70,6 +73,7 @@ const FINISHED_STATUSES: Record<MediumFilterKey, string> = {
 const FINISHED_VERBS: Record<MediumFilterKey, string> = {
   film: 'Vu',
   'série': 'Vue',
+  animation: 'Vue',
   livre: 'Lu',
   manga: 'Lu',
   jeu: 'Joué',
@@ -79,6 +83,7 @@ const FINISHED_VERBS: Record<MediumFilterKey, string> = {
 const CONTRIBUTOR_LABELS: Record<MediumFilterKey, string> = {
   film: 'Réalisation',
   'série': 'Showrunner',
+  animation: 'Showrunner',
   livre: 'Auteur',
   manga: 'Auteur',
   jeu: 'Studio',
@@ -173,7 +178,7 @@ const HOME_TABS: readonly HomeTab[] = [
     key: 'tout', slug: 'tout', label: 'Tout',
     finished: ['œuvre terminée', 'œuvres terminées'], none: 'Aucune œuvre terminée',
     queue: 'En attente', recent: 'Récemment terminés',
-    empty: 'Aucune œuvre pour le moment : celles des six bibliothèques apparaîtront ici.',
+    empty: 'Aucune œuvre pour le moment : celles des sept bibliothèques apparaîtront ici.',
   },
   {
     key: 'film', slug: 'films', label: 'Films',
@@ -186,6 +191,12 @@ const HOME_TABS: readonly HomeTab[] = [
     finished: ['série vue', 'séries vues'], none: 'Aucune série vue',
     queue: 'À voir', recent: 'Récemment vues',
     empty: 'Aucune série pour le moment : celles de la bibliothèque Séries apparaîtront ici.',
+  },
+  {
+    key: 'animation', slug: 'anime', label: 'Animation japonaise',
+    finished: ['animation vue', 'animations vues'], none: 'Aucune animation vue',
+    queue: 'À voir', recent: 'Récemment vues',
+    empty: 'Aucune animation pour le moment : celles de la bibliothèque Animation japonaise apparaîtront ici.',
   },
   {
     key: 'livre', slug: 'livres', label: 'Livres',
@@ -358,7 +369,7 @@ function featuredStatus(entry: HomeEntry): string {
 
 /** Nom du visuel attendu pour un médium (fallback compris). */
 function posterLabel(medium: MediumFilterKey): 'Affiche' | 'Couverture' | 'Visuel' {
-  if (medium === 'film' || medium === 'série') return 'Affiche'
+  if (medium === 'film' || medium === 'série' || medium === 'animation') return 'Affiche'
   if (medium === 'art') return 'Visuel'
   return 'Couverture'
 }
@@ -1057,7 +1068,7 @@ export function Home({
     })),
     ...seriesCollection.map((entry) => ({
       key: `series-${entry.id}`,
-      medium: 'série' as const,
+      medium: entry.category === 'animation' ? 'animation' as const : 'série' as const,
       title: entry.title,
       poster: entry.posterUrl,
       contributor: entry.showrunner,
@@ -1180,7 +1191,7 @@ function HomeDashboard({
     .sort((first, second) => (second.rating ?? -1) - (first.rating ?? -1) || (second.recentAt ?? second.createdAt).localeCompare(first.recentAt ?? first.createdAt))
     .slice(0, RAIL_SHOWN)
   const inProgress = entries
-    .filter((entry) => entry.status === 'en cours' && (entry.medium === 'série' || entry.medium === 'livre' || entry.medium === 'manga'))
+    .filter((entry) => entry.status === 'en cours' && (entry.medium === 'série' || entry.medium === 'animation' || entry.medium === 'livre' || entry.medium === 'manga'))
     .sort(byRecentActivity)
     .slice(0, RAIL_SHOWN)
   const queue = entries

@@ -5,6 +5,7 @@ import {
   SERIES_STATUSES,
   SERIES_STATUS_LABELS,
   type Series,
+  type SeriesCategory,
 } from '../domain/series.ts'
 import {
   EMPTY_SERIES_FORM,
@@ -22,6 +23,8 @@ import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 import { Stepper } from './Stepper.tsx'
 
+const CATEGORY_LABELS = { ...SERIES_CATEGORY_LABELS, animation: 'Animation japonaise' }
+
 function previewablePosterUrl(value: string): string | null {
   try {
     const url = new URL(value.trim())
@@ -33,6 +36,7 @@ function previewablePosterUrl(value: string): string | null {
 
 type SeriesFormProps = {
   series?: Series
+  creationCategory?: SeriesCategory
   /** Valeurs préremplies par la recherche TMDB (création assistée, jalon 0.4.26). */
   initialValues?: SeriesFormValues
   providerLink?: MediaProviderReference | null
@@ -43,8 +47,10 @@ type SeriesFormProps = {
   onSave: (input: SeriesWriteInput) => Promise<void>
 }
 
-export function SeriesForm({ series, initialValues, providerLink = null, embeddedInDialog = false, onCancel, onSave }: SeriesFormProps) {
-  const [values, setValues] = useState<SeriesFormValues>(() => series ? seriesToFormValues(series) : { ...EMPTY_SERIES_FORM, ...initialValues })
+export function SeriesForm({ series, creationCategory, initialValues, providerLink = null, embeddedInDialog = false, onCancel, onSave }: SeriesFormProps) {
+  const [values, setValues] = useState<SeriesFormValues>(() => series
+    ? seriesToFormValues(series)
+    : { ...EMPTY_SERIES_FORM, ...initialValues, category: creationCategory ?? initialValues?.category ?? EMPTY_SERIES_FORM.category })
   const [errors, setErrors] = useState<SeriesFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -53,6 +59,7 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
   const assisted = providerLink !== null
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewablePosterUrl(values.posterUrl)
+  const animation = values.category === 'animation'
   const progressVisible = values.status === 'en cours' || values.status === 'abandonnée' || values.status === 'vue'
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   // « À voir » : pas encore de verdict, on masque note, cœur, dates et avis.
@@ -118,7 +125,7 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{series ? 'Modifier la fiche' : 'Ajouter une série'}</h1>
+      <h1 className="display-title">{series ? 'Modifier la fiche' : animation ? 'Ajouter une animation japonaise' : 'Ajouter une série'}</h1>
     </div>
   )
 
@@ -146,7 +153,7 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
-              aria-label="Titre de la série"
+              aria-label={animation ? 'Titre de l’animation japonaise' : 'Titre de la série'}
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'series-title-error' : undefined}
               autoFocus={!assisted}
@@ -154,16 +161,17 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
             {errors.title && <p className="field-error" id="series-title-error">{errors.title}</p>}
           </div>
 
-          <div className="field category-segmented">
+          {(series || !creationCategory) && <div className="field category-segmented">
             <span className="field-label">Type</span>
             <StatusSegmented
               statuses={SERIES_CATEGORIES}
-              labels={SERIES_CATEGORY_LABELS}
+              labels={CATEGORY_LABELS}
               value={values.category}
               onChange={(next) => update('category', next as SeriesFormValues['category'])}
               ariaLabel="Type de série"
             />
-          </div>
+            {errors.category && <p className="field-error" id="series-category-error">{errors.category}</p>}
+          </div>}
 
           {/* Le verdict personnel */}
           <div className="verdict-block medium-status-block">
@@ -242,7 +250,7 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
                 name="personalNote"
                 aria-label="Critique personnelle"
                 rows={5}
-                placeholder="Qu’as-tu pensé de cette série ?"
+                placeholder={animation ? 'Avis sur cette animation japonaise…' : 'Qu’as-tu pensé de cette série ?'}
                 value={values.personalNote}
                 onChange={(event) => update('personalNote', event.target.value)}
                 autoCorrect="off"
@@ -290,7 +298,7 @@ export function SeriesForm({ series, initialValues, providerLink = null, embedde
         <footer className="form-actions form-actions-docked">
           <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : 'Ajouter la série'}
+            {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : animation ? 'Ajouter l’animation japonaise' : 'Ajouter la série'}
           </button>
         </footer>
       </div>

@@ -4,7 +4,7 @@ import { EMPTY_LIBRARY_FILTERS } from '../src/domain/libraryFilters.ts'
 import { sanitizeSavedViewCriteria, SAVED_VIEW_SCHEMA_VERSION } from '../src/domain/savedViews.ts'
 import { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument } from '../src/domain/libraryDocument.ts'
 import { createCollectionCsvExport } from '../src/domain/collectionCsvTransfer.ts'
-import { parseBooksCollectionJson } from '../src/domain/collectionJsonImport.ts'
+import { parseBooksCollectionJson, parseMangasCollectionJson } from '../src/domain/collectionJsonImport.ts'
 import { prepareCollectionCsvImport, previewCollectionCsvImport } from '../src/domain/collectionCsvImport.ts'
 import { bookToFormValues, validateBookForm } from '../src/domain/bookForm.ts'
 
@@ -97,11 +97,12 @@ for (const version of [1, 2]) {
 }
 for (const scope of ['books', 'mangas']) {
   const scoped = { ...library, books: booksForLibrary(books, scope) }
+  const kind = scope === 'mangas' ? 'mangas' : 'books'
   const json = serializeLibraryDocument(createLibraryDocument(scoped))
   const validated = validateLibraryDocument(json)
   assert.ok(validated.document, JSON.stringify(validated.errors))
-  assert.equal(validated.document.version, 2)
-  const imported = parseBooksCollectionJson(json)
+  assert.equal(validated.document.version, 3)
+  const imported = kind === 'mangas' ? parseMangasCollectionJson(json) : parseBooksCollectionJson(json)
   assert.ok(imported.items, imported.error)
   assert.deepEqual(imported.items.map((entry) => entry.category), scoped.books.map((entry) => entry.category))
   assert.equal(imported.items[0].quotes[0].body, 'Citation de recette.')
@@ -110,9 +111,9 @@ for (const scope of ['books', 'mangas']) {
     assert.equal(corrected.volumesRead, 11, 'JSON : l’avancement du Livre corrigé est conservé')
     assert.equal(corrected.volumesTotal, 18)
   }
-  const csv = createCollectionCsvExport(scoped, 'books')
+  const csv = createCollectionCsvExport(scoped, kind)
   assert.equal(csv.count, scoped.books.length)
-  const session = prepareCollectionCsvImport('books', csv.contents)
+  const session = prepareCollectionCsvImport(kind, csv.contents)
   const preview = previewCollectionCsvImport(session, session.initialMapping)
   assert.ok(preview.items, JSON.stringify(preview.errors))
   assert.deepEqual(preview.items.map((entry) => entry.category), scoped.books.map((entry) => entry.category))

@@ -20,6 +20,7 @@ import {
   type LibraryViewDefinition,
 } from '../domain/libraryViews.ts'
 import { bookViewBelongsToLibrary, type BookLibraryKey } from '../domain/bookLibraries.ts'
+import { seriesViewBelongsToLibrary, type SeriesLibraryKey } from '../domain/seriesLibraries.ts'
 import { Select } from './Select.tsx'
 
 /**
@@ -47,6 +48,7 @@ type LibraryViewBarProps = {
   profileId: string
   medium: SavedViewMedium
   bookLibrary?: BookLibraryKey
+  seriesLibrary?: SeriesLibraryKey
   savedViewsRepository?: SavedViewsRepositoryPort
   builtinViews: readonly LibraryViewDefinition[]
   activeView: LibraryViewDefinition
@@ -124,6 +126,7 @@ export function LibraryViewBar({
   profileId,
   medium,
   bookLibrary,
+  seriesLibrary,
   savedViewsRepository: repository = sqliteSavedViewsRepository,
   builtinViews,
   activeView,
@@ -172,7 +175,11 @@ export function LibraryViewBar({
   useEffect(() => {
     let cancelled = false
     repository.list(profileId, medium).then(
-      (loaded) => { if (!cancelled) setSavedViews(bookLibrary ? loaded.filter((view) => bookViewBelongsToLibrary(view, bookLibrary)) : loaded) },
+      (loaded) => {
+        if (!cancelled) setSavedViews(loaded.filter((view) =>
+          (!bookLibrary || bookViewBelongsToLibrary(view, bookLibrary))
+          && (!seriesLibrary || seriesViewBelongsToLibrary(view, seriesLibrary))))
+      },
       (loadError: unknown) => {
         console.error('Impossible de charger les vues enregistrées.', loadError)
         if (!cancelled) setSavedViews([])
@@ -181,11 +188,14 @@ export function LibraryViewBar({
     return () => {
       cancelled = true
     }
-  }, [profileId, medium, bookLibrary, repository])
+  }, [profileId, medium, bookLibrary, seriesLibrary, repository])
 
   const activeSavedView = activeView.builtin ? null : savedViews.find((view) => view.id === activeView.id) ?? null
-  const panelFilterCount = countActiveFilters(extraFilters) + (mediumFilterValue !== 'all' ? 1 : 0)
-  const baselineMediumFilter = activeSavedView ? activeSavedView.criteria.mediumFilter : bookLibrary === 'mangas' ? 'manga' : 'all'
+  const libraryMediumFilter = bookLibrary === 'mangas' ? 'manga' : seriesLibrary === 'anime' ? 'animation' : 'all'
+  const panelFilterCount = countActiveFilters(extraFilters) + (mediumFilterValue !== 'all' && mediumFilterValue !== libraryMediumFilter ? 1 : 0)
+  // Chaque bibliothèque Séries n’a qu’une catégorie : l’ancienne restriction
+  // « série télé » équivaut à « all », sans réécrire la vue enregistrée.
+  const baselineMediumFilter = activeSavedView && !seriesLibrary ? activeSavedView.criteria.mediumFilter : libraryMediumFilter
   // La vue active est « modifiée » dès qu'un filtre, un tri ou une forme,
   // catégorie ou plateforme s'écarte de sa définition.
   const dirty = countActiveFilters(extraFilters) > 0 || sortOverride !== null || currentCriteria.mediumFilter !== baselineMediumFilter
@@ -194,12 +204,13 @@ export function LibraryViewBar({
   const effectiveSort = sortOverride ?? activeView.sort
   const columnLabel = (column: LibrarySortColumn) => librarySortColumnLabel(column, filterConfig.personalDateLabel)
   const sortDescription = (sort: LibrarySort) => `${columnLabel(sort.column)}, ${LIBRARY_SORT_DIRECTION_LABELS[sort.direction].toLocaleLowerCase('fr')}`
-  /** Livres et Mangas partagent le médium enregistré « books » : un nom pris dans l'une l'est dans l'autre. */
+  /** Les partitions d’un même médium partagent leurs noms de vues enregistrées. */
   const describeError = (cause: unknown, fallback: string) => {
     const message = cause instanceof Error ? cause.message : fallback
-    return bookLibrary && message === DUPLICATE_NAME_ERROR
-      ? 'Une vue porte déjà ce nom dans Livres ou dans Mangas : les deux bibliothèques partagent leurs noms de vues.'
-      : message
+    if (message !== DUPLICATE_NAME_ERROR) return message
+    if (bookLibrary) return 'Une vue porte déjà ce nom dans Livres ou dans Mangas : les deux bibliothèques partagent leurs noms de vues.'
+    if (seriesLibrary) return 'Une vue porte déjà ce nom dans Séries ou dans Animation japonaise : les deux bibliothèques partagent leurs noms de vues.'
+    return message
   }
 
   // ——— Ouverture et fermeture des panneaux ———————————————————————————————
@@ -802,7 +813,7 @@ export function LibraryViewBar({
                   disabled={panelFilterCount === 0}
                   onClick={() => {
                     onExtraFiltersChange({ ...EMPTY_LIBRARY_FILTERS })
-                    onMediumFilterChange('all')
+                    onMediumFilterChange(libraryMediumFilter)
                   }}
                 >
                   Réinitialiser
@@ -892,7 +903,7 @@ export function LibraryViewBar({
               onChange={(event) => setNameInput(event.target.value)}
               autoFocus
             />
-            <p className="view-bar-form-hint">La vue reprend les filtres en cours et le tri « {sortDescription(effectiveSort)} ».{bookLibrary && ' Le nom reste unique entre Livres et Mangas.'}</p>
+            <p className="view-bar-form-hint">La vue reprend les filtres en cours et le tri « {sortDescription(effectiveSort)} ».{bookLibrary && ' Le nom reste unique entre Livres et Mangas.'}{seriesLibrary && ' Le nom reste unique entre Séries et Animation japonaise.'}</p>
             {error && <p className="saved-views-error" role="alert">{error}</p>}
             <div className="view-bar-popover-footer">
               <button className="text-button view-bar-compact" type="button" onClick={() => closePopover(true)}>Annuler</button>

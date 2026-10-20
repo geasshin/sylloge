@@ -3,10 +3,13 @@ import { normalizeBook, BOOK_CATEGORIES, BOOK_STATUSES, type Book, type BookQuot
 import { FILM_STATUSES, normalizeFilm, type Film } from './film.ts'
 import { normalizeGame, GAME_STATUSES, type Game } from './game.ts'
 import type { Profile } from './profile.ts'
+import { SYLLOGE_EXPORT_FORMAT, validateLibraryImport } from './libraryTransfer.ts'
 import { normalizeSeries, SERIES_CATEGORIES, SERIES_STATUSES, type Series } from './series.ts'
 
 export const SYLLOGE_LIBRARY_FORMAT = 'sylloge-library' as const
-export const SYLLOGE_LIBRARY_VERSION = 2 as const
+/** Version écrite par l’application. Les versions 1 et 2 restent lisibles. */
+export const SYLLOGE_LIBRARY_VERSION = 3 as const
+export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2] as const
 
 export type SyllogeLibraryDocument = {
   format: typeof SYLLOGE_LIBRARY_FORMAT
@@ -15,7 +18,9 @@ export type SyllogeLibraryDocument = {
   profile: Profile
   films: Film[]
   series: Series[]
+  anime: Series[]
   books: Book[]
+  mangas: Book[]
   games: Game[]
   artworks: Artwork[]
 }
@@ -34,7 +39,9 @@ export type LibraryImportPreview = {
 export type LibraryCollectionCounts = {
   films: number
   series: number
+  anime: number
   books: number
+  mangas: number
   games: number
   artworks: number
 }
@@ -46,9 +53,19 @@ export type ExportableLibrary = {
   books: Book[]
   games: Game[]
   artworks: Artwork[]
+  /**
+   * Sections explicites fournies par le dépôt. À défaut, la partition se fait
+   * sur la catégorie de chaque fiche : animation → anime, manga → mangas.
+   */
+  anime?: Series[]
+  mangas?: Book[]
 }
 
-const ROOT_KEYS = ['format', 'version', 'exportedAt', 'profile', 'films', 'series', 'books', 'games', 'artworks'] as const
+export const SYLLOGE_LIBRARY_SECTIONS = ['films', 'series', 'anime', 'books', 'mangas', 'games', 'artworks'] as const
+
+const ROOT_KEYS_V1 = ['format', 'version', 'exportedAt', 'profile', 'films'] as const
+const ROOT_KEYS_V2 = [...ROOT_KEYS_V1, 'series', 'books', 'games', 'artworks'] as const
+const ROOT_KEYS_V3 = [...ROOT_KEYS_V2, 'anime', 'mangas'] as const
 const PROFILE_KEYS = ['id', 'name', 'createdAt', 'updatedAt'] as const
 const FILM_KEYS = [
   'id',
@@ -141,24 +158,66 @@ const ARTWORK_KEYS = [
   'discoveredAt',
   'imageUrl',
   'personalNote',
+  'customFields',
   'createdAt',
   'updatedAt',
 ] as const
+const CUSTOM_FIELD_KEYS = ['name', 'value'] as const
 
 export function createLibraryDocument(
   library: ExportableLibrary,
   exportedAt = new Date().toISOString(),
 ): SyllogeLibraryDocument {
+  const series = splitSeries(library.series, library.anime)
+  const books = splitBooks(library.books, library.mangas)
   return {
     format: SYLLOGE_LIBRARY_FORMAT,
     version: SYLLOGE_LIBRARY_VERSION,
     exportedAt,
     profile: { ...library.profile },
     films: library.films.map(normalizeFilm),
-    series: library.series.map(normalizeSeries),
-    books: library.books.map(normalizeBook),
+    series: series.series.map(normalizeSeries),
+    anime: series.anime.map(normalizeSeries),
+    books: books.books.map(normalizeBook),
+    mangas: books.mangas.map(normalizeBook),
     games: library.games.map(normalizeGame),
-    artworks: library.artworks.map(normalizeArtwork),
+    artworks: library.artworks.map(prepareArtwork),
+  }
+}
+
+/**
+ * Accepte l’ancien modèle (une seule liste `series`) comme le nouveau (une
+ * section par bibliothèque). Les doublons par identifiant sont résolus au
+ * profit de la section explicite, jamais dupliqués dans deux sections.
+ */
+function splitSeries(entries: Series[], explicitAnime?: Series[]): { series: Series[]; anime: Series[] } {
+  const series = new Map<string, Series>()
+  const anime = new Map<string, Series>()
+  for (const entry of entries ?? []) {
+    if (entry.category === 'animation') anime.set(entry.id, { ...entry, category: 'animation' })
+    else series.set(entry.id, entry)
+  }
+  for (const entry of explicitAnime ?? []) anime.set(entry.id, { ...entry, category: 'animation' })
+  return { series: [...series.values()], anime: [...anime.values()] }
+}
+
+function splitBooks(entries: Book[], explicitMangas?: Book[]): { books: Book[]; mangas: Book[] } {
+  const books = new Map<string, Book>()
+  const mangas = new Map<string, Book>()
+  for (const entry of entries) {
+    if (entry.category === 'manga') mangas.set(entry.id, { ...entry, category: 'manga' })
+    else books.set(entry.id, entry)
+  }
+  for (const entry of explicitMangas ?? []) mangas.set(entry.id, { ...entry, category: 'manga' })
+  return { books: [...books.values()], mangas: [...mangas.values()] }
+}
+
+/** Une œuvre exportée porte toujours ses champs personnalisés, même vides. */
+function prepareArtwork(artwork: Artwork): Artwork {
+  const normalized = normalizeArtwork(artwork)
+  return {
+    ...normalized,
+    customFields: (normalized.customFields ?? []).map((field) => ({ name: field.name, value: field.value })),
   }
 }
 
@@ -172,7 +231,7 @@ export function libraryExportFileName(exportedAt: string): string {
 }
 
 export function validateLibraryDocument(contents: string): LibraryImportPreview {
-  const emptyCounts: LibraryCollectionCounts = { films: 0, series: 0, books: 0, games: 0, artworks: 0 }
+  const emptyCounts = emptyCollectionCounts()
   let value: unknown
 
   try {
@@ -185,41 +244,94 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
     return invalidDocument('$', 'La racine du fichier doit être un objet JSON.', emptyCounts)
   }
 
+  // Export Films historique (sylloge-films v1) : lu comme une bibliothèque
+  // dont seule la section films est renseignée.
+  if (value.format === SYLLOGE_EXPORT_FORMAT) return validateHistoricalFilmsDocument(contents)
+
   const errors: LibraryImportValidationError[] = []
-  validateExactKeys(value, ROOT_KEYS, '$', errors)
+  const version = libraryDocumentVersion(value.version)
 
   if (value.format !== SYLLOGE_LIBRARY_FORMAT) {
     addError(errors, '$.format', `Le format attendu est « ${SYLLOGE_LIBRARY_FORMAT} ».`)
   }
 
-  if (value.version !== SYLLOGE_LIBRARY_VERSION) {
-    addError(errors, '$.version', `Seule la version ${SYLLOGE_LIBRARY_VERSION} est prise en charge.`)
+  if (version === null) {
+    addError(errors, '$.version', 'Les versions 1, 2 et 3 du document sont prises en charge.')
+    return { document: null, counts: emptyCounts, errors }
   }
 
+  validateExactKeys(value, rootKeysFor(version), '$', errors, version)
   validateIsoDate(value.exportedAt, '$.exportedAt', errors)
 
-  const profile = validateProfile(value.profile, errors)
+  const profile = validateProfile(value.profile, errors, version)
   const ids = new Set<string>()
-  const films = validateCollection(value.films, '$.films', (filmValue, index) =>
-    validateFilm(filmValue, index, profile?.id ?? null, ids, errors),
+
+  const films = validateCollection(
+    value.films,
+    '$.films',
+    (filmValue, index) => validateFilm(filmValue, `$.films[${index}]`, version, profile?.id ?? null, ids, errors),
+    errors,
   )
-  const series = validateCollection(value.series, '$.series', (seriesValue, index) =>
-    validateSeries(seriesValue, index, profile?.id ?? null, ids, errors),
-  )
-  const books = validateCollection(value.books, '$.books', (bookValue, index) =>
-    validateBook(bookValue, index, profile?.id ?? null, ids, errors),
-  )
-  const games = validateCollection(value.games, '$.games', (gameValue, index) =>
-    validateGame(gameValue, index, profile?.id ?? null, ids, errors),
-  )
-  const artworks = validateCollection(value.artworks, '$.artworks', (artworkValue, index) =>
-    validateArtwork(artworkValue, index, profile?.id ?? null, ids, errors),
-  )
+  const seriesItems = version === 1
+    ? []
+    : validateCollection(
+      value.series,
+      '$.series',
+      (seriesValue, index) => validateSeries(seriesValue, `$.series[${index}]`, version, 'series', profile?.id ?? null, ids, errors),
+      errors,
+    )
+  const bookItems = version === 1
+    ? []
+    : validateCollection(
+      value.books,
+      '$.books',
+      (bookValue, index) => validateBook(bookValue, `$.books[${index}]`, version, 'books', profile?.id ?? null, ids, errors),
+      errors,
+    )
+  const games = version === 1
+    ? []
+    : validateCollection(
+      value.games,
+      '$.games',
+      (gameValue, index) => validateGame(gameValue, `$.games[${index}]`, version, profile?.id ?? null, ids, errors),
+      errors,
+    )
+  const artworks = version === 1
+    ? []
+    : validateCollection(
+      value.artworks,
+      '$.artworks',
+      (artworkValue, index) => validateArtwork(artworkValue, `$.artworks[${index}]`, version, profile?.id ?? null, ids, errors),
+      errors,
+    )
+
+  // v1/v2 : les sections sont dérivées des catégories historiques. v3 : elles
+  // sont explicites et chaque section n’accepte que sa propre catégorie.
+  const anime = version === 3
+    ? validateCollection(
+      value.anime,
+      '$.anime',
+      (seriesValue, index) => validateSeries(seriesValue, `$.anime[${index}]`, version, 'anime', profile?.id ?? null, ids, errors),
+      errors,
+    )
+    : (seriesItems ?? []).filter((entry) => entry.category === 'animation')
+  const mangas = version === 3
+    ? validateCollection(
+      value.mangas,
+      '$.mangas',
+      (bookValue, index) => validateBook(bookValue, `$.mangas[${index}]`, version, 'mangas', profile?.id ?? null, ids, errors),
+      errors,
+    )
+    : (bookItems ?? []).filter((entry) => entry.category === 'manga')
+  const series = version === 3 ? seriesItems : (seriesItems ?? []).filter((entry) => entry.category !== 'animation')
+  const books = version === 3 ? bookItems : (bookItems ?? []).filter((entry) => entry.category !== 'manga')
 
   const counts: LibraryCollectionCounts = {
     films: films?.length ?? 0,
     series: series?.length ?? 0,
+    anime: anime?.length ?? 0,
     books: books?.length ?? 0,
+    mangas: mangas?.length ?? 0,
     games: games?.length ?? 0,
     artworks: artworks?.length ?? 0,
   }
@@ -230,7 +342,9 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
     || typeof value.exportedAt !== 'string'
     || !films
     || !series
+    || !anime
     || !books
+    || !mangas
     || !games
     || !artworks
   ) {
@@ -245,9 +359,52 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
       profile,
       films,
       series,
+      anime,
       books,
+      mangas,
       games,
       artworks,
+    },
+    counts,
+    errors: [],
+  }
+}
+
+function emptyCollectionCounts(): LibraryCollectionCounts {
+  return { films: 0, series: 0, anime: 0, books: 0, mangas: 0, games: 0, artworks: 0 }
+}
+
+function libraryDocumentVersion(value: unknown): 1 | 2 | 3 | null {
+  return value === 1 || value === 2 || value === 3 ? value : null
+}
+
+function rootKeysFor(version: 1 | 2 | 3): readonly string[] {
+  if (version === 1) return ROOT_KEYS_V1
+  if (version === 2) return ROOT_KEYS_V2
+  return ROOT_KEYS_V3
+}
+
+/** Un export Films v1 reste réimportable et adopte le modèle à sept sections. */
+function validateHistoricalFilmsDocument(contents: string): LibraryImportPreview {
+  const historical = validateLibraryImport(contents)
+  const counts = emptyCollectionCounts()
+  counts.films = historical.document?.films.length ?? historical.validFilmCount
+  if (historical.document === null) {
+    return { document: null, counts, errors: historical.errors }
+  }
+  return {
+    document: {
+      format: SYLLOGE_LIBRARY_FORMAT,
+      version: SYLLOGE_LIBRARY_VERSION,
+      exportedAt: historical.document.exportedAt,
+      profile: historical.document.profile,
+      films: historical.document.films,
+      series: [],
+      anime: [],
+      books: [],
+      mangas: [],
+      games: [],
+      artworks: [],
     },
     counts,
     errors: [],
@@ -258,9 +415,11 @@ function validateCollection<T>(
   value: unknown,
   path: string,
   validateItem: (item: unknown, index: number) => T | null,
+  errors: LibraryImportValidationError[],
 ): T[] | null {
   const items: T[] = []
   if (!Array.isArray(value)) {
+    addError(errors, path, 'Cette section doit être un tableau.')
     return null
   }
   value.forEach((item, index) => {
@@ -270,13 +429,17 @@ function validateCollection<T>(
   return items
 }
 
-function validateProfile(value: unknown, errors: LibraryImportValidationError[]): Profile | null {
+function validateProfile(
+  value: unknown,
+  errors: LibraryImportValidationError[],
+  version: 1 | 2 | 3,
+): Profile | null {
   if (!isRecord(value)) {
     addError(errors, '$.profile', 'Le profil doit être un objet.')
     return null
   }
 
-  validateExactKeys(value, PROFILE_KEYS, '$.profile', errors)
+  validateExactKeys(value, PROFILE_KEYS, '$.profile', errors, version)
   const errorCount = errors.length
   validateNonEmptyString(value.id, '$.profile.id', errors)
   validateNonEmptyString(value.name, '$.profile.name', errors)
@@ -297,12 +460,14 @@ function validateSharedIdentity(
   value: Record<string, unknown>,
   path: string,
   expectedKeys: readonly string[],
+  version: 1 | 2 | 3,
   profileId: string | null,
   ids: Set<string>,
   errors: LibraryImportValidationError[],
   itemLabel: string,
+  optionalKeys: readonly string[] = [],
 ): boolean {
-  validateExactKeys(value, expectedKeys, path, errors)
+  validateExactKeys(value, expectedKeys, path, errors, version, optionalKeys)
   const errorCount = errors.length
   validateNonEmptyString(value.id, `${path}.id`, errors)
   if (typeof value.id === 'string' && value.id.trim()) {
@@ -372,18 +537,18 @@ function validateOptionalHttpUrl(
 
 function validateFilm(
   value: unknown,
-  index: number,
+  path: string,
+  version: 1 | 2 | 3,
   profileId: string | null,
   ids: Set<string>,
   errors: LibraryImportValidationError[],
 ): Film | null {
-  const path = `$.films[${index}]`
   if (!isRecord(value)) {
     addError(errors, path, 'Cette entrée doit être un objet Film.')
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, FILM_KEYS, profileId, ids, errors, 'Film')
+  const identityValid = validateSharedIdentity(value, path, FILM_KEYS, version, profileId, ids, errors, 'Film')
   validateOptionalString(value.originalTitle, `${path}.originalTitle`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
   if (!(FILM_STATUSES as readonly unknown[]).includes(value.status)) {
@@ -411,23 +576,28 @@ function validateFilm(
 
 function validateSeries(
   value: unknown,
-  index: number,
+  path: string,
+  version: 1 | 2 | 3,
+  section: 'series' | 'anime',
   profileId: string | null,
   ids: Set<string>,
   errors: LibraryImportValidationError[],
 ): Series | null {
-  const path = `$.series[${index}]`
   if (!isRecord(value)) {
     addError(errors, path, 'Cette entrée doit être un objet Série.')
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, SERIES_KEYS, profileId, ids, errors, 'Série')
+  const identityValid = validateSharedIdentity(value, path, SERIES_KEYS, version, profileId, ids, errors, 'Série')
   validateOptionalString(value.showrunner, `${path}.showrunner`, errors)
   validateOptionalString(value.casting, `${path}.casting`, errors)
   validateOptionalString(value.summary, `${path}.summary`, errors)
   if (!(SERIES_CATEGORIES as readonly unknown[]).includes(value.category)) {
     addError(errors, `${path}.category`, 'La catégorie Série est inconnue.')
+  } else if (version === 3 && section === 'series' && value.category !== 'série télé') {
+    addError(errors, `${path}.category`, 'La section Séries n’accepte que la catégorie « série télé ».')
+  } else if (version === 3 && section === 'anime' && value.category !== 'animation') {
+    addError(errors, `${path}.category`, 'La section Animation japonaise n’accepte que la catégorie « animation ».')
   }
   if (!(SERIES_STATUSES as readonly unknown[]).includes(value.status)) {
     addError(errors, `${path}.status`, 'Le statut Série est inconnu.')
@@ -459,23 +629,28 @@ function validateSeries(
 
 function validateBook(
   value: unknown,
-  index: number,
+  path: string,
+  version: 1 | 2 | 3,
+  section: 'books' | 'mangas',
   profileId: string | null,
   ids: Set<string>,
   errors: LibraryImportValidationError[],
 ): Book | null {
-  const path = `$.books[${index}]`
   if (!isRecord(value)) {
     addError(errors, path, 'Cette entrée doit être un objet Livre.')
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, BOOK_KEYS, profileId, ids, errors, 'Livre')
+  const identityValid = validateSharedIdentity(value, path, BOOK_KEYS, version, profileId, ids, errors, 'Livre')
   validateOptionalString(value.author, `${path}.author`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
   validateOptionalString(value.summary, `${path}.summary`, errors)
   if (!(BOOK_CATEGORIES as readonly unknown[]).includes(value.category)) {
     addError(errors, `${path}.category`, 'La catégorie Livre est inconnue.')
+  } else if (version === 3 && section === 'books' && value.category === 'manga') {
+    addError(errors, `${path}.category`, 'La section Livres n’accepte pas la catégorie « manga ».')
+  } else if (version === 3 && section === 'mangas' && value.category !== 'manga') {
+    addError(errors, `${path}.category`, 'La section Mangas n’accepte que la catégorie « manga ».')
   }
   if (!(BOOK_STATUSES as readonly unknown[]).includes(value.status)) {
     addError(errors, `${path}.status`, 'Le statut Livre est inconnu.')
@@ -505,7 +680,7 @@ function validateBook(
     addError(errors, `${path}.quotes`, 'Les citations doivent être un tableau.')
   } else {
     book.quotes.forEach((quote, quoteIndex) => {
-      validateQuote(quote, book.id, `${path}.quotes[${quoteIndex}]`, quoteIds, errors)
+      validateQuote(quote, book.id, `${path}.quotes[${quoteIndex}]`, version, quoteIds, errors)
     })
   }
 
@@ -518,6 +693,7 @@ function validateQuote(
   value: unknown,
   bookId: string,
   path: string,
+  version: 1 | 2 | 3,
   quoteIds: Set<string>,
   errors: LibraryImportValidationError[],
 ) {
@@ -525,7 +701,7 @@ function validateQuote(
     addError(errors, path, 'Cette citation doit être un objet.')
     return
   }
-  validateExactKeys(value, QUOTE_KEYS, path, errors)
+  validateExactKeys(value, QUOTE_KEYS, path, errors, version)
   validateNonEmptyString(value.id, `${path}.id`, errors)
   if (typeof value.id === 'string' && value.id.trim()) {
     if (quoteIds.has(value.id)) addError(errors, `${path}.id`, 'Cet identifiant de citation est présent plusieurs fois.')
@@ -543,18 +719,18 @@ function validateQuote(
 
 function validateGame(
   value: unknown,
-  index: number,
+  path: string,
+  version: 1 | 2 | 3,
   profileId: string | null,
   ids: Set<string>,
   errors: LibraryImportValidationError[],
 ): Game | null {
-  const path = `$.games[${index}]`
   if (!isRecord(value)) {
     addError(errors, path, 'Cette entrée doit être un objet Jeu.')
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, GAME_KEYS, profileId, ids, errors, 'Jeu')
+  const identityValid = validateSharedIdentity(value, path, GAME_KEYS, version, profileId, ids, errors, 'Jeu')
   validateOptionalString(value.developer, `${path}.developer`, errors)
   validateOptionalString(value.platform, `${path}.platform`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
@@ -579,18 +755,23 @@ function validateGame(
 
 function validateArtwork(
   value: unknown,
-  index: number,
+  path: string,
+  version: 1 | 2 | 3,
   profileId: string | null,
   ids: Set<string>,
   errors: LibraryImportValidationError[],
 ): Artwork | null {
-  const path = `$.artworks[${index}]`
   if (!isRecord(value)) {
     addError(errors, path, 'Cette entrée doit être un objet Œuvre d’art.')
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, ARTWORK_KEYS, profileId, ids, errors, 'Œuvre d’art')
+  // `customFields` est arrivé après la v2 : une œuvre v2 peut l’omettre, une
+  // œuvre v3 l’exige. Dans les deux cas, il est validé quand il est présent.
+  const optionalKeys = version === 2 ? ['customFields'] as const : []
+  const identityValid = validateSharedIdentity(
+    value, path, ARTWORK_KEYS, version, profileId, ids, errors, 'Œuvre d’art', optionalKeys,
+  )
   validateOptionalString(value.artist, `${path}.artist`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
   if (!(ARTWORK_FORMS as readonly unknown[]).includes(value.form)) {
@@ -606,14 +787,44 @@ function validateArtwork(
   }
   validateOptionalString(value.imageUrl, `${path}.imageUrl`, errors)
   validateOptionalString(value.personalNote, `${path}.personalNote`, errors)
+  const customFields = validateCustomFields(value.customFields, `${path}.customFields`, errors)
 
-  const artwork = normalizeArtwork(value as Artwork)
+  const artwork = normalizeArtwork({ ...(value as Artwork), customFields })
   validateOptionalCalendarDate(artwork.discoveredAt, `${path}.discoveredAt`, errors, 'La date de découverte')
   validateOptionalHttpUrl(artwork.imageUrl, `${path}.imageUrl`, errors, 'L’URL du visuel')
 
   if (!identityValid || hasPathError(errors, path)) return null
 
   return artwork
+}
+
+/** Aucun champ personnalisé n’est perdu : ordre, nom et valeur sont validés. */
+function validateCustomFields(
+  value: unknown,
+  path: string,
+  errors: LibraryImportValidationError[],
+): Artwork['customFields'] {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) {
+    addError(errors, path, 'Les champs personnalisés doivent être un tableau.')
+    return []
+  }
+  return value.flatMap((field, index) => {
+    const fieldPath = `${path}[${index}]`
+    if (!isRecord(field)) {
+      addError(errors, fieldPath, 'Ce champ personnalisé doit être un objet.')
+      return []
+    }
+    validateExactKeys(field, CUSTOM_FIELD_KEYS, fieldPath, errors, 3)
+    validateNonEmptyString(field.name, `${fieldPath}.name`, errors)
+    if (typeof field.value !== 'string') {
+      addError(errors, `${fieldPath}.value`, 'La valeur d’un champ personnalisé doit être une chaîne.')
+    }
+    return [{
+      name: typeof field.name === 'string' ? field.name : '',
+      value: typeof field.value === 'string' ? field.value : '',
+    }]
+  })
 }
 
 function hasPathError(errors: LibraryImportValidationError[], path: string): boolean {
@@ -625,13 +836,15 @@ function validateExactKeys(
   expectedKeys: readonly string[],
   path: string,
   errors: LibraryImportValidationError[],
+  version: 1 | 2 | 3,
+  optionalKeys: readonly string[] = [],
 ) {
-  const expected = new Set(expectedKeys)
+  const allowed = new Set([...expectedKeys, ...optionalKeys])
   for (const key of expectedKeys) {
-    if (!(key in value)) addError(errors, `${path}.${key}`, 'Ce champ est obligatoire dans la version 2.')
+    if (!(key in value)) addError(errors, `${path}.${key}`, `Ce champ est obligatoire dans la version ${version}.`)
   }
   for (const key of Object.keys(value)) {
-    if (!expected.has(key)) addError(errors, `${path}.${key}`, 'Ce champ n’appartient pas au format version 2.')
+    if (!allowed.has(key)) addError(errors, `${path}.${key}`, `Ce champ n’appartient pas au format version ${version}.`)
   }
 }
 

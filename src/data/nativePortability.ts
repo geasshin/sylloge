@@ -96,7 +96,9 @@ export type NativeImportLibraryDocumentPayload = {
   profile: NativeImportProfile
   films: SyllogeLibraryDocument['films']
   series: SyllogeLibraryDocument['series']
+  anime: SyllogeLibraryDocument['anime']
   books: SyllogeLibraryDocument['books']
+  mangas: SyllogeLibraryDocument['mangas']
   games: SyllogeLibraryDocument['games']
   artworks: SyllogeLibraryDocument['artworks']
 }
@@ -105,7 +107,9 @@ export type ImportLibraryDocumentResult = {
   profileId: string
   filmCount: number
   seriesCount: number
+  animeCount: number
   bookCount: number
+  mangaCount: number
   gameCount: number
   artworkCount: number
 }
@@ -251,6 +255,18 @@ export function importSeriesIntoProfile(
   plan: CollectionImportPlan<SyllogeLibraryDocument['series'][number]>,
 ): Promise<CollectionImportResult> {
   return invoke('import_series_into_profile', { plan })
+}
+
+export function importAnimeIntoProfile(
+  plan: CollectionImportPlan<SyllogeLibraryDocument['anime'][number]>,
+): Promise<CollectionImportResult> {
+  return invoke('import_anime_into_profile', { plan })
+}
+
+export function importMangasIntoProfile(
+  plan: CollectionImportPlan<SyllogeLibraryDocument['mangas'][number]>,
+): Promise<CollectionImportResult> {
+  return invoke('import_mangas_into_profile', { plan })
 }
 
 export function importBooksIntoProfile(

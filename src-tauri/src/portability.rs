@@ -110,7 +110,15 @@ pub struct ImportLibraryDocumentPayload {
     profile: ImportProfile,
     films: Vec<ImportFilm>,
     series: Vec<ImportSeries>,
+    /// Section Animation japonaise (v3). Absente d'un document v1/v2 : les
+    /// fiches `series` de catégorie `animation` y sont alors routées.
+    #[serde(default)]
+    anime: Vec<ImportAnime>,
     books: Vec<ImportBook>,
+    /// Section Mangas (v3). Absente d'un document v1/v2 : les fiches `books`
+    /// de catégorie `manga` y sont alors routées.
+    #[serde(default)]
+    mangas: Vec<ImportManga>,
     games: Vec<ImportGame>,
     artworks: Vec<ImportArtwork>,
 }
@@ -171,6 +179,33 @@ pub struct ImportSeries {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportAnime {
+    id: String,
+    profile_id: String,
+    title: String,
+    showrunner: Option<String>,
+    casting: Option<String>,
+    summary: Option<String>,
+    /// Facultative : la table `anime` n'a pas de colonne de catégorie. Le
+    /// document v3 peut néanmoins conserver la catégorie du type `Series`
+    /// exporté ; elle doit alors valoir « animation ».
+    #[serde(default)]
+    category: Option<String>,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    seasons_seen: Option<i64>,
+    seasons_total: Option<i64>,
+    progress_updated_at: Option<String>,
+    started_at: Option<String>,
+    poster_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportBook {
     id: String,
     profile_id: String,
@@ -201,6 +236,34 @@ struct ImportBookQuote {
     body: String,
     position: i64,
     created_at: String,
+}
+
+/// Fiche Mangas (v3). Même forme qu'une fiche Livres ; `bookId` d'une citation
+/// alimente la colonne `manga_id` de `manga_quotes`, et la catégorie — absente
+/// en base — doit valoir « manga » si le document la conserve.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportManga {
+    id: String,
+    profile_id: String,
+    title: String,
+    author: Option<String>,
+    year: Option<i64>,
+    summary: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    volumes_read: Option<i64>,
+    volumes_total: Option<i64>,
+    progress_updated_at: Option<String>,
+    started_at: Option<String>,
+    cover_url: Option<String>,
+    personal_note: Option<String>,
+    created_at: String,
+    updated_at: String,
+    quotes: Vec<ImportBookQuote>,
 }
 
 #[derive(Deserialize)]
@@ -255,7 +318,9 @@ pub struct ImportLibraryDocumentResult {
     profile_id: String,
     film_count: usize,
     series_count: usize,
+    anime_count: usize,
     book_count: usize,
+    manga_count: usize,
     game_count: usize,
     artwork_count: usize,
 }
@@ -1093,14 +1158,7 @@ pub async fn import_library_document_atomically(
     let pool = sqlite_pool(&db_instances).await?;
     write_library_document_import(&pool, &payload, true).await?;
 
-    Ok(ImportLibraryDocumentResult {
-        profile_id: payload.profile.id.clone(),
-        film_count: payload.films.len(),
-        series_count: payload.series.len(),
-        book_count: payload.books.len(),
-        game_count: payload.games.len(),
-        artwork_count: payload.artworks.len(),
-    })
+    Ok(library_document_result(&payload))
 }
 
 #[tauri::command]
@@ -1111,14 +1169,7 @@ pub async fn import_library_document_into_empty_profile(
     let pool = sqlite_pool(&db_instances).await?;
     write_library_document_import(&pool, &payload, false).await?;
 
-    Ok(ImportLibraryDocumentResult {
-        profile_id: payload.profile.id.clone(),
-        film_count: payload.films.len(),
-        series_count: payload.series.len(),
-        book_count: payload.books.len(),
-        game_count: payload.games.len(),
-        artwork_count: payload.artworks.len(),
-    })
+    Ok(library_document_result(&payload))
 }
 
 pub async fn sqlite_pool(db_instances: &DbInstances) -> Result<sqlx::SqlitePool, String> {
@@ -1675,6 +1726,409 @@ async fn write_import(
     Ok(())
 }
 
+/// Catégories de bibliothèque. Une table par bibliothèque : `series.category`
+/// ne vaut plus que « série télé » à l'écriture, et `mangas` n'a pas de colonne
+/// de catégorie.
+const TELEVISION_SERIES_CATEGORY: &str = "série télé";
+const ANIMATION_SERIES_CATEGORY: &str = "animation";
+const MANGA_BOOK_CATEGORY: &str = "manga";
+
+fn is_animation_category(category: &str) -> bool {
+    category
+        .trim()
+        .eq_ignore_ascii_case(ANIMATION_SERIES_CATEGORY)
+}
+
+fn is_manga_category(category: &str) -> bool {
+    category.trim().eq_ignore_ascii_case(MANGA_BOOK_CATEGORY)
+}
+
+/// Vue normalisée d'une fiche Séries/Animation : les deux sections partagent
+/// les mêmes colonnes, seule la table d'accueil diffère.
+struct AnimeRecord<'a> {
+    id: &'a str,
+    profile_id: &'a str,
+    title: &'a str,
+    showrunner: Option<&'a str>,
+    casting: Option<&'a str>,
+    summary: Option<&'a str>,
+    status: &'a str,
+    rating: Option<f64>,
+    is_favorite: bool,
+    seasons_seen: Option<i64>,
+    seasons_total: Option<i64>,
+    progress_updated_at: Option<&'a str>,
+    started_at: Option<&'a str>,
+    poster_url: Option<&'a str>,
+    personal_note: Option<&'a str>,
+    created_at: &'a str,
+    updated_at: &'a str,
+}
+
+impl<'a> From<&'a ImportSeries> for AnimeRecord<'a> {
+    fn from(series: &'a ImportSeries) -> Self {
+        Self {
+            id: &series.id,
+            profile_id: &series.profile_id,
+            title: &series.title,
+            showrunner: canonical_optional_text(&series.showrunner),
+            casting: canonical_optional_text(&series.casting),
+            summary: canonical_optional_text(&series.summary),
+            status: &series.status,
+            rating: series.rating,
+            is_favorite: series.is_favorite,
+            seasons_seen: series.seasons_seen,
+            seasons_total: series.seasons_total,
+            progress_updated_at: canonical_optional_text(&series.progress_updated_at),
+            started_at: canonical_optional_text(&series.started_at),
+            poster_url: canonical_optional_text(&series.poster_url),
+            personal_note: canonical_optional_text(&series.personal_note),
+            created_at: &series.created_at,
+            updated_at: &series.updated_at,
+        }
+    }
+}
+
+impl<'a> From<&'a ImportAnime> for AnimeRecord<'a> {
+    fn from(anime: &'a ImportAnime) -> Self {
+        Self {
+            id: &anime.id,
+            profile_id: &anime.profile_id,
+            title: &anime.title,
+            showrunner: canonical_optional_text(&anime.showrunner),
+            casting: canonical_optional_text(&anime.casting),
+            summary: canonical_optional_text(&anime.summary),
+            status: &anime.status,
+            rating: anime.rating,
+            is_favorite: anime.is_favorite,
+            seasons_seen: anime.seasons_seen,
+            seasons_total: anime.seasons_total,
+            progress_updated_at: canonical_optional_text(&anime.progress_updated_at),
+            started_at: canonical_optional_text(&anime.started_at),
+            poster_url: canonical_optional_text(&anime.poster_url),
+            personal_note: canonical_optional_text(&anime.personal_note),
+            created_at: &anime.created_at,
+            updated_at: &anime.updated_at,
+        }
+    }
+}
+
+/// Vue normalisée d'une fiche Livres/Mangas. `quotes` garde la forme du
+/// domaine (`bookId`) et sera écrite dans la table de citations de la
+/// bibliothèque cible.
+struct MangaRecord<'a> {
+    id: &'a str,
+    profile_id: &'a str,
+    title: &'a str,
+    author: Option<&'a str>,
+    year: Option<i64>,
+    summary: Option<&'a str>,
+    status: &'a str,
+    rating: Option<f64>,
+    is_favorite: bool,
+    volumes_read: Option<i64>,
+    volumes_total: Option<i64>,
+    progress_updated_at: Option<&'a str>,
+    started_at: Option<&'a str>,
+    cover_url: Option<&'a str>,
+    personal_note: Option<&'a str>,
+    created_at: &'a str,
+    updated_at: &'a str,
+    quotes: &'a [ImportBookQuote],
+}
+
+impl<'a> From<&'a ImportBook> for MangaRecord<'a> {
+    fn from(book: &'a ImportBook) -> Self {
+        Self {
+            id: &book.id,
+            profile_id: &book.profile_id,
+            title: &book.title,
+            author: canonical_optional_text(&book.author),
+            year: book.year,
+            summary: canonical_optional_text(&book.summary),
+            status: &book.status,
+            rating: book.rating,
+            is_favorite: book.is_favorite,
+            volumes_read: book.volumes_read,
+            volumes_total: book.volumes_total,
+            progress_updated_at: canonical_optional_text(&book.progress_updated_at),
+            started_at: canonical_optional_text(&book.started_at),
+            cover_url: canonical_optional_text(&book.cover_url),
+            personal_note: canonical_optional_text(&book.personal_note),
+            created_at: &book.created_at,
+            updated_at: &book.updated_at,
+            quotes: &book.quotes,
+        }
+    }
+}
+
+impl<'a> From<&'a ImportManga> for MangaRecord<'a> {
+    fn from(manga: &'a ImportManga) -> Self {
+        Self {
+            id: &manga.id,
+            profile_id: &manga.profile_id,
+            title: &manga.title,
+            author: canonical_optional_text(&manga.author),
+            year: manga.year,
+            summary: canonical_optional_text(&manga.summary),
+            status: &manga.status,
+            rating: manga.rating,
+            is_favorite: manga.is_favorite,
+            volumes_read: manga.volumes_read,
+            volumes_total: manga.volumes_total,
+            progress_updated_at: canonical_optional_text(&manga.progress_updated_at),
+            started_at: canonical_optional_text(&manga.started_at),
+            cover_url: canonical_optional_text(&manga.cover_url),
+            personal_note: canonical_optional_text(&manga.personal_note),
+            created_at: &manga.created_at,
+            updated_at: &manga.updated_at,
+            quotes: &manga.quotes,
+        }
+    }
+}
+
+fn validate_library_categories(payload: &ImportLibraryDocumentPayload) -> Result<(), String> {
+    for anime in &payload.anime {
+        if let Some(category) = &anime.category {
+            if !is_animation_category(category) {
+                return Err(format!(
+                    "La fiche Animation « {} » porte une catégorie incompatible.",
+                    anime.title
+                ));
+            }
+        }
+    }
+    for manga in &payload.mangas {
+        if let Some(category) = &manga.category {
+            if !is_manga_category(category) {
+                return Err(format!(
+                    "La fiche Mangas « {} » porte une catégorie incompatible.",
+                    manga.title
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn insert_anime_row(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    anime: &AnimeRecord<'_>,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO anime (
+            id, profile_id, title, showrunner, casting, summary, status, rating,
+            is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
+            poster_url, personal_note, created_at, updated_at
+         ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+         )",
+    )
+    .bind(anime.id)
+    .bind(anime.profile_id)
+    .bind(anime.title)
+    .bind(anime.showrunner)
+    .bind(anime.casting)
+    .bind(anime.summary)
+    .bind(anime.status)
+    .bind(anime.rating)
+    .bind(if anime.is_favorite { 1 } else { 0 })
+    .bind(anime.seasons_seen)
+    .bind(anime.seasons_total)
+    .bind(anime.progress_updated_at)
+    .bind(anime.started_at)
+    .bind(anime.poster_url)
+    .bind(anime.personal_note)
+    .bind(anime.created_at)
+    .bind(anime.updated_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "Impossible d’importer l’animation « {} » : {error}",
+            anime.title
+        )
+    })?;
+
+    Ok(())
+}
+
+async fn insert_series_row(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    series: &ImportSeries,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO series (
+            id, profile_id, title, showrunner, casting, summary, category, status, rating,
+            is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
+            poster_url, personal_note, created_at, updated_at
+         ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+         )",
+    )
+    .bind(&series.id)
+    .bind(&series.profile_id)
+    .bind(&series.title)
+    .bind(canonical_optional_text(&series.showrunner))
+    .bind(canonical_optional_text(&series.casting))
+    .bind(canonical_optional_text(&series.summary))
+    .bind(TELEVISION_SERIES_CATEGORY)
+    .bind(&series.status)
+    .bind(series.rating)
+    .bind(if series.is_favorite { 1 } else { 0 })
+    .bind(series.seasons_seen)
+    .bind(series.seasons_total)
+    .bind(canonical_optional_text(&series.progress_updated_at))
+    .bind(canonical_optional_text(&series.started_at))
+    .bind(canonical_optional_text(&series.poster_url))
+    .bind(canonical_optional_text(&series.personal_note))
+    .bind(&series.created_at)
+    .bind(&series.updated_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "Impossible d’importer la série « {} » : {error}",
+            series.title
+        )
+    })?;
+
+    Ok(())
+}
+
+async fn insert_manga_quotes(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    manga_id: &str,
+    manga_title: &str,
+    quotes: &[ImportBookQuote],
+) -> Result<(), String> {
+    for quote in quotes {
+        sqlx::query(
+            "INSERT INTO manga_quotes (id, manga_id, body, position, created_at)
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(&quote.id)
+        .bind(manga_id)
+        .bind(&quote.body)
+        .bind(quote.position)
+        .bind(&quote.created_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!("Impossible d’importer une citation du manga « {manga_title} » : {error}")
+        })?;
+    }
+
+    Ok(())
+}
+
+async fn insert_manga_row(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    manga: &MangaRecord<'_>,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO mangas (
+            id, profile_id, title, author, year, summary, status, rating,
+            is_favorite, volumes_read, volumes_total, progress_updated_at, started_at,
+            cover_url, personal_note, created_at, updated_at
+         ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+         )",
+    )
+    .bind(manga.id)
+    .bind(manga.profile_id)
+    .bind(manga.title)
+    .bind(manga.author)
+    .bind(manga.year)
+    .bind(manga.summary)
+    .bind(manga.status)
+    .bind(manga.rating)
+    .bind(if manga.is_favorite { 1 } else { 0 })
+    .bind(manga.volumes_read)
+    .bind(manga.volumes_total)
+    .bind(manga.progress_updated_at)
+    .bind(manga.started_at)
+    .bind(manga.cover_url)
+    .bind(manga.personal_note)
+    .bind(manga.created_at)
+    .bind(manga.updated_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "Impossible d’importer le manga « {} » : {error}",
+            manga.title
+        )
+    })?;
+
+    insert_manga_quotes(transaction, manga.id, manga.title, manga.quotes).await?;
+
+    Ok(())
+}
+
+async fn insert_book_row(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    book: &ImportBook,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO books (
+            id, profile_id, title, author, year, summary, category, status, rating,
+            is_favorite, volumes_read, volumes_total, progress_updated_at, started_at,
+            cover_url, personal_note, created_at, updated_at
+         ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+         )",
+    )
+    .bind(&book.id)
+    .bind(&book.profile_id)
+    .bind(&book.title)
+    .bind(canonical_optional_text(&book.author))
+    .bind(book.year)
+    .bind(canonical_optional_text(&book.summary))
+    .bind(&book.category)
+    .bind(&book.status)
+    .bind(book.rating)
+    .bind(if book.is_favorite { 1 } else { 0 })
+    .bind(book.volumes_read)
+    .bind(book.volumes_total)
+    .bind(canonical_optional_text(&book.progress_updated_at))
+    .bind(canonical_optional_text(&book.started_at))
+    .bind(canonical_optional_text(&book.cover_url))
+    .bind(canonical_optional_text(&book.personal_note))
+    .bind(&book.created_at)
+    .bind(&book.updated_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "Impossible d’importer le livre « {} » : {error}",
+            book.title
+        )
+    })?;
+
+    for quote in &book.quotes {
+        sqlx::query(
+            "INSERT INTO book_quotes (id, book_id, body, position, created_at)
+             VALUES ($1, $2, $3, $4, $5)",
+        )
+        .bind(&quote.id)
+        .bind(&quote.book_id)
+        .bind(&quote.body)
+        .bind(quote.position)
+        .bind(&quote.created_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’importer une citation du livre « {} » : {error}",
+                book.title
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
 async fn write_library_document_import(
     pool: &sqlx::SqlitePool,
     payload: &ImportLibraryDocumentPayload,
@@ -1691,9 +2145,17 @@ async fn write_library_document_import(
             .iter()
             .any(|series| !targets_import_profile(&series.profile_id))
         || payload
+            .anime
+            .iter()
+            .any(|anime| !targets_import_profile(&anime.profile_id))
+        || payload
             .books
             .iter()
             .any(|book| !targets_import_profile(&book.profile_id))
+        || payload
+            .mangas
+            .iter()
+            .any(|manga| !targets_import_profile(&manga.profile_id))
         || payload
             .games
             .iter()
@@ -1706,6 +2168,8 @@ async fn write_library_document_import(
         return Err("Un élément ne cible pas le profil d’import.".to_string());
     }
 
+    validate_library_categories(payload)?;
+
     let book_ids: std::collections::HashSet<&str> =
         payload.books.iter().map(|book| book.id.as_str()).collect();
     for book in &payload.books {
@@ -1717,6 +2181,15 @@ async fn write_library_document_import(
             return Err(format!(
                 "Une citation ne correspond pas au livre « {} ».",
                 book.title
+            ));
+        }
+    }
+
+    for manga in &payload.mangas {
+        if manga.quotes.iter().any(|quote| quote.book_id != manga.id) {
+            return Err(format!(
+                "Une citation ne correspond pas au manga « {} ».",
+                manga.title
             ));
         }
     }
@@ -1752,7 +2225,9 @@ async fn write_library_document_import(
             "SELECT
                 (SELECT COUNT(*) FROM films WHERE profile_id = $1)
               + (SELECT COUNT(*) FROM series WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM anime WHERE profile_id = $1)
               + (SELECT COUNT(*) FROM books WHERE profile_id = $1)
+              + (SELECT COUNT(*) FROM mangas WHERE profile_id = $1)
               + (SELECT COUNT(*) FROM games WHERE profile_id = $1)
               + (SELECT COUNT(*) FROM artworks WHERE profile_id = $1)",
         )
@@ -1809,99 +2284,27 @@ async fn write_library_document_import(
     }
 
     for series in &payload.series {
-        sqlx::query(
-            "INSERT INTO series (
-                id, profile_id, title, showrunner, casting, summary, category, status, rating,
-                is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
-                poster_url, personal_note, created_at, updated_at
-             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
-             )",
-        )
-        .bind(&series.id)
-        .bind(&series.profile_id)
-        .bind(&series.title)
-        .bind(canonical_optional_text(&series.showrunner))
-        .bind(canonical_optional_text(&series.casting))
-        .bind(canonical_optional_text(&series.summary))
-        .bind(&series.category)
-        .bind(&series.status)
-        .bind(series.rating)
-        .bind(if series.is_favorite { 1 } else { 0 })
-        .bind(series.seasons_seen)
-        .bind(series.seasons_total)
-        .bind(canonical_optional_text(&series.progress_updated_at))
-        .bind(canonical_optional_text(&series.started_at))
-        .bind(canonical_optional_text(&series.poster_url))
-        .bind(canonical_optional_text(&series.personal_note))
-        .bind(&series.created_at)
-        .bind(&series.updated_at)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|error| {
-            format!(
-                "Impossible d’importer la série « {} » : {error}",
-                series.title
-            )
-        })?;
+        if is_animation_category(&series.category) {
+            insert_anime_row(&mut transaction, &AnimeRecord::from(series)).await?;
+        } else {
+            insert_series_row(&mut transaction, series).await?;
+        }
+    }
+
+    for anime in &payload.anime {
+        insert_anime_row(&mut transaction, &AnimeRecord::from(anime)).await?;
     }
 
     for book in &payload.books {
-        sqlx::query(
-            "INSERT INTO books (
-                id, profile_id, title, author, year, summary, category, status, rating,
-                is_favorite, volumes_read, volumes_total, progress_updated_at, started_at,
-                cover_url, personal_note, created_at, updated_at
-             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
-             )",
-        )
-        .bind(&book.id)
-        .bind(&book.profile_id)
-        .bind(&book.title)
-        .bind(canonical_optional_text(&book.author))
-        .bind(book.year)
-        .bind(canonical_optional_text(&book.summary))
-        .bind(&book.category)
-        .bind(&book.status)
-        .bind(book.rating)
-        .bind(if book.is_favorite { 1 } else { 0 })
-        .bind(book.volumes_read)
-        .bind(book.volumes_total)
-        .bind(canonical_optional_text(&book.progress_updated_at))
-        .bind(canonical_optional_text(&book.started_at))
-        .bind(canonical_optional_text(&book.cover_url))
-        .bind(canonical_optional_text(&book.personal_note))
-        .bind(&book.created_at)
-        .bind(&book.updated_at)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|error| {
-            format!(
-                "Impossible d’importer le livre « {} » : {error}",
-                book.title
-            )
-        })?;
-
-        for quote in &book.quotes {
-            sqlx::query(
-                "INSERT INTO book_quotes (id, book_id, body, position, created_at)
-                 VALUES ($1, $2, $3, $4, $5)",
-            )
-            .bind(&quote.id)
-            .bind(&quote.book_id)
-            .bind(&quote.body)
-            .bind(quote.position)
-            .bind(&quote.created_at)
-            .execute(&mut *transaction)
-            .await
-            .map_err(|error| {
-                format!(
-                    "Impossible d’importer une citation du livre « {} » : {error}",
-                    book.title
-                )
-            })?;
+        if is_manga_category(&book.category) {
+            insert_manga_row(&mut transaction, &MangaRecord::from(book)).await?;
+        } else {
+            insert_book_row(&mut transaction, book).await?;
         }
+    }
+
+    for manga in &payload.mangas {
+        insert_manga_row(&mut transaction, &MangaRecord::from(manga)).await?;
     }
 
     for game in &payload.games {
@@ -1987,6 +2390,44 @@ async fn write_library_document_import(
     Ok(())
 }
 
+/// Comptes d'un document : Séries et Livres sont répartis d'après la table
+/// réellement écrite, routage des documents v1/v2 inclus.
+fn library_document_result(payload: &ImportLibraryDocumentPayload) -> ImportLibraryDocumentResult {
+    let series_count = payload
+        .series
+        .iter()
+        .filter(|series| !is_animation_category(&series.category))
+        .count();
+    let anime_count = payload
+        .series
+        .iter()
+        .filter(|series| is_animation_category(&series.category))
+        .count()
+        + payload.anime.len();
+    let book_count = payload
+        .books
+        .iter()
+        .filter(|book| !is_manga_category(&book.category))
+        .count();
+    let manga_count = payload
+        .books
+        .iter()
+        .filter(|book| is_manga_category(&book.category))
+        .count()
+        + payload.mangas.len();
+
+    ImportLibraryDocumentResult {
+        profile_id: payload.profile.id.clone(),
+        film_count: payload.films.len(),
+        series_count,
+        anime_count,
+        book_count,
+        manga_count,
+        game_count: payload.games.len(),
+        artwork_count: payload.artworks.len(),
+    }
+}
+
 fn canonical_optional_text(value: &Option<String>) -> Option<&str> {
     value.as_deref().filter(|value| !value.is_empty())
 }
@@ -2022,7 +2463,7 @@ pub struct CollectionImportPlan<F> {
     pub updates: Vec<F>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct CollectionImportResult {
     pub inserted: usize,
@@ -2055,6 +2496,24 @@ pub async fn import_books_into_profile(
 ) -> Result<CollectionImportResult, String> {
     let pool = sqlite_pool(&db_instances).await?;
     write_books_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_anime_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportAnime>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_anime_import_plan(&pool, &plan).await
+}
+
+#[tauri::command]
+pub async fn import_mangas_into_profile(
+    db_instances: State<'_, DbInstances>,
+    plan: CollectionImportPlan<ImportManga>,
+) -> Result<CollectionImportResult, String> {
+    let pool = sqlite_pool(&db_instances).await?;
+    write_mangas_import_plan(&pool, &plan).await
 }
 
 #[tauri::command]
@@ -2149,10 +2608,18 @@ async fn write_series_import_plan(
     }
 
     for series in &plan.updates {
-        upsert_series(&mut transaction, series, true).await?;
+        if is_animation_category(&series.category) {
+            upsert_anime(&mut transaction, &AnimeRecord::from(series), true).await?;
+        } else {
+            upsert_series(&mut transaction, series, true).await?;
+        }
     }
     for series in &plan.inserts {
-        upsert_series(&mut transaction, series, false).await?;
+        if is_animation_category(&series.category) {
+            upsert_anime(&mut transaction, &AnimeRecord::from(series), false).await?;
+        } else {
+            upsert_series(&mut transaction, series, false).await?;
+        }
     }
 
     transaction
@@ -2198,16 +2665,157 @@ async fn write_books_import_plan(
     }
 
     for book in &plan.updates {
-        upsert_book(&mut transaction, book, true).await?;
+        if is_manga_category(&book.category) {
+            upsert_manga(&mut transaction, &MangaRecord::from(book), true).await?;
+        } else {
+            upsert_book(&mut transaction, book, true).await?;
+        }
     }
     for book in &plan.inserts {
-        upsert_book(&mut transaction, book, false).await?;
+        if is_manga_category(&book.category) {
+            upsert_manga(&mut transaction, &MangaRecord::from(book), false).await?;
+        } else {
+            upsert_book(&mut transaction, book, false).await?;
+        }
     }
 
     transaction
         .commit()
         .await
         .map_err(|error| format!("Impossible de finaliser l’import Livres : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+/// Import de la bibliothèque Animation japonaise (table `anime`). Le
+/// remplacement ne vide que `anime` : Séries reste intacte.
+async fn write_anime_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportAnime>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|anime| anime.profile_id.as_str())
+            .chain(plan.updates.iter().map(|anime| anime.profile_id.as_str())),
+    )?;
+    for anime in plan.inserts.iter().chain(plan.updates.iter()) {
+        if let Some(category) = &anime.category {
+            if !is_animation_category(category) {
+                return Err(format!(
+                    "La fiche Animation « {} » porte une catégorie incompatible.",
+                    anime.title
+                ));
+            }
+        }
+    }
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Animation : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        let result = sqlx::query("DELETE FROM anime WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Animation : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for anime in &plan.updates {
+        upsert_anime(&mut transaction, &AnimeRecord::from(anime), true).await?;
+    }
+    for anime in &plan.inserts {
+        upsert_anime(&mut transaction, &AnimeRecord::from(anime), false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Animation : {error}"))?;
+
+    Ok(CollectionImportResult {
+        inserted: plan.inserts.len(),
+        updated: plan.updates.len(),
+        removed,
+    })
+}
+
+/// Import de la bibliothèque Mangas. Les citations sont écrites dans
+/// `manga_quotes` et supprimées avec leur fiche ; le remplacement ne vide que
+/// `mangas` et ses citations.
+async fn write_mangas_import_plan(
+    pool: &sqlx::SqlitePool,
+    plan: &CollectionImportPlan<ImportManga>,
+) -> Result<CollectionImportResult, String> {
+    validate_plan_profile(
+        &plan.profile_id,
+        plan.inserts
+            .iter()
+            .map(|manga| manga.profile_id.as_str())
+            .chain(plan.updates.iter().map(|manga| manga.profile_id.as_str())),
+    )?;
+    for manga in plan.inserts.iter().chain(plan.updates.iter()) {
+        if let Some(category) = &manga.category {
+            if !is_manga_category(category) {
+                return Err(format!(
+                    "La fiche Mangas « {} » porte une catégorie incompatible.",
+                    manga.title
+                ));
+            }
+        }
+        if manga.quotes.iter().any(|quote| quote.book_id != manga.id) {
+            return Err(format!(
+                "Une citation ne correspond pas au manga « {} ».",
+                manga.title
+            ));
+        }
+    }
+
+    let mut transaction = pool
+        .begin()
+        .await
+        .map_err(|error| format!("Impossible de démarrer l’import Mangas : {error}"))?;
+
+    let mut removed = 0usize;
+    if plan.replace_existing {
+        // Suppression explicite des citations : le cascade SQLite dépend du
+        // PRAGMA foreign_keys de la connexion.
+        sqlx::query(
+            "DELETE FROM manga_quotes
+             WHERE manga_id IN (SELECT id FROM mangas WHERE profile_id = $1)",
+        )
+        .bind(&plan.profile_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| format!("Impossible de vider les citations Mangas : {error}"))?;
+        let result = sqlx::query("DELETE FROM mangas WHERE profile_id = $1")
+            .bind(&plan.profile_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|error| format!("Impossible de vider la collection Mangas : {error}"))?;
+        removed = result.rows_affected() as usize;
+    }
+
+    for manga in &plan.updates {
+        upsert_manga(&mut transaction, &MangaRecord::from(manga), true).await?;
+    }
+    for manga in &plan.inserts {
+        upsert_manga(&mut transaction, &MangaRecord::from(manga), false).await?;
+    }
+
+    transaction
+        .commit()
+        .await
+        .map_err(|error| format!("Impossible de finaliser l’import Mangas : {error}"))?;
 
     Ok(CollectionImportResult {
         inserted: plan.inserts.len(),
@@ -2446,7 +3054,7 @@ async fn upsert_series(
         .bind(showrunner)
         .bind(casting)
         .bind(summary)
-        .bind(&series.category)
+        .bind(TELEVISION_SERIES_CATEGORY)
         .bind(&series.status)
         .bind(series.rating)
         .bind(if series.is_favorite { 1 } else { 0 })
@@ -2481,7 +3089,7 @@ async fn upsert_series(
         .bind(showrunner)
         .bind(casting)
         .bind(summary)
-        .bind(&series.category)
+        .bind(TELEVISION_SERIES_CATEGORY)
         .bind(&series.status)
         .bind(series.rating)
         .bind(if series.is_favorite { 1 } else { 0 })
@@ -2507,6 +3115,58 @@ async fn upsert_series(
         return Err(format!(
             "L’écriture de la série « {} » n’a modifié aucune ligne SQLite.",
             series.title
+        ));
+    }
+
+    Ok(())
+}
+
+async fn upsert_anime(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    anime: &AnimeRecord<'_>,
+    is_update: bool,
+) -> Result<(), String> {
+    if !is_update {
+        return insert_anime_row(transaction, anime).await;
+    }
+
+    let result = sqlx::query(
+        "UPDATE anime SET
+            title = $3, showrunner = $4, casting = $5, summary = $6, status = $7,
+            rating = $8, is_favorite = $9, seasons_seen = $10, seasons_total = $11,
+            progress_updated_at = $12, started_at = $13, poster_url = $14,
+            personal_note = $15, updated_at = $16
+         WHERE id = $1 AND profile_id = $2",
+    )
+    .bind(anime.id)
+    .bind(anime.profile_id)
+    .bind(anime.title)
+    .bind(anime.showrunner)
+    .bind(anime.casting)
+    .bind(anime.summary)
+    .bind(anime.status)
+    .bind(anime.rating)
+    .bind(if anime.is_favorite { 1 } else { 0 })
+    .bind(anime.seasons_seen)
+    .bind(anime.seasons_total)
+    .bind(anime.progress_updated_at)
+    .bind(anime.started_at)
+    .bind(anime.poster_url)
+    .bind(anime.personal_note)
+    .bind(anime.updated_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "Impossible de mettre à jour l’animation « {} » : {error}",
+            anime.title
+        )
+    })?;
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture de l’animation « {} » n’a modifié aucune ligne SQLite.",
+            anime.title
         ));
     }
 
@@ -2638,6 +3298,69 @@ async fn upsert_book(
     }
 
     Ok(())
+}
+
+async fn upsert_manga(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    manga: &MangaRecord<'_>,
+    is_update: bool,
+) -> Result<(), String> {
+    if !is_update {
+        return insert_manga_row(transaction, manga).await;
+    }
+
+    let result = sqlx::query(
+        "UPDATE mangas SET
+            title = $3, author = $4, year = $5, summary = $6, status = $7,
+            rating = $8, is_favorite = $9, volumes_read = $10, volumes_total = $11,
+            progress_updated_at = $12, started_at = $13, cover_url = $14,
+            personal_note = $15, updated_at = $16
+         WHERE id = $1 AND profile_id = $2",
+    )
+    .bind(manga.id)
+    .bind(manga.profile_id)
+    .bind(manga.title)
+    .bind(manga.author)
+    .bind(manga.year)
+    .bind(manga.summary)
+    .bind(manga.status)
+    .bind(manga.rating)
+    .bind(if manga.is_favorite { 1 } else { 0 })
+    .bind(manga.volumes_read)
+    .bind(manga.volumes_total)
+    .bind(manga.progress_updated_at)
+    .bind(manga.started_at)
+    .bind(manga.cover_url)
+    .bind(manga.personal_note)
+    .bind(manga.updated_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "Impossible de mettre à jour le manga « {} » : {error}",
+            manga.title
+        )
+    })?;
+
+    if result.rows_affected() != 1 {
+        return Err(format!(
+            "L’écriture du manga « {} » n’a modifié aucune ligne SQLite.",
+            manga.title
+        ));
+    }
+
+    sqlx::query("DELETE FROM manga_quotes WHERE manga_id = $1")
+        .bind(manga.id)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible de remplacer les citations du manga « {} » : {error}",
+                manga.title
+            )
+        })?;
+
+    insert_manga_quotes(transaction, manga.id, manga.title, manga.quotes).await
 }
 
 async fn upsert_game(
@@ -3949,6 +4672,18 @@ mod tests {
             include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
             include_str!("../migrations/0009_add_selected_poster_url.sql"),
             include_str!("../migrations/0010_create_cultural_media.sql"),
+            // 0011 à 0018 puis 0020 : schéma courant des tests de portabilité.
+            // 0019 est volontairement omise : sur une base vierge elle supprime
+            // le profil technique « default » dont ces fixtures ont besoin.
+            include_str!("../migrations/0011_nullable_current_profile.sql"),
+            include_str!("../migrations/0012_create_saved_views.sql"),
+            include_str!("../migrations/0013_saved_views_unified_criteria.sql"),
+            include_str!("../migrations/0014_normalize_game_statuses.sql"),
+            include_str!("../migrations/0015_artwork_custom_fields.sql"),
+            include_str!("../migrations/0016_artwork_discovered.sql"),
+            include_str!("../migrations/0017_media_provider_links.sql"),
+            include_str!("../migrations/0018_backfill_media_provider_links.sql"),
+            include_str!("../migrations/0020_split_anime_and_mangas.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -4166,6 +4901,7 @@ mod tests {
                     created_at: timestamp.clone(),
                     updated_at: timestamp.clone(),
                 }],
+                anime: Vec::new(),
                 books: vec![ImportBook {
                     id: "book-v2".to_string(),
                     profile_id: "profil-complet".to_string(),
@@ -4193,6 +4929,7 @@ mod tests {
                         created_at: timestamp.clone(),
                     }],
                 }],
+                mangas: Vec::new(),
                 games: vec![ImportGame {
                     id: "game-v2".to_string(),
                     profile_id: "profil-complet".to_string(),
@@ -4232,12 +4969,15 @@ mod tests {
                 .await
                 .expect("import du document v2 complet");
 
-            let counts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+            let counts: (i64, i64, i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
                 "SELECT
                    (SELECT COUNT(*) FROM films WHERE profile_id = 'profil-complet'),
                    (SELECT COUNT(*) FROM series WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM anime WHERE profile_id = 'profil-complet'),
                    (SELECT COUNT(*) FROM books WHERE profile_id = 'profil-complet'),
+                   (SELECT COUNT(*) FROM mangas WHERE profile_id = 'profil-complet'),
                    (SELECT COUNT(*) FROM book_quotes),
+                   (SELECT COUNT(*) FROM manga_quotes),
                    (SELECT COUNT(*) FROM games WHERE profile_id = 'profil-complet'),
                    (SELECT COUNT(*) FROM artworks WHERE profile_id = 'profil-complet')",
             )
@@ -4246,35 +4986,32 @@ mod tests {
             .expect("comptes des collections importées");
             assert_eq!(
                 counts,
-                (1, 1, 1, 1, 1, 1),
-                "l'import v2 doit écrire chaque collection et ses citations"
+                (1, 0, 1, 0, 1, 0, 1, 1, 1),
+                "l'import d'un document v2 doit router animation → anime et manga → mangas, avec les citations"
             );
 
-            let series_row: (String, String, i64, i64, Option<String>) = sqlx::query_as(
-                "SELECT category, status, seasons_seen, seasons_total, progress_updated_at
-                 FROM series WHERE id = 'series-v2'",
+            let anime_row: (String, i64, i64, Option<String>) = sqlx::query_as(
+                "SELECT status, seasons_seen, seasons_total, progress_updated_at
+                 FROM anime WHERE id = 'series-v2'",
             )
             .fetch_one(&pool)
             .await
-            .expect("relecture de la série importée");
+            .expect("relecture de l'animation importée");
+            assert_eq!(anime_row.0, "en cours");
+            assert_eq!(anime_row.1, 3);
+            assert_eq!(anime_row.2, 8);
             assert_eq!(
-                series_row.0, "animation",
-                "la catégorie Série doit être conservée"
-            );
-            assert_eq!(series_row.1, "en cours");
-            assert_eq!(series_row.2, 3);
-            assert_eq!(series_row.3, 8);
-            assert_eq!(
-                series_row.4.as_deref(),
+                anime_row.3.as_deref(),
                 Some("2026-07-19T10:00:00.000Z"),
                 "l'horodatage interne de progression doit être conservé"
             );
 
-            let quote_row: (String, i64) =
-                sqlx::query_as("SELECT body, position FROM book_quotes WHERE book_id = 'book-v2'")
-                    .fetch_one(&pool)
-                    .await
-                    .expect("relecture de la citation importée");
+            let quote_row: (String, i64) = sqlx::query_as(
+                "SELECT body, position FROM manga_quotes WHERE manga_id = 'book-v2'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la citation importée");
             assert_eq!(quote_row, ("Citation mémorable".to_string(), 0));
 
             let game_row: (String, String) =
@@ -4333,7 +5070,9 @@ mod tests {
                 },
                 films: vec![film("film-empty-profile", "Premier import")],
                 series: Vec::new(),
+                anime: Vec::new(),
                 books: Vec::new(),
+                mangas: Vec::new(),
                 games: Vec::new(),
                 artworks: Vec::new(),
             };
@@ -4366,7 +5105,9 @@ mod tests {
                 },
                 films: vec![film("film-refused", "Import refusé")],
                 series: Vec::new(),
+                anime: Vec::new(),
                 books: Vec::new(),
+                mangas: Vec::new(),
                 games: Vec::new(),
                 artworks: Vec::new(),
             };
@@ -4402,6 +5143,7 @@ mod tests {
                 },
                 films: Vec::new(),
                 series: Vec::new(),
+                anime: Vec::new(),
                 books: vec![ImportBook {
                     id: "book-a".to_string(),
                     profile_id: "profil-invalide".to_string(),
@@ -4429,6 +5171,7 @@ mod tests {
                         created_at: timestamp.clone(),
                     }],
                 }],
+                mangas: Vec::new(),
                 games: Vec::new(),
                 artworks: Vec::new(),
             };
@@ -4693,6 +5436,900 @@ mod tests {
             assert_eq!(
                 updated_artwork,
                 ("Œuvre enrichie".to_string(), "peinture".to_string())
+            );
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Une table par bibliothèque : documents v3, héritage v1/v2, collections.
+    // -----------------------------------------------------------------------
+
+    fn portable_profile(id: &str) -> ImportProfile {
+        ImportProfile {
+            id: id.to_string(),
+            name: format!("Profil {id}"),
+            created_at: "2026-07-01T08:00:00.000Z".to_string(),
+            updated_at: "2026-07-01T08:00:00.000Z".to_string(),
+        }
+    }
+
+    fn portable_series(profile_id: &str, id: &str, title: &str, category: &str) -> ImportSeries {
+        ImportSeries {
+            id: id.to_string(),
+            profile_id: profile_id.to_string(),
+            title: title.to_string(),
+            showrunner: Some("Autrice".to_string()),
+            casting: Some("Distribution".to_string()),
+            summary: Some("Résumé conservé.".to_string()),
+            category: category.to_string(),
+            status: "en cours".to_string(),
+            rating: Some(4.5),
+            is_favorite: true,
+            seasons_seen: Some(2),
+            seasons_total: Some(6),
+            progress_updated_at: Some("2026-07-20T10:00:00.000Z".to_string()),
+            started_at: Some("2026-05-01".to_string()),
+            poster_url: None,
+            personal_note: Some("Note de série.".to_string()),
+            created_at: "2026-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2026-07-20T10:00:00.000Z".to_string(),
+        }
+    }
+
+    fn portable_anime(
+        profile_id: &str,
+        id: &str,
+        title: &str,
+        category: Option<&str>,
+    ) -> ImportAnime {
+        ImportAnime {
+            id: id.to_string(),
+            profile_id: profile_id.to_string(),
+            title: title.to_string(),
+            showrunner: Some("Studio".to_string()),
+            casting: Some("Seiyuu".to_string()),
+            summary: Some("Résumé animé.".to_string()),
+            category: category.map(str::to_string),
+            status: "vue".to_string(),
+            rating: Some(5.0),
+            is_favorite: true,
+            seasons_seen: Some(1),
+            seasons_total: Some(1),
+            progress_updated_at: Some("2026-07-21T10:00:00.000Z".to_string()),
+            started_at: Some("2026-04-01".to_string()),
+            poster_url: Some("https://example.test/anime.jpg".to_string()),
+            personal_note: Some("Note animé.".to_string()),
+            created_at: "2026-01-02T00:00:00.000Z".to_string(),
+            updated_at: "2026-07-21T10:00:00.000Z".to_string(),
+        }
+    }
+
+    fn portable_book(profile_id: &str, id: &str, title: &str, category: &str) -> ImportBook {
+        ImportBook {
+            id: id.to_string(),
+            profile_id: profile_id.to_string(),
+            title: title.to_string(),
+            author: Some("Autrice".to_string()),
+            year: Some(2021),
+            summary: Some("Résumé conservé.".to_string()),
+            category: category.to_string(),
+            status: "lu".to_string(),
+            rating: Some(4.0),
+            is_favorite: false,
+            volumes_read: Some(3),
+            volumes_total: Some(3),
+            progress_updated_at: Some("2026-07-22T10:00:00.000Z".to_string()),
+            started_at: Some("2026-06-01".to_string()),
+            cover_url: None,
+            personal_note: Some("Note de livre.".to_string()),
+            created_at: "2026-02-01T00:00:00.000Z".to_string(),
+            updated_at: "2026-07-22T10:00:00.000Z".to_string(),
+            quotes: Vec::new(),
+        }
+    }
+
+    fn portable_manga(
+        profile_id: &str,
+        id: &str,
+        title: &str,
+        quote_id: &str,
+        quote_body: &str,
+    ) -> ImportManga {
+        ImportManga {
+            id: id.to_string(),
+            profile_id: profile_id.to_string(),
+            title: title.to_string(),
+            author: Some("Mangaka".to_string()),
+            year: Some(2019),
+            summary: Some("Résumé manga.".to_string()),
+            category: Some("manga".to_string()),
+            status: "en cours".to_string(),
+            rating: Some(4.5),
+            is_favorite: true,
+            volumes_read: Some(4),
+            volumes_total: Some(12),
+            progress_updated_at: Some("2026-07-23T10:00:00.000Z".to_string()),
+            started_at: Some("2026-03-01".to_string()),
+            cover_url: Some("https://example.test/manga.jpg".to_string()),
+            personal_note: Some("Note manga.".to_string()),
+            created_at: "2026-02-02T00:00:00.000Z".to_string(),
+            updated_at: "2026-07-23T10:00:00.000Z".to_string(),
+            quotes: vec![ImportBookQuote {
+                id: quote_id.to_string(),
+                book_id: id.to_string(),
+                body: quote_body.to_string(),
+                position: 0,
+                created_at: "2026-07-23T10:00:00.000Z".to_string(),
+            }],
+        }
+    }
+
+    fn empty_document(profile_id: &str) -> ImportLibraryDocumentPayload {
+        ImportLibraryDocumentPayload {
+            profile: portable_profile(profile_id),
+            films: Vec::new(),
+            series: Vec::new(),
+            anime: Vec::new(),
+            books: Vec::new(),
+            mangas: Vec::new(),
+            games: Vec::new(),
+            artworks: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn library_document_v3_import_writes_the_seven_sections_in_their_own_tables() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let mut payload = empty_document("profil-v3");
+            payload.series = vec![
+                portable_series("profil-v3", "serie-tele", "Série télé", "série télé"),
+                portable_series("profil-v3", "serie-heritee", "Animée héritée", "animation"),
+            ];
+            payload.anime = vec![portable_anime(
+                "profil-v3",
+                "anime-explicite",
+                "Animé explicite",
+                Some("animation"),
+            )];
+            payload.books = vec![portable_book("profil-v3", "livre-v3", "Livre v3", "livre")];
+            payload.mangas = vec![portable_manga(
+                "profil-v3",
+                "manga-v3",
+                "Manga v3",
+                "citation-manga-v3",
+                "Citation manga v3",
+            )];
+
+            write_library_document_import(&pool, &payload, true)
+                .await
+                .expect("import du document v3 complet");
+
+            let counts: (i64, i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT
+                   (SELECT COUNT(*) FROM films WHERE profile_id = 'profil-v3'),
+                   (SELECT COUNT(*) FROM series WHERE profile_id = 'profil-v3'),
+                   (SELECT COUNT(*) FROM anime WHERE profile_id = 'profil-v3'),
+                   (SELECT COUNT(*) FROM books WHERE profile_id = 'profil-v3'),
+                   (SELECT COUNT(*) FROM mangas WHERE profile_id = 'profil-v3'),
+                   (SELECT COUNT(*) FROM book_quotes),
+                   (SELECT COUNT(*) FROM manga_quotes)",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("comptes des sept sections");
+            assert_eq!(
+                counts,
+                (0, 1, 2, 1, 1, 0, 1),
+                "chaque section v3 doit atterrir dans sa propre table, y compris une fiche animation héritée de « series »"
+            );
+
+            let series_category: String =
+                sqlx::query_scalar("SELECT category FROM series WHERE id = 'serie-tele'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("catégorie de la série télé");
+            assert_eq!(
+                series_category, "série télé",
+                "une fiche Séries s'écrit toujours avec la catégorie « série télé »"
+            );
+
+            let anime_row: (Option<String>, String, i64, i64, String) = sqlx::query_as(
+                "SELECT showrunner, status, seasons_seen, seasons_total, progress_updated_at
+                 FROM anime WHERE id = 'anime-explicite'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la fiche Animation explicite");
+            assert_eq!(
+                anime_row,
+                (
+                    Some("Studio".to_string()),
+                    "vue".to_string(),
+                    1,
+                    1,
+                    "2026-07-21T10:00:00.000Z".to_string()
+                ),
+                "la fiche Animation doit conserver tous ses champs"
+            );
+
+            let inherited: (String, String) =
+                sqlx::query_as("SELECT title, personal_note FROM anime WHERE id = 'serie-heritee'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relecture de l'Animation héritée");
+            assert_eq!(
+                inherited,
+                ("Animée héritée".to_string(), "Note de série.".to_string()),
+                "une fiche animation lue dans « series » conserve ses données"
+            );
+
+            let manga_row: (String, i64, i64, String) = sqlx::query_as(
+                "SELECT personal_note, volumes_read, volumes_total, updated_at
+                 FROM mangas WHERE id = 'manga-v3'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la fiche Manga");
+            assert_eq!(
+                manga_row,
+                (
+                    "Note manga.".to_string(),
+                    4,
+                    12,
+                    "2026-07-23T10:00:00.000Z".to_string()
+                ),
+                "la fiche Manga doit conserver progression, note et horodatage"
+            );
+
+            let quote: (String, String, i64) = sqlx::query_as(
+                "SELECT manga_id, body, position FROM manga_quotes WHERE id = 'citation-manga-v3'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("relecture de la citation Manga");
+            assert_eq!(
+                quote,
+                ("manga-v3".to_string(), "Citation manga v3".to_string(), 0),
+                "la citation d'un manga doit vivre dans manga_quotes"
+            );
+
+            let result = library_document_result(&payload);
+            assert_eq!(
+                (
+                    result.film_count,
+                    result.series_count,
+                    result.anime_count,
+                    result.book_count,
+                    result.manga_count,
+                    result.game_count,
+                    result.artwork_count,
+                ),
+                (0, 1, 2, 1, 1, 0, 0),
+                "les comptes d'import doivent suivre la table réellement écrite"
+            );
+
+            let active_profile: String =
+                sqlx::query_scalar("SELECT profile_id FROM current_profile WHERE singleton = 1")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("profil actif");
+            assert_eq!(active_profile, "profil-v3");
+
+            let tmdb_columns: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM pragma_table_info('anime') WHERE name LIKE '%tmdb%'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("colonnes anime");
+            let cache_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM film_tmdb_cache")
+                .fetch_one(&pool)
+                .await
+                .expect("cache TMDB après import");
+            assert_eq!(tmdb_columns, 0, "aucune colonne TMDB dans anime");
+            assert_eq!(
+                cache_rows, 0,
+                "un import de document ne doit jamais écrire dans le cache TMDB"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v2_still_loads_and_routes_animation_and_manga() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            // Document v2 réel : ni section anime ni section mangas.
+            let document = serde_json::json!({
+                "format": "sylloge-library",
+                "version": 2,
+                "exportedAt": "2026-07-24T10:00:00.000Z",
+                "profile": {
+                    "id": "profil-v2",
+                    "name": "Profil v2",
+                    "createdAt": "2026-07-01T08:00:00.000Z",
+                    "updatedAt": "2026-07-01T08:00:00.000Z"
+                },
+                "films": [],
+                "series": [{
+                    "id": "serie-v2-anime",
+                    "profileId": "profil-v2",
+                    "title": "Animation v2",
+                    "showrunner": "Studio v2",
+                    "casting": null,
+                    "summary": "Résumé v2",
+                    "category": "animation",
+                    "status": "en cours",
+                    "rating": 4.5,
+                    "isFavorite": true,
+                    "seasonsSeen": 3,
+                    "seasonsTotal": 8,
+                    "progressUpdatedAt": "2026-07-24T09:00:00.000Z",
+                    "startedAt": "2026-05-02",
+                    "posterUrl": null,
+                    "personalNote": "Note animation v2",
+                    "createdAt": "2026-03-01T00:00:00.000Z",
+                    "updatedAt": "2026-07-24T09:00:00.000Z"
+                }],
+                "books": [{
+                    "id": "livre-v2-manga",
+                    "profileId": "profil-v2",
+                    "title": "Manga v2",
+                    "author": "Mangaka v2",
+                    "year": 2018,
+                    "summary": "Résumé manga v2",
+                    "category": "manga",
+                    "status": "en cours",
+                    "rating": 5.0,
+                    "isFavorite": false,
+                    "volumesRead": 7,
+                    "volumesTotal": 20,
+                    "progressUpdatedAt": "2026-07-24T09:30:00.000Z",
+                    "startedAt": "2026-04-02",
+                    "coverUrl": null,
+                    "personalNote": "Note manga v2",
+                    "createdAt": "2026-03-02T00:00:00.000Z",
+                    "updatedAt": "2026-07-24T09:30:00.000Z",
+                    "quotes": [{
+                        "id": "citation-v2",
+                        "bookId": "livre-v2-manga",
+                        "body": "Citation v2",
+                        "position": 0,
+                        "createdAt": "2026-07-24T09:30:00.000Z"
+                    }]
+                }],
+                "games": [],
+                "artworks": []
+            });
+            let payload: ImportLibraryDocumentPayload =
+                serde_json::from_value(document).expect("document v2 sans sections anime/mangas");
+
+            write_library_document_import(&pool, &payload, true)
+                .await
+                .expect("réimport d'un document v2");
+
+            let counts: (i64, i64, i64, i64, i64, i64) = sqlx::query_as(
+                "SELECT
+                   (SELECT COUNT(*) FROM series WHERE profile_id = 'profil-v2'),
+                   (SELECT COUNT(*) FROM anime WHERE profile_id = 'profil-v2'),
+                   (SELECT COUNT(*) FROM books WHERE profile_id = 'profil-v2'),
+                   (SELECT COUNT(*) FROM mangas WHERE profile_id = 'profil-v2'),
+                   (SELECT COUNT(*) FROM book_quotes),
+                   (SELECT COUNT(*) FROM manga_quotes)",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("comptes après routage v2");
+            assert_eq!(
+                counts,
+                (0, 1, 0, 1, 0, 1),
+                "animation → anime et manga → mangas, sans laisser de ligne dans les anciennes tables"
+            );
+
+            let preserved: (i64, i64, String) = sqlx::query_as(
+                "SELECT seasons_seen, seasons_total, progress_updated_at
+                 FROM anime WHERE id = 'serie-v2-anime'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("progression de l'animation v2");
+            assert_eq!(
+                preserved,
+                (3, 8, "2026-07-24T09:00:00.000Z".to_string()),
+                "toutes les données de la fiche animation doivent survivre au routage"
+            );
+
+            let manga_preserved: (i64, i64, String) = sqlx::query_as(
+                "SELECT volumes_read, volumes_total, personal_note FROM mangas WHERE id = 'livre-v2-manga'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("progression du manga v2");
+            assert_eq!(
+                manga_preserved,
+                (7, 20, "Note manga v2".to_string()),
+                "toutes les données de la fiche manga doivent survivre au routage"
+            );
+
+            let result = library_document_result(&payload);
+            assert_eq!(
+                (
+                    result.series_count,
+                    result.anime_count,
+                    result.book_count,
+                    result.manga_count
+                ),
+                (0, 1, 0, 1),
+                "les comptes d'un document v2 doivent être ceux des tables cibles"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v3_rejects_a_manga_quote_from_another_manga() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let mut payload = empty_document("profil-refuse");
+            let mut manga = portable_manga(
+                "profil-refuse",
+                "manga-a",
+                "Manga A",
+                "citation-a",
+                "Citation A",
+            );
+            manga.quotes[0].book_id = "manga-b".to_string();
+            payload.mangas = vec![manga];
+
+            let result = write_library_document_import(&pool, &payload, true).await;
+            assert!(
+                result.is_err(),
+                "une citation rattachée à un autre manga doit bloquer l'import"
+            );
+
+            let counts: (i64, i64, i64) = sqlx::query_as(
+                "SELECT
+                   (SELECT COUNT(*) FROM profiles WHERE id = 'profil-refuse'),
+                   (SELECT COUNT(*) FROM mangas),
+                   (SELECT COUNT(*) FROM manga_quotes)",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("état après refus");
+            assert_eq!(
+                counts,
+                (0, 0, 0),
+                "un document refusé ne doit écrire ni profil, ni manga, ni citation"
+            );
+        });
+    }
+
+    #[test]
+    fn library_document_v3_rejects_an_anime_entry_with_a_television_category() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let mut payload = empty_document("profil-incoherent");
+            payload.anime = vec![portable_anime(
+                "profil-incoherent",
+                "anime-incoherent",
+                "Animation incohérente",
+                Some("série télé"),
+            )];
+
+            let result = write_library_document_import(&pool, &payload, true).await;
+            assert!(
+                result.is_err(),
+                "la section Animation ne peut pas porter une catégorie de série télé"
+            );
+
+            let anime_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM anime")
+                .fetch_one(&pool)
+                .await
+                .expect("compte animation");
+            assert_eq!(anime_count, 0, "aucune fiche ne doit être écrite");
+        });
+    }
+
+    #[test]
+    fn library_document_import_refuses_a_profile_holding_only_anime_or_mangas() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            write_anime_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![portable_anime(
+                        "default",
+                        "anime-existant",
+                        "Animé existant",
+                        None,
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("fiche Animation préexistante");
+
+            let mut payload = empty_document("default");
+            payload.books = vec![portable_book(
+                "default",
+                "livre-refuse",
+                "Livre refusé",
+                "livre",
+            )];
+            let result = write_library_document_import(&pool, &payload, false).await;
+            assert!(
+                result.is_err(),
+                "un profil qui ne contient qu'une Animation n'est pas vide"
+            );
+
+            let book_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM books WHERE profile_id = 'default'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte livres");
+            assert_eq!(book_count, 0, "l'import refusé ne doit rien écrire");
+
+            write_mangas_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![portable_manga(
+                        "default",
+                        "manga-existant",
+                        "Manga existant",
+                        "citation-existante",
+                        "Citation existante",
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("fiche Manga préexistante");
+
+            let result = write_library_document_import(&pool, &payload, false).await;
+            assert!(
+                result.is_err(),
+                "un profil qui ne contient que des Mangas n'est pas vide"
+            );
+        });
+    }
+
+    #[test]
+    fn anime_collection_import_replaces_only_the_anime_library() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            write_series_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![portable_series(
+                        "default",
+                        "serie-conservee",
+                        "Série conservée",
+                        "série télé",
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("série télé conservée");
+            write_anime_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![portable_anime(
+                        "default",
+                        "anime-ancien",
+                        "Ancien animé",
+                        None,
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("animation initiale");
+
+            let replacement = write_anime_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: true,
+                    inserts: vec![portable_anime(
+                        "default",
+                        "anime-nouveau",
+                        "Nouvel animé",
+                        Some("animation"),
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("remplacement de la bibliothèque Animation");
+            assert_eq!(
+                replacement,
+                CollectionImportResult {
+                    inserted: 1,
+                    updated: 0,
+                    removed: 1
+                }
+            );
+
+            let anime_ids: Vec<(String,)> =
+                sqlx::query_as("SELECT id FROM anime WHERE profile_id = 'default' ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("animations après remplacement");
+            let series_ids: Vec<(String,)> =
+                sqlx::query_as("SELECT id FROM series WHERE profile_id = 'default' ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("séries après remplacement");
+            assert_eq!(anime_ids, vec![("anime-nouveau".to_string(),)]);
+            assert_eq!(
+                series_ids,
+                vec![("serie-conservee".to_string(),)],
+                "remplacer la bibliothèque Animation ne doit jamais toucher Séries"
+            );
+
+            let mut enriched = portable_anime("default", "anime-nouveau", "Animé enrichi", None);
+            enriched.status = "abandonnée".to_string();
+            enriched.seasons_seen = Some(4);
+            enriched.seasons_total = Some(6);
+            enriched.personal_note = Some("Note mise à jour.".to_string());
+            let merge = write_anime_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: Vec::new(),
+                    updates: vec![enriched],
+                },
+            )
+            .await
+            .expect("mise à jour fusionnée de l'animation");
+            assert_eq!(
+                merge,
+                CollectionImportResult {
+                    inserted: 0,
+                    updated: 1,
+                    removed: 0
+                }
+            );
+
+            let merged: (String, String, i64, i64, String) = sqlx::query_as(
+                "SELECT title, status, seasons_seen, seasons_total, personal_note FROM anime WHERE id = 'anime-nouveau'",
+            )
+            .fetch_one(&pool)
+            .await
+            .expect("animation fusionnée");
+            assert_eq!(
+                merged,
+                (
+                    "Animé enrichi".to_string(),
+                    "abandonnée".to_string(),
+                    4,
+                    6,
+                    "Note mise à jour.".to_string()
+                ),
+                "la fusion doit mettre à jour tous les champs de la fiche Animation"
+            );
+        });
+    }
+
+    #[test]
+    fn mangas_collection_import_is_atomic_with_quotes() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let manga = |id: &str, title: &str, quote_id: &str, body: &str| ImportManga {
+                id: id.to_string(),
+                profile_id: "default".to_string(),
+                title: title.to_string(),
+                author: Some("Mangaka".to_string()),
+                year: Some(2020),
+                summary: None,
+                category: Some("manga".to_string()),
+                status: "en cours".to_string(),
+                rating: Some(4.0),
+                is_favorite: true,
+                volumes_read: Some(1),
+                volumes_total: Some(10),
+                progress_updated_at: None,
+                started_at: None,
+                cover_url: None,
+                personal_note: None,
+                created_at: "2026-07-25T10:00:00.000Z".to_string(),
+                updated_at: "2026-07-25T10:00:00.000Z".to_string(),
+                quotes: vec![ImportBookQuote {
+                    id: quote_id.to_string(),
+                    book_id: id.to_string(),
+                    body: body.to_string(),
+                    position: 0,
+                    created_at: "2026-07-25T10:00:00.000Z".to_string(),
+                }],
+            };
+
+            write_mangas_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![manga(
+                        "manga-existing",
+                        "Manga conservé",
+                        "quote-existing",
+                        "Citation conservée",
+                    )],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("manga initial");
+
+            let failing = CollectionImportPlan {
+                profile_id: "default".to_string(),
+                replace_existing: true,
+                inserts: vec![
+                    manga("manga-new-a", "Nouveau A", "quote-duplicate", "Citation A"),
+                    manga("manga-new-b", "Nouveau B", "quote-duplicate", "Citation B"),
+                ],
+                updates: Vec::new(),
+            };
+            assert!(
+                write_mangas_import_plan(&pool, &failing).await.is_err(),
+                "un conflit de citation doit annuler tout le remplacement"
+            );
+
+            let mangas: Vec<(String, String)> = sqlx::query_as(
+                "SELECT id, title FROM mangas WHERE profile_id = 'default' ORDER BY id",
+            )
+            .fetch_all(&pool)
+            .await
+            .expect("mangas après rollback");
+            let quotes: Vec<(String, String, String)> =
+                sqlx::query_as("SELECT id, manga_id, body FROM manga_quotes ORDER BY id")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("citations après rollback");
+            assert_eq!(
+                mangas,
+                vec![("manga-existing".to_string(), "Manga conservé".to_string())],
+                "le manga initial doit survivre au remplacement échoué"
+            );
+            assert_eq!(
+                quotes,
+                vec![(
+                    "quote-existing".to_string(),
+                    "manga-existing".to_string(),
+                    "Citation conservée".to_string(),
+                )],
+                "la citation initiale doit survivre au remplacement échoué"
+            );
+
+            write_mangas_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: Vec::new(),
+                    updates: vec![manga(
+                        "manga-existing",
+                        "Manga enrichi",
+                        "quote-remplacee",
+                        "Citation remplacée",
+                    )],
+                },
+            )
+            .await
+            .expect("mise à jour fusionnée du manga");
+
+            let updated: (String, String) =
+                sqlx::query_as("SELECT title, (SELECT body FROM manga_quotes WHERE manga_id = 'manga-existing') FROM mangas WHERE id = 'manga-existing'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("manga fusionné");
+            assert_eq!(
+                updated,
+                (
+                    "Manga enrichi".to_string(),
+                    "Citation remplacée".to_string()
+                ),
+                "la fusion doit remplacer le manga et ses citations"
+            );
+        });
+    }
+
+    #[test]
+    fn series_collection_import_routes_animation_without_mixing_libraries() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            write_series_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![
+                        portable_series("default", "serie-tele-importee", "Télé", "série télé"),
+                        portable_series("default", "anime-importe", "Animé", "animation"),
+                    ],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("import Séries mixte");
+
+            let series_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM series WHERE profile_id = 'default'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte séries");
+            let anime_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM anime WHERE profile_id = 'default'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("compte animations");
+            assert_eq!(series_count, 1, "seule la fiche télé reste dans series");
+            assert_eq!(anime_count, 1, "la fiche animation est routée vers anime");
+        });
+    }
+
+    #[test]
+    fn provider_links_accept_anime_and_mangas_and_follow_their_sheet() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool_with_tmdb_migrations().await;
+            write_anime_import_plan(
+                &pool,
+                &CollectionImportPlan {
+                    profile_id: "default".to_string(),
+                    replace_existing: false,
+                    inserts: vec![portable_anime("default", "anime-lie", "Animé lié", None)],
+                    updates: Vec::new(),
+                },
+            )
+            .await
+            .expect("animation à lier");
+
+            for medium in ["anime", "mangas"] {
+                sqlx::query(
+                    "INSERT INTO media_provider_links
+                     (profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at)
+                     VALUES ('default', $1, $2, 'tmdb', '42', '2026-07-26T10:00:00.000Z', '2026-07-26T10:00:00.000Z')",
+                )
+                .bind(medium)
+                .bind(if medium == "anime" {
+                    "anime-lie".to_string()
+                } else {
+                    format!("{medium}-id")
+                })
+                .execute(&pool)
+                .await
+                .unwrap_or_else(|error| panic!("le médium {medium} doit être accepté : {error}"));
+            }
+
+            let invalid = sqlx::query(
+                "INSERT INTO media_provider_links
+                 (profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at)
+                 VALUES ('default', 'film', 'film-id', 'tmdb', '42', '2026-07-26T10:00:00.000Z', '2026-07-26T10:00:00.000Z')",
+            )
+            .execute(&pool)
+            .await;
+            assert!(invalid.is_err(), "un médium inconnu doit être refusé");
+
+            sqlx::query("DELETE FROM anime WHERE id = 'anime-lie'")
+                .execute(&pool)
+                .await
+                .expect("suppression de l'animation");
+            let remaining: Vec<(String,)> =
+                sqlx::query_as("SELECT medium FROM media_provider_links ORDER BY medium")
+                    .fetch_all(&pool)
+                    .await
+                    .expect("liens restants");
+            assert_eq!(
+                remaining,
+                vec![("mangas".to_string(),)],
+                "le déclencheur doit retirer le lien Animation avec sa fiche"
             );
         });
     }
