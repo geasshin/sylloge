@@ -32,24 +32,26 @@ function localDayKey(value: string): string {
 }
 
 /** Clé de médium interne aux modules de l'accueil. */
-type MediumFilterKey = 'film' | 'série' | 'livre' | 'jeu' | 'art'
+type MediumFilterKey = 'film' | 'série' | 'livre' | 'manga' | 'jeu' | 'art'
 
 const MEDIUM_CARD_LABELS: Record<MediumFilterKey, string> = {
   film: 'Film',
   'série': 'Série',
   livre: 'Livre',
+  manga: 'Manga',
   jeu: 'Jeu',
   art: 'Art',
 }
 
-/** Ordre de lecture des cinq médiums, partagé par tous les modules. */
-const MEDIUM_ORDER: MediumFilterKey[] = ['film', 'série', 'livre', 'jeu', 'art']
+/** Ordre de lecture des six bibliothèques, partagé par tous les modules. */
+const MEDIUM_ORDER: MediumFilterKey[] = ['film', 'série', 'livre', 'manga', 'jeu', 'art']
 
 /** Statut d'attente par médium : la file d'attente réelle de l'accueil. */
 const QUEUE_STATUSES: Record<MediumFilterKey, readonly string[]> = {
   film: ['à découvrir', 'en attente'],
   'série': ['à voir'],
   livre: ['à lire'],
+  manga: ['à lire'],
   jeu: ['à jouer'],
   art: ['à découvrir'],
 }
@@ -59,6 +61,7 @@ const FINISHED_STATUSES: Record<MediumFilterKey, string> = {
   film: 'terminé',
   'série': 'vue',
   livre: 'lu',
+  manga: 'lu',
   jeu: 'joué',
   art: 'découverte',
 }
@@ -68,6 +71,7 @@ const FINISHED_VERBS: Record<MediumFilterKey, string> = {
   film: 'Vu',
   'série': 'Vue',
   livre: 'Lu',
+  manga: 'Lu',
   jeu: 'Joué',
   art: 'Découverte',
 }
@@ -76,6 +80,7 @@ const CONTRIBUTOR_LABELS: Record<MediumFilterKey, string> = {
   film: 'Réalisation',
   'série': 'Showrunner',
   livre: 'Auteur',
+  manga: 'Auteur',
   jeu: 'Studio',
   art: 'Artiste',
 }
@@ -168,7 +173,7 @@ const HOME_TABS: readonly HomeTab[] = [
     key: 'tout', slug: 'tout', label: 'Tout',
     finished: ['œuvre terminée', 'œuvres terminées'], none: 'Aucune œuvre terminée',
     queue: 'En attente', recent: 'Récemment terminés',
-    empty: 'Aucune œuvre pour le moment : celles des cinq bibliothèques apparaîtront ici.',
+    empty: 'Aucune œuvre pour le moment : celles des six bibliothèques apparaîtront ici.',
   },
   {
     key: 'film', slug: 'films', label: 'Films',
@@ -187,6 +192,12 @@ const HOME_TABS: readonly HomeTab[] = [
     finished: ['livre lu', 'livres lus'], none: 'Aucun livre lu',
     queue: 'À lire', recent: 'Récemment lus',
     empty: 'Aucun livre pour le moment : ceux de la bibliothèque Livres apparaîtront ici.',
+  },
+  {
+    key: 'manga', slug: 'mangas', label: 'Mangas',
+    finished: ['manga lu', 'mangas lus'], none: 'Aucun manga lu',
+    queue: 'À lire', recent: 'Récemment lus',
+    empty: 'Aucun manga pour le moment : ceux de la bibliothèque Mangas apparaîtront ici.',
   },
   {
     key: 'jeu', slug: 'jeux', label: 'Jeux',
@@ -1063,7 +1074,7 @@ export function Home({
     })),
     ...bookCollection.map((entry) => ({
       key: `book-${entry.id}`,
-      medium: 'livre' as const,
+      medium: entry.category === 'manga' ? 'manga' as const : 'livre' as const,
       title: entry.title,
       poster: entry.coverUrl,
       contributor: entry.author,
@@ -1169,7 +1180,7 @@ function HomeDashboard({
     .sort((first, second) => (second.rating ?? -1) - (first.rating ?? -1) || (second.recentAt ?? second.createdAt).localeCompare(first.recentAt ?? first.createdAt))
     .slice(0, RAIL_SHOWN)
   const inProgress = entries
-    .filter((entry) => entry.status === 'en cours' && (entry.medium === 'série' || entry.medium === 'livre'))
+    .filter((entry) => entry.status === 'en cours' && (entry.medium === 'série' || entry.medium === 'livre' || entry.medium === 'manga'))
     .sort(byRecentActivity)
     .slice(0, RAIL_SHOWN)
   const queue = entries

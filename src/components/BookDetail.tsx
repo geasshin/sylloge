@@ -6,6 +6,7 @@ import {
 } from '../domain/book.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
+import { FocusDialog } from './FocusDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 import { icon } from '../main.tsx'
 
@@ -31,6 +32,7 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [posterDialogOpen, setPosterDialogOpen] = useState(false)
+  const noun = book.category === 'manga' ? 'manga' : 'livre'
 
   const progress = book.volumesRead !== null
     ? book.volumesTotal !== null
@@ -44,8 +46,8 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
     try {
       await onDelete()
     } catch (error) {
-      console.error('Impossible de supprimer le livre.', error)
-      setDeleteError('La suppression a échoué. Le livre est toujours dans la collection.')
+      console.error(`Impossible de supprimer le ${noun}.`, error)
+      setDeleteError(`La suppression a échoué. Le ${noun} est toujours dans la collection.`)
       setDeleting(false)
     }
   }
@@ -69,7 +71,7 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
             className="icon-action-button icon-action-danger"
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            title="Supprimer ce livre"
+            title={`Supprimer ce ${noun}`}
           >
             {icon('trash')}
           </button>
@@ -167,8 +169,8 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
 
       {confirmingDelete && (
         <div className="confirm-backdrop">
-          <div className="delete-confirmation" role="alertdialog" aria-labelledby="book-delete-title" aria-describedby="book-delete-description">
-            <h2 id="book-delete-title">Supprimer définitivement ce livre ?</h2>
+          <FocusDialog className="delete-confirmation" role="alertdialog" aria-labelledby="book-delete-title" aria-describedby="book-delete-description" onClose={() => setConfirmingDelete(false)} closeDisabled={deleting}>
+            <h2 id="book-delete-title">Supprimer définitivement ce {noun} ?</h2>
             <p id="book-delete-description">« {book.title} » et ses citations seront retirés de la collection sans possibilité de restauration.</p>
             {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
             <div>
@@ -177,7 +179,7 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
                 {deleting ? 'Suppression…' : 'Supprimer définitivement'}
               </button>
             </div>
-          </div>
+          </FocusDialog>
         </div>
       )}
       <PosterUrlDialog

@@ -403,7 +403,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    la zone principale occupe naturellement le reste. */
 .main { min-width: 0; min-height: 100vh; }
 /* 0.6.27 : la zone principale grandit pour remplir la fenêtre — les états
-   vides des cinq bibliothèques s'étendent sur toute la largeur, comme Art. */
+   vides des six bibliothèques s'étendent sur toute la largeur, comme Art. */
 .app > .main { flex: 1 1 auto; }
 
 .home-main { height: 100vh; overflow-y: auto; overflow-x: hidden; padding: var(--space-8) var(--page-gutter); }
@@ -2813,7 +2813,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .editor-dialog.dialog-add-flow .film-poster-verdict { width: min(100%, 300px); }
 }
 
-/* 0.6.23 : même scène de verdict pour les cinq bibliothèques. Le visuel
+/* 0.6.23 : même scène de verdict pour les six bibliothèques. Le visuel
    garde une zone réservée sous la couverture ; la colonne droite porte le
    titre, le statut et les champs propres au médium. */
 .editor-dialog.dialog-add-flow .form-medium-series .field-title,

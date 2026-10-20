@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import logoSylloge from '../assets/logo-sylloge.png'
-import { HomeIcon, FilmIcon, SeriesIcon, BookIcon, GameIcon, ArtIcon, SettingsIcon } from './icons.tsx'
+import { HomeIcon, FilmIcon, SeriesIcon, BookIcon, MangaIcon, GameIcon, ArtIcon, SettingsIcon } from './icons.tsx'
 import { ProfileAvatar } from './ProfileAvatar.tsx'
 
 type MobileShellProps = {
-  activeItem: 'artworks' | 'books' | 'games' | 'home' | 'library' | 'series' | 'settings'
+  activeItem: 'artworks' | 'books' | 'mangas' | 'games' | 'home' | 'library' | 'series' | 'settings'
   onHome: () => void
   onLibrary: () => void
   onSeries: () => void
   onBooks: () => void
+  onMangas: () => void
   onGames: () => void
   onArtworks: () => void
   onSettings: () => void
@@ -21,6 +22,7 @@ const ITEMS = [
   { id: 'library', label: 'Films', icon: <FilmIcon /> },
   { id: 'series', label: 'Séries', icon: <SeriesIcon /> },
   { id: 'books', label: 'Livres', icon: <BookIcon /> },
+  { id: 'mangas', label: 'Mangas', icon: <MangaIcon /> },
   { id: 'games', label: 'Jeux', icon: <GameIcon /> },
   { id: 'artworks', label: 'Art', icon: <ArtIcon /> },
 ] as const
@@ -37,6 +39,7 @@ export function MobileAppShell({
   onLibrary,
   onSeries,
   onBooks,
+  onMangas,
   onGames,
   onArtworks,
   onSettings,
@@ -155,7 +158,7 @@ export function MobileAppShell({
                   className={`mobile-drawer-item ${activeItem === item.id ? 'active' : ''}`}
                   type="button"
                   aria-current={activeItem === item.id ? 'page' : undefined}
-                  onClick={() => navigate(item.id === 'home' ? onHome : item.id === 'library' ? onLibrary : item.id === 'series' ? onSeries : item.id === 'books' ? onBooks : item.id === 'games' ? onGames : onArtworks)}
+                  onClick={() => navigate(item.id === 'home' ? onHome : item.id === 'library' ? onLibrary : item.id === 'series' ? onSeries : item.id === 'books' ? onBooks : item.id === 'mangas' ? onMangas : item.id === 'games' ? onGames : onArtworks)}
                 >
                   {item.icon}<span>{item.label}</span>
                 </button>
@@ -175,7 +178,7 @@ export function MobileAppShell({
             className={`mobile-bottom-item ${activeItem === item.id ? 'active' : ''}`}
             type="button"
             aria-current={activeItem === item.id ? 'page' : undefined}
-            onClick={item.id === 'home' ? onHome : item.id === 'library' ? onLibrary : item.id === 'series' ? onSeries : item.id === 'books' ? onBooks : onGames}
+            onClick={item.id === 'home' ? onHome : item.id === 'library' ? onLibrary : item.id === 'series' ? onSeries : item.id === 'books' ? onBooks : item.id === 'mangas' ? onMangas : onGames}
           >
             {item.icon}<span>{item.label}</span>
           </button>

@@ -57,6 +57,18 @@ export function BookIcon({ size = 17 }: IconProps) {
   )
 }
 
+/** Mangas : une série de tomes sur l'étagère, distincte du livre ouvert dans le rail. */
+export function MangaIcon({ size = 17 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+      <rect {...strokeProps} x="2.8" y="3.5" width="3.6" height="13" rx="1" />
+      <rect {...strokeProps} x="7.6" y="3.5" width="3.6" height="13" rx="1" />
+      <rect {...strokeProps} x="12.4" y="4.1" width="3.6" height="12.4" rx="1" transform="rotate(12 16 16.5)" />
+      <path {...strokeProps} d="M2.8 6.6h3.6M7.6 6.6h3.6" strokeOpacity=".65" />
+    </svg>
+  )
+}
+
 export function GameIcon({ size = 17 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">

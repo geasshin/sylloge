@@ -25,7 +25,7 @@ function isUniqueViolation(error: unknown): boolean {
   return error instanceof Error && error.message.includes('UNIQUE constraint failed')
 }
 
-const DUPLICATE_NAME_ERROR = 'Une vue enregistrée porte déjà ce nom dans cette bibliothèque.'
+export const DUPLICATE_NAME_ERROR = 'Une vue enregistrée porte déjà ce nom dans cette bibliothèque.'
 
 /**
  * Dépôt SQLite des vues enregistrées (jalon 0.4.21). Chaque requête cible

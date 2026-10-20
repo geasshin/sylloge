@@ -20,7 +20,7 @@ async (page) => {
     await page.waitForFunction(() => !document.querySelector('.results-state[role="status"]'))
     await page.waitForTimeout(220)
   }
-  const libraries = [['Films', 'films'], ['Séries', 'series'], ['Livres', 'books'], ['Jeux', 'games'], ['Art', 'artworks']]
+  const libraries = [['Films', 'films'], ['Séries', 'series'], ['Livres', 'books'], ['Mangas', 'books'], ['Jeux', 'games'], ['Art', 'artworks']]
   for (const theme of ['light', 'dark']) {
     await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full')
     await page.locator('.atrium-home').waitFor()

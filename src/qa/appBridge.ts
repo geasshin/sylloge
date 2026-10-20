@@ -13,7 +13,7 @@
  * fournisseur (TMDB, IGDB, OpenLibrary) n'est contacté.
  *
  * Scénarios, via ?scenario= :
- *   full (défaut)  profil rempli dans les cinq bibliothèques
+ *   full (défaut)  cinq collections remplies, six bibliothèques d’interface
  *   empty          profil ouvert mais bibliothèques vides
  *   onboarding     aucun profil : premier lancement
  */

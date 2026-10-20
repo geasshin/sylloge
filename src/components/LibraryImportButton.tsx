@@ -61,7 +61,7 @@ type ImportStep = 'choose-file' | 'container-source' | 'external-preview' | 'jso
 const IMPORT_MEDIUM_GRAMMAR = {
   films: { pluralLabel: 'films', gender: 'masculine' },
   series: { pluralLabel: 'séries', gender: 'feminine' },
-  books: { pluralLabel: 'livres', gender: 'masculine' },
+  books: { pluralLabel: 'livres et mangas', gender: 'masculine' },
   games: { pluralLabel: 'jeux', gender: 'masculine' },
   artworks: { pluralLabel: 'œuvres', gender: 'feminine' },
 } as const
@@ -430,11 +430,17 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       </button>
       {open && (
         <AccessibleDialog
-          title={`Importer des ${props.mediumLabel}s`}
+          title={props.kind === 'books' ? 'Importer Livres et Mangas' : `Importer des ${props.mediumLabel}s`}
           description="Le fichier est analysé avant toute écriture."
           onClose={close}
           closeDisabled={step === 'working' || choosingFile}
         >
+          {props.kind === 'books' && (
+            <p className="import-contextual-hint" role="note">
+              Import commun aux bibliothèques Livres et Mangas. Les catégories du fichier sont conservées.
+              « Remplacer » remplace les deux bibliothèques, comics compris.
+            </p>
+          )}
           {step === 'choose-file' && (
             <div className="assistant-content">
               <section className="assistant-stage">

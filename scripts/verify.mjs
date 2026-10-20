@@ -2062,7 +2062,8 @@ assert.match(mainSource, /searchFilms/, 'La recherche et les filtres doivent app
 assert.match(mainSource, /getFilm/, 'La fiche doit être relue depuis SQLite')
 assert.match(mainSource, /libraryContext/, 'Le contexte de recherche et de filtre doit rester porté par la bibliothèque')
 assert.match(mainSource, /const scrollMemory = useRef\(new Map<string, number>\(\)\)[\s\S]*pendingScrollRestore/, 'Chaque écran doit mémoriser sa position de consultation')
-assert.match(mainSource, /const goBackTo = \(key: ReturnKey\)[\s\S]*pendingScrollRestore\.current = \{ key, top: scrollMemory\.current\.get\(key\) \?\? 0 \}/, 'Le retour d’une fiche doit retrouver l’écran et la position d’origine')
+assert.match(mainSource, /const goBackTo = \(key: ReturnKey\)[\s\S]*pendingScrollRestore\.current = \{ key, top: scrollMemory\.current\.get\(key\) \?\? 0, restoreBookFocus: view\.name === 'book-detail' \}/, 'Le retour d’une fiche doit retrouver l’écran et la position d’origine, et restaurer le focus des livres/mangas')
+assert.match(mainSource, /pending\.restoreBookFocus[\s\S]*matching\[opener\?\.index \?\? 0\] \?\? fallback\)\?\.focus\(\{ preventScroll: true \}\)/, 'Le retour livre/manga focalise sa carte ou le repère de navigation si elle a disparu')
 assert.match(mainSource, /returnTo: 'home' \}/, 'Les fiches ouvertes depuis l’accueil doivent y revenir')
 assert.doesNotMatch(mainSource, /onBack=\{\(\) => setView\(\{ name: 'series' \}\)\}/, 'Une fiche ne doit plus renvoyer à sa bibliothèque sans passer par l’écran d’origine')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
@@ -2127,7 +2128,7 @@ assert.match(stylesSource, /\.detail-page-main \.display-title \{[^}]*font-famil
 assert.match(stylesSource, /\.at-file-head \.at-section-title \{[^}]*font-size: var\(--text-2xl\);[^}]*font-weight: 700;[^}]*text-transform: uppercase;/s, 'Les titres des rangées d’accueil doivent être renforcés et adopter les capitales espacées')
 assert.match(atriumHomeSource, /queue: 'En attente', recent: 'Récemment terminés'[\s\S]*queue: 'À voir', recent: 'Récemment vus'[\s\S]*queue: 'À voir', recent: 'Récemment vues'[\s\S]*queue: 'À lire', recent: 'Récemment lus'[\s\S]*queue: 'À jouer', recent: 'Récemment joués'[\s\S]*queue: 'À découvrir', recent: 'Récemment découvertes'/, 'Les rangées d’attente et de récents portent le libellé accordé à l’onglet')
 assert.match(atriumHomeSource, /label=\{current\.queue\}[\s\S]*label=\{current\.recent\}/, 'Les titres de rangées suivent l’onglet affiché')
-assert.match(atriumHomeSource, /label: 'Tout'[\s\S]*label: 'Films'[\s\S]*label: 'Séries'[\s\S]*label: 'Livres'[\s\S]*label: 'Jeux'[\s\S]*label: 'Art'/, 'L’accueil propose les onglets Tout, Films, Séries, Livres, Jeux et Art')
+assert.match(atriumHomeSource, /label: 'Tout'[\s\S]*label: 'Films'[\s\S]*label: 'Séries'[\s\S]*label: 'Livres'[\s\S]*label: 'Mangas'[\s\S]*label: 'Jeux'[\s\S]*label: 'Art'/, 'L’accueil propose les onglets Tout, Films, Séries, Livres, Mangas, Jeux et Art')
 assert.match(atriumHomeSource, /className="seg-group-form at-tabs" role="tablist"[\s\S]*role="tab"[\s\S]*className=\{`seg-pill-btn\$\{item\.key === tab \? ' on' : ''\}`\}[\s\S]*aria-selected=\{item\.key === tab\}[\s\S]*aria-controls="at-tab-panel"[\s\S]*tabIndex=\{item\.key === tab \? 0 : -1\}/, 'Les onglets reprennent le contrôle segmenté commun et le motif ARIA (sélection, panneau, tabulation itinérante)')
 assert.match(atriumHomeSource, /case 'ArrowRight'[\s\S]*case 'ArrowLeft'[\s\S]*case 'Home'[\s\S]*case 'End'[\s\S]*tabRefs\.current\[next\]\?\.focus\(\)/, 'Les onglets se parcourent aux flèches, avec Début et Fin, et le focus suit la sélection')
 assert.match(atriumHomeSource, /const HOME_TAB_STORAGE_KEY = 'sylloge-home-tab'[\s\S]*HOME_TABS\.find\(\(tab\) => tab\.slug === stored\)\?\.key \?\? 'tout'/, 'Le dernier onglet est mémorisé ; une valeur inconnue revient à « Tout »')
@@ -2934,12 +2935,15 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   const simpleBook = validateBookForm({
     ...base,
     category: 'livre',
+    status: 'en cours',
     volumesRead: '2',
     volumesTotal: '3',
   })
   assert.equal(simpleBook.success, true)
-  assert.equal(simpleBook.data.volumesRead, null, 'Un livre simple ne doit pas persister un compteur de tomes masqué')
-  assert.equal(simpleBook.data.volumesTotal, null, 'Un livre simple ne doit pas persister un total de tomes masqué')
+  assert.equal(simpleBook.data.volumesRead, 2, 'Corriger le type en Livre conserve les tomes lus, désormais visibles dans le formulaire')
+  assert.equal(simpleBook.data.volumesTotal, 3, 'Corriger le type en Livre conserve le total de tomes')
+  assert.equal(minimal.data.volumesRead, null, 'Un livre sans progression ne crée aucun compteur')
+  assert.equal(minimal.data.volumesTotal, null, 'Un livre sans progression ne crée aucun total')
 
   assert.equal(resolveBookStatusForTotalChange('lu', 12, 13), 'en cours', 'Un nouveau tome fait repasser une œuvre lue en cours')
   assert.equal(resolveBookStatusForTotalChange('lu', 12, 12), 'lu', 'Une œuvre à jour reste lue')
@@ -3117,7 +3121,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   )
 }
 
-assert.match(mainSource045, /BOOK_CATEGORIES\.map/, 'La bibliothèque Livres doit offrir le filtre Livre, Manga et Comics')
+assert.match(mainSource045, /booksForLibrary\(bookCollection, scope\)/, 'Livres et Mangas présentent des collections séparées, les comics restant dans Livres')
 assert.match(mainSource045, /searchBooks/, 'La recherche Livres doit reposer sur le repository SQLite')
 assert.match(mainSource045, /kind="books"/, 'La bibliothèque Livres doit proposer son import unitaire')
 assert.match(mainSource045, /LibraryExportFlow kind="books"/, 'La bibliothèque Livres doit proposer son export dédié')
@@ -3849,7 +3853,8 @@ assert.match(libraryViewQuerySource, /rating IS NULL ASC/, 'L’ordre du classem
   }
   assert.doesNotMatch(mainSource068, /builtinViewById\(UNRATED_BUILTIN_VIEWS, WATCHLIST_DEFAULT_VIEW_ID\)/, 'Art ne doit plus ouvrir sur la watchlist inexistante')
   assert.match(mainSource068, /<SeriesCategorySwitch/, 'Séries doit exposer l’interrupteur Télé|Animation')
-  assert.match(mainSource068, /filterConfig=\{BOOK_FILTER_PANEL_CONFIG\}/, 'Livres conserve ses catégories Livre|Manga|Comics dans le panneau Filtrer')
+  assert.doesNotMatch(mainSource068, /<BookCategorySwitch/, 'Livres et Mangas sont des bibliothèques séparées, sans bascule de catégorie dans la barre')
+  assert.match(mainSource068, /category: mangaContext\.category, filters: resolved\.filters/, 'Mangas doit avoir sa propre recherche SQLite et ses catégories')
   assert.match(mainSource068, /category: seriesContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Séries')
   assert.match(mainSource068, /category: bookContext\.category, filters: resolved\.filters/, 'La sélection de catégories pilote directement la recherche Livres')
   assert.match(mainSource068, /titledBuiltinViews\(PROGRESS_BUILTIN_VIEWS, 'books'\)/, 'Livres doit titrer sa watchlist « À lire »')
@@ -4395,7 +4400,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
     readFileSync(new URL('../src/components/ArtworkForm.tsx', import.meta.url), 'utf8'),
   ]
   assert.match(mainSource0610, /medium: 'série', step: 'search' \}/, 'Le bouton Ajouter une série doit ouvrir la pop-up de recherche TMDB')
-  assert.match(mainSource0610, /medium: 'livre', step: 'search' \}/, 'Le bouton Ajouter un livre doit ouvrir la pop-up de recherche Open Library')
+  assert.match(mainSource0610, /medium: 'livre', step: 'search', bookLibrary: scope \}/, 'Les boutons Ajouter un livre/manga ouvrent la recherche Open Library en conservant leur bibliothèque')
   assert.match(mainSource0610, /medium: 'jeu', step: 'search' \}/, 'Le bouton Ajouter un jeu doit ouvrir la pop-up de recherche IGDB')
   assert.match(mainSource0610, /medium: 'artwork', step: 'form'/, 'L’Art, sans fournisseur par règle du domaine, ouvre la pop-up directement au stade formulaire')
   assert.match(mainSource0610, /<SeriesTmdbSearchFlow\s+compact/, 'La recherche Séries doit vivre dans la pop-up, sans page pleine page')
@@ -4933,4 +4938,6 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(viewBarSourceLight, /new ResizeObserver\(\(\) => \{[\s\S]*?revealRef\.current\('auto'\)/, 'Vues : une rangée qui rétrécit ramène la vue active dans le champ')
 }
 
-console.log('Vérification réussie : cinq bibliothèques locales, stockage SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');
+await import('./verify-book-libraries.mjs')
+
+console.log('Vérification réussie : six bibliothèques locales, cinq collections SQLite, formats JSON/CSV, imports et portabilité, thèmes et parcours de métadonnées facultatifs.');

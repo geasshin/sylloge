@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
-import { savedViewsRepository as sqliteSavedViewsRepository } from '../data/savedViewsRepository.ts'
+import { DUPLICATE_NAME_ERROR, savedViewsRepository as sqliteSavedViewsRepository } from '../data/savedViewsRepository.ts'
 import type { SavedView, SavedViewCriteria, SavedViewMedium } from '../domain/savedViews.ts'
 import {
   EMPTY_LIBRARY_FILTERS,
@@ -19,6 +19,7 @@ import {
   type LibrarySortColumn,
   type LibraryViewDefinition,
 } from '../domain/libraryViews.ts'
+import { bookViewBelongsToLibrary, type BookLibraryKey } from '../domain/bookLibraries.ts'
 import { Select } from './Select.tsx'
 
 /**
@@ -45,6 +46,7 @@ type SavedViewsRepositoryPort = Pick<typeof sqliteSavedViewsRepository, 'list' |
 type LibraryViewBarProps = {
   profileId: string
   medium: SavedViewMedium
+  bookLibrary?: BookLibraryKey
   savedViewsRepository?: SavedViewsRepositoryPort
   builtinViews: readonly LibraryViewDefinition[]
   activeView: LibraryViewDefinition
@@ -121,6 +123,7 @@ function byName(first: SavedView, second: SavedView): number {
 export function LibraryViewBar({
   profileId,
   medium,
+  bookLibrary,
   savedViewsRepository: repository = sqliteSavedViewsRepository,
   builtinViews,
   activeView,
@@ -169,7 +172,7 @@ export function LibraryViewBar({
   useEffect(() => {
     let cancelled = false
     repository.list(profileId, medium).then(
-      (loaded) => { if (!cancelled) setSavedViews(loaded) },
+      (loaded) => { if (!cancelled) setSavedViews(bookLibrary ? loaded.filter((view) => bookViewBelongsToLibrary(view, bookLibrary)) : loaded) },
       (loadError: unknown) => {
         console.error('Impossible de charger les vues enregistrées.', loadError)
         if (!cancelled) setSavedViews([])
@@ -178,11 +181,11 @@ export function LibraryViewBar({
     return () => {
       cancelled = true
     }
-  }, [profileId, medium, repository])
+  }, [profileId, medium, bookLibrary, repository])
 
   const activeSavedView = activeView.builtin ? null : savedViews.find((view) => view.id === activeView.id) ?? null
   const panelFilterCount = countActiveFilters(extraFilters) + (mediumFilterValue !== 'all' ? 1 : 0)
-  const baselineMediumFilter = activeSavedView ? activeSavedView.criteria.mediumFilter : 'all'
+  const baselineMediumFilter = activeSavedView ? activeSavedView.criteria.mediumFilter : bookLibrary === 'mangas' ? 'manga' : 'all'
   // La vue active est « modifiée » dès qu'un filtre, un tri ou une forme,
   // catégorie ou plateforme s'écarte de sa définition.
   const dirty = countActiveFilters(extraFilters) > 0 || sortOverride !== null || currentCriteria.mediumFilter !== baselineMediumFilter
@@ -191,6 +194,13 @@ export function LibraryViewBar({
   const effectiveSort = sortOverride ?? activeView.sort
   const columnLabel = (column: LibrarySortColumn) => librarySortColumnLabel(column, filterConfig.personalDateLabel)
   const sortDescription = (sort: LibrarySort) => `${columnLabel(sort.column)}, ${LIBRARY_SORT_DIRECTION_LABELS[sort.direction].toLocaleLowerCase('fr')}`
+  /** Livres et Mangas partagent le médium enregistré « books » : un nom pris dans l'une l'est dans l'autre. */
+  const describeError = (cause: unknown, fallback: string) => {
+    const message = cause instanceof Error ? cause.message : fallback
+    return bookLibrary && message === DUPLICATE_NAME_ERROR
+      ? 'Une vue porte déjà ce nom dans Livres ou dans Mangas : les deux bibliothèques partagent leurs noms de vues.'
+      : message
+  }
 
   // ——— Ouverture et fermeture des panneaux ———————————————————————————————
 
@@ -403,7 +413,7 @@ export function LibraryViewBar({
       applySavedView(created)
       setAnnouncement(`Vue « ${created.name} » enregistrée.`)
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'La vue n’a pas pu être enregistrée.')
+      setError(describeError(saveError, 'La vue n’a pas pu être enregistrée.'))
     } finally {
       setBusy(false)
     }
@@ -446,7 +456,7 @@ export function LibraryViewBar({
       setError(null)
       setAnnouncement(`Vue renommée « ${trimmed} ».`)
     } catch (renameError) {
-      setError(renameError instanceof Error ? renameError.message : 'La vue n’a pas pu être renommée.')
+      setError(describeError(renameError, 'La vue n’a pas pu être renommée.'))
     } finally {
       setBusy(false)
     }
@@ -882,7 +892,7 @@ export function LibraryViewBar({
               onChange={(event) => setNameInput(event.target.value)}
               autoFocus
             />
-            <p className="view-bar-form-hint">La vue reprend les filtres en cours et le tri « {sortDescription(effectiveSort)} ».</p>
+            <p className="view-bar-form-hint">La vue reprend les filtres en cours et le tri « {sortDescription(effectiveSort)} ».{bookLibrary && ' Le nom reste unique entre Livres et Mangas.'}</p>
             {error && <p className="saved-views-error" role="alert">{error}</p>}
             <div className="view-bar-popover-footer">
               <button className="text-button view-bar-compact" type="button" onClick={() => closePopover(true)}>Annuler</button>

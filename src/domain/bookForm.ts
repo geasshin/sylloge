@@ -146,7 +146,11 @@ export function validateBookForm(rawValues: BookFormValues): BookValidationResul
   const ratingText = values.rating.trim()
   const yearText = values.year.trim()
   const coverUrl = optionalText(values.coverUrl)
+  // Corriger le type ne supprime pas un avancement déjà saisi ou importé.
+  // Les mêmes colonnes existent pour toutes les catégories ; le formulaire
+  // laisse les compteurs visibles tant qu'ils portent une valeur.
   const hasVolumes = values.category === 'manga' || values.category === 'comics'
+    || values.volumesRead.trim() !== '' || values.volumesTotal.trim() !== ''
 
   if (!title) {
     errors.title = 'Le titre est obligatoire.'

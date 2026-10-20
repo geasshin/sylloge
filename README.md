@@ -1,6 +1,6 @@
 # Sylloge
 
-Sylloge est une application de bibliothèque culturelle personnelle, conçue pour un usage local sur Mac. Le périmètre retenu comprend cinq bibliothèques : Films, Séries, Livres, Jeux et Art.
+Sylloge est une application de bibliothèque culturelle personnelle, conçue pour un usage local sur Mac. L’interface présente six bibliothèques : Films, Séries, Livres, Mangas, Jeux et Art. Livres et Mangas partagent la même collection de données, distinguée par la catégorie de chaque fiche : le stockage SQLite, les formats d’import et d’export et les sauvegardes restent à cinq collections.
 
 ## État du projet
 

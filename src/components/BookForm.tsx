@@ -5,6 +5,7 @@ import {
   BOOK_STATUSES,
   BOOK_STATUS_LABELS,
   type Book,
+  type BookCategory,
 } from '../domain/book.ts'
 import {
   EMPTY_BOOK_FORM,
@@ -31,8 +32,19 @@ function previewableCoverUrl(value: string): string | null {
   }
 }
 
+/** « 11 sur 18 tomes » : l'avancement saisi, ou null s'il n'y en a aucun. */
+function volumesSummary(read: string, total: string): string | null {
+  const readCount = read.trim()
+  const totalCount = total.trim()
+  if (readCount && totalCount) return `${readCount} sur ${totalCount} tomes`
+  if (readCount) return `${readCount} tome${Number(readCount) > 1 ? 's' : ''} lu${Number(readCount) > 1 ? 's' : ''}`
+  if (totalCount) return `${totalCount} tome${Number(totalCount) > 1 ? 's' : ''} au total`
+  return null
+}
+
 type BookFormProps = {
   book?: Book
+  creationCategory?: BookCategory
   /** Valeurs préremplies par la recherche Open Library (création assistée, jalon 0.4.27). */
   initialValues?: BookFormValues
   providerLink?: MediaProviderReference | null
@@ -43,10 +55,10 @@ type BookFormProps = {
   onSave: (input: BookWriteInput) => Promise<void>
 }
 
-export function BookForm({ book, initialValues, providerLink = null, embeddedInDialog = false, onCancel, onSave }: BookFormProps) {
+export function BookForm({ book, creationCategory, initialValues, providerLink = null, embeddedInDialog = false, onCancel, onSave }: BookFormProps) {
   const [values, setValues] = useState<BookFormValues>(() => book
     ? bookToFormValues(book)
-    : { ...EMPTY_BOOK_FORM, ...initialValues, quotes: initialValues?.quotes ?? [] })
+    : { ...EMPTY_BOOK_FORM, ...initialValues, category: creationCategory ?? initialValues?.category ?? EMPTY_BOOK_FORM.category, quotes: initialValues?.quotes ?? [] })
   const [errors, setErrors] = useState<BookFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -56,7 +68,11 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const hasVolumes = values.category === 'manga' || values.category === 'comics'
+    || values.volumesRead.trim() !== '' || values.volumesTotal.trim() !== ''
   const progressVisible = hasVolumes && (values.status === 'en cours' || values.status === 'abandonné' || values.status === 'lu')
+  const noun = values.category === 'manga' ? 'manga' : 'livre'
+  // Une correction de type conserve l'avancement et ses champs éditables.
+  const retainedProgress = values.category === 'livre' ? volumesSummary(values.volumesRead, values.volumesTotal) : null
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   // « À lire » : pas encore de verdict, on masque note, cœur, dates et avis.
   const verdictVisible = values.status !== 'à lire'
@@ -75,11 +91,6 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
   ) => {
     setValues((current) => {
       const next = { ...current, [key]: value }
-
-      if (key === 'category' && value === 'livre') {
-        next.volumesRead = ''
-        next.volumesTotal = ''
-      }
 
       if (key === 'volumesTotal' || key === 'volumesRead') {
         const read = next.volumesRead.trim() === '' ? null : Number(next.volumesRead)
@@ -151,7 +162,7 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{book ? 'Modifier la fiche' : 'Ajouter un livre'}</h1>
+      <h1 className="display-title">{book ? 'Modifier la fiche' : `Ajouter un ${noun}`}</h1>
     </div>
   )
 
@@ -179,7 +190,7 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
-              aria-label="Titre du livre"
+              aria-label={values.category === 'manga' ? 'Titre du manga' : 'Titre du livre'}
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'book-title-error' : undefined}
               autoFocus={!assisted}
@@ -187,7 +198,7 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
             {errors.title && <p className="field-error" id="book-title-error">{errors.title}</p>}
           </div>
 
-          <div className="field category-segmented">
+          {(book || !creationCategory) && <div className="field category-segmented">
             <span className="field-label">Type</span>
             <StatusSegmented
               statuses={BOOK_CATEGORIES}
@@ -197,7 +208,10 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
               ariaLabel="Type de livre"
             />
             {errors.category && <p className="field-error" id="book-category-error">{errors.category}</p>}
-          </div>
+            {retainedProgress && (
+              <p className="field-help">L’avancement « {retainedProgress} » est conservé après le changement de type. Ses compteurs restent modifiables ci-dessous.</p>
+            )}
+          </div>}
 
           {/* Le verdict personnel */}
           <div className="verdict-block medium-status-block">
@@ -256,9 +270,9 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
           </div>
 
           {providerLink && (
-            <section className="provider-information-card" aria-label="Informations sur le livre fournies par Open Library">
+            <section className="provider-information-card" aria-label={`Informations sur le ${noun} fournies par Open Library`}>
               <div className="provider-information-heading">
-                <strong>Informations sur le livre</strong>
+                <strong>Informations sur le {noun}</strong>
                 <small>Données : {providerLink.providerName}</small>
               </div>
               <dl className="provider-information-list">
@@ -361,7 +375,7 @@ export function BookForm({ book, initialValues, providerLink = null, embeddedInD
         <footer className="form-actions form-actions-docked">
           <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : book ? 'Enregistrer les modifications' : 'Ajouter le livre'}
+            {saving ? 'Enregistrement…' : book ? 'Enregistrer les modifications' : `Ajouter le ${noun}`}
           </button>
         </footer>
       </div>
