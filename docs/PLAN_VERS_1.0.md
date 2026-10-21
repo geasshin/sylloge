@@ -2,102 +2,115 @@
 
 **Brouillon du 21 octobre 2026, à arbitrer par Aurélien.** Ce document propose un chemin jusqu'à une version distribuable largement. Il ne remplace pas `ROADMAP.md`, qui reste la feuille de route des lots en cours ; il en prépare la suite et sera fusionné dedans après arbitrage.
 
-## Le constat
+## Décisions acquises le 21 octobre 2026
 
-Le site est en ligne, les deux installateurs existent, la 0.6.7 s'installe. Trois choses empêchent aujourd'hui de distribuer à des inconnus : la mise à jour exige un jeton GitHub, les clés d'API sont extractibles du binaire, et le premier lancement n'a jamais été parcouru de bout en bout. Le reste est du confort et de la solidité.
+- **L'application est gratuite et open source.** Le dépôt `geasshin/sylloge` devient public, et la communication du site s'appuie dessus.
+- **Un service cloud payant reste possible plus tard** (multi-appareil), sans changer de licence.
+- **Le proxy de clés viendra plus tard**, porté par des fonctions Vercel.
+- **Les imports passent par des tutoriels guidés** : lien vers la page d'export du service, étapes numérotées, puis le fichier déposé dans Sylloge.
 
-## Bloc 1 — Pouvoir distribuer (bloquant)
+## Bloc 1 — Ouvrir le projet (bloquant pour distribuer)
 
-### 1.1 Mise à jour sans jeton
+### 1.1 Rendre le dépôt public
 
-Aujourd'hui, le dépôt est privé : Sylloge lit un jeton GitHub dans le Trousseau pour interroger l'API. Sans jeton, les réglages affichent « Enregistrez un jeton GitHub pour accéder aux releases privées » et aucune mise à jour n'est possible.
+Vérifications du 21 octobre 2026 : 169 commits, aucun jeton ni clé privée dans l'historique, aucun `.env` jamais commité, les clés d'API générées sont ignorées par Git, historique de 20 Mo dont le plus gros objet fait 1,4 Mo. Le dépôt peut être publié tel quel.
 
-Cible : un dépôt public dédié aux artefacts, `geasshin/sylloge-releases`. Le code reste privé. Le workflow macOS y publie le DMG, l'archive, sa signature et `latest.json`. L'application interroge l'URL statique :
+### 1.2 Licence et présentation
+
+- Licence **MIT** : courte, lisible, et elle autorise le service commercial futur. Apache-2.0 conviendrait aussi, avec une clause de brevets en plus.
+- README refait : ce qu'est Sylloge, captures, installation, compilation, où vivent les décisions. L'actuel décrit encore six bibliothèques et la 0.6.4.
+- `LICENSE`, `CONTRIBUTING.md`, et la phrase qui compte : la bibliothèque reste sur la machine.
+
+### 1.3 Mise à jour sans jeton
+
+Le dépôt devenant public, l'application interroge l'URL statique de sa dernière release :
 
 ```text
-https://github.com/geasshin/sylloge-releases/releases/latest/download/latest.json
+https://github.com/geasshin/sylloge/releases/latest/download/latest.json
 ```
 
-Aucun jeton, aucune authentification, aucune limite d'API. La vérification de signature ne bouge pas : remplacer `latest.json` ne suffit pas à installer une archive non signée par la clé du projet.
+Aucun jeton, aucune limite d'API. Tout le code du jeton disparaît : lecture du Trousseau, commandes, écran de réglages correspondant. La vérification de signature ne bouge pas ; remplacer `latest.json` ne suffit pas à installer une archive non signée par la clé du projet.
 
-Conséquence : le code de jeton (Trousseau, commandes, réglages) devient inutile et disparaît, ou reste en secours si le dépôt redevient privé.
+Bénéfice annexe : les minutes GitHub Actions sont gratuites sur un dépôt public, runner macOS compris.
 
-### 1.2 Vérifier que les clés fonctionnent pour un inconnu
+### 1.4 Vérifier que les clés fonctionnent pour un inconnu
 
-Un test dans le workflow : après génération des clés embarquées, un binaire de test qui exécute une recherche TMDB et une recherche IGDB réelles, avec un titre connu, et échoue si la réponse est vide ou 401. Le build ne publie pas si le test échoue. Cela protège contre une clé expirée ou un secret GitHub mal recopié, sans ouvrir la bibliothèque de personne.
+Dans le workflow, après génération des clés embarquées : une recherche TMDB et une recherche IGDB réelles sur un titre connu, qui échouent si la réponse est vide ou 401. Le build ne publie pas si le test échoue. Cela protège d'une clé expirée ou d'un secret mal recopié, sans ouvrir la bibliothèque de personne.
 
-### 1.3 Décider du sort des clés
+### 1.5 Conséquence à assumer
 
-Les clés TMDB et IGDB sont compilées dans le binaire, obfusquées. Elles fonctionnent pour tout le monde, et elles sont récupérables par quelqu'un de motivé.
+Un dépôt public rend la reconstruction de l'application triviale, donc l'extraction des clés d'API aussi. Le risque ne change pas, il devient visible. Raison de plus pour passer au proxy avant une diffusion large.
 
-- **Option 1, garder en l'état.** Coût nul. Risque : usage de la clé TMDB par un tiers, quota partagé, révocation possible par TMDB.
-- **Option 2, proxy.** Une fonction serveur (Cloudflare Worker ou fonction Vercel) détient les clés en variables d'environnement. L'application appelle `api.<domaine>/tmdb/...` et le proxy ajoute la clé, limite le débit et met en cache les réponses. Les clés ne quittent jamais le serveur. Coût : une fonction à écrire, un domaine, gratuit à faible volume. Le récit « pas de compte, pas de serveur pour ta bibliothèque » tient toujours : aucune donnée de bibliothèque ne part.
-- **Option 3, clé par personne.** Écartée par choix produit.
+## Bloc 2 — Imports guidés
 
-Recommandation : option 2 avant une diffusion large, option 1 pendant la phase de test privée. Décider quand le premier inconnu installe l'application.
+Le principe : Sylloge ne se connecte jamais à la place de la personne. Elle l'accompagne jusqu'au fichier, puis reconnaît ce fichier sans lui demander de choisir un format. Rien n'est écrit sans confirmation.
 
-## Bloc 2 — Imports (priorité produit)
+### 2.1 Un tutoriel par service
 
-Le principe : la personne exporte depuis son ancien service, dépose le fichier, Sylloge reconnaît le format et propose un aperçu avant écriture. Rien n'est écrit sans confirmation.
+Pour chaque service, un écran qui contient : un lien direct vers la page d'export, trois à cinq étapes numérotées avec le nom exact du menu, le nom du fichier attendu, et une zone qui accepte aussi le glisser-déposer.
 
-### 2.1 Détection automatique des exports connus
-
-| Service | Export réel | Ce qu'on en tire |
+| Service | Page d'export | Fichier attendu |
 |---|---|---|
-| Letterboxd | `ratings.csv`, `watched.csv`, `watchlist.csv`, `diary.csv` | films vus, notes, dates, envies |
-| Goodreads | `goodreads_library_export.csv` | livres, statuts, notes, dates |
-| StoryGraph | CSV d'export | livres, statuts, notes |
-| MyAnimeList | XML (export de profil) | anime, mangas, épisodes/tomes, notes |
-| AniList | JSON (export) | anime, mangas, progression |
-| TV Time | archive RGPD (`seen_episode*.json`, `tracking-prod-records-v2.csv`) | séries, épisodes vus |
-| BetaSeries | CSV | séries, progression |
-| Notion | ZIP de base | déjà géré pour les films |
-| Sylloge | JSON/ZIP | déjà géré |
+| Letterboxd | Settings, Import and Export | `ratings.csv`, `watched.csv`, `watchlist.csv`, `diary.csv` |
+| Goodreads | My Books, Import and export | `goodreads_library_export.csv` |
+| StoryGraph | Manage account, export | CSV d'export |
+| MyAnimeList | Export de la liste | XML |
+| AniList | Settings, export des données | JSON |
+| TV Time | Demande d'export RGPD | archive de JSON et CSV |
+| BetaSeries | Compte, export | CSV |
+| Notion | Base exportée | ZIP |
 
-Étapes : reconnaître le fichier seul (nom, en-tête, signature), proposer le mapping, montrer le résumé, laisser choisir la bibliothèque cible, gérer les doublons par identifiant externe puis par titre et année.
+Les URL et les libellés changent avec le temps : chaque tutoriel porte une date de vérification, et un lien mort est un défaut à corriger.
 
-### 2.2 Le tout-en-un
+### 2.2 Reconnaissance automatique
 
-Un seul bouton « Importer » qui accepte n'importe lequel de ces fichiers, ou un ZIP contenant plusieurs exports, et propose un plan : « 842 films Letterboxd, 310 livres Goodreads, 96 séries TV Time ». Chaque lot s'applique séparément, avec son propre aperçu.
+Le fichier déposé est identifié seul : nom, en-tête de colonnes, signature du contenu. Le mapping est proposé, jamais imposé. Un même ZIP peut contenir plusieurs exports et donner un plan : « 842 films Letterboxd, 310 livres Goodreads, 96 séries TV Time ».
+
+Un corpus de fichiers réels anonymisés sert de base de test : chaque format reconnu a sa fixture, et la reconnaissance est vérifiée à chaque build. Sans ce corpus, elle se dégrade sans qu'on le voie.
 
 ### 2.3 Ce qu'on ne fera pas
 
-Récupérer les données en se connectant au site à la place de la personne. Aucun de ces services n'expose d'API publique d'historique complet ; les contourner demanderait de stocker leurs identifiants, ce qui contredit le modèle local. Le parcours visé : un lien direct vers la page d'export du service, et le fichier attendu nommé explicitement.
+Se connecter aux services à la place de la personne. Aucun n'expose d'API d'historique complet, et stocker leurs identifiants contredirait le modèle local. Le tutoriel est la bonne réponse, pas un contournement.
 
 ## Bloc 3 — Premier lancement et réglages
 
-- **Onboarding** : un accueil qui propose d'importer tout de suite, ou de partir d'une bibliothèque vide ; choix du thème ; explication en une phrase du fichier local. Jamais plus de trois écrans.
-- **Profils** : le vocabulaire « compte » n'existe pas. Créer, renommer, supprimer un profil, avec la confirmation et le sort des données expliqués.
+- **Onboarding** : proposer d'importer tout de suite ou de partir d'une bibliothèque vide ; choix du thème ; une phrase sur le fichier local. Trois écrans au maximum.
+- **Profils** : créer, renommer, supprimer, avec la conséquence écrite sur les données.
 - **Réglages** : une page par sujet (apparence, bibliothèque et sauvegardes, imports, mises à jour, à propos), chaque réglage avec sa conséquence écrite. Les réglages de mise à jour se réduisent à « rechercher automatiquement » une fois le jeton supprimé.
 - **Sauvegardes** : rendre lisible la sauvegarde automatique existante, proposer une restauration, et sauvegarder automatiquement avant toute migration de schéma.
 
 ## Bloc 4 — Bibliothèques personnalisées
 
 - Un « + » sous la barre des bibliothèques propose des modèles prêts : Comics, Recettes, Vinyles, Photos, Podcasts, Jeux de société.
-- Un modèle définit : libellé, icône, unité de progression (tome, saison, épisode), champs propres, vues par défaut, statuts.
-- Contrainte technique : chaque bibliothèque devient une table créée à la demande, avec les mêmes garanties que les sept actuelles. C'est un chantier de migration, pas un ajout d'écran. À faire après le bloc 2.
+- Un modèle définit : libellé, icône, unité de progression, champs propres, vues par défaut, statuts.
+- Contrainte technique : chaque bibliothèque devient une table créée à la demande, avec les mêmes garanties que les sept actuelles. C'est une migration, pas un ajout d'écran. À faire après le bloc 2.
 
 ## Bloc 5 — Solidité et finitions
 
 - **Performance** : virtualiser les grilles au-delà de quelques centaines de fiches, mesurer avec une bibliothèque de 5 000 entrées.
 - **Accessibilité** : navigation clavier complète, contrastes vérifiés sur les deux thèmes, libellés de commande lisibles.
-- **Diagnostic** : un bouton « exporter un diagnostic » (version, système, dernières erreurs) sans aucune donnée de bibliothèque, pour aider un utilisateur à distance.
-- **Windows** : parcours complet sur une machine Windows réelle, raccourcis, dialogues de fichier, polices.
-- **Site** : automatiser la copie du DMG et de l'EXE et la mise à jour de la version dans la page à chaque release, plutôt que de les faire à la main.
-- **Crédits TMDB** : rétablir la mention avant une diffusion large, ou documenter le risque assumé dans les crédits du site.
+- **Diagnostic** : un export de diagnostic (version, système, dernières erreurs) sans aucune donnée de bibliothèque, pour aider un utilisateur à distance.
+- **Windows** : parcours complet sur une machine réelle, raccourcis, dialogues de fichier, polices.
+- **Site** : automatiser la copie du DMG et de l'EXE et la mise à jour de la version dans la page à chaque release.
+- **Crédits TMDB** : rétablir la mention avant une diffusion large, ou documenter le risque assumé.
+
+## Plus tard — proxy et service cloud
+
+- **Proxy de clés en Vercel Functions** : la fonction détient les clés TMDB et IGDB en variables d'environnement, l'application l'appelle, la fonction ajoute la clé, limite le débit par installation et met les réponses en cache. Les clés ne quittent jamais le serveur. Elle peut aussi absorber l'OAuth Twitch d'IGDB. C'est la réponse propre au problème d'extraction, et elle n'envoie aucune donnée de bibliothèque.
+- **Service payant multi-appareil** : synchronisation entre machines, sauvegarde hébergée, partage de bibliothèque. La licence MIT ne l'empêche pas. Il suppose une authentification, donc un vrai changement de modèle, à traiter comme un produit séparé.
 
 ## Ordre proposé
 
-1. Mise à jour publique sans jeton, test des clés en CI, décision sur le proxy. **Sans cela, chaque nouvelle version doit être réinstallée à la main.**
-2. Onboarding et réglages, pour que le premier lancement tienne debout.
-3. Imports multi-services, parce que c'est ce qui fait basculer un utilisateur.
+1. Ouvrir le projet : dépôt public, licence, README, mise à jour sans jeton, test des clés. **Sans cela, chaque nouvelle version doit être réinstallée à la main.**
+2. Imports guidés : tutoriels et reconnaissance, parce que c'est ce qui fait basculer un utilisateur.
+3. Premier lancement et réglages.
 4. Bibliothèques personnalisées, quand le socle est stable.
-5. Finitions et performance, en continu.
+5. Finitions, performance, puis proxy.
 
 ## Ce qu'il manque encore dans la liste initiale
 
 - **Mise à jour du site à chaque release** : aujourd'hui manuelle, donc oubliable.
 - **Sauvegarde avant migration** : une migration ratée est la seule façon de perdre une bibliothèque.
-- **Retour d'erreur utile** : un utilisateur qui signale « ça ne marche pas » sans capture ne donne rien d'exploitable.
-- **Notes de version visibles** : elles existent dans `latest.json`, autant les afficher avant d'installer.
-- **Test sur une bibliothèque volumineuse** : les perfs se dégradent sans qu'on le voie avec dix fiches.
+- **Retour d'erreur utile** : un signalement « ça ne marche pas » sans capture ne donne rien d'exploitable.
+- **Notes de version visibles** avant d'installer.
+- **Test sur une bibliothèque volumineuse** : les performances se dégradent sans qu'on le voie avec dix fiches.
