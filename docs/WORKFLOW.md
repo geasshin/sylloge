@@ -42,7 +42,7 @@ Les versions, tags et notes anciennes ne déterminent pas la taille ou l’ordre
 
 Ne pas exécuter les contrôles sur la base personnelle. Créer les fixtures dans un dossier temporaire et supprimer les artefacts après usage. Le lancement natif doit utiliser un identifiant Tauri et un dossier de données distincts de l’application installée.
 
-Les clés TMDB et IGDB absentes d’un clone propre sont un prérequis technique à documenter, pas une raison pour afficher ou réutiliser un secret réel. Les tests de logique ne doivent pas contacter ces fournisseurs.
+Depuis le 21 octobre 2026, un clone propre ne demande aucune clé : TMDB et IGDB passent par le proxy Vercel, qui les détient en variables d’environnement. Les tests de logique continuent de ne pas contacter ces fournisseurs.
 
 ## Rapport
 

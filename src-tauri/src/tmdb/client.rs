@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use super::secrets::SecretValue;
 use super::TmdbError;
 
 pub const MAX_ALTERNATIVE_POSTERS: usize = 4;
@@ -8,7 +7,7 @@ pub const MAX_CAST_MEMBERS: usize = 20;
 pub const MAX_DIRECTORS: usize = 5;
 pub const MAX_SEARCH_RESULTS: usize = 20;
 
-const TMDB_API_BASE: &str = "https://api.themoviedb.org/3";
+const TMDB_API_BASE: &str = "https://sylloge.vercel.app/api/tmdb";
 const TMDB_IMAGE_BASE: &str = "https://image.tmdb.org/t/p";
 const DEFAULT_LANGUAGE: &str = "fr-FR";
 const REQUEST_TIMEOUT_SECONDS: u64 = 10;
@@ -67,28 +66,24 @@ pub struct TmdbSeriesPresentationDto {
 pub trait TmdbClient: Send + Sync {
     async fn search_films(
         &self,
-        secret: &SecretValue,
         query: &str,
         language: &str,
     ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError>;
 
     async fn fetch_film_presentation(
         &self,
-        secret: &SecretValue,
         tmdb_id: i64,
         language: &str,
     ) -> Result<TmdbFilmPresentationDto, TmdbError>;
 
     async fn search_series(
         &self,
-        secret: &SecretValue,
         query: &str,
         language: &str,
     ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError>;
 
     async fn fetch_series_presentation(
         &self,
-        secret: &SecretValue,
         tmdb_id: i64,
         language: &str,
     ) -> Result<TmdbSeriesPresentationDto, TmdbError>;
@@ -220,7 +215,6 @@ impl ReqwestTmdbClient {
 
     async fn get<T: for<'de> Deserialize<'de>>(
         &self,
-        secret: &SecretValue,
         path: &str,
         query: &[(&str, &str)],
     ) -> Result<T, TmdbError> {
@@ -228,7 +222,6 @@ impl ReqwestTmdbClient {
         let response = self
             .client
             .get(&url)
-            .header("Authorization", format!("Bearer {}", secret.expose()))
             .header("Accept", "application/json")
             .query(query)
             .send()
@@ -249,7 +242,6 @@ impl ReqwestTmdbClient {
 impl TmdbClient for ReqwestTmdbClient {
     async fn search_films(
         &self,
-        secret: &SecretValue,
         query: &str,
         language: &str,
     ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError> {
@@ -261,7 +253,6 @@ impl TmdbClient for ReqwestTmdbClient {
 
         let response: TmdbSearchResponse = self
             .get(
-                secret,
                 "/search/movie",
                 &[
                     ("query", query),
@@ -301,7 +292,6 @@ impl TmdbClient for ReqwestTmdbClient {
 
     async fn fetch_film_presentation(
         &self,
-        secret: &SecretValue,
         tmdb_id: i64,
         language: &str,
     ) -> Result<TmdbFilmPresentationDto, TmdbError> {
@@ -313,26 +303,19 @@ impl TmdbClient for ReqwestTmdbClient {
 
         // Détails du film
         let details: TmdbMovieDetailsResponse = self
-            .get(
-                secret,
-                &format!("/movie/{tmdb_id}"),
-                &[("language", language)],
-            )
+            .get(&format!("/movie/{tmdb_id}"), &[("language", language)])
             .await?;
 
         // Crédits (cast + crew)
         let credits: TmdbCreditsResponse = self
             .get(
-                secret,
                 &format!("/movie/{tmdb_id}/credits"),
                 &[("language", language)],
             )
             .await?;
 
         // Images (affiches alternatives)
-        let images: TmdbImagesResponse = self
-            .get(secret, &format!("/movie/{tmdb_id}/images"), &[])
-            .await?;
+        let images: TmdbImagesResponse = self.get(&format!("/movie/{tmdb_id}/images"), &[]).await?;
 
         // Construction du DTO
         let directors: Vec<String> = credits
@@ -402,7 +385,6 @@ impl TmdbClient for ReqwestTmdbClient {
 
     async fn search_series(
         &self,
-        secret: &SecretValue,
         query: &str,
         language: &str,
     ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError> {
@@ -414,7 +396,6 @@ impl TmdbClient for ReqwestTmdbClient {
 
         let response: TmdbTvSearchResponse = self
             .get(
-                secret,
                 "/search/tv",
                 &[
                     ("query", query),
@@ -454,7 +435,6 @@ impl TmdbClient for ReqwestTmdbClient {
 
     async fn fetch_series_presentation(
         &self,
-        secret: &SecretValue,
         tmdb_id: i64,
         language: &str,
     ) -> Result<TmdbSeriesPresentationDto, TmdbError> {
@@ -465,15 +445,11 @@ impl TmdbClient for ReqwestTmdbClient {
         };
 
         let details: TmdbTvDetailsResponse = self
-            .get(secret, &format!("/tv/{tmdb_id}"), &[("language", language)])
+            .get(&format!("/tv/{tmdb_id}"), &[("language", language)])
             .await?;
 
         let credits: TmdbAggregateCreditsResponse = self
-            .get(
-                secret,
-                &format!("/tv/{tmdb_id}/credits"),
-                &[("language", language)],
-            )
+            .get(&format!("/tv/{tmdb_id}/credits"), &[("language", language)])
             .await?;
 
         let showrunners: Vec<String> = details
@@ -677,7 +653,6 @@ mod tests {
     impl TmdbClient for FakeTmdbClient {
         async fn search_films(
             &self,
-            _secret: &SecretValue,
             query: &str,
             _language: &str,
         ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError> {
@@ -693,7 +668,6 @@ mod tests {
 
         async fn fetch_film_presentation(
             &self,
-            _secret: &SecretValue,
             tmdb_id: i64,
             _language: &str,
         ) -> Result<TmdbFilmPresentationDto, TmdbError> {
@@ -713,7 +687,6 @@ mod tests {
 
         async fn search_series(
             &self,
-            _secret: &SecretValue,
             query: &str,
             _language: &str,
         ) -> Result<Vec<TmdbSearchCandidateDto>, TmdbError> {
@@ -729,7 +702,6 @@ mod tests {
 
         async fn fetch_series_presentation(
             &self,
-            _secret: &SecretValue,
             tmdb_id: i64,
             _language: &str,
         ) -> Result<TmdbSeriesPresentationDto, TmdbError> {
@@ -751,17 +723,16 @@ mod tests {
     fn injectable_fake_client_returns_only_bounded_dtos() {
         tauri::async_runtime::block_on(async {
             let client = FakeTmdbClient;
-            let secret = SecretValue::new("fake-token-for-client".to_string());
 
             let candidates = client
-                .search_films(&secret, "Film de test", "fr-FR")
+                .search_films("Film de test", "fr-FR")
                 .await
                 .expect("recherche factice");
             assert_eq!(candidates.len(), 1);
             assert!(candidates.len() <= MAX_SEARCH_RESULTS);
 
             let presentation = client
-                .fetch_film_presentation(&secret, candidates[0].tmdb_id, "fr-FR")
+                .fetch_film_presentation(candidates[0].tmdb_id, "fr-FR")
                 .await
                 .expect("présentation factice");
             validate_presentation(&presentation).expect("DTO factice borné");
@@ -772,16 +743,15 @@ mod tests {
     fn series_fake_client_returns_bounded_presentation() {
         tauri::async_runtime::block_on(async {
             let client = FakeTmdbClient;
-            let secret = SecretValue::new("fake-token-for-series".to_string());
 
             let candidates = client
-                .search_series(&secret, "Série de test", "fr-FR")
+                .search_series("Série de test", "fr-FR")
                 .await
                 .expect("recherche séries factice");
             assert_eq!(candidates.len(), 1);
 
             let presentation = client
-                .fetch_series_presentation(&secret, candidates[0].tmdb_id, "fr-FR")
+                .fetch_series_presentation(candidates[0].tmdb_id, "fr-FR")
                 .await
                 .expect("présentation séries factice");
             validate_series_presentation(&presentation).expect("DTO séries factice borné");

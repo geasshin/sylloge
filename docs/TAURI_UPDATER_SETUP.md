@@ -65,7 +65,7 @@ Le fichier `.github/workflows/macos-release.yml` lance une publication après ch
 
 1. Lit la version de base du projet et les tags stables `vX.Y.Z`, puis calcule le prochain numéro correctif.
 2. Applique cette version au build seulement, dans le runner GitHub Actions. Aucun fichier de version n’est commité automatiquement.
-3. Régénère les clés embarquées et construit un bundle macOS universel avec `npm run tauri:build -- --target universal-apple-darwin`.
+3. Construit un bundle macOS universel avec `npm run tauri:build -- --target universal-apple-darwin`.
 4. Produit le DMG, l’archive `Sylloge.app.tar.gz` et sa signature Tauri.
 5. Retrouve un éventuel brouillon dans la liste des releases ou en crée un, puis téléverse l’archive signée. Il lit l’asset par identifiant de release, génère `latest.json` avec l’URL d’asset API et la signature exacte, téléverse le manifeste puis publie la release par son identifiant en ciblant le commit exact du build.
 
@@ -79,7 +79,7 @@ Le dépôt doit avoir ces secrets GitHub Actions configurés :
 - `SYLLOGE_TMDB_API_KEY` ;
 - `SYLLOGE_IGDB_CLIENT_ID` et `SYLLOGE_IGDB_CLIENT_SECRET`.
 
-La clé privée Tauri est transmise au build pour signer l’archive updater. Elle n’est ni affichée ni écrite dans le dépôt. Les clés API sont écrites uniquement dans les fichiers temporaires ignorés par Git du runner, puis embarquées dans l’application.
+La clé privée Tauri est transmise au build pour signer l’archive updater. Elle n’est ni affichée ni écrite dans le dépôt. Le build ne reçoit plus aucune clé d’API : TMDB et IGDB sont appelés par le proxy Vercel, qui les détient.
 
 Pour récupérer une mise à jour sur une installation existante, ouvrez Sylloge puis utilisez la vérification de mise à jour. Si la recherche automatique est activée, l’application peut aussi la proposer au démarrage. Le téléchargement et l’installation restent soumis au choix de la personne.
 

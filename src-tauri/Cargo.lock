@@ -4211,7 +4211,6 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-sql",
  "tauri-plugin-updater",
- "zeroize",
  "zip 2.4.2",
 ]
 

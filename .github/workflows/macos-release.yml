@@ -46,25 +46,19 @@ jobs:
       - name: Installer les dépendances npm
         run: npm ci
 
-      - name: Générer les clés embarquées depuis les secrets GitHub
+      # Bloque la publication si le proxy ou une clé du projet est hors service :
+      # une version livrée avec une recherche morte est pire qu'une version retardée.
+      - name: Vérifier le proxy de métadonnées
         shell: bash
-        env:
-          SYLLOGE_TMDB_API_KEY: ${{ secrets.SYLLOGE_TMDB_API_KEY }}
-          SYLLOGE_IGDB_CLIENT_ID: ${{ secrets.SYLLOGE_IGDB_CLIENT_ID }}
-          SYLLOGE_IGDB_CLIENT_SECRET: ${{ secrets.SYLLOGE_IGDB_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          : "${SYLLOGE_TMDB_API_KEY:?Le secret SYLLOGE_TMDB_API_KEY doit être configuré.}"
-          : "${SYLLOGE_IGDB_CLIENT_ID:?Le secret SYLLOGE_IGDB_CLIENT_ID doit être configuré.}"
-          : "${SYLLOGE_IGDB_CLIENT_SECRET:?Le secret SYLLOGE_IGDB_CLIENT_SECRET doit être configuré.}"
-          umask 077
-          mkdir -p ~/.sylloge-secrets src-tauri/src/tmdb src-tauri/src/igdb
-          printf '%s' "$SYLLOGE_TMDB_API_KEY" > ~/.sylloge-secrets/tmdb-api-key.txt
-          printf '%s' "$SYLLOGE_IGDB_CLIENT_ID" > ~/.sylloge-secrets/igdb-client-id.txt
-          printf '%s' "$SYLLOGE_IGDB_CLIENT_SECRET" > ~/.sylloge-secrets/igdb-client-secret.txt
-          python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/tmdb-api-key.txt --provider tmdb --out src-tauri/src/tmdb/embedded_key.rs
-          python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-id.txt --provider igdb --out src-tauri/src/igdb/embedded_client_id.rs
-          python3 scripts/generate_embedded_key.py encode --key-file ~/.sylloge-secrets/igdb-client-secret.txt --provider igdb --out src-tauri/src/igdb/embedded_client_secret.rs
+          health="$(curl -fsS --max-time 20 https://sylloge.vercel.app/api/health)"
+          echo "$health"
+          grep -q '"tmdb":true' <<< "$health"
+          grep -q '"igdb":true' <<< "$health"
+          curl -fsS --max-time 25 "https://sylloge.vercel.app/api/tmdb/search/movie?query=Inception&language=fr-FR" | grep -q '"id"'
+          curl -fsS --max-time 25 -X POST https://sylloge.vercel.app/api/igdb/games \
+            -H 'Content-Type: text/plain' --data 'fields name; where id = 1020;' | grep -q '"name"'
 
       - name: Nettoyer les bundles macOS mis en cache
         run: rm -rf src-tauri/target/universal-apple-darwin/release/bundle

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -2015,14 +2015,16 @@ const tauriLibrarySource = readFileSync(new URL('../src-tauri/src/lib.rs', impor
 const tmdbModuleSource = readFileSync(new URL('../src-tauri/src/tmdb/mod.rs', import.meta.url), 'utf8')
 const tmdbCacheSource = readFileSync(new URL('../src-tauri/src/tmdb/cache.rs', import.meta.url), 'utf8')
 const tmdbClientSource = readFileSync(new URL('../src-tauri/src/tmdb/client.rs', import.meta.url), 'utf8')
-const tmdbSecretsSource = readFileSync(new URL('../src-tauri/src/tmdb/secrets.rs', import.meta.url), 'utf8')
-// Contrôler le vrai générateur avec une valeur factice, jamais un module local
-// ignoré qui peut contenir un secret. Fonctionne aussi dans un clone propre.
-const generatedTmdbFixture = spawnSync('python3', ['-c',
-  'from scripts.generate_embedded_key import render_embedded, DEFAULT_SEED; print(render_embedded("tmdb", DEFAULT_SEED, b"cle-factice-de-recette-0000000000"))',
-], { encoding: 'utf8', env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' } })
-assert.equal(generatedTmdbFixture.status, 0, `Le générateur TMDB factice doit réussir : ${generatedTmdbFixture.stderr}`)
-const tmdbEmbeddedKeySource = generatedTmdbFixture.stdout
+// Les clés ont quitté l'application : elles vivent dans l'environnement Vercel.
+// Aucun fichier embarqué ne doit subsister, sinon une clé peut revenir dans un binaire.
+for (const removed of [
+  '../src-tauri/src/tmdb/embedded_key.rs',
+  '../src-tauri/src/tmdb/secrets.rs',
+  '../src-tauri/src/igdb/embedded_client_id.rs',
+  '../src-tauri/src/igdb/embedded_client_secret.rs',
+]) {
+  assert.equal(existsSync(new URL(removed, import.meta.url)), false, `${removed} ne doit plus exister`)
+}
 const repositorySource = readFileSync(new URL('../src/data/filmsRepository.ts', import.meta.url), 'utf8')
 const metadataAssistanceSource = readFileSync(new URL('../src/domain/filmMetadataAssistance.ts', import.meta.url), 'utf8')
 const migrationSource = readFileSync(new URL('../src-tauri/migrations/0001_create_profiles_and_films.sql', import.meta.url), 'utf8')
@@ -2292,17 +2294,12 @@ assert.match(tmdbCacheSource, /REFRESH_AFTER_DAYS: i64 = 80/, 'Le cache TMDB doi
 assert.match(tmdbCacheSource, /EXPIRES_AFTER_DAYS: i64 = 180/, 'Le cache TMDB doit rester strictement expirant à 180 jours')
 assert.match(tmdbCacheSource, /ON CONFLICT\(film_id\) DO UPDATE SET/, 'Le cache doit être remplacé par une seule opération SQLite')
 assert.match(tmdbCacheSource, /expires_at <= strftime/, 'La lecture et la purge doivent supprimer le cache à son échéance')
-assert.match(tmdbEmbeddedKeySource, /SEED: \[u8; 8\]/, 'La clé embarquée doit utiliser une graine multi-octets')
-assert.match(tmdbEmbeddedKeySource, /mask_byte/, 'La clé embarquée doit utiliser un keystream par position')
-assert.doesNotMatch(tmdbEmbeddedKeySource, /XOR_MASK/, 'Le XOR mono-octet ne doit plus être le schéma d\'obfuscation')
-assert.doesNotMatch(tmdbEmbeddedKeySource, /api\.themoviedb\.org|Bearer/, "La clé embarquée ne doit pas contenir l'URL API en clair")
-assert.match(tmdbEmbeddedKeySource, /KEY_PARTS/, 'La clé embarquée doit rester en fragments obfusqués, jamais en clair')
-assert.match(tmdbModuleSource, /embedded_key::embedded_api_key/, 'La clé TMDB doit être lue depuis le module embarqué')
-assert.doesNotMatch(tmdbModuleSource, /platform_secret_store|SecretService/, 'Le Trousseau ne doit plus être utilisé pour la clé TMDB')
-assert.match(tmdbClientSource, /reqwest|api\.themoviedb\.org/, 'Le jalon C doit contenir le client HTTP TMDB réel')
-assert.match(tmdbClientSource, /Authorization/, 'Le client TMDB doit utiliser l\'en-tête Authorization')
+assert.match(tmdbClientSource, /https:\/\/sylloge\.vercel\.app\/api\/tmdb/, 'Le client TMDB doit passer par le proxy du projet')
+assert.doesNotMatch(tmdbClientSource, /api\.themoviedb\.org/, 'Le client TMDB ne doit plus appeler TMDB en direct')
+assert.doesNotMatch(tmdbClientSource, /Authorization|api_key/, 'Le client TMDB ne doit plus porter de clé')
 assert.match(tmdbClientSource, /trait TmdbClient/, 'Le client TMDB doit rester injectable pour les tests')
-assert.match(tmdbModuleSource, /embedded_key/, 'La clé TMDB doit être embarquée dans le code')
+assert.doesNotMatch(tmdbModuleSource, /embedded_key|SecretValue/, 'Aucune clé TMDB ne doit subsister dans le module')
+assert.doesNotMatch(tmdbModuleSource, /platform_secret_store|SecretService/, 'Le Trousseau ne doit plus être utilisé pour la clé TMDB')
 assert.match(tmdbModuleSource, /pub async fn get_film_tmdb_cache/, 'La lecture bornée du cache TMDB doit être disponible')
 assert.match(tmdbModuleSource, /pub async fn purge_expired_tmdb_cache/, 'La purge du cache TMDB doit être disponible')
 assert.match(tmdbModuleSource, /pub fn schedule_expired_cache_purge/, 'La purge du cache TMDB doit être programmée au démarrage')
@@ -2324,14 +2321,11 @@ assert.match(tauriLibrarySource, /tmdb::get_film_tmdb_cache/, 'La commande Tauri
 assert.match(tauriLibrarySource, /tmdb::purge_expired_tmdb_cache/, 'La commande Tauri de purge TMDB doit être enregistrée')
 assert.match(tauriLibrarySource, /tmdb::schedule_expired_cache_purge\(app\.handle\(\)\.clone\(\)\)/, 'Le démarrage Tauri doit programmer la purge après l’initialisation des plugins')
 
-// Garde anti-commit : la clé embarquée ne doit jamais être trackée par Git.
+// Garde anti-retour : plus aucun fichier de clé ne doit être ignoré, puisqu'il
+// ne doit plus en exister du tout.
 {
-  const tracked = spawnSync('git', ['ls-files', '--', 'src-tauri/src/tmdb/embedded_key.rs'], { encoding: 'utf8' })
-  assert.equal(tracked.stdout.trim(), '', 'La clé embarquée ne doit jamais être trackée par Git')
-  const ignored = spawnSync('git', ['check-ignore', 'src-tauri/src/tmdb/embedded_key.rs'], { encoding: 'utf8' })
-  assert.equal(ignored.status, 0, 'La clé embarquée doit rester couverte par .gitignore')
   const gitignoreSource = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
-  assert.match(gitignoreSource, /src-tauri\/src\/tmdb\/embedded_key\.rs/, 'La .gitignore doit ignorer explicitement la clé embarquée')
+  assert.doesNotMatch(gitignoreSource, /embedded_key|embedded_client/, 'La .gitignore ne doit plus lister de fichier de clé')
 }
 assert.match(mainSource, /requestAutomaticBackup/, 'Chaque mutation réussie doit pouvoir tenter une sauvegarde automatique non bloquante')
 assert.doesNotMatch(capabilitySource, /fs:allow|dialog:allow/, 'Le frontend ne doit recevoir aucune permission générale de fichier ou de dialogue')
@@ -4281,15 +4275,11 @@ assert.match(gameFormComponentSource, /\.\.\.EMPTY_GAME_FORM, \.\.\.initialValue
 // Jalon IGDB : couvertures verticales pour les Jeux, jeton Twitch renouvelé côté backend.
 const igdbRustSource = readFileSync(new URL('../src-tauri/src/igdb/mod.rs', import.meta.url), 'utf8')
 const igdbServiceSource = readFileSync(new URL('../src/data/igdbService.ts', import.meta.url), 'utf8')
-const gitignoreSourceIgdb = readFileSync(new URL('../.gitignore', import.meta.url), 'utf8')
 const gameIgdbAssistanceSource = readFileSync(new URL('../src/domain/gameIgdbAssistance.ts', import.meta.url), 'utf8')
 
-assert.match(igdbRustSource, /https:\/\/id\.twitch\.tv\/oauth2\/token/, 'IGDB doit obtenir son jeton via Twitch OAuth client credentials')
-assert.match(igdbRustSource, /TOKEN_CACHE/, 'Le jeton IGDB doit être mis en cache et renouvelé avant expiration')
-assert.match(igdbRustSource, /embedded_client_id::embedded_api_key/, 'Le Client ID IGDB doit être embarqué obfusqué hors dépôt')
-assert.match(igdbRustSource, /embedded_client_secret::embedded_api_key/, 'Le Client Secret IGDB doit être embarqué obfusqué hors dépôt')
-assert.match(gitignoreSourceIgdb, /src-tauri\/src\/igdb\/embedded_client_id\.rs/, 'Le Client ID IGDB doit être exclu du dépôt')
-assert.match(gitignoreSourceIgdb, /src-tauri\/src\/igdb\/embedded_client_secret\.rs/, 'Le Client Secret IGDB doit être exclu du dépôt')
+assert.match(igdbRustSource, /https:\/\/sylloge\.vercel\.app\/api\/igdb/, 'Le client IGDB doit passer par le proxy du projet')
+assert.doesNotMatch(igdbRustSource, /id\.twitch\.tv|Client-ID|Bearer|embedded_client/, 'Le client IGDB ne doit plus gérer ni jeton ni clé')
+assert.doesNotMatch(igdbRustSource, /TOKEN_CACHE/, 'Aucun cache de jeton ne doit subsister dans l’application')
 assert.doesNotMatch(igdbRustSource, /println!|eprintln!|dbg!/, 'Les identifiants IGDB ne doivent jamais passer par un log')
 assert.match(igdbRustSource, /t_cover_big/, 'Les couvertures IGDB doivent être servies verticales (cover_big)')
 assert.match(igdbServiceSource, /invoke\('search_igdb_games'/, 'Le frontend doit appeler la recherche IGDB')

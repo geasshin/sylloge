@@ -1,24 +1,16 @@
 //! Client IGDB borné pour le préremplissage Jeux.
 //!
-//! IGDB (opéré par Twitch) est gratuit pour un usage non commercial. Il exige
-//! un jeton OAuth « client credentials » renouvelé automatiquement (~60 jours)
-//! à partir d'un Client ID et d'un Client Secret déposés hors dépôt dans
-//! `~/.sylloge-secrets/`, puis embarqués obfusqués via
-//! `scripts/generate_embedded_key.py` (fichiers `embedded_key.rs`, ignorés par
-//! Git). Les couvertures sont verticales (3:4) servies par images.igdb.com.
+//! IGDB (opéré par Twitch) est appelé à travers le proxy du projet, qui détient
+//! le Client ID, le Client Secret et le jeton OAuth. L'application n'embarque
+//! donc aucune clé et ne parle jamais à Twitch. Les couvertures verticales
+//! (3:4) restent servies par images.igdb.com, sans clé.
 //! Aucune écriture SQLite ici : recherche et préremplissage uniquement.
 
-mod embedded_client_id;
-mod embedded_client_secret;
-
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
 
 pub const MAX_SEARCH_RESULTS: usize = 20;
 
-const TWITCH_TOKEN_URL: &str = "https://id.twitch.tv/oauth2/token";
-const IGDB_API_BASE: &str = "https://api.igdb.com/v4";
+const IGDB_API_BASE: &str = "https://sylloge.vercel.app/api/igdb";
 const IGDB_IMAGE_BASE: &str = "https://images.igdb.com/igdb/image/upload";
 const REQUEST_TIMEOUT_SECONDS: u64 = 10;
 const USER_AGENT: &str = "Sylloge/0.6 (personal local cultural library)";
@@ -55,6 +47,14 @@ impl std::fmt::Display for IgdbError {
             Self::NetworkUnavailable => {
                 formatter.write_str("La connexion au service de métadonnées a échoué.")
             }
+            // Le proxy renvoie 502/503/504 quand c'est lui ou Twitch qui est
+            // en cause : rien à corriger côté utilisateur.
+            Self::ProviderError(502..=504) => formatter.write_str(
+                "Le service de métadonnées est momentanément indisponible. Réessayez dans un instant.",
+            ),
+            Self::ProviderError(429) => formatter.write_str(
+                "Trop de recherches en peu de temps. Patientez une minute avant de réessayer.",
+            ),
             Self::ProviderError(status) => {
                 write!(
                     formatter,
@@ -69,12 +69,6 @@ impl std::fmt::Display for IgdbError {
 }
 
 // --- Réponses API IGDB (désérialisation interne) ---
-
-#[derive(Debug, Deserialize)]
-struct TokenResponse {
-    access_token: String,
-    expires_in: i64,
-}
 
 #[derive(Debug, Deserialize)]
 struct GameResult {
@@ -155,73 +149,6 @@ fn map_game_result(result: GameResult) -> Option<IgdbGameCandidateDto> {
     })
 }
 
-/// Jeton OAuth partagé, renouvelé avant expiration.
-struct CachedToken {
-    value: String,
-    fetched_at: Instant,
-    lifetime: Duration,
-}
-
-static TOKEN_CACHE: Mutex<Option<CachedToken>> = Mutex::new(None);
-
-async fn fetch_access_token(
-    client: &reqwest::Client,
-    client_id: &str,
-    client_secret: &str,
-) -> Result<(String, Duration), IgdbError> {
-    let response = client
-        .post(TWITCH_TOKEN_URL)
-        .query(&[
-            ("client_id", client_id),
-            ("client_secret", client_secret),
-            ("grant_type", "client_credentials"),
-        ])
-        .send()
-        .await
-        .map_err(|_| IgdbError::NetworkUnavailable)?;
-
-    if !response.status().is_success() {
-        return Err(IgdbError::ProviderError(response.status().as_u16()));
-    }
-
-    let token: TokenResponse = response
-        .json()
-        .await
-        .map_err(|_| IgdbError::InvalidProviderResponse)?;
-    Ok((
-        token.access_token,
-        Duration::from_secs(token.expires_in.max(0) as u64),
-    ))
-}
-
-async fn access_token(client: &reqwest::Client) -> Result<String, IgdbError> {
-    {
-        let cache = TOKEN_CACHE
-            .lock()
-            .map_err(|_| IgdbError::NetworkUnavailable)?;
-        if let Some(cached) = cache.as_ref() {
-            // Marge de sécurité de cinq minutes avant l'expiration réelle.
-            if cached.fetched_at.elapsed() + Duration::from_secs(300) < cached.lifetime {
-                return Ok(cached.value.clone());
-            }
-        }
-    }
-
-    let client_id = embedded_client_id::embedded_api_key();
-    let client_secret = embedded_client_secret::embedded_api_key();
-    let (value, lifetime) = fetch_access_token(client, &client_id, &client_secret).await?;
-
-    let mut cache = TOKEN_CACHE
-        .lock()
-        .map_err(|_| IgdbError::NetworkUnavailable)?;
-    *cache = Some(CachedToken {
-        value: value.clone(),
-        fetched_at: Instant::now(),
-        lifetime,
-    });
-    Ok(value)
-}
-
 pub struct IgdbClient {
     client: reqwest::Client,
 }
@@ -240,13 +167,10 @@ impl IgdbClient {
         &self,
         request_body: &str,
     ) -> Result<T, IgdbError> {
-        let token = access_token(&self.client).await?;
         let url = format!("{IGDB_API_BASE}/games");
         let response = self
             .client
             .post(&url)
-            .header("Client-ID", embedded_client_id::embedded_api_key())
-            .header("Authorization", format!("Bearer {token}"))
             .header("Accept", "application/json")
             .body(request_body.to_string())
             .send()

@@ -1,7 +1,5 @@
 mod cache;
 mod client;
-mod embedded_key;
-mod secrets;
 
 use std::fmt;
 
@@ -15,7 +13,6 @@ use crate::database::DATABASE_URL;
 
 pub use cache::CachedFilmTmdbPresentationDto;
 pub use client::{TmdbFilmPresentationDto, TmdbSearchCandidateDto, TmdbSeriesPresentationDto};
-use secrets::SecretValue;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TmdbError {
@@ -38,6 +35,14 @@ impl fmt::Display for TmdbError {
             Self::NetworkUnavailable => {
                 formatter.write_str("La connexion au service de métadonnées a échoué.")
             }
+            // Le proxy renvoie 502/503/504 quand c'est lui ou le fournisseur
+            // qui est en cause : l'utilisateur n'a rien à corriger de son côté.
+            Self::ProviderError(502..=504) => formatter.write_str(
+                "Le service de métadonnées est momentanément indisponible. Réessayez dans un instant.",
+            ),
+            Self::ProviderError(429) => formatter.write_str(
+                "Trop de recherches en peu de temps. Patientez une minute avant de réessayer.",
+            ),
             Self::ProviderError(status) => {
                 write!(
                     formatter,
@@ -85,12 +90,11 @@ pub async fn search_tmdb_films(
     query: String,
     language: Option<String>,
 ) -> Result<Vec<TmdbSearchCandidateDto>, String> {
-    let secret = get_secret().await?;
     let client = ReqwestTmdbClient::new().map_err(error_message)?;
     let language = language.unwrap_or_else(|| "fr-FR".to_string());
 
     client
-        .search_films(&secret, &query, &language)
+        .search_films(&query, &language)
         .await
         .map_err(error_message)
 }
@@ -102,12 +106,11 @@ pub async fn preview_tmdb_film(
     tmdb_id: i64,
     language: Option<String>,
 ) -> Result<TmdbFilmPresentationDto, String> {
-    let secret = get_secret().await?;
     let client = ReqwestTmdbClient::new().map_err(error_message)?;
     let language = language.unwrap_or_else(|| "fr-FR".to_string());
 
     client
-        .fetch_film_presentation(&secret, tmdb_id, &language)
+        .fetch_film_presentation(tmdb_id, &language)
         .await
         .map_err(error_message)
 }
@@ -119,12 +122,11 @@ pub async fn search_tmdb_series(
     query: String,
     language: Option<String>,
 ) -> Result<Vec<TmdbSearchCandidateDto>, String> {
-    let secret = get_secret().await?;
     let client = ReqwestTmdbClient::new().map_err(error_message)?;
     let language = language.unwrap_or_else(|| "fr-FR".to_string());
 
     client
-        .search_series(&secret, &query, &language)
+        .search_series(&query, &language)
         .await
         .map_err(error_message)
 }
@@ -136,12 +138,11 @@ pub async fn preview_tmdb_series(
     tmdb_id: i64,
     language: Option<String>,
 ) -> Result<TmdbSeriesPresentationDto, String> {
-    let secret = get_secret().await?;
     let client = ReqwestTmdbClient::new().map_err(error_message)?;
     let language = language.unwrap_or_else(|| "fr-FR".to_string());
 
     let presentation = client
-        .fetch_series_presentation(&secret, tmdb_id, &language)
+        .fetch_series_presentation(tmdb_id, &language)
         .await
         .map_err(error_message)?;
     client::validate_series_presentation(&presentation).map_err(error_message)?;
@@ -156,12 +157,11 @@ pub async fn associate_film_with_tmdb(
     tmdb_id: i64,
     language: Option<String>,
 ) -> Result<CachedFilmTmdbPresentationDto, String> {
-    let secret = get_secret().await?;
     let client = ReqwestTmdbClient::new().map_err(error_message)?;
     let language = language.unwrap_or_else(|| "fr-FR".to_string());
 
     let presentation = client
-        .fetch_film_presentation(&secret, tmdb_id, &language)
+        .fetch_film_presentation(tmdb_id, &language)
         .await
         .map_err(error_message)?;
 
@@ -185,7 +185,6 @@ pub async fn refresh_film_tmdb_cache(
     film_id: String,
     language: Option<String>,
 ) -> Result<CachedFilmTmdbPresentationDto, String> {
-    let secret = get_secret().await?;
     let client = ReqwestTmdbClient::new().map_err(error_message)?;
     let language = language.unwrap_or_else(|| "fr-FR".to_string());
 
@@ -200,7 +199,7 @@ pub async fn refresh_film_tmdb_cache(
         .ok_or_else(|| "Aucun cache TMDB à rafraîchir pour ce film.".to_string())?;
 
     let presentation = client
-        .fetch_film_presentation(&secret, current.presentation.tmdb_id, &language)
+        .fetch_film_presentation(current.presentation.tmdb_id, &language)
         .await
         .map_err(error_message)?;
 
@@ -278,14 +277,6 @@ pub async fn set_film_tmdb_poster(
         .ok_or_else(|| "Le cache TMDB n'a pas pu être relu après le choix d'affiche.".to_string())
 }
 
-async fn get_secret() -> Result<SecretValue, String> {
-    let key = embedded_key::embedded_api_key();
-    if key.is_empty() {
-        return Err("La clé TMDB embarquée est absente du build.".to_string());
-    }
-    Ok(SecretValue::new(key))
-}
-
 pub fn schedule_expired_cache_purge<R: Runtime>(app_handle: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         let result = {
@@ -317,9 +308,6 @@ pub fn schedule_due_cache_refresh<R: Runtime>(app_handle: AppHandle<R>) {
             return;
         }
 
-        let Ok(secret) = get_secret().await else {
-            return;
-        };
         let Ok(client) = ReqwestTmdbClient::new() else {
             return;
         };
@@ -333,10 +321,7 @@ pub fn schedule_due_cache_refresh<R: Runtime>(app_handle: AppHandle<R>) {
             let language = current.language.clone();
             let tmdb_id = current.presentation.tmdb_id;
 
-            let Ok(presentation) = client
-                .fetch_film_presentation(&secret, tmdb_id, &language)
-                .await
-            else {
+            let Ok(presentation) = client.fetch_film_presentation(tmdb_id, &language).await else {
                 continue;
             };
 
