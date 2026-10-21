@@ -96,7 +96,8 @@ Se connecter aux services à la place de la personne. Aucun n'expose d'API d'his
 
 ## Plus tard — proxy et service cloud
 
-- **Proxy de clés en Vercel Functions** : la fonction détient les clés TMDB et IGDB en variables d'environnement, l'application l'appelle, la fonction ajoute la clé, limite le débit par installation et met les réponses en cache. Les clés ne quittent jamais le serveur. Elle peut aussi absorber l'OAuth Twitch d'IGDB. C'est la réponse propre au problème d'extraction, et elle n'envoie aucune donnée de bibliothèque.
+- **Proxy de clés en Vercel Functions** : la fonction détient les clés TMDB et IGDB en variables d'environnement, l'application l'appelle, la fonction ajoute la clé, limite le débit et met les réponses en cache. Les clés ne quittent jamais le serveur. Elle absorbe aussi l'OAuth Twitch d'IGDB, donc l'application n'a plus de jeton à gérer. C'est la réponse propre au problème d'extraction, et elle n'envoie aucune donnée de bibliothèque.
+  **État au 21 octobre 2026** : le code du proxy est écrit et testé dans `~/Documents/ChatGPT/sylloge-web/api/` (16 vérifications locales via `node scripts/test-proxy.mjs`). Le tutoriel de mise en place, les secrets et le branchement de l'application y sont décrits dans `docs/PROXY_VERCEL.md`. Reste à faire : créer les secrets dans Vercel, déployer, figer l'URL, puis modifier les clients Rust (base URL, suppression des clés embarquées et du jeton Twitch).
 - **Service payant multi-appareil** : synchronisation entre machines, sauvegarde hébergée, partage de bibliothèque. La licence MIT ne l'empêche pas. Il suppose une authentification, donc un vrai changement de modèle, à traiter comme un produit séparé.
 
 ## Ordre proposé
