@@ -9,7 +9,8 @@ Spécification appliquée :
   dessinés NATIVEMENT en AppKit (pas de passage par SVG/Quick Look, qui casse
   la transparence et ajoute un fond blanc — le bug constaté dans le dock).
 - Symbole : Σ à arêtes nettes, initiale de ΣΥΛΛΟΓΗ et signe de la somme.
-  Même géométrie que landing/assets/brand/sylloge-icon.svg.
+  Même géométrie que sylloge-icon.svg du dépôt de la page
+  (~/Documents/ChatGPT/sylloge-web, assets/brand/).
 
 Usage : python3 scripts/build-icons.py   (macOS requis)
 """
