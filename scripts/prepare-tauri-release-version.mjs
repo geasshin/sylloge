@@ -18,17 +18,28 @@ const tauriConfig = JSON.parse(readFileSync(tauriConfigPath, 'utf8'))
 const baseVersion = parseStableVersion(tauriConfig.version)
 if (!baseVersion) throw new Error('La version de base Tauri doit être un SemVer stable X.Y.Z.')
 
-const tags = execFileSync('git', ['tag', '--list', 'v*'], { encoding: 'utf8' })
-  .split(/\r?\n/)
-  .map((tag) => tag.startsWith('v') ? tag.slice(1) : tag)
-  .map((tag) => ({ tag, version: parseStableVersion(tag) }))
-  .filter(({ version }) => version)
+// Une version imposée (build d'un tag existant, ex. Windows) prime sur le calcul
+// de la prochaine version corrective (publication macOS depuis main).
+const explicitVersion = process.env.SYLLOGE_RELEASE_VERSION?.trim().replace(/^v/, '')
 
-const highest = tags.reduce(
-  (current, candidate) => compareVersions(candidate.version, current) > 0 ? candidate.version : current,
-  baseVersion,
-)
-const nextVersion = `${highest[0]}.${highest[1]}.${highest[2] + 1}`
+const computeNextVersion = () => {
+  const tags = execFileSync('git', ['tag', '--list', 'v*'], { encoding: 'utf8' })
+    .split(/\r?\n/)
+    .map((tag) => tag.startsWith('v') ? tag.slice(1) : tag)
+    .map((tag) => ({ tag, version: parseStableVersion(tag) }))
+    .filter(({ version }) => version)
+
+  const highest = tags.reduce(
+    (current, candidate) => compareVersions(candidate.version, current) > 0 ? candidate.version : current,
+    baseVersion,
+  )
+  return `${highest[0]}.${highest[1]}.${highest[2] + 1}`
+}
+
+if (explicitVersion && !parseStableVersion(explicitVersion)) {
+  throw new Error(`Version imposée invalide : ${explicitVersion} (attendu X.Y.Z ou vX.Y.Z).`)
+}
+const nextVersion = explicitVersion || computeNextVersion()
 const tagName = `v${nextVersion}`
 
 const updateJsonVersion = (path, update) => {
@@ -54,7 +65,7 @@ updateJsonVersion(tauriConfigPath, (value) => {
 const cargoManifestPath = 'src-tauri/Cargo.toml'
 const cargoManifest = readFileSync(cargoManifestPath, 'utf8')
 const updatedCargoManifest = cargoManifest.replace(/^version = "[^"]+"$/m, `version = "${nextVersion}"`)
-if (updatedCargoManifest === cargoManifest) throw new Error('La version du paquet racine est introuvable dans Cargo.toml.')
+if (!/^version = "[^"]+"$/m.test(cargoManifest)) throw new Error('La version du paquet racine est introuvable dans Cargo.toml.')
 writeFileSync(cargoManifestPath, updatedCargoManifest, 'utf8')
 
 const cargoLockPath = 'src-tauri/Cargo.lock'
@@ -63,7 +74,7 @@ const updatedCargoLock = cargoLock.replace(
   /(\[\[package\]\]\nname = "sylloge"\nversion = ")[^"]+(")/,
   `$1${nextVersion}$2`,
 )
-if (updatedCargoLock === cargoLock) throw new Error('La version du paquet Sylloge est introuvable dans Cargo.lock.')
+if (!/\[\[package\]\]\nname = "sylloge"\nversion = "[^"]+"/.test(cargoLock)) throw new Error('La version du paquet Sylloge est introuvable dans Cargo.lock.')
 writeFileSync(cargoLockPath, updatedCargoLock, 'utf8')
 
 if (process.env.GITHUB_OUTPUT) {

@@ -58,6 +58,13 @@ jobs:
       - name: Installer les dépendances npm
         run: npm ci
 
+      - name: Aligner la version sur le tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          SYLLOGE_RELEASE_VERSION: ${{ github.ref_name }}
+        run: node scripts/prepare-tauri-release-version.mjs
+
       - name: Construire le bundle Windows (NSIS + updater)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
