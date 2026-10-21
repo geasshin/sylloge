@@ -11,7 +11,9 @@ concurrency:
 
 jobs:
   release:
-    runs-on: macos-latest
+    # Intel : les runners macOS arm64 hébergés manquent de capacité (jobs annulés
+    # sans runner). Le bundle reste universel (cibles arm64 et x86_64).
+    runs-on: macos-15-intel
     permissions:
       contents: write
 
@@ -134,7 +136,12 @@ jobs:
               --title "Sylloge $VERSION" \
               --notes-file "$NOTES" \
               --draft
-            release_id="$(find_release_id)"
+            # La liste des releases peut ne pas montrer tout de suite le brouillon créé.
+            for attempt in 1 2 3 4 5 6 7 8 9 10; do
+              release_id="$(find_release_id)"
+              [[ -n "$release_id" ]] && break
+              sleep 3
+            done
           fi
           if [[ ! "$release_id" =~ ^[1-9][0-9]*$ ]]; then
             echo "Impossible de retrouver l’identifiant de la release GitHub." >&2
