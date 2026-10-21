@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import {
   updaterPreferencesService,
   type UpdaterPreferences,
@@ -8,10 +8,6 @@ import {
   updaterErrorMessage,
   type AvailableUpdate,
 } from '../data/updaterService.ts'
-import {
-  updaterCredentialService,
-  type PrivateUpdaterCredentialStatus,
-} from '../data/updaterCredentials.ts'
 
 type UpdaterSettingsProps = {
   availableUpdate: AvailableUpdate | null
@@ -31,9 +27,6 @@ export function UpdaterSettings({
 }: UpdaterSettingsProps) {
   const [preferences, setPreferences] = useState<UpdaterPreferences | null>(null)
   const [loadingPreferences, setLoadingPreferences] = useState(true)
-  const [credentialStatus, setCredentialStatus] = useState<PrivateUpdaterCredentialStatus | null>(null)
-  const [tokenInput, setTokenInput] = useState('')
-  const [savingCredential, setSavingCredential] = useState(false)
   const [checking, setChecking] = useState(false)
   const [savingAutomaticChecks, setSavingAutomaticChecks] = useState(false)
   const [savingIgnoredVersion, setSavingIgnoredVersion] = useState(false)
@@ -60,17 +53,6 @@ export function UpdaterSettings({
       if (!cancelled) setLoadingPreferences(false)
     })
 
-    updaterCredentialService.getStatus().then(
-      (status) => {
-        if (!cancelled) setCredentialStatus(status)
-      },
-      (error: unknown) => {
-        if (!cancelled) {
-          setMessage({ kind: 'error', text: updaterErrorMessage(error) })
-        }
-      },
-    )
-
     return () => {
       cancelled = true
     }
@@ -78,10 +60,6 @@ export function UpdaterSettings({
 
   const checkManually = async () => {
     if (!preferences) return
-    if (!credentialStatus?.configured) {
-      setMessage({ kind: 'info', text: 'Enregistrez un jeton GitHub pour accéder aux releases privées.' })
-      return
-    }
 
     setChecking(true)
     setMessage(null)
@@ -104,40 +82,6 @@ export function UpdaterSettings({
       setMessage({ kind: 'error', text: updaterErrorMessage(error) })
     } finally {
       setChecking(false)
-    }
-  }
-
-  const savePrivateToken = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const token = tokenInput.trim()
-    if (!token) return
-
-    setSavingCredential(true)
-    setMessage(null)
-    try {
-      const status = await updaterCredentialService.save(token)
-      setCredentialStatus(status)
-      setTokenInput('')
-      setMessage({ kind: 'info', text: 'Le jeton est enregistré dans le Trousseau macOS. Recherchez les mises à jour pour vérifier son accès.' })
-    } catch (error) {
-      setMessage({ kind: 'error', text: updaterErrorMessage(error) })
-    } finally {
-      setSavingCredential(false)
-    }
-  }
-
-  const removePrivateToken = async () => {
-    setSavingCredential(true)
-    setMessage(null)
-    try {
-      setCredentialStatus(await updaterCredentialService.remove())
-      setTokenInput('')
-      onUpdateHandled()
-      setMessage({ kind: 'info', text: 'Le jeton a été supprimé du Trousseau macOS. Les mises à jour privées ne seront plus accessibles.' })
-    } catch (error) {
-      setMessage({ kind: 'error', text: updaterErrorMessage(error) })
-    } finally {
-      setSavingCredential(false)
     }
   }
 
@@ -223,61 +167,17 @@ export function UpdaterSettings({
   return (
     <div className="portability-card updater-card">
       <p>
-        Sylloge consulte uniquement le fichier de release GitHub signé. Une branche Git ne peut jamais être téléchargée ou installée comme mise à jour.
+        Sylloge consulte le fichier de release signé publié sur GitHub. Une branche Git ne peut jamais être téléchargée ou installée comme mise à jour : l’archive doit porter la signature de la clé du projet.
       </p>
 
       {loadingPreferences ? (
         <p className="backup-state" role="status">Lecture des préférences de mise à jour…</p>
       ) : preferences ? (
         <>
-          <section className="updater-credentials" aria-labelledby="updater-credentials-title">
-            <div>
-              <h3 id="updater-credentials-title">Accès aux releases privées</h3>
-              <p>
-                Le dépôt Sylloge est privé. Créez un jeton GitHub à granularité fine, limité à <code>geasshin/sylloge</code>, avec l’autorisation <strong>Contents, lecture seule</strong>. Sylloge le conserve dans le Trousseau macOS et ne l’affiche plus après son enregistrement.
-              </p>
-              <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">Créer un jeton GitHub</a>
-            </div>
-            {credentialStatus?.supported ? (
-              <>
-                <p className="updater-credential-state" role="status">
-                  {credentialStatus.configured ? 'Un jeton est enregistré dans le Trousseau macOS.' : 'Aucun jeton n’est enregistré.'}
-                </p>
-                <form className="updater-token-form" onSubmit={(event) => void savePrivateToken(event)}>
-                  <label htmlFor="updater-github-token">Jeton d’accès personnel GitHub</label>
-                  <input
-                    id="updater-github-token"
-                    type="password"
-                    autoComplete="new-password"
-                    spellCheck={false}
-                    value={tokenInput}
-                    onChange={(event) => setTokenInput(event.target.value)}
-                    placeholder={credentialStatus.configured ? 'Saisir un nouveau jeton pour le remplacer' : 'github_pat_…'}
-                    disabled={savingCredential || checking || installing}
-                  />
-                  <div className="updater-actions">
-                    <button className="primary-button" type="submit" disabled={!tokenInput.trim() || savingCredential || checking || installing}>
-                      {savingCredential ? 'Enregistrement…' : credentialStatus.configured ? 'Remplacer le jeton' : 'Enregistrer le jeton'}
-                    </button>
-                    {credentialStatus.configured && (
-                      <button className="secondary-button danger" type="button" onClick={() => void removePrivateToken()} disabled={savingCredential || checking || installing}>
-                        Supprimer le jeton
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </>
-            ) : credentialStatus ? (
-              <p className="updater-credential-state">Le stockage sécurisé du jeton est disponible uniquement sur macOS.</p>
-            ) : (
-              <p className="updater-credential-state" role="status">Lecture du Trousseau macOS…</p>
-            )}
-          </section>
-
           <div className="updater-preference">
             <div>
               <h3>Recherche automatique</h3>
-              <p>Vérifier les releases GitHub signées à l’ouverture de Sylloge, dès qu’un jeton est enregistré.</p>
+              <p>Vérifier les releases GitHub signées à l’ouverture de Sylloge.</p>
             </div>
             <label className="updater-checkbox">
               <input
@@ -291,7 +191,7 @@ export function UpdaterSettings({
           </div>
 
           <div className="updater-actions">
-            <button className="secondary-button" type="button" onClick={() => void checkManually()} disabled={checking || installing || savingIgnoredVersion || !credentialStatus?.configured}>
+            <button className="secondary-button" type="button" onClick={() => void checkManually()} disabled={checking || installing || savingIgnoredVersion}>
               {checking ? 'Vérification…' : 'Rechercher les mises à jour'}
             </button>
             {preferences.ignoredVersion && (

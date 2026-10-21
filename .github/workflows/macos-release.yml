@@ -152,16 +152,11 @@ jobs:
             "$DMG" "$ARCHIVE" "$SIGNATURE" \
             --repo "$GITHUB_REPOSITORY" --clobber
 
-          archive_asset_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
-            --jq '.assets[] | select(.name == "Sylloge.app.tar.gz" and .state == "uploaded") | .id')"
-          if [[ ! "$archive_asset_id" =~ ^[1-9][0-9]*$ ]]; then
-            echo "Impossible de trouver l’identifiant de l’archive updater dans la release." >&2
-            exit 1
-          fi
-
           manifest_arm="$RUNNER_TEMP/latest-arm.json"
           manifest="$RUNNER_TEMP/latest.json"
-          archive_url="https://api.github.com/repos/$GITHUB_REPOSITORY/releases/assets/$archive_asset_id"
+          # Dépôt public : l'archive se télécharge par son URL de release, sans en-tête d'API
+          # ni jeton. Un asset lu par l'API exigerait `Accept: application/octet-stream`.
+          archive_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/Sylloge.app.tar.gz"
           node scripts/create-tauri-latest-json.mjs \
             --version "$VERSION" \
             --notes-file "$NOTES" \

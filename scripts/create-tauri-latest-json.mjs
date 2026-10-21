@@ -45,11 +45,11 @@ try {
   throw new Error('L’URL de l’archive est invalide.')
 }
 if (
-  parsedUrl.origin !== 'https://api.github.com'
-  || !/^\/repos\/geasshin\/sylloge\/releases\/assets\/[1-9]\d*$/.test(parsedUrl.pathname)
+  parsedUrl.origin !== 'https://github.com'
+  || !/^\/geasshin\/sylloge\/releases\/download\/v\d+\.\d+\.\d+\/Sylloge\.app\.tar\.gz$/.test(parsedUrl.pathname)
   || parsedUrl.search
 ) {
-  throw new Error('L’URL de l’archive doit viser un asset de release Sylloge via l’API GitHub.')
+  throw new Error('L’URL de l’archive doit viser l’archive updater d’une release publique Sylloge, sans paramètre ni jeton.')
 }
 
 const notesPath = resolve(notesFile)

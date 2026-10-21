@@ -96,56 +96,41 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFQkI1NTZERjA5OTczRjEKUldUeGM1bndiVlc3cmxLL1JnbE1LM0w3V29taDVkQ0ZJSGE2SnJkelFzNnhONFluNU5EbjZwcmYK',
     'La clé publique d’updater doit être celle décidée pour Sylloge',
   )
-  assert.equal(
+  assert.deepEqual(
     tauriConfig.plugins.updater.endpoints,
-    undefined,
-    'L’endpoint privé doit être résolu depuis les assets de la release avec le jeton enregistré',
+    ['https://github.com/geasshin/sylloge/releases/latest/download/latest.json'],
+    'Le manifeste doit être lu à l’URL statique de la release publique, sans jeton',
   )
-  assert.match(
-    updaterSource,
-    /https:\/\/api\.github\.com\/repos\/geasshin\/sylloge\/releases\/latest/,
-    'La release latest doit être découverte avec l’API GitHub authentifiée',
-  )
-  assert.match(
-    updaterSource,
-    /\.endpoints\(vec!\[manifest_endpoint\]\)/,
-    'Tauri doit recevoir l’URL de l’asset latest.json découvert via l’API',
-  )
-  assert.match(
-    updaterSource,
-    /application\/octet-stream/,
-    'Les assets privés doivent être téléchargés au format binaire de l’API GitHub',
-  )
-  assert.match(
-    releaseWorkflow,
-    /archive_url="https:\/\/api\.github\.com\/repos\/\$GITHUB_REPOSITORY\/releases\/assets\/\$archive_asset_id"/,
-    'Le manifeste doit référencer l’asset d’archive par son identifiant API',
-  )
+  assert.doesNotMatch(updaterSource, /api\.github\.com/, 'L’updater ne doit plus interroger l’API GitHub')
   assert.doesNotMatch(
+    updaterSource,
+    /Authorization|bearer_auth/,
+    'Aucun en-tête d’authentification ne doit subsister dans l’updater',
+  )
+  assert.match(updaterSource, /\.updater\(\)/, 'L’updater doit se construire depuis la configuration, endpoint inclus')
+  assert.match(
     releaseWorkflow,
-    /releases\/download\/\$TAG/,
-    'Le manifeste ne doit plus utiliser l’URL web des assets privés',
+    /archive_url="https:\/\/github\.com\/\$GITHUB_REPOSITORY\/releases\/download\/\$TAG\/Sylloge\.app\.tar\.gz"/,
+    'Le manifeste doit pointer l’archive par son URL de release publique',
   )
   const releaseListIndex = releaseWorkflow.indexOf('releases?per_page=100')
   const draftReleaseIndex = releaseWorkflow.indexOf('gh release create "$TAG"')
   const assetUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG"')
-  const assetLookupIndex = releaseWorkflow.indexOf('gh api "repos/$GITHUB_REPOSITORY/releases/$release_id"')
   const manifestUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG" "$manifest"')
   const releasePublishIndex = releaseWorkflow.indexOf('--method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id"')
   assert.ok(
     releaseListIndex >= 0 && releaseListIndex < draftReleaseIndex && draftReleaseIndex < assetUploadIndex &&
-      assetUploadIndex < assetLookupIndex && assetLookupIndex < manifestUploadIndex && manifestUploadIndex < releasePublishIndex,
-    'La release doit être retrouvée ou créée avant les assets, le manifeste doit être ajouté avant la publication par identifiant',
+      assetUploadIndex < manifestUploadIndex && manifestUploadIndex < releasePublishIndex,
+    'La release doit être retrouvée ou créée avant les assets, le manifeste ajouté après l’archive et avant la publication',
   )
   assert.doesNotMatch(
     releaseWorkflow,
     /git push origin "refs\/tags\/\$TAG"/,
     'Le tag ne doit pas être poussé avant la publication du brouillon, afin qu’une reprise garde le même numéro de version',
   )
-  assert.match(
-    releaseWorkflow,
-    /gh api "repos\/\$GITHUB_REPOSITORY\/releases\/\$release_id"/,
-    'Les assets du brouillon doivent être lus par identifiant de release, car son tag n’est pas encore résolu',
+  assert.ok(
+    assetUploadIndex < releaseWorkflow.indexOf('--url "$archive_url"'),
+    'Le manifeste doit être généré après l’envoi de l’archive, pour que son URL publique existe',
   )
   assert.doesNotMatch(
     releaseWorkflow,
@@ -177,7 +162,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
       '--version', '0.3.0',
       '--notes-file', notesPath,
-      '--url', 'https://api.github.com/repos/geasshin/sylloge/releases/assets/42',
+      '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
       '--signature-file', signaturePath,
       '--target', 'darwin-aarch64',
       '--output', outputPath,
@@ -189,7 +174,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       platforms: {
         'darwin-aarch64': {
           signature: 'signature de fixture',
-          url: 'https://api.github.com/repos/geasshin/sylloge/releases/assets/42',
+          url: 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
         },
       },
     }, 'Le manifeste Tauri doit reprendre la signature .sig et une URL HTTPS de façon déterministe')
@@ -199,7 +184,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
         fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
         '--version', invalidVersion,
         '--notes-file', notesPath,
-        '--url', 'https://api.github.com/repos/geasshin/sylloge/releases/assets/42',
+        '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
         '--signature-file', signaturePath,
         '--target', 'darwin-aarch64',
         '--output', outputPath,
@@ -208,17 +193,17 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       assert.match(invalidResult.stderr, /Semantic Versioning valide/, 'Le refus doit expliquer la contrainte SemVer')
     }
 
-    const browserAssetResult = spawnSync(process.execPath, [
+    const apiAssetResult = spawnSync(process.execPath, [
       fileURLToPath(new URL('./create-tauri-latest-json.mjs', import.meta.url)),
       '--version', '0.3.0',
       '--notes-file', notesPath,
-      '--url', 'https://github.com/geasshin/sylloge/releases/download/v0.3.0/Sylloge.app.tar.gz',
+      '--url', 'https://api.github.com/repos/geasshin/sylloge/releases/assets/42',
       '--signature-file', signaturePath,
       '--target', 'darwin-aarch64',
       '--output', outputPath,
     ], { encoding: 'utf8' })
-    assert.notEqual(browserAssetResult.status, 0, 'Le générateur doit refuser les URLs web de releases privées')
-    assert.match(browserAssetResult.stderr, /API GitHub/, 'Le refus doit désigner le format attendu de l’URL d’asset')
+    assert.notEqual(apiAssetResult.status, 0, 'Le générateur doit refuser une URL d’asset de l’API, qui exige un jeton')
+    assert.match(apiAssetResult.stderr, /release publique/, 'Le refus doit désigner le format attendu de l’URL d’archive')
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -279,16 +264,10 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   if (update) await updater.downloadAndInstall(update)
   assert.equal(downloadCount, 1, 'Le téléchargement et l’installation exigent une action distincte')
   assert.equal(relaunchCount, 1, 'Le redémarrage intervient seulement après l’installation')
-  assert.equal(
-    updaterErrorMessage('UPDATER_TOKEN_REQUIRED'),
-    'Enregistrez un jeton GitHub dans les réglages pour accéder aux releases privées.',
-    'L’absence de jeton doit être expliquée clairement',
-  )
-  assert.match(updaterErrorMessage('UPDATER_TOKEN_INVALID'), /actif, non expiré/, 'Un jeton refusé doit être distingué')
-  assert.match(updaterErrorMessage('UPDATER_TOKEN_PERMISSION_DENIED'), /Contents en lecture/, 'Un problème de permission doit orienter vers le réglage du jeton')
-  assert.match(updaterErrorMessage('UPDATER_PRIVATE_RELEASE_UNAVAILABLE'), /latest\.json/, 'Un manifeste introuvable doit être identifié')
-  assert.match(updaterErrorMessage('UPDATER_RELEASE_METADATA_INVALID'), /réponse de la release GitHub est illisible/, 'Des métadonnées de release illisibles doivent être distinguées')
-  assert.match(updaterErrorMessage('UPDATER_MANIFEST_INVALID'), /version exploitable/, 'Un manifeste illisible doit être distingué d’un refus d’accès')
+  assert.match(updaterErrorMessage('UPDATER_MANIFEST_MISSING'), /latest\.json/, 'Un manifeste absent doit être identifié')
+  assert.match(updaterErrorMessage('UPDATER_MANIFEST_INVALID'), /version exploitable/, 'Un manifeste illisible doit être distingué d’une release absente')
+  assert.match(updaterErrorMessage('UPDATER_CHECK_FAILED'), /Vérifiez la connexion/, 'Une erreur réseau doit rester compréhensible')
+  assert.equal(updaterErrorMessage('UPDATER_TOKEN_REQUIRED'), 'La mise à jour a échoué. Vérifiez la connexion et réessayez.', 'Un code inconnu doit retomber sur un message générique')
 }
 
 {

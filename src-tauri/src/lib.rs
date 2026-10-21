@@ -6,7 +6,6 @@ mod portability;
 mod profiles;
 mod tmdb;
 mod updater;
-mod updater_credentials;
 mod updater_preferences;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -56,9 +55,6 @@ pub fn run() {
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,
-            updater_credentials::get_private_updater_credential_status,
-            updater_credentials::set_private_updater_token,
-            updater_credentials::remove_private_updater_token,
             updater::check_for_app_update,
             updater::install_app_update,
             tmdb::get_film_tmdb_cache,

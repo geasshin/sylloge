@@ -1,6 +1,6 @@
 # Sylloge - publication automatique d’une release Tauri
 
-Ce guide décrit la publication macOS automatisée de Sylloge depuis les GitHub Releases privées de `geasshin/sylloge`, et leur accès depuis l’application avec un jeton conservé dans le Trousseau macOS. Il ne contient aucune clé privée, passphrase ni jeton.
+Ce guide décrit la publication macOS automatisée de Sylloge depuis les GitHub Releases publiques de `geasshin/sylloge`, et leur lecture par l’application sans authentification. Il ne contient aucune clé privée ni passphrase.
 
 ## Générer et conserver la clé une seule fois
 
@@ -21,18 +21,17 @@ Ne générez pas une nouvelle paire par routine. Après une première release di
 
 ## Ce que vérifie Sylloge
 
-Sylloge utilise l’API REST GitHub pour accéder aux releases privées :
+Le dépôt est public depuis le 21 octobre 2026. L’application lit une seule adresse, déclarée dans `src-tauri/tauri.conf.json` :
 
 ```text
-GET https://api.github.com/repos/geasshin/sylloge/releases/latest
-GET https://api.github.com/repos/geasshin/sylloge/releases/assets/{asset_id}
+https://github.com/geasshin/sylloge/releases/latest/download/latest.json
 ```
 
-Sylloge lit d’abord les métadonnées de la dernière release publiée afin de trouver l’identifiant de son asset `latest.json`. Tauri récupère ensuite ce manifeste par l’endpoint d’asset, puis l’archive de mise à jour par son propre identifiant d’asset. Ces requêtes utilisent `Authorization: Bearer`, `Accept: application/octet-stream` et la version documentée de l’API GitHub. GitHub peut rediriger le téléchargement vers son stockage de fichiers ; le client HTTP suit cette redirection. Le jeton et le corps des erreurs ne sont jamais écrits dans les journaux ni renvoyés à l’interface.
+GitHub redirige cette adresse vers le stockage du dernier fichier publié. Aucune authentification, aucun jeton, aucune limite d’API : n’importe quelle installation peut vérifier les mises à jour. Le manifeste donne l’URL publique de l’archive et sa signature. L’application vérifie cette signature avec la clé publique embarquée, puis remplace le bundle. Une branche Git, un commit ou une archive non signée ne peut pas devenir une mise à jour installable.
 
-Le dépôt étant privé, GitHub exige une authentification pour lire le manifeste et télécharger l’archive. Dans les réglages, la personne fournit un jeton d’accès personnel GitHub à granularité fine, limité au dépôt `geasshin/sylloge`, avec l’autorisation **Contents: Read-only**. Sylloge le conserve uniquement dans le Trousseau macOS, sans l’enregistrer dans les préférences. Le manifeste fournit une archive et la signature lue dans son fichier `.sig`. L’application vérifie cette signature avec la clé publique embarquée. Une branche Git, un commit ou un artefact non signé ne peut pas devenir une mise à jour installable.
+Le manifeste pointe l’archive par son URL de release publique (`releases/download/<tag>/Sylloge.app.tar.gz`). Il ne faut pas revenir à l’URL d’asset de l’API GitHub : celle-ci exige l’en-tête `Accept: application/octet-stream`, et un jeton tant que le dépôt est privé.
 
-La première installation reste manuelle depuis un DMG. Les versions construites avec l’ancienne URL web des releases (`0.6.2` et `0.6.3`) ne peuvent pas recevoir ce correctif à distance, car leur adresse de mise à jour est intégrée au binaire. Elles doivent être remplacées une seule fois par un DMG contenant l’accès par API GitHub. Après cette transition, les mises à jour suivantes peuvent être recherchées et installées depuis Sylloge avec le jeton déjà enregistré dans le Trousseau.
+Les versions antérieures à la 0.6.8 embarquent l’ancienne adresse et un jeton dans le Trousseau. Elles doivent être remplacées une seule fois par un DMG récent ; ensuite, la mise à jour intégrée suffit. Le code du jeton a été supprimé : lecture du Trousseau, commandes natives et écran de réglages.
 
 ## Préparer le build local
 
@@ -82,20 +81,20 @@ Le dépôt doit avoir ces secrets GitHub Actions configurés :
 
 La clé privée Tauri est transmise au build pour signer l’archive updater. Elle n’est ni affichée ni écrite dans le dépôt. Les clés API sont écrites uniquement dans les fichiers temporaires ignorés par Git du runner, puis embarquées dans l’application.
 
-Pour récupérer une mise à jour sur une installation existante, ouvrez Sylloge, enregistrez le jeton dans les paramètres si nécessaire, puis utilisez la vérification de mise à jour. Si la recherche automatique est activée et qu’un jeton est présent, l’application peut aussi la proposer au démarrage. Le téléchargement et l’installation restent soumis au choix de la personne.
+Pour récupérer une mise à jour sur une installation existante, ouvrez Sylloge puis utilisez la vérification de mise à jour. Si la recherche automatique est activée, l’application peut aussi la proposer au démarrage. Le téléchargement et l’installation restent soumis au choix de la personne.
 
 ## Test réel obligatoire
 
 Le test de chaîne complète exige deux versions réellement signées avec la même clé :
 
 1. Installez manuellement le DMG de la première version qui utilise les endpoints d’assets de l’API GitHub.
-2. Enregistrez un jeton fine-grained valide et vérifiez dans GitHub que sa date d’utilisation se met à jour après une recherche.
+2. Vérifiez que la recherche de mise à jour aboutit sans aucun jeton enregistré, sur une installation neuve.
 3. Poussez un changement validé sur `main` et vérifiez la réussite du workflow dans GitHub Actions.
 4. Vérifiez la nouvelle GitHub Release, le DMG, l’archive, son `.sig` et `latest.json`. L’URL de l’archive dans le manifeste doit viser `api.github.com/repos/geasshin/sylloge/releases/assets/{asset_id}`.
 5. Dans l’application installée, vérifiez la détection, les notes, « Plus tard », l’ignorance puis le rétablissement de la version.
 6. Lancez « Télécharger et installer » et vérifiez le redémarrage ainsi que la conservation de la bibliothèque SQLite locale.
 
-Cette vérification nécessite une vraie release signée et un jeton autorisé. Un `404` peut indiquer une release absente ou un accès refusé au dépôt privé : il ne constitue jamais un succès d’installation.
+Cette vérification nécessite une vraie release signée. Un `404` indique une release absente ou un `latest.json` manquant : il ne constitue jamais un succès d’installation.
 
 ## Conservation de la clé
 

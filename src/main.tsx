@@ -24,7 +24,6 @@ import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
 import { statusTone } from './components/VerdictControls.tsx'
 import { updaterPreferencesService } from './data/updaterPreferences.ts'
 import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
-import { updaterCredentialService } from './data/updaterCredentials.ts'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
 import { libraryRepository } from './data/libraryRepository.ts'
@@ -2471,9 +2470,6 @@ function App() {
       try {
         const preferences = await updaterPreferencesService.get()
         if (cancelled || !preferences.automaticChecksEnabled) return
-
-        const credentialStatus = await updaterCredentialService.getStatus()
-        if (cancelled || !credentialStatus.supported || !credentialStatus.configured) return
 
         const update = await tauriUpdaterService.check()
         if (!cancelled && update && preferences.ignoredVersion !== update.version) {

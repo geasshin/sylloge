@@ -1187,7 +1187,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    ========================================================================== */
 :where(.field input, .field select, .field textarea, .search, .view-bar-form-input, .select-trigger, .date-row input[type="date"],
   .review-write textarea, .mapping-select, .source-destination-row select, .films-import-profile-name input,
-  .films-import-profile-name select, .films-import-rating-scale select, .updater-token-form > input,
+  .films-import-profile-name select, .films-import-rating-scale select,
   .profile-rename-form input, .profile-create-form input, .onboarding-name-field input, .duplicates-search input,
   .custom-field-row input, .provider-information-platform input) {
   min-height: var(--control-md);
@@ -1218,14 +1218,14 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 :where(.field input, .field select, .field textarea, .search, .view-bar-form-input, .select-trigger:not(:disabled), .date-row input[type="date"],
   .review-write textarea, .mapping-select, .source-destination-row select, .films-import-profile-name input,
-  .films-import-profile-name select, .films-import-rating-scale select, .updater-token-form > input,
+  .films-import-profile-name select, .films-import-rating-scale select,
   .profile-rename-form input, .profile-create-form input, .onboarding-name-field input, .duplicates-search input,
   .custom-field-row input, .provider-information-platform input):hover {
   border-color: var(--color-border-strong);
 }
 :where(.field input, .field select, .field textarea, .view-bar-form-input, .select-trigger, .date-row input[type="date"],
   .review-write textarea, .mapping-select, .source-destination-row select, .films-import-profile-name input,
-  .films-import-profile-name select, .films-import-rating-scale select, .updater-token-form > input,
+  .films-import-profile-name select, .films-import-rating-scale select,
   .profile-rename-form input, .profile-create-form input, .onboarding-name-field input, .duplicates-search input,
   .custom-field-row input, .provider-information-platform input):is(:focus, :focus-within) {
   outline: none;
@@ -1235,7 +1235,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .search:has(input:focus-visible) { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 :where(input, textarea)::placeholder { color: var(--color-placeholder); }
 :where(.field input, .field select, .field textarea, .select-trigger)[aria-invalid="true"] { border-color: var(--color-danger); }
-:where(.field input, .field select, .field textarea, .select-trigger, .updater-token-form > input):disabled { opacity: .55; cursor: default; }
+:where(.field input, .field select, .field textarea, .select-trigger):disabled { opacity: .55; cursor: default; }
 
 /* Liste déroulante Sylloge (Select.tsx) : même gabarit que les champs, liste
    d’options dans un panneau flottant ; l’option cochée est en encre, l’option
@@ -3065,16 +3065,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .settings-facts dd a { display: inline-block; padding: var(--space-2) var(--space-1); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-1)); border-radius: var(--radius-xs); }
 .updater-card { margin-top: var(--space-6); }
 .updater-card > p:first-child { max-width: 670px; }
-.updater-credentials { display: grid; gap: var(--space-3); margin: var(--space-5) 0; padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-muted); }
-.updater-credentials h3 { margin: 0; font-size: var(--text-lg); letter-spacing: -.02em; }
-.updater-credentials > div > p { max-width: 760px; margin: var(--space-2) 0 var(--space-2); color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.55; }
-.updater-credentials a { color: var(--color-text); font-size: var(--text-sm); font-weight: 600; text-decoration-thickness: 1px; text-underline-offset: 3px; }
-.updater-credentials a:hover { color: var(--color-accent); }
-.updater-credential-state { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
-.updater-token-form { display: grid; gap: var(--space-2); max-width: 520px; }
-.updater-token-form > label { color: var(--color-text); font-size: var(--text-sm); font-weight: 600; }
-.updater-token-form > input { width: 100%; }
-.updater-token-form .updater-actions { margin-top: var(--space-1); }
 .updater-preference { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); padding: var(--space-4) 0; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
 .updater-preference h3, .updater-available h3 { margin: 0; font-size: var(--text-xl); letter-spacing: -.025em; }
 .updater-preference p { max-width: 520px; margin: var(--space-2) 0 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.5; }

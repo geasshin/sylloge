@@ -44,14 +44,10 @@ export class TauriUpdaterService {
 }
 
 const UPDATER_ERROR_MESSAGES: Record<string, string> = {
-  UPDATER_TOKEN_REQUIRED: 'Enregistrez un jeton GitHub dans les réglages pour accéder aux releases privées.',
-  UPDATER_TOKEN_INVALID: 'GitHub refuse ce jeton. Vérifiez qu’il est actif, non expiré et copié sans erreur.',
-  UPDATER_TOKEN_PERMISSION_DENIED: 'GitHub refuse l’accès au dépôt. Vérifiez que le jeton autorise Contents en lecture pour geasshin/sylloge et qu’aucune approbation n’est en attente.',
-  UPDATER_PRIVATE_RELEASE_UNAVAILABLE: 'GitHub renvoie 404, ce qui peut masquer un accès refusé à la release privée. Vérifiez que geasshin/sylloge est sélectionné, que Contents est en lecture seule et que la release contient latest.json.',
+  UPDATER_MANIFEST_MISSING: 'La dernière release ne contient pas latest.json. La publication de cette version est incomplète.',
   UPDATER_MANIFEST_INVALID: 'GitHub répond, mais Sylloge ne trouve pas de version exploitable dans latest.json. Le manifeste de la release doit être vérifié.',
-  UPDATER_RELEASE_METADATA_INVALID: 'La réponse de la release GitHub est illisible. Réessayez plus tard ou vérifiez les fichiers de la release.',
   UPDATER_REQUEST_SETUP_FAILED: 'La requête de mise à jour n’a pas pu être préparée. Vérifiez la configuration du dépôt.',
-  UPDATER_CHECK_FAILED: 'La vérification a échoué. Vérifiez la connexion et les droits du jeton GitHub.',
+  UPDATER_CHECK_FAILED: 'La vérification a échoué. Vérifiez la connexion puis réessayez.',
   UPDATER_INSTALL_FAILED: 'Le téléchargement ou l’installation a échoué. Votre version actuelle reste ouverte.',
   UPDATER_UPDATE_EXPIRED: 'Cette mise à jour n’est plus disponible. Recherchez-la de nouveau.',
   UPDATER_UPDATE_CHANGED: 'La release a changé depuis la vérification. Recherchez de nouveau les mises à jour.',
@@ -65,7 +61,7 @@ export function updaterErrorMessage(error: unknown): string {
       ? error.message
       : ''
   return UPDATER_ERROR_MESSAGES[code]
-    ?? (code.startsWith('Impossible de ') || code.startsWith('Le jeton ')
+    ?? (code.startsWith('Impossible de ')
       ? code
       : 'La mise à jour a échoué. Vérifiez la connexion et réessayez.')
 }

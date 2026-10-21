@@ -31,6 +31,9 @@
       "preload": ["sqlite:sylloge.db"]
     },
     "updater": {
+      "endpoints": [
+        "https://github.com/geasshin/sylloge/releases/latest/download/latest.json"
+      ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFFQkI1NTZERjA5OTczRjEKUldUeGM1bndiVlc3cmxLL1JnbE1LM0w3V29taDVkQ0ZJSGE2SnJkelFzNnhONFluNU5EbjZwcmYK",
       "dangerousInsecureTransportProtocol": false
     }

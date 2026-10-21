@@ -21,7 +21,7 @@ Vérifications du 21 octobre 2026 : 169 commits, aucun jeton ni clé privée dan
 - README refait : ce qu'est Sylloge, captures, installation, compilation, où vivent les décisions. L'actuel décrit encore six bibliothèques et la 0.6.4.
 - `LICENSE`, `CONTRIBUTING.md`, et la phrase qui compte : la bibliothèque reste sur la machine.
 
-### 1.3 Mise à jour sans jeton
+### 1.3 Mise à jour sans jeton — **fait le 21 octobre 2026**
 
 Le dépôt devenant public, l'application interroge l'URL statique de sa dernière release :
 
@@ -29,7 +29,7 @@ Le dépôt devenant public, l'application interroge l'URL statique de sa derniè
 https://github.com/geasshin/sylloge/releases/latest/download/latest.json
 ```
 
-Aucun jeton, aucune limite d'API. Tout le code du jeton disparaît : lecture du Trousseau, commandes, écran de réglages correspondant. La vérification de signature ne bouge pas ; remplacer `latest.json` ne suffit pas à installer une archive non signée par la clé du projet.
+Aucun jeton, aucune limite d'API. Le code du jeton a été retiré : module natif, dépendance `security-framework`, lecture du Trousseau, trois commandes, écran de réglages, styles et messages d'erreur. Le manifeste pointe désormais l'archive par son URL de release publique. La vérification de signature ne bouge pas ; remplacer `latest.json` ne suffit pas à installer une archive non signée par la clé du projet.
 
 Bénéfice annexe : les minutes GitHub Actions sont gratuites sur un dépôt public, runner macOS compris.
 
@@ -101,7 +101,7 @@ Se connecter aux services à la place de la personne. Aucun n'expose d'API d'his
 
 ## Ordre proposé
 
-1. Ouvrir le projet : dépôt public, licence, README, mise à jour sans jeton, test des clés. **Sans cela, chaque nouvelle version doit être réinstallée à la main.**
+1. Ouvrir le projet : dépôt public, licence et README faits ; reste le test des clés en CI. **Sans la mise à jour sans jeton — faite —, chaque nouvelle version devait être réinstallée à la main.**
 2. Imports guidés : tutoriels et reconnaissance, parce que c'est ce qui fait basculer un utilisateur.
 3. Premier lancement et réglages.
 4. Bibliothèques personnalisées, quand le socle est stable.
