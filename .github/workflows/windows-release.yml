@@ -78,6 +78,12 @@ jobs:
           fi
           SYLLOGE_RELEASE_VERSION="$RELEASE_TAG" node scripts/prepare-tauri-release-version.mjs
 
+      # Le cache Cargo restaure target/ : sans ce nettoyage, l'installeur d'une
+      # version précédente reste dans bundle/nsis et part dans la release.
+      - name: Nettoyer les bundles Windows mis en cache
+        shell: bash
+        run: rm -rf src-tauri/target/release/bundle
+
       - name: Construire le bundle Windows (NSIS + updater)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
