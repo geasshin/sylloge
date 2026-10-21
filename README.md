@@ -1,16 +1,16 @@
 # Sylloge
 
-Sylloge est une application de bibliothèque culturelle personnelle, conçue pour un usage local sur Mac. L’interface présente six bibliothèques : Films, Séries, Livres, Mangas, Jeux et Art. Livres et Mangas partagent la même collection de données, distinguée par la catégorie de chaque fiche : le stockage SQLite, les formats d’import et d’export et les sauvegardes restent à cinq collections.
+Sylloge est une application de bibliothèque culturelle personnelle, conçue pour un usage local sur macOS et Windows. Sept bibliothèques : Films, Séries, Animation japonaise, Livres, Mangas, Jeux et Art. Une seule base `sylloge.db`, une table par bibliothèque. Aucune bibliothèque n’emprunte la table d’une autre.
 
 ## État du projet
 
-La version installée correspond à `origin/main` (release automatique 0.6.4 du 8 octobre 2026). La remise à plat documentaire et le lot d’imports Films et Séries, préparés sur une branche parallèle, y ont été intégrés le 16 octobre 2026 sur la branche de travail `design/harmonisation`. Le numéro affiché dans les manifestes source reste 0.6.0 : la CI applique le numéro correctif au moment de publier.
+Chaque push sur `main` publie une version corrective ; le numéro des manifestes source reste `0.6.0`, la CI applique le numéro au moment de construire. La dernière version publiée est visible sur la page des releases. Le projet est gratuit et open source sous licence MIT.
 
 Les décisions et l’ordre des prochains lots figurent dans [la feuille de route](docs/ROADMAP.md). Les faits de l’audit et ses limites sont dans [l’état de base](docs/ETAT_DE_BASE.md).
 
 ## Publication
 
-Chaque push sur `main` déclenche le build macOS et la publication automatique d’une GitHub Release : DMG, archive `.app.tar.gz` signée, signature et manifeste de l’updater. L’application installée propose ensuite cette version. Un push sur `main` est donc une mise en production. Les branches de travail ne publient rien. Le dépôt étant privé, l’application lit un jeton GitHub à granularité fine (`Contents: Read-only`, limité au dépôt) dans le Trousseau macOS. Le détail figure dans [la configuration de l’updater](docs/TAURI_UPDATER_SETUP.md).
+Chaque push sur `main` déclenche le build macOS et la publication automatique d’une GitHub Release : DMG, archive `.app.tar.gz` signée, signature et manifeste de l’updater. L’application installée propose ensuite cette version. Un push sur `main` est donc une mise en production. Les branches de travail ne publient rien. Le dépôt est public depuis le 21 octobre 2026 : la mise à jour automatique sans jeton GitHub est le prochain lot, en attendant l’application accepte encore un jeton dans ses réglages. Les artefacts sont vérifiés par la signature de la clé du projet : remplacer le manifeste ne suffit pas à installer une archive non signée.
 
 ## Technologies
 
@@ -44,6 +44,10 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 Voir [l’état de base](docs/ETAT_DE_BASE.md) pour savoir lesquels passent sur ce clone et dans quelles conditions.
+
+## Licence
+
+MIT, voir [LICENSE](LICENSE). Les noms et logos des services cités appartiennent à leurs éditeurs. Les métadonnées proviennent de TMDB, Open Library et IGDB ; la mention TMDB obligatoire pour un usage public est à rétablir dans l’application et sur le site avant une diffusion large.
 
 ## Données locales
 

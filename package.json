@@ -2,6 +2,7 @@
   "name": "bibliotheque-culturelle-v0-1",
   "private": true,
   "version": "0.6.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
