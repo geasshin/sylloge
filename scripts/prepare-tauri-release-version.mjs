@@ -62,20 +62,18 @@ updateJsonVersion(tauriConfigPath, (value) => {
   value.version = nextVersion
 })
 
+// Les motifs tolèrent les fins de ligne CRLF : sur Windows, Git extrait les fichiers en CRLF.
 const cargoManifestPath = 'src-tauri/Cargo.toml'
 const cargoManifest = readFileSync(cargoManifestPath, 'utf8')
-const updatedCargoManifest = cargoManifest.replace(/^version = "[^"]+"$/m, `version = "${nextVersion}"`)
-if (!/^version = "[^"]+"$/m.test(cargoManifest)) throw new Error('La version du paquet racine est introuvable dans Cargo.toml.')
-writeFileSync(cargoManifestPath, updatedCargoManifest, 'utf8')
+const cargoVersionLine = /^version = "[^"]+"(?=\r?$)/m
+if (!cargoVersionLine.test(cargoManifest)) throw new Error('La version du paquet racine est introuvable dans Cargo.toml.')
+writeFileSync(cargoManifestPath, cargoManifest.replace(cargoVersionLine, `version = "${nextVersion}"`), 'utf8')
 
 const cargoLockPath = 'src-tauri/Cargo.lock'
 const cargoLock = readFileSync(cargoLockPath, 'utf8')
-const updatedCargoLock = cargoLock.replace(
-  /(\[\[package\]\]\nname = "sylloge"\nversion = ")[^"]+(")/,
-  `$1${nextVersion}$2`,
-)
-if (!/\[\[package\]\]\nname = "sylloge"\nversion = "[^"]+"/.test(cargoLock)) throw new Error('La version du paquet Sylloge est introuvable dans Cargo.lock.')
-writeFileSync(cargoLockPath, updatedCargoLock, 'utf8')
+const syllogeLockVersion = /(\[\[package\]\]\r?\nname = "sylloge"\r?\nversion = ")[^"]+(")/
+if (!syllogeLockVersion.test(cargoLock)) throw new Error('La version du paquet Sylloge est introuvable dans Cargo.lock.')
+writeFileSync(cargoLockPath, cargoLock.replace(syllogeLockVersion, `$1${nextVersion}$2`), 'utf8')
 
 if (process.env.GITHUB_OUTPUT) {
   appendFileSync(process.env.GITHUB_OUTPUT, `version=${nextVersion}\ntag=${tagName}\n`, 'utf8')
