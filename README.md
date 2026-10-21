@@ -28,7 +28,7 @@ npm ci
 npm run tauri:dev
 ```
 
-Les modules Rust contenant les secrets de fournisseur sont ignorés par Git et ne sont pas inclus dans un clone. Le lancement natif et certaines validations ne passent pas tant qu’ils ne sont pas générés, même si l’usage des métadonnées reste facultatif dans l’application. Suivre les exemples du [générateur de modules locaux](scripts/generate_embedded_key.py) avec les secrets déjà conservés dans des fichiers locaux protégés. Ne jamais ajouter de clé réelle au dépôt ni la coller dans une commande ou dans le chat. L’audit de reprise a utilisé uniquement des valeurs factices temporaires.
+Un clone propre se lance et se construit sans aucune clé : TMDB et IGDB passent par le proxy du projet, qui détient les secrets dans l’environnement Vercel. Aucun fichier de secret n’est requis, ni pour le développement, ni pour un build. Les métadonnées restent facultatives dans l’application, et une clé compromise se remplace dans Vercel sans republier de version.
 
 ## Contrôles du projet
 
