@@ -14,10 +14,11 @@ Les documents sous docs/archive et les anciens plans sous docs/plans sont histor
 ## Base produit
 
 - Application personnelle locale sur Mac.
-- Sept bibliothèques : Films, Séries, Animation japonaise, Livres, Mangas, Jeux et Art. Une seule base `sylloge.db`, une table par bibliothèque (`films`, `series`, `anime`, `books`, `mangas`, `games`, `artworks`). Une bibliothèque n’est jamais une simple valeur de catégorie dans la table d’une autre : toute nouvelle bibliothèque suit ce modèle.
+- Sept bibliothèques de base : Films, Séries, Animation japonaise, Livres, Mangas, Jeux et Art. Une seule base `sylloge.db`, une table par bibliothèque (`films`, `series`, `anime`, `books`, `mangas`, `games`, `artworks`). Une bibliothèque n’est jamais une simple valeur de catégorie dans la table d’une autre : toute nouvelle bibliothèque suit ce modèle.
+- Bibliothèques personnalisées (22 octobre 2026) : modèles prêts qu’un profil ajoute par le « + » de la barre latérale. Huit modèles, une table chacun (`comics`, `magazines`, `audiobooks`, `music`, `podcasts`, `documentaries`, `shows`, `board_games`), liste par profil dans `profile_libraries`. Le catalogue est dans `src/domain/customLibraries.ts`. Les comics ont leur bibliothèque : Livres n’a plus de catégorie Comics.
 - Une seule direction visuelle pour toute l’application, accueil compris : monochrome neutre et froid (décision du 16 octobre 2026). Les écrans peuvent être recomposés quand l’usage le justifie ; les fonctions, les données et les sept bibliothèques sont préservées. DESIGN.md décrit le système en vigueur.
 - Cible desktop macOS uniquement. La présentation mobile n’est plus maintenue comme cible.
-- Ne pas élargir le périmètre vers de nouveaux médias, comptes, synchronisation, cloud ou distribution publique sans décision explicite.
+- Ne pas élargir le périmètre vers de nouveaux médias ou modèles, comptes, synchronisation, cloud ou distribution publique sans décision explicite.
 
 ## Données et sécurité
 

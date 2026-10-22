@@ -149,7 +149,7 @@ export function validateBookForm(rawValues: BookFormValues): BookValidationResul
   // Corriger le type ne supprime pas un avancement déjà saisi ou importé.
   // Les mêmes colonnes existent pour toutes les catégories ; le formulaire
   // laisse les compteurs visibles tant qu'ils portent une valeur.
-  const hasVolumes = values.category === 'manga' || values.category === 'comics'
+  const hasVolumes = values.category === 'manga'
     || values.volumesRead.trim() !== '' || values.volumesTotal.trim() !== ''
 
   if (!title) {
@@ -240,7 +240,7 @@ export function validateBookForm(rawValues: BookFormValues): BookValidationResul
       startedAt: optionalText(values.startedAt),
       coverUrl,
       personalNote: optionalText(values.personalNote),
-      quotes: values.quotes.map((quote) => quote.trim()).filter(Boolean),
+      quotes: values.quotes.filter((quote) => quote.trim() !== ''),
     },
   }
 }

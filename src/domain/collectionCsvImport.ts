@@ -9,6 +9,7 @@ import {
   normalizeImportStatus,
 } from './importNormalization.ts'
 import { COLLECTION_CSV_CONTRACTS, type CsvCollectionMedium } from './collectionCsvTransfer.ts'
+import { validateLibraryDocument } from './libraryDocument.ts'
 import { validateSeriesForm, type SeriesFormValues } from './seriesForm.ts'
 import { validateBookForm, type BookFormValues } from './bookForm.ts'
 import { validateGameForm, type GameFormValues } from './gameForm.ts'
@@ -271,17 +272,25 @@ function previewSyllogeCsv(session: CollectionCsvImportSession): CollectionCsvIm
   const indexByHeader = new Map(session.table.headers.map((header, index) => [header, index]))
   const contract = COLLECTION_CSV_CONTRACTS[session.kind]
   const items: CollectionCsvItem[] = []
+  const firstRow = session.table.rows[0]
+  const metadata = firstRow ? sourceValues(session.kind, firstRow, indexByHeader) : null
 
   if (session.table.rows.length === 0) errors.push({ path: '$', message: 'Le CSV Sylloge ne contient aucune ligne de profil.' })
   for (const row of session.table.rows) {
     const source = sourceValues(session.kind, row, indexByHeader)
+    if (metadata && COMMON_HEADERS.slice(2).some((header) => source[header] !== metadata[header])) {
+      errors.push({ path: `Ligne ${row.line}`, message: 'Les métadonnées de profil et d’export doivent être identiques sur chaque ligne Sylloge.' })
+    }
     if (source.format !== contract.format) {
       errors.push({ path: `Ligne ${row.line}.format`, message: `Le format attendu est « ${contract.format} ».` })
     }
     if (source.version !== '1') {
       errors.push({ path: `Ligne ${row.line}.version`, message: 'La version CSV attendue est 1.' })
     }
-    if (isEmptySyllogeRow(session.kind, source)) continue
+    if (isEmptySyllogeRow(session.kind, source)) {
+      validateSyllogeRowDocument(session.kind, source, null, row.line, errors)
+      continue
+    }
     const before = errors.length
     const item = parseSyllogeRow(session.kind, source, row.line, errors)
     if (item !== null && errors.length === before) items.push(item)
@@ -331,33 +340,72 @@ function parseSyllogeRow(
   line: number,
   errors: ImportValidationError[],
 ): CollectionCsvItem | null {
+  // Un export Sylloge n’est pas un formulaire : ne jamais rogner ses textes,
+  // purger ses données personnelles ou normaliser silencieusement ses valeurs.
   const prefix = SYLLOGE_CSV_PREFIXES[kind]
-  const values: Record<string, string | null> = {}
-  for (const fieldDefinition of FIELDS[kind]) {
-    const header = fieldDefinition.key === 'quotes'
-      ? `${prefix}_quotes_json`
-      : `${prefix}_${snakeCase(fieldDefinition.key)}`
-    values[fieldDefinition.key] = source[header] ?? null
+  const item: Record<string, unknown> = {}
+  const before = errors.length
+  for (const header of COLLECTION_CSV_CONTRACTS[kind].entityHeaders) {
+    const key = header.slice(prefix.length + 1).replace(/_([a-z])/gu, (_, character: string) => character.toUpperCase())
+    const value = source[header]
+    if (key === 'quotesJson') {
+      try {
+        const bodies: unknown = JSON.parse(value)
+        if (!Array.isArray(bodies) || bodies.some((body) => typeof body !== 'string')) throw new Error('citations')
+        item.quotes = bodies.map((body: string, position: number) => ({
+          id: `import-preview-${line}-quote-${position}`, bookId: source[`${prefix}_id`], body, position,
+          createdAt: source[`${prefix}_created_at`],
+        }))
+      } catch {
+        errors.push({ path: `Ligne ${line}.${header}`, message: 'Un tableau JSON de textes de citations est attendu.' })
+      }
+    } else if (key === 'isFavorite') {
+      if (value !== 'true' && value !== 'false') errors.push({ path: `Ligne ${line}.${header}`, message: 'Le favori Sylloge doit valoir true ou false.' })
+      item[key] = value === 'true'
+    } else if (/(?:_year|_rating|_seasons_seen|_seasons_total|_volumes_read|_volumes_total)$/u.test(header)) {
+      if (value !== '' && (!/^-?\d+(?:\.\d+)?$/u.test(value) || !Number.isFinite(Number(value)))) {
+        errors.push({ path: `Ligne ${line}.${header}`, message: 'Un nombre Sylloge valide est attendu.' })
+      }
+      item[key] = value === '' ? null : Number(value)
+    } else {
+      item[key] = value === '' ? null : value
+    }
   }
+  if (kind === 'anime') item.category = 'animation'
+  if (kind === 'mangas') item.category = 'manga'
+  if (kind === 'artworks') item.customFields = [] // Aucun champ libre dans le contrat CSV v1.
+  if (item.progressUpdatedAt !== undefined && item.progressUpdatedAt !== null && !isIsoUtc(String(item.progressUpdatedAt))) {
+    errors.push({ path: `Ligne ${line}.${prefix}_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
+  }
+  if (errors.length !== before) return null
+  return validateSyllogeRowDocument(kind, source, item, line, errors)
+}
 
-  const item = parseGenericRow(kind, values, line, source[`${prefix}_created_at`] || new Date().toISOString(), errors)
-  if (item === null) return null
-
-  const createdAt = source[`${prefix}_created_at`]
-  const updatedAt = source[`${prefix}_updated_at`]
-  if (!isIsoUtc(createdAt)) errors.push({ path: `Ligne ${line}.${prefix}_created_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
-  if (!isIsoUtc(updatedAt)) errors.push({ path: `Ligne ${line}.${prefix}_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
-  if (kind === 'series' || kind === 'anime') {
-    const progressUpdatedAt = source[`${prefix}_progress_updated_at`]
-    if (progressUpdatedAt && !isIsoUtc(progressUpdatedAt)) errors.push({ path: `Ligne ${line}.${prefix}_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
-    return { ...item, createdAt, updatedAt, progressUpdatedAt: progressUpdatedAt || null } as Series
+function validateSyllogeRowDocument(
+  kind: CollectionCsvImportKind,
+  source: Record<string, string>,
+  item: Record<string, unknown> | null,
+  line: number,
+  errors: ImportValidationError[],
+): CollectionCsvItem | null {
+  // Les anciens CSV Séries/Livres peuvent encore contenir leurs catégories
+  // animation/manga : valider dans la section v3 correspondante sans les perdre.
+  // Les comics ont leur propre bibliothèque depuis la migration 0021 : une
+  // ligne Livres de catégorie « comics » est signalée, jamais ignorée en silence.
+  if (kind === 'books' && item?.category === 'comics') {
+    errors.push({ path: `Ligne ${line}.category`, message: 'Les comics ont désormais leur propre bibliothèque : restaurez-les depuis une sauvegarde JSON complète ou ajoutez-les dans Comics.' })
+    return null
   }
-  if (kind === 'books' || kind === 'mangas') {
-    const progressUpdatedAt = source[`${prefix}_progress_updated_at`]
-    if (progressUpdatedAt && !isIsoUtc(progressUpdatedAt)) errors.push({ path: `Ligne ${line}.${prefix}_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
-    return { ...item, createdAt, updatedAt, progressUpdatedAt: progressUpdatedAt || null } as Book
-  }
-  return { ...item, createdAt, updatedAt } as Game | Artwork
+  const section = kind === 'series' && item?.category === 'animation' ? 'anime'
+    : kind === 'books' && item?.category === 'manga' ? 'mangas' : kind
+  const preview = validateLibraryDocument(JSON.stringify({
+    format: 'sylloge-library', version: 3, exportedAt: source.exported_at,
+    profile: { id: source.profile_id, name: source.profile_name, createdAt: source.profile_created_at, updatedAt: source.profile_updated_at },
+    films: [], series: [], anime: [], books: [], mangas: [], games: [], artworks: [],
+    [section]: item === null ? [] : [item],
+  }))
+  errors.push(...preview.errors.map((error) => ({ ...error, path: `Ligne ${line}${error.path.replace(`$.${section}[0]`, '').replace(/^\$/u, '')}` })))
+  return preview.document?.[section][0] ?? null
 }
 
 function parseGenericRow(
@@ -411,6 +459,9 @@ function parseGenericRow(
     return { id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data, progressUpdatedAt: null, createdAt: importedAt, updatedAt: importedAt }
   }
   if (kind === 'books' || kind === 'mangas') {
+    if (kind === 'books' && /^comics?$/iu.test(value('category').trim())) {
+      warnings.push('Type « comics » : les comics ont leur propre bibliothèque ; cette fiche sera importée comme livre.')
+    }
     const quotes = parseQuotes(value('quotes'), line, errors, importedAt)
     const result = validateBookForm({
       title: value('title'), author: value('author'), year: count('year', 'Année :'), summary: value('summary'),
@@ -532,10 +583,6 @@ function mappingEntries(kind: CollectionCsvImportKind, mapping: CollectionCsvMap
 
 function fieldLabel(kind: CollectionCsvImportKind, key: string): string {
   return FIELDS[kind].find((fieldDefinition) => fieldDefinition.key === key)?.label ?? key
-}
-
-function snakeCase(value: string): string {
-  return value.replace(/[A-Z]/gu, (character) => `_${character.toLowerCase()}`)
 }
 
 function isIsoUtc(value: string): boolean {

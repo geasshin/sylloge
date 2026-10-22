@@ -124,6 +124,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0020_split_anime_and_mangas.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 21,
+            description: "custom_libraries",
+            sql: include_str!("../migrations/0021_custom_libraries.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

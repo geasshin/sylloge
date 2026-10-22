@@ -1,9 +1,10 @@
 //! Écritures atomiques des livres et des mangas.
 //!
-//! Une bibliothèque = une table : `books` (livres et comics, avec une colonne
-//! `category` valant `livre` ou `comics`) et `mangas` (mangas, sans colonne
-//! `category`). Les citations suivent la fiche : `book_quotes.book_id` ou
-//! `manga_quotes.manga_id`.
+//! Une bibliothèque = une table : `books` (livres, avec une colonne `category`
+//! valant `livre`) et `mangas` (mangas, sans colonne `category`). Les comics
+//! ont leur propre bibliothèque depuis la migration 0021 : une fiche de
+//! catégorie `comics` est refusée ici. Les citations suivent la fiche :
+//! `book_quotes.book_id` ou `manga_quotes.manga_id`.
 //!
 //! Le contrat venu du front :
 //! - `create_book_atomically` écrit dans la table annoncée par `library` ;
@@ -23,6 +24,16 @@ use tauri::State;
 use tauri_plugin_sql::DbInstances;
 
 use crate::portability::sqlite_pool;
+
+/// Refus de toute écriture d’un comic dans Livres ou Mangas : depuis la
+/// migration 0021, les comics vivent dans leur propre table `comics`.
+pub(crate) const COMICS_HAVE_THEIR_OWN_LIBRARY: &str =
+    "Les comics ont leur propre bibliothèque : enregistrez-les dans la bibliothèque Comics.";
+
+/// Catégorie historique des comics dans `books`, quelle que soit sa casse.
+pub(crate) fn is_comics_category(category: &str) -> bool {
+    category.trim().eq_ignore_ascii_case("comics")
+}
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,11 +94,13 @@ impl BookLibrary {
         }
     }
 
-    /// `books` porte une catégorie réelle ; `mangas` la synthétise côté lecture.
+    /// `books` porte une catégorie réelle (`livre`) ; `mangas` la synthétise
+    /// côté lecture. Une fiche `comics` n’a plus sa place dans ces tables.
     fn from_category(category: &str) -> Result<Self, String> {
         match category.trim() {
             "manga" => Ok(Self::Mangas),
-            "livre" | "comics" => Ok(Self::Books),
+            "livre" => Ok(Self::Books),
+            other if is_comics_category(other) => Err(COMICS_HAVE_THEIR_OWN_LIBRARY.to_string()),
             other => Err(format!("Catégorie de livre inconnue : « {other} ».")),
         }
     }
@@ -870,6 +883,76 @@ mod tests {
     }
 
     #[test]
+    fn create_comics_book_is_rejected_because_comics_have_their_own_library() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            for (library, category) in [
+                (BookLibrary::Books, "comics"),
+                (BookLibrary::Books, " Comics "),
+                (BookLibrary::Mangas, "comics"),
+            ] {
+                let error = create_book_in_pool(&pool, payload(library, category))
+                    .await
+                    .expect_err("un comic ne doit plus être écrit dans Livres ni Mangas");
+                assert!(
+                    error.contains("propre bibliothèque") && error.contains("Comics"),
+                    "message explicite attendu pour « {category} » : {error}"
+                );
+            }
+            for table in ["books", "book_quotes", "mangas", "manga_quotes"] {
+                assert_eq!(
+                    count(&pool, &format!("SELECT COUNT(*) FROM {table}")).await,
+                    0,
+                    "aucune écriture dans {table}"
+                );
+            }
+        });
+    }
+
+    #[test]
+    fn update_to_comics_category_is_rejected_and_keeps_the_book() {
+        tauri::async_runtime::block_on(async {
+            let pool = test_pool().await;
+            create_book_in_pool(&pool, book_payload())
+                .await
+                .expect("créer le livre");
+
+            let mut comic = payload(BookLibrary::Books, "comics");
+            comic.book.title = "Devenu comic".to_string();
+            comic.quotes.truncate(1);
+            let error = update_book_in_pool(&pool, comic)
+                .await
+                .expect_err("un livre ne peut pas devenir un comic dans Livres");
+            assert!(error.contains("propre bibliothèque"), "{error}");
+
+            let row: (String, String) =
+                sqlx::query_as("SELECT category, title FROM books WHERE id = 'book-1'")
+                    .fetch_one(&pool)
+                    .await
+                    .expect("relire le livre conservé");
+            assert_eq!(row, ("livre".to_string(), "Livre initial".to_string()));
+            assert_eq!(
+                count(
+                    &pool,
+                    "SELECT COUNT(*) FROM book_quotes WHERE book_id = 'book-1'"
+                )
+                .await,
+                2
+            );
+        });
+    }
+
+    #[test]
+    fn book_categories_route_livre_and_manga_and_refuse_comics() {
+        assert_eq!(BookLibrary::from_category("livre"), Ok(BookLibrary::Books));
+        assert_eq!(BookLibrary::from_category("manga"), Ok(BookLibrary::Mangas));
+        assert!(BookLibrary::from_category("comics")
+            .unwrap_err()
+            .contains("Comics"));
+        assert!(BookLibrary::from_category("roman-photo").is_err());
+    }
+
+    #[test]
     fn update_book_and_quotes_is_atomic() {
         tauri::async_runtime::block_on(async {
             let pool = test_pool().await;
@@ -917,8 +1000,8 @@ mod tests {
                 .expect("créer le manga");
             add_provider_link(&pool, "mangas").await;
 
-            let mut moved = payload(BookLibrary::Mangas, "comics");
-            moved.book.title = "Manga devenu comic".to_string();
+            let mut moved = payload(BookLibrary::Mangas, "livre");
+            moved.book.title = "Manga devenu livre".to_string();
             moved.book.updated_at = "2026-07-23T09:00:00.000Z".to_string();
             moved.quotes[0].body = "Citation révisée".to_string();
 
@@ -938,8 +1021,8 @@ mod tests {
             .fetch_one(&pool)
             .await
             .expect("relire la fiche déplacée");
-            assert_eq!(row.get::<String, _>("category"), "comics");
-            assert_eq!(row.get::<String, _>("title"), "Manga devenu comic");
+            assert_eq!(row.get::<String, _>("category"), "livre");
+            assert_eq!(row.get::<String, _>("title"), "Manga devenu livre");
             assert_eq!(row.get::<String, _>("author"), "Autrice");
             assert_eq!(row.get::<i64, _>("year"), 2026);
             assert_eq!(row.get::<String, _>("status"), "en cours");
@@ -977,11 +1060,11 @@ mod tests {
         tauri::async_runtime::block_on(async {
             let pool = test_pool().await;
             let cover = "https://covers.openlibrary.org/b/id/1-L.jpg".to_string();
-            let mut comic = payload(BookLibrary::Books, "comics");
-            comic.book.cover_url = Some(cover.clone());
-            create_book_in_pool(&pool, comic)
+            let mut book = payload(BookLibrary::Books, "livre");
+            book.book.cover_url = Some(cover.clone());
+            create_book_in_pool(&pool, book)
                 .await
-                .expect("créer le comic");
+                .expect("créer le livre");
             add_provider_link(&pool, "books").await;
 
             // `library` désigne la table actuelle : la fiche est encore dans
@@ -991,7 +1074,7 @@ mod tests {
 
             update_book_in_pool(&pool, moved)
                 .await
-                .expect("déplacer le comic vers Mangas");
+                .expect("déplacer le livre vers Mangas");
 
             assert_eq!(count(&pool, "SELECT COUNT(*) FROM books").await, 0);
             assert_eq!(count(&pool, "SELECT COUNT(*) FROM book_quotes").await, 0);

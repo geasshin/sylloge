@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { createRoot } from 'react-dom/client'
+import { FloatingSidebarFrame, readSidebarPinned, saveSidebarPinned } from './components/FloatingSidebarFrame.tsx'
 import { AccessibleDialog } from './components/AccessibleDialog.tsx'
 import { FocusDialog } from './components/FocusDialog.tsx'
 import { ImportHint } from './components/ImportHint.tsx'
@@ -13,7 +14,7 @@ import { GameDetail } from './components/GameDetail.tsx'
 import { GameForm } from './components/GameForm.tsx'
 import { Poster } from './components/Poster.tsx'
 import { Home } from './components/AtriumHome.tsx'
-import { Portability, type PortabilitySection } from './components/Portability.tsx'
+import { Portability, SETTINGS_SECTIONS, type PortabilitySection } from './components/Portability.tsx'
 import { SeriesDetail } from './components/SeriesDetail.tsx'
 import { SeriesForm } from './components/SeriesForm.tsx'
 import { SeriesTmdbSearchFlow } from './components/SeriesTmdbSearchFlow.tsx'
@@ -28,7 +29,6 @@ import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
 import { libraryRepository } from './data/libraryRepository.ts'
 import { profilesRepository, type ProfileSummary } from './data/profilesRepository.ts'
-import { pickImportJson } from './data/nativePortability.ts'
 import {
   mediaRepository,
   type ArtworkSearchCriteria,
@@ -38,9 +38,15 @@ import {
   type SeriesSearchCriteria,
 } from './data/mediaRepository.ts'
 import { LibraryImportButton } from './components/LibraryImportButton.tsx'
-import { ProfileAvatar, ProfileAvatarPicker } from './components/ProfileAvatar.tsx'
+import { ProfileAvatar } from './components/ProfileAvatar.tsx'
+import { Onboarding } from './components/Onboarding.tsx'
 import { LibraryViewBar, type LibraryFilterConfig } from './components/LibraryViewBar.tsx'
 import { MobileAppShell } from './components/MobileAppShell.tsx'
+import { AddLibraryDialog } from './components/AddLibraryDialog.tsx'
+import { CustomLibraryIcon } from './components/CustomLibraryIcon.tsx'
+import { CustomLibraryScreen } from './components/CustomLibraryScreen.tsx'
+import { customLibraryRepository } from './data/customLibraryRepository.ts'
+import { CUSTOM_LIBRARY_TEMPLATES, type CustomLibraryId, type EnabledCustomLibrary } from './domain/customLibraries.ts'
 
 
 import type { TmdbSearchCandidate, TmdbFilmPresentation } from './data/tmdbService.ts'
@@ -50,7 +56,6 @@ import { previewIgdbGame, searchIgdbGames, type IgdbGameCandidate } from './data
 import { autoAssociateFilms } from './domain/autoAssociate.ts'
 import { MATCH_THRESHOLD, REQUEST_DELAY_MS, delay, scoreNamedCandidate, seriesWithPresentation, bookWithPresentation, gameWithPresentation } from './domain/autoAssociateMedia.ts'
 import { useTheme, type ThemePreference } from './domain/theme.ts'
-import { validateLibraryDocument, type SyllogeLibraryDocument } from './domain/libraryDocument.ts'
 import {
   FILM_STATUS_LABELS,
   FILM_STATUSES,
@@ -142,6 +147,8 @@ import {
   PanelIcon,
   UnlinkIcon,
   ArrowLeftIcon,
+  PlusIcon,
+  PinIcon,
 } from './components/icons.tsx'
 import './styles.css'
 
@@ -150,28 +157,28 @@ export type { IconName }
 type SettingsSection = PortabilitySection
 
 /** Fabrique d'icônes SVG partagée par tous les composants de l'app. */
-export function icon(name: IconName) {
+export function icon(name: IconName, filled = false) {
   switch (name) {
     case 'home':
-      return <HomeIcon />
+      return <HomeIcon filled={filled} />
     case 'arrow-left':
       return <ArrowLeftIcon />
     case 'film':
-      return <FilmIcon />
+      return <FilmIcon filled={filled} />
     case 'series':
-      return <SeriesIcon />
+      return <SeriesIcon filled={filled} />
     case 'anime':
-      return <AnimeIcon />
+      return <AnimeIcon filled={filled} />
     case 'book':
-      return <BookIcon />
+      return <BookIcon filled={filled} />
     case 'manga':
-      return <MangaIcon />
+      return <MangaIcon filled={filled} />
     case 'game':
-      return <GameIcon />
+      return <GameIcon filled={filled} />
     case 'art':
-      return <ArtIcon />
+      return <ArtIcon filled={filled} />
     case 'settings':
-      return <SettingsIcon />
+      return <SettingsIcon filled={filled} />
     case 'refresh':
       return <RefreshIcon />
     case 'wand':
@@ -181,7 +188,7 @@ export function icon(name: IconName) {
     case 'trash':
       return <TrashIcon />
     case 'panel':
-      return <PanelIcon />
+      return <PanelIcon filled={filled} />
     case 'unlink':
       return <UnlinkIcon />
     case 'search':
@@ -191,13 +198,7 @@ export function icon(name: IconName) {
   }
 }
 
-const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = [
-  { id: 'profiles', label: 'Profils' },
-  { id: 'transfer', label: 'Importer et exporter' },
-  { id: 'backups', label: 'Sauvegardes' },
-  { id: 'application', label: 'Application' },
-  { id: 'about', label: 'À propos' },
-]
+const SETTINGS_NAVIGATION: Array<{ id: SettingsSection; label: string }> = SETTINGS_SECTIONS.map(({ id, label }) => ({ id, label }))
 
 type SidebarProps = {
   expanded: boolean
@@ -209,9 +210,14 @@ type SidebarProps = {
   mangaCount: number | null
   gameCount: number | null
   artworkCount: number | null
+  /** Bibliothèques personnalisées ajoutées au profil, dans leur ordre. */
+  customLibraries: EnabledCustomLibrary[]
+  activeCustomLibrary: CustomLibraryId | null
+  onCustomLibrary: (libraryId: CustomLibraryId) => void
+  onAddLibrary: (() => void) | null
   currentProfileName: string | null
   currentProfileAvatar: string | null
-  activeItem: 'artworks' | 'books' | 'mangas' | 'games' | 'home' | 'library' | 'series' | 'anime' | 'settings'
+  activeItem: 'artworks' | 'books' | 'mangas' | 'games' | 'home' | 'library' | 'series' | 'anime' | 'settings' | 'custom'
   onHome: () => void
   onLibrary: () => void
   onSeries: () => void
@@ -236,6 +242,10 @@ function Sidebar({
   mangaCount,
   gameCount,
   artworkCount,
+  customLibraries,
+  activeCustomLibrary,
+  onCustomLibrary,
+  onAddLibrary,
   currentProfileName,
   currentProfileAvatar,
   activeItem,
@@ -253,12 +263,10 @@ function Sidebar({
   onReturnToLibrary,
 }: SidebarProps) {
   const settingsOpen = activeItem === 'settings'
-  const effectiveExpanded = settingsOpen || expanded
-  // En rail, les libellés sont masqués : l'infobulle maison prend le relais.
-  const labelFor = (label: string) => (effectiveExpanded ? undefined : label)
+  // Le nom accessible reste présent en rail ; le survol ou le focus dévoile les noms.
 
   return (
-    <aside className={`sidebar ${settingsOpen ? 'sidebar-settings' : ''} ${effectiveExpanded ? 'sidebar-expanded' : 'sidebar-rail'}`}>
+    <FloatingSidebarFrame pinned={expanded} settings={settingsOpen}>
       {settingsOpen ? (
         <nav aria-label="Navigation des paramètres">
           <p className="nav-label">Paramètres</p>
@@ -280,97 +288,120 @@ function Sidebar({
             className={`nav-item sidebar-home-item ${activeItem === 'home' ? 'active' : ''}`}
             type="button"
             onClick={onHome}
-            data-tooltip={labelFor('Accueil')}
             aria-label="Accueil"
             aria-current={activeItem === 'home' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('home')} Accueil</span>
-            <span className="nav-item-peek" aria-hidden="true">{icon('home')}</span>
+            <span className="nav-item-text">{icon('home', activeItem === 'home')}<span className="nav-item-label">Accueil</span></span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('home', activeItem === 'home')}</span>
           </button>
+          <span className="nav-group" aria-hidden="true"><span>Bibliothèques</span></span>
           <button
             className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
             type="button"
             onClick={onLibrary}
-            data-tooltip={labelFor('Films')}
             aria-label="Films"
             aria-current={activeItem === 'library' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('film')} Films</span>
+            <span className="nav-item-text">{icon('film', activeItem === 'library')}<span className="nav-item-label">Films</span></span>
             {count !== null && <span className="nav-count">{count}</span>}
-            <span className="nav-item-peek" aria-hidden="true">{icon('film')}</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('film', activeItem === 'library')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'series' ? 'active' : ''}`}
             type="button"
             onClick={onSeries}
-            data-tooltip={labelFor('Séries')}
             aria-label="Séries"
             aria-current={activeItem === 'series' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('series')} Séries</span>
+            <span className="nav-item-text">{icon('series', activeItem === 'series')}<span className="nav-item-label">Séries</span></span>
             {seriesCount !== null && <span className="nav-count">{seriesCount}</span>}
-            <span className="nav-item-peek" aria-hidden="true">{icon('series')}</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('series', activeItem === 'series')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'anime' ? 'active' : ''}`}
             type="button"
             onClick={onAnime}
-            data-tooltip={labelFor('Animation japonaise')}
             aria-label="Animation japonaise"
             aria-current={activeItem === 'anime' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('anime')} Animation japonaise</span>
+            <span className="nav-item-text">{icon('anime', activeItem === 'anime')}<span className="nav-item-label">Animation japonaise</span></span>
             {animeCount !== null && <span className="nav-count">{animeCount}</span>}
-            <span className="nav-item-peek" aria-hidden="true">{icon('anime')}</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('anime', activeItem === 'anime')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'books' ? 'active' : ''}`}
             type="button"
             onClick={onBooks}
-            data-tooltip={labelFor('Livres')}
             aria-label="Livres"
             aria-current={activeItem === 'books' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('book')} Livres</span>
+            <span className="nav-item-text">{icon('book', activeItem === 'books')}<span className="nav-item-label">Livres</span></span>
             {bookCount !== null && <span className="nav-count">{bookCount}</span>}
-            <span className="nav-item-peek" aria-hidden="true">{icon('book')}</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('book', activeItem === 'books')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'mangas' ? 'active' : ''}`}
             type="button"
             onClick={onMangas}
-            data-tooltip={labelFor('Mangas')}
             aria-label="Mangas"
             aria-current={activeItem === 'mangas' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('manga')} Mangas</span>
+            <span className="nav-item-text">{icon('manga', activeItem === 'mangas')}<span className="nav-item-label">Mangas</span></span>
             {mangaCount !== null && <span className="nav-count">{mangaCount}</span>}
-            <span className="nav-item-peek" aria-hidden="true">{icon('manga')}</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('manga', activeItem === 'mangas')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'games' ? 'active' : ''}`}
             type="button"
             onClick={onGames}
-            data-tooltip={labelFor('Jeux')}
             aria-label="Jeux"
             aria-current={activeItem === 'games' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('game')} Jeux</span>
+            <span className="nav-item-text">{icon('game', activeItem === 'games')}<span className="nav-item-label">Jeux</span></span>
             {gameCount !== null && <span className="nav-count">{gameCount}</span>}
-            <span className="nav-item-peek" aria-hidden="true">{icon('game')}</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('game', activeItem === 'games')}</span>
           </button>
           <button
             className={`nav-item ${activeItem === 'artworks' ? 'active' : ''}`}
             type="button"
             onClick={onArtworks}
-            data-tooltip={labelFor('Art')}
             aria-label="Art"
             aria-current={activeItem === 'artworks' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('art')} Art</span>
+            <span className="nav-item-text">{icon('art', activeItem === 'artworks')}<span className="nav-item-label">Art</span></span>
             {artworkCount !== null && <span className="nav-count">{artworkCount}</span>}
-            <span className="nav-item-peek" aria-hidden="true">{icon('art')}</span>
+            <span className="nav-item-peek" aria-hidden="true">{icon('art', activeItem === 'artworks')}</span>
           </button>
+          <span className="nav-group" aria-hidden="true"><span>{customLibraries.length > 0 ? 'Ajoutées' : 'Ajouter'}</span></span>
+          {customLibraries.map(({ libraryId, count: entryCount }) => {
+            const label = CUSTOM_LIBRARY_TEMPLATES[libraryId].label
+            const active = activeItem === 'custom' && activeCustomLibrary === libraryId
+            return (
+              <button
+                className={`nav-item ${active ? 'active' : ''}`}
+                type="button"
+                key={libraryId}
+                onClick={() => onCustomLibrary(libraryId)}
+                aria-label={label}
+                aria-current={active ? 'page' : undefined}
+              >
+                <span className="nav-item-text"><CustomLibraryIcon libraryId={libraryId} filled={active} /><span className="nav-item-label">{label}</span></span>
+                <span className="nav-count">{entryCount}</span>
+                <span className="nav-item-peek" aria-hidden="true"><CustomLibraryIcon libraryId={libraryId} filled={active} /></span>
+              </button>
+            )
+          })}
+          {onAddLibrary && (
+            <button
+              className="nav-item nav-item-add"
+              type="button"
+              onClick={onAddLibrary}
+              aria-label="Ajouter une bibliothèque"
+            >
+              <span className="nav-item-text"><PlusIcon /><span className="nav-item-label">Ajouter une bibliothèque</span></span>
+              <span className="nav-item-peek" aria-hidden="true"><PlusIcon /></span>
+            </button>
+          )}
         </nav>
       )}
       <div className="sidebar-bottom">
@@ -387,32 +418,28 @@ function Sidebar({
         ) : (
           <>
             <button
-              className={`sidebar-toggle ${expanded ? '' : 'is-floating'}`}
+              className="sidebar-toggle"
               type="button"
               onClick={onToggleExpanded}
-              aria-label={expanded ? 'Réduire la barre latérale' : 'Développer la barre latérale'}
+              aria-label={expanded ? 'Détacher la barre latérale' : 'Garder la barre latérale ouverte'}
               aria-pressed={expanded}
-              data-tooltip={expanded ? undefined : 'Barre latérale'}
             >
-              {/* Icône conservée dans les deux modes (0.6.11) : elle ne doit
-                  pas disparaître au profit du seul texte. */}
-              <span className="nav-item-text">{icon('panel')} Barre latérale</span>
-              <span className="nav-item-peek" aria-hidden="true">{icon('panel')}</span>
+              <span className="nav-item-text"><PinIcon filled={expanded} /><span className="nav-item-label">{expanded ? 'Détacher la barre' : 'Garder ouverte'}</span></span>
+              <span className="nav-item-peek" aria-hidden="true"><PinIcon filled={expanded} /></span>
             </button>
             <button
               className="nav-item"
               type="button"
               onClick={onSettings}
-              data-tooltip={labelFor('Paramètres')}
               aria-label="Paramètres"
             >
-              <span className="nav-item-text">{icon('settings')} Paramètres</span>
+              <span className="nav-item-text">{icon('settings')}<span className="nav-item-label">Paramètres</span></span>
               <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
             </button>
           </>
         )}
       </div>
-    </aside>
+    </FloatingSidebarFrame>
   )
 }
 
@@ -467,238 +494,6 @@ function LoadingState() {
       <h2>Chargement des films</h2>
       <p>Lecture de la collection enregistrée sur cet appareil.</p>
     </div>
-  )
-}
-
-type OnboardingProps = {
-  themePreference: ThemePreference
-  onThemePreferenceChange: (preference: ThemePreference) => void
-  onProfileReady: (destination?: 'home' | 'transfer') => void
-}
-
-type OnboardingStep = 'identity' | 'appearance' | 'library'
-type OnboardingStart = 'empty' | 'backup' | 'collection'
-
-type OnboardingBackup = {
-  fileName: string
-  document: SyllogeLibraryDocument
-}
-
-const ONBOARDING_STEPS: Array<{ id: OnboardingStep; label: string }> = [
-  { id: 'identity', label: 'Profil' },
-  { id: 'appearance', label: 'Apparence' },
-  { id: 'library', label: 'Bibliothèque' },
-]
-
-const THEME_OPTIONS: Array<{ id: ThemePreference; label: string; detail: string }> = [
-  { id: 'system', label: 'Système', detail: 'Suit automatiquement le réglage de cet appareil.' },
-  { id: 'light', label: 'Clair', detail: 'Fond neutre et contrastes doux.' },
-  { id: 'dark', label: 'Sombre', detail: 'Surfaces profondes pour une lumière réduite.' },
-]
-
-/** Premier lancement réel : identité, apparence et stratégie d’import. */
-function Onboarding({ themePreference, onThemePreferenceChange, onProfileReady }: OnboardingProps) {
-  const [step, setStep] = useState<OnboardingStep>('identity')
-  const [name, setName] = useState('')
-  const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null)
-  const [start, setStart] = useState<OnboardingStart>('empty')
-  const [backup, setBackup] = useState<OnboardingBackup | null>(null)
-  const [choosingBackup, setChoosingBackup] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const currentStepIndex = ONBOARDING_STEPS.findIndex((item) => item.id === step)
-
-  const chooseBackup = async () => {
-    if (choosingBackup || busy) return
-    setChoosingBackup(true)
-    setError(null)
-    try {
-      const picked = await pickImportJson()
-      if (!picked) return
-      const preview = validateLibraryDocument(picked.contents)
-      if (preview.document === null) {
-        const firstError = preview.errors[0]
-        setError(firstError
-          ? `Ce fichier n’est pas une sauvegarde Sylloge complète valide. ${firstError.path} : ${firstError.message}`
-          : 'Ce fichier n’est pas une sauvegarde Sylloge complète valide.')
-        return
-      }
-      setBackup({ fileName: picked.name, document: preview.document })
-      setStart('backup')
-    } catch (cause) {
-      console.error('Impossible de préparer la sauvegarde du premier lancement.', cause)
-      setError(cause instanceof Error ? cause.message : 'La sauvegarde n’a pas pu être vérifiée.')
-    } finally {
-      setChoosingBackup(false)
-    }
-  }
-
-  const finish = async (requestedStart = start) => {
-    const trimmed = name.trim()
-    if (!trimmed || busy) return
-    if (requestedStart === 'backup' && backup === null) {
-      setError('Choisis d’abord une sauvegarde Sylloge complète à restaurer.')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    let createdProfileId: string | null = null
-    try {
-      const createdAt = new Date().toISOString()
-      createdProfileId = await profilesRepository.create(trimmed, {
-        avatarDataUrl,
-        selectAfterCreation: true,
-      })
-
-      if (requestedStart === 'backup' && backup) {
-        await libraryRepository.importLibraryDocumentIntoEmptyProfile({
-          id: createdProfileId,
-          name: trimmed,
-          createdAt,
-          updatedAt: createdAt,
-        }, backup.document)
-      }
-
-      onProfileReady(requestedStart === 'collection' ? 'transfer' : 'home')
-    } catch (cause) {
-      console.error('Impossible de créer le profil de premier lancement.', cause)
-      if (createdProfileId) {
-        try {
-          await profilesRepository.delete(createdProfileId)
-        } catch (cleanupCause) {
-          console.error('Le profil vide de premier lancement n’a pas pu être nettoyé.', cleanupCause)
-        }
-      }
-      setError(cause instanceof Error ? cause.message : 'Le premier lancement n’a pas pu être finalisé.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="onboarding-shell">
-        <aside className="onboarding-aside" aria-label="Progression du premier lancement">
-          <div>
-            <img className="onboarding-logo" src={logoSylloge} alt="" width={46} height={46} />
-            <p className="eyebrow">Bienvenue dans</p>
-            <h1 className="display-title">Sylloge</h1>
-            <p>Votre bibliothèque culturelle personnelle, locale et durable.</p>
-          </div>
-          <ol className="onboarding-progress">
-            {ONBOARDING_STEPS.map((item, index) => (
-              <li key={item.id} className={item.id === step ? 'active' : index < currentStepIndex ? 'complete' : ''}>
-                <span>{index < currentStepIndex ? '✓' : index + 1}</span>
-                {item.label}
-              </li>
-            ))}
-          </ol>
-          <p className="onboarding-local-note">Aucun compte, aucun cloud. Vos données restent sur cet appareil.</p>
-        </aside>
-
-        <section className="onboarding-panel" aria-live="polite">
-          {step === 'identity' && (
-            <div className="onboarding-step">
-              <p className="card-kicker">Étape 1 sur 3</p>
-              <h2>Créer votre profil</h2>
-              <p className="onboarding-step-intro">Ce nom identifiera votre bibliothèque sur cet appareil. La photo reste facultative et locale.</p>
-              <div className="onboarding-identity-row">
-                <ProfileAvatarPicker
-                  compact
-                  name={name || 'Sylloge'}
-                  avatarDataUrl={avatarDataUrl}
-                  disabled={busy}
-                  onChange={setAvatarDataUrl}
-                  onError={setError}
-                />
-                <label className="onboarding-name-field">
-                  <span>Pseudo ou prénom</span>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
-                    placeholder="Par exemple Camille"
-                    maxLength={60}
-                  />
-                </label>
-              </div>
-              <div className="onboarding-actions end">
-                <button className="primary-button" type="button" disabled={!name.trim()} onClick={() => { setError(null); setStep('appearance') }}>Continuer</button>
-              </div>
-            </div>
-          )}
-
-          {step === 'appearance' && (
-            <div className="onboarding-step">
-              <p className="card-kicker">Étape 2 sur 3</p>
-              <h2>Choisir l’apparence</h2>
-              <p className="onboarding-step-intro">Le choix s’applique immédiatement et pourra être modifié plus tard dans Paramètres.</p>
-              <div className="onboarding-theme-grid" role="radiogroup" aria-label="Thème de l’application">
-                {THEME_OPTIONS.map((option) => (
-                  <button
-                    key={option.id}
-                    className={`onboarding-theme-choice ${themePreference === option.id ? 'active' : ''}`}
-                    type="button"
-                    role="radio"
-                    aria-checked={themePreference === option.id}
-                    onClick={() => onThemePreferenceChange(option.id)}
-                  >
-                    <span className={`theme-preview theme-preview-${option.id}`} aria-hidden="true"><i /><i /><i /></span>
-                    <b>{option.label}</b>
-                    <small>{option.detail}</small>
-                  </button>
-                ))}
-              </div>
-              <div className="onboarding-actions">
-                <button className="secondary-button" type="button" onClick={() => setStep('identity')}>Retour</button>
-                <button className="primary-button" type="button" onClick={() => { setError(null); setStep('library') }}>Continuer</button>
-              </div>
-            </div>
-          )}
-
-          {step === 'library' && (
-            <div className="onboarding-step">
-              <p className="card-kicker">Étape 3 sur 3</p>
-              <h2>Préparer votre bibliothèque</h2>
-              <p className="onboarding-step-intro">Commencez à vide ou réutilisez un fichier existant. Aucune donnée n’est écrite avant la validation finale.</p>
-              <div className="onboarding-start-grid" role="radiogroup" aria-label="Point de départ">
-                <button className={`onboarding-start-choice ${start === 'empty' ? 'active' : ''}`} type="button" role="radio" aria-checked={start === 'empty'} onClick={() => { setStart('empty'); setError(null) }}>
-                  <span className="onboarding-choice-mark" aria-hidden="true">＋</span>
-                  <span><b>Commencer à vide</b><small>Ajoutez vos premières œuvres à votre rythme.</small></span>
-                </button>
-                <button className={`onboarding-start-choice ${start === 'backup' ? 'active' : ''}`} type="button" role="radio" aria-checked={start === 'backup'} disabled={choosingBackup} onClick={() => void chooseBackup()}>
-                  <span className="onboarding-choice-mark" aria-hidden="true">↥</span>
-                  <span><b>Restaurer Sylloge</b><small>{backup ? `${backup.fileName} est prêt à être restauré.` : 'Choisissez une sauvegarde JSON réunissant les cinq collections.'}</small></span>
-                </button>
-                <button className={`onboarding-start-choice ${start === 'collection' ? 'active' : ''}`} type="button" role="radio" aria-checked={start === 'collection'} onClick={() => { setStart('collection'); setError(null) }}>
-                  <span className="onboarding-choice-mark" aria-hidden="true">⇢</span>
-                  <span><b>Importer une collection</b><small>Créez le profil puis choisissez l’assistant Films, Séries, Livres, Jeux ou Art.</small></span>
-                </button>
-              </div>
-              {backup && start === 'backup' && (
-                <dl className="onboarding-import-summary">
-                  <div><dt>Films</dt><dd>{backup.document.films.length}</dd></div>
-                  <div><dt>Séries</dt><dd>{backup.document.series.length}</dd></div>
-                  <div><dt>Livres</dt><dd>{backup.document.books.length}</dd></div>
-                  <div><dt>Jeux</dt><dd>{backup.document.games.length}</dd></div>
-                  <div><dt>Art</dt><dd>{backup.document.artworks.length}</dd></div>
-                </dl>
-              )}
-              <div className="onboarding-actions">
-                <button className="secondary-button" type="button" disabled={busy} onClick={() => setStep('appearance')}>Retour</button>
-                <span className="onboarding-final-actions">
-                  <button className="text-button" type="button" disabled={busy} onClick={() => void finish('empty')}>Plus tard</button>
-                  <button className="primary-button" type="button" disabled={busy || choosingBackup || (start === 'backup' && backup === null)} onClick={() => void finish()}>
-                    {busy ? 'Préparation…' : start === 'backup' ? 'Créer et restaurer' : start === 'collection' ? 'Créer et voir les imports' : 'Ouvrir ma bibliothèque'}
-                  </button>
-                </span>
-              </div>
-            </div>
-          )}
-
-          {error && <p className="inline-report error onboarding-error" role="alert">{error}</p>}
-        </section>
-      </div>
   )
 }
 
@@ -1169,22 +964,6 @@ const BOOK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
   showExhibition: false,
 }
 
-/**
- * Livres sans bascule de catégorie : le type n’apparaît dans « Filtrer » que
- * si d’anciens comics existent ou qu’une vue l’a restreint, pour qu’une
- * catégorie active ne soit jamais un filtre invisible.
- */
-const BOOK_TYPE_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
-  ...BOOK_FILTER_PANEL_CONFIG,
-  mediumFilter: {
-    label: 'Type',
-    options: [
-      { value: 'all', label: 'Tous' },
-      ...bookLibraryCategories('books').map((category) => ({ value: category as string, label: BOOK_CATEGORY_LABELS[category] })),
-    ],
-  },
-}
-
 const GAME_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
   mediumFilter: null,
   statusOptions: GAME_STATUSES.map((status) => ({ value: status, label: GAME_STATUS_LABELS[status] })),
@@ -1300,7 +1079,7 @@ function SeriesLibrary({
         if (scored.length > 0 && scored[0].score >= MATCH_THRESHOLD) {
           const presentation = await previewTmdbSeries(scored[0].candidate.tmdbId, 'fr-FR')
           await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation), seriesLibraryForCategory(series.category))
-          await mediaRepository.setMediaProviderLink({ profileId, medium: 'series', mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
+          await mediaRepository.setMediaProviderLink({ profileId, medium: seriesLibraryForCategory(series.category), mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
           associatedCount += 1
         } else {
           noMatchCount += 1
@@ -1853,7 +1632,6 @@ function BooksLibrary({
   const isUnfiltered = context.query.trim() === '' && context.category.length === categories.length && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const storedCategory = bookLibraryStoredFilter(library, context.category)
-  const typeFilterVisible = library === 'books' && (storedCategory !== 'all' || collection.some((book) => book.category === 'comics'))
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   const runBooksAssociation = async ({ onProgress, isCancelled }: {
@@ -1884,8 +1662,10 @@ function BooksLibrary({
               synopsis: presentation.synopsis,
               coverUrl: presentation.coverUrl,
             }),
+            undefined,
+            bookLibraryForCategory(book.category),
           )
-          await mediaRepository.setMediaProviderLink({ profileId, medium: 'books', mediaId: book.id, providerName: 'Open Library', providerId: presentation.workKey })
+          await mediaRepository.setMediaProviderLink({ profileId, medium: bookLibraryForCategory(book.category), mediaId: book.id, providerName: 'Open Library', providerId: presentation.workKey })
           associatedCount += 1
         } else {
           noMatchCount += 1
@@ -1949,7 +1729,7 @@ function BooksLibrary({
           builtinViews={titledBuiltinViews(PROGRESS_BUILTIN_VIEWS, 'books')}
           activeView={context.view}
           onViewChange={(view) => onContextChange((current) => ({ ...current, view }))}
-          filterConfig={typeFilterVisible ? BOOK_TYPE_FILTER_PANEL_CONFIG : BOOK_FILTER_PANEL_CONFIG}
+          filterConfig={BOOK_FILTER_PANEL_CONFIG}
           mediumFilterValue={library === 'books' ? storedCategory : 'all'}
           onMediumFilterChange={(stored) => {
             onContextChange((current) => ({ ...current, category: bookLibraryCategories(library, stored) }))
@@ -2036,6 +1816,7 @@ type View =
   | { name: 'game-detail'; gameId: string; returnTo: ReturnKey }
   | { name: 'artworks' }
   | { name: 'artwork-detail'; artworkId: string; returnTo: ReturnKey }
+  | { name: 'custom'; libraryId: CustomLibraryId; entryId: string | null }
 
 /** Vue de destination d'un retour : l'écran d'où la fiche a été ouverte. */
 function returnView(key: ReturnKey): View {
@@ -2157,7 +1938,8 @@ type AssociateTarget =
 function App() {
   const { preference: themePreference, setPreference: setThemePreference } = useTheme()
   // Barre latérale : « rail » (icônes seules) ou « étendue » (icônes + libellés).
-  const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(readSidebarPinned)
+  useEffect(() => saveSidebarPinned(sidebarExpanded), [sidebarExpanded])
   const [libraryState, setLibraryState] = useState<LibraryState>({ status: 'loading' })
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [searchState, setSearchState] = useState<SearchState>({ status: 'loading' })
@@ -2182,6 +1964,9 @@ function App() {
   const [artworkSearchState, setArtworkSearchState] = useState<ArtworkSearchState>({ status: 'loading' })
   const [artworkContext, setArtworkContext] = useState<ArtworkLibraryContext>({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })
   const [artworkSearchAttempt, setArtworkSearchAttempt] = useState(0)
+  const [customLibraries, setCustomLibraries] = useState<EnabledCustomLibrary[]>([])
+  const [customLibrariesRevision, setCustomLibrariesRevision] = useState(0)
+  const [addLibraryOpen, setAddLibraryOpen] = useState(false)
   const [view, setView] = useState<View>({ name: 'home' })
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('profiles')
   const [loadAttempt, setLoadAttempt] = useState(0)
@@ -2325,6 +2110,30 @@ function App() {
       cancelled = true
     }
   }, [libraryState])
+
+  // Bibliothèques personnalisées du profil : barre latérale et comptes. Une
+  // bibliothèque ouverte qui n’existe pas dans le profil chargé ramène à
+  // l’accueil (changement de profil, restauration).
+  useEffect(() => {
+    if (libraryState.status !== 'ready') return
+    let cancelled = false
+
+    customLibraryRepository.listEnabled(libraryState.library.profile.id).then(
+      (enabled) => {
+        if (cancelled) return
+        setCustomLibraries(enabled)
+        setView((current) => current.name === 'custom' && !enabled.some((library) => library.libraryId === current.libraryId) ? { name: 'home' } : current)
+      },
+      (error: unknown) => {
+        console.error('Impossible de charger les bibliothèques personnalisées depuis SQLite.', error)
+        if (!cancelled) setCustomLibraries([])
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [libraryState, customLibrariesRevision])
 
   useEffect(() => {
     if (libraryState.status !== 'ready') return
@@ -2740,8 +2549,8 @@ function App() {
     try {
       const presentation = await previewTmdbSeries(candidate.tmdbId)
       await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation), seriesLibraryForCategory(series.category))
-      await mediaRepository.setMediaProviderLink({ profileId, medium: 'series', mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
-      const refreshed = await mediaRepository.getSeries(profileId, series.id)
+      await mediaRepository.setMediaProviderLink({ profileId, medium: seriesLibraryForCategory(series.category), mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
+      const refreshed = await mediaRepository.getSeries(profileId, series.id, seriesLibraryForCategory(series.category))
       setSeriesCollection((current) => current.map((entry) => entry.id === series.id
         ? (refreshed ?? seriesWithPresentation(series, presentation))
         : entry))
@@ -2775,9 +2584,11 @@ function App() {
           synopsis: presentation.synopsis,
           coverUrl: presentation.coverUrl,
         }),
+        undefined,
+        bookLibraryForCategory(book.category),
       )
-      await mediaRepository.setMediaProviderLink({ profileId, medium: 'books', mediaId: book.id, providerName: 'Open Library', providerId: presentation.workKey })
-      const refreshed = await mediaRepository.getBook(profileId, book.id)
+      await mediaRepository.setMediaProviderLink({ profileId, medium: bookLibraryForCategory(book.category), mediaId: book.id, providerName: 'Open Library', providerId: presentation.workKey })
+      const refreshed = await mediaRepository.getBook(profileId, book.id, bookLibraryForCategory(book.category))
       setBookCollection((current) => sortBooks(current.map((entry) => entry.id === book.id
         ? (refreshed ?? bookWithPresentation(book, presentation))
         : entry)))
@@ -2985,6 +2796,7 @@ function App() {
     content = (
       <Portability
         section={settingsSection}
+        onSectionChange={setSettingsSection}
         library={library}
         profiles={profiles}
         themePreference={themePreference}
@@ -3115,7 +2927,7 @@ function App() {
             const series = seriesCollection.find((entry) => entry.id === view.seriesId)
             if (series) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
-              const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, 'series', series.id)
+              const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, seriesLibraryForCategory(series.category), series.id)
               setAddFlow({ medium: 'série', step: 'search', initialValues: seriesToFormValues(series), providerLink, editSeriesId: series.id, seriesLibrary: seriesLibraryForCategory(series.category) })
             }
           }}
@@ -3186,7 +2998,7 @@ function App() {
             const book = bookCollection.find((entry) => entry.id === view.bookId)
             if (book) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
-              const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, 'books', book.id)
+              const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, bookLibraryForCategory(book.category), book.id)
               setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), providerLink, editBookId: book.id, bookLibrary: bookLibraryForCategory(book.category) })
             }
           }}
@@ -3275,6 +3087,28 @@ function App() {
         />
       )
     }
+  } else if (view.name === 'custom' && libraryState.status === 'ready') {
+    const library = libraryState.library
+    const libraryId = view.libraryId
+    content = (
+      <CustomLibraryScreen
+        key={`${library.profile.id}-${libraryId}`}
+        libraryId={libraryId}
+        profileId={library.profile.id}
+        profileName={library.profile.name}
+        entryId={view.entryId}
+        onOpenEntry={(entryId) => leaveLibrary({ name: 'custom', libraryId, entryId })}
+        onChanged={() => {
+          setCustomLibrariesRevision((revision) => revision + 1)
+          requestAutomaticBackup(library)
+        }}
+        onRemoved={() => {
+          setCustomLibrariesRevision((revision) => revision + 1)
+          requestAutomaticBackup(library)
+          leaveLibrary({ name: 'home' })
+        }}
+      />
+    )
   } else if (view.name === 'artworks') {
     content = (
       <ArtworksLibrary
@@ -3353,7 +3187,7 @@ function App() {
     <div className={`app ${view.name === 'settings' ? 'app-settings' : ''}`}>
         <MobileAppShell
           activeItem={
-            libraryState.status !== 'ready' || view.name === 'home'
+            libraryState.status !== 'ready' || view.name === 'home' || view.name === 'custom'
               ? 'home'
               : view.name === 'settings'
                 ? 'settings'
@@ -3391,6 +3225,10 @@ function App() {
         mangaCount={mangaCount}
         gameCount={gameCount}
         artworkCount={artworkCount}
+        customLibraries={libraryState.status === 'ready' ? customLibraries : []}
+        activeCustomLibrary={view.name === 'custom' ? view.libraryId : null}
+        onCustomLibrary={(libraryId) => leaveLibrary({ name: 'custom', libraryId, entryId: null })}
+        onAddLibrary={libraryState.status === 'ready' ? () => setAddLibraryOpen(true) : null}
         currentProfileName={libraryState.status === 'ready' ? libraryState.library.profile.name : null}
         currentProfileAvatar={libraryState.status === 'ready'
           ? profiles.find((profile) => profile.id === libraryState.library.profile.id)?.avatarDataUrl ?? null
@@ -3400,7 +3238,9 @@ function App() {
             ? 'home'
             : view.name === 'settings'
               ? 'settings'
-              : view.name === 'series' || view.name === 'anime' || view.name === 'series-detail'
+              : view.name === 'custom'
+                ? 'custom'
+                : view.name === 'series' || view.name === 'anime' || view.name === 'series-detail'
                 ? activeSeriesLibrary
                 : view.name === 'books' || view.name === 'mangas' || view.name === 'book-detail'
                   ? activeBookLibrary
@@ -3424,6 +3264,20 @@ function App() {
         onReturnToLibrary={returnToLibrary}
       />
       {content}
+      {addLibraryOpen && libraryState.status === 'ready' && (
+        <AddLibraryDialog
+          enabled={customLibraries.map((library) => library.libraryId)}
+          onClose={() => setAddLibraryOpen(false)}
+          onAdd={async (libraryId) => {
+            const library = libraryState.library
+            await customLibraryRepository.enable(library.profile.id, libraryId)
+            setAddLibraryOpen(false)
+            setCustomLibrariesRevision((revision) => revision + 1)
+            requestAutomaticBackup(library)
+            leaveLibrary({ name: 'custom', libraryId, entryId: null })
+          }}
+        />
+      )}
       {libraryState.status === 'no-profile' && (
         <div className="onboarding-backdrop" role="presentation">
           <Onboarding
@@ -3552,7 +3406,7 @@ function App() {
                     let targetId = editSeriesId
                     if (editSeriesId) {
                       await mediaRepository.updateSeries(library.profile.id, editSeriesId, input, addFlow.seriesLibrary ?? 'series')
-                      const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId)
+                      const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId, seriesLibraryForCategory(input.category))
                       if (!refreshed) throw new Error('La série enregistrée ne peut pas être relue depuis SQLite.')
                       setSeriesCollection((current) => current.map((entry) => entry.id === editSeriesId ? refreshed : entry))
                     } else {
@@ -3561,7 +3415,7 @@ function App() {
                       if (addFlow.providerLink) {
                         await mediaRepository.setMediaProviderLink({
                           profileId: library.profile.id,
-                          medium: 'series',
+                          medium: seriesLibraryForCategory(input.category),
                           mediaId: series.id,
                           ...addFlow.providerLink,
                         })
@@ -3607,7 +3461,7 @@ function App() {
                     let targetId = editBookId
                     if (editBookId) {
                       await mediaRepository.updateBook(library.profile.id, editBookId, bookInput, quotes, addFlow.bookLibrary ?? 'books')
-                      const refreshed = await mediaRepository.getBook(library.profile.id, editBookId)
+                      const refreshed = await mediaRepository.getBook(library.profile.id, editBookId, bookLibraryForCategory(input.category))
                       if (!refreshed) throw new Error('Le livre enregistré ne peut pas être relu depuis SQLite.')
                       setBookCollection((current) => sortBooks(current.map((entry) => entry.id === editBookId ? refreshed : entry)))
                     } else {
@@ -3616,7 +3470,7 @@ function App() {
                       if (addFlow.providerLink) {
                         await mediaRepository.setMediaProviderLink({
                           profileId: library.profile.id,
-                          medium: 'books',
+                          medium: bookLibraryForCategory(input.category),
                           mediaId: book.id,
                           ...addFlow.providerLink,
                         })

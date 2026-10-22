@@ -1994,7 +1994,10 @@ const atriumHomeSource = readFileSync(new URL('../src/components/AtriumHome.tsx'
 const posterSource = readFileSync(new URL('../src/components/Poster.tsx', import.meta.url), 'utf8')
 const formSource = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
 const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', import.meta.url), 'utf8')
-const portabilitySource = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
+// Paramètres (22 octobre 2026) : coquille Portability.tsx et une page par fichier dans components/settings.
+const settingsSurfaceSource = () => ['Portability.tsx', 'settings/SettingsLayout.tsx', 'settings/ProfilesSettings.tsx', 'settings/BackupSettings.tsx', 'settings/TransferSettings.tsx', 'settings/GeneralSettings.tsx', 'settings/AboutSettings.tsx']
+  .map((file) => readFileSync(new URL(`../src/components/${file}`, import.meta.url), 'utf8')).join('\n')
+const portabilitySource = settingsSurfaceSource()
 const accessibleDialogSource = readFileSync(new URL('../src/components/AccessibleDialog.tsx', import.meta.url), 'utf8')
 const dialogFocusSource = readFileSync(new URL('../src/components/FocusDialog.tsx', import.meta.url), 'utf8')
 const libraryExportFlowSource = readFileSync(new URL('../src/components/LibraryExportFlow.tsx', import.meta.url), 'utf8')
@@ -2099,7 +2102,7 @@ assert.match(atriumHomeSource, /const accessibleLabel = `Ouvrir la fiche de \$\{
 assert.doesNotMatch(atriumHomeSource, /formatLongDate|at-eyebrow|at-lede|voici ce que m'occupe en ce moment/, 'Le haut de l’accueil ne doit plus porter de date ni de phrase de service')
 assert.doesNotMatch(atriumHomeSource, /at-door|Tout voir|Six autres|at-jour|anniversar/, 'L’accueil ne doit plus porter de portes de sortie ni de module d’anniversaires')
 assert.doesNotMatch(atriumHomeSource, /Ma bibliothèque/, 'L’accueil ne se présente plus comme une page « Ma bibliothèque »')
-assert.match(mainSource, /className=\{`nav-item sidebar-home-item \$\{activeItem === 'home' \? 'active' : ''\}`\}[\s\S]*<span className="nav-item-text">\{icon\('home'\)\} Accueil<\/span>/, 'La sidebar doit présenter Accueil avec le pictogramme maison dans le rail des destinations')
+assert.match(mainSource, /className=\{`nav-item sidebar-home-item [\s\S]*?\{icon\('home', activeItem === 'home'\)\}<span className="nav-item-label">Accueil<\/span>/, 'La sidebar doit présenter Accueil avec le pictogramme maison et son état actif')
 assert.match(stylesSource, /\.at-files \.at-lane \{[^}]*--at-lane-count: 6;/s, 'Les rangées d’accueil doivent viser six cartes sur le bureau')
 assert.doesNotMatch(stylesSource, /\.at-medium-(?:table|grid|panel|items|head|section)|\.at-overview|\.at-empty-home/, 'Les styles de l’ancien accueil (tableau, bandeau centré, grille par médium) sont supprimés')
 assert.match(stylesSource, /\.at-topbar \{[^}]*justify-content: space-between;[^}]*flex-wrap: nowrap;[^}]*white-space: nowrap;/s, 'Onglets et bilan tiennent sur une seule ligne, sans retour')
@@ -2124,7 +2127,7 @@ assert.match(atriumHomeSource, /const HOME_TAB_STORAGE_KEY = 'sylloge-home-tab'[
 assert.match(atriumHomeSource, /const entries = useMemo\([\s\S]*allEntries\.filter\(\(entry\) => entry\.medium === current\.key\)/, 'L’onglet filtre toute la page')
 assert.match(atriumHomeSource, /function pickFeatured[\s\S]*entries\.filter\(\(entry\) => entry\.isFavorite\)\.sort\(byRecentActivity\)\.slice\(0, FEATURED_FAVORITES\)[\s\S]*entries\.filter\(isFinished\)[\s\S]*entry\.status === 'en cours'[\s\S]*second\.createdAt\.localeCompare\(first\.createdAt\)\)\.slice\(0, FEATURED_FALLBACK\)/, 'À la une : les coups de cœur de l’onglet, sinon les dernières terminées, les œuvres en cours, puis les derniers ajouts')
 assert.match(atriumHomeSource, /const FEATURED_FAVORITES = 8\s*const FEATURED_FALLBACK = 5/, 'À la une : huit coups de cœur au plus, cinq œuvres de repli')
-assert.match(atriumHomeSource, /const FEATURED_DELAY = 8000[\s\S]*const canRotate = count > 1 && !reducedMotion\s*const rotating = canRotate && !paused && !hovered && !keyboardInside && pageVisible[\s\S]*\[rotating, current, count, cycle\]/, 'La une avance seule toutes les huit secondes, sauf mouvement réduit, survol, focus clavier, pause, page cachée ou œuvre unique ; une action manuelle relance le compte')
+assert.match(atriumHomeSource, /const FEATURED_DELAY = 8000[\s\S]*const canRotate = count > 1 && !reducedMotion && autoplay\s*const rotating = canRotate && !paused && !hovered && !keyboardInside && pageVisible[\s\S]*\[rotating, current, count, cycle\]/, 'La une avance seule toutes les huit secondes, sauf préférence désactivée, mouvement réduit, survol, focus clavier, pause, page cachée ou œuvre unique ; une action manuelle relance le compte')
 assert.match(atriumHomeSource, /aria-roledescription="carrousel"[\s\S]*'Reprendre le défilement' : 'Mettre en pause le défilement'[\s\S]*aria-live=\{rotating \? 'off' : 'polite'\}[\s\S]*label=\{`\$\{position \+ 1\} sur \$\{count\}`\}[\s\S]*aria-roledescription="diapositive"/, 'La une suit le motif de carrousel accessible : rôle, pause étiquetée, annonce hors lecture automatique, position de chaque diapositive')
 assert.match(atriumHomeSource, /\{count > 1 && \(\s*<div className="at-hero-controls">/, 'Une seule œuvre à la une : ni minuterie, ni flèches, ni points')
 assert.match(atriumHomeSource, /function WorkPoster[\s\S]*?usePosterSource\(entry, resolveFilmPoster\)[\s\S]*function usePosterSource[\s\S]*?resolveFilmPoster\(entry\.filmId as string\)[\s\S]*function FeaturedSlide[\s\S]*?usePosterSource\(entry, resolveFilmPoster\)/, 'Cartes et une relisent l’affiche réelle d’un film associé')
@@ -2147,7 +2150,7 @@ assert.match(stylesSource, /\.reading-section p \{[^}]*overflow-wrap: anywhere;/
 assert.match(stylesSource, /\.profile-card > \.primary-button \{[^}]*margin-top:/s, 'Le bouton de création de profil doit rester séparé de la dernière ligne')
 assert.match(stylesSource, /\.search input:focus \{[^}]*outline: none;/s, 'Le champ de recherche doit déléguer son focus visuel au conteneur')
 assert.match(stylesSource, /\.search:has\(input:focus-visible\)/, 'Le conteneur de recherche doit conserver un indicateur de focus clavier sobre')
-assert.match(portabilitySource, /Oublier ce dossier/, 'Les réglages doivent permettre de désactiver le dossier de snapshots')
+assert.match(portabilitySource, /Désactiver la sauvegarde automatique/, 'Les réglages doivent permettre de désactiver la sauvegarde automatique')
 assert.match(portabilitySource, /directoryAvailable/, 'Un dossier supprimé hors de l’application doit être signalé')
 assert.match(nativePortabilityBridgeSource, /invoke\('clear_backup_settings'/, 'Le frontend doit appeler la commande native de désactivation des snapshots')
 assert.match(nativePortabilitySource, /pub async fn clear_backup_settings/, 'Le backend doit exposer la désactivation des snapshots')
@@ -2205,17 +2208,23 @@ assert.match(csvTransferSource, /sylloge-films-csv/, 'Le CSV doit annoncer son f
 assert.match(csvImportSource, /ImportableFilmField/, 'Le mapping CSV doit rester limité aux champs Films V1 explicitement stockables')
 assert.match(csvImportSource, /L’échelle des notes est ambiguë/, 'Une note sans échelle doit être bloquée au lieu d’être supposée')
 assert.match(csvImportSource, /Markdown/, 'Les notes Notion doivent être associées de manière visible et déterministe')
-assert.match(libraryImportButtonSource, /Formats acceptés/, 'Le bouton Importer doit ouvrir une explication avant le sélecteur natif')
-assert.match(libraryImportButtonSource, /JSON[\s\S]*CSV[\s\S]*ZIP compatible/, 'L’assistant Films doit annoncer les trois formats réellement acceptés')
+const importSourceChooserSource = readFileSync(new URL('../src/components/ImportSourceChooser.tsx', import.meta.url), 'utf8')
+assert.match(libraryImportButtonSource, /<ImportSourceChooser/, 'Le bouton Importer doit ouvrir un guide de provenance avant le sélecteur natif')
+assert.match(importSourceChooserSource, /Origine du fichier/, 'Les sources doivent être proposées avant la lecture du fichier')
+assert.match(importSourceChooserSource, /JSON[\s\S]*CSV[\s\S]*ZIP/, 'Le guide doit annoncer les formats réellement acceptés')
 assert.match(libraryImportButtonSource, /setOpen\(true\)/, 'Le premier clic doit ouvrir le dialogue d’import')
 assert.doesNotMatch(libraryImportButtonSource, /setOpen\(true\)[^}]*pickAndPrepare/s, 'Le premier clic ne doit pas ouvrir immédiatement le sélecteur de fichiers')
 assert.match(libraryImportButtonSource, /writingRef\.current/, 'Un double déclenchement ne doit jamais lancer deux écritures concurrentes')
-assert.match(libraryImportButtonSource, /props\.kind === 'films' \|\| props\.kind === 'series' \? 'json-preview' : 'mode'/, 'Les imports JSON Films et Séries doivent passer par un aperçu avant le choix de traitement')
-assert.match(libraryImportButtonSource, /<JsonImportPreview[\s\S]*fileName=\{fileName\}[\s\S]*items=\{props\.kind === 'films' \? filmsImported : seriesImported\}/, 'L’aperçu JSON doit identifier le fichier et recevoir les fiches analysées')
+assert.match(libraryImportButtonSource, /setStep\('json-preview'\)/, 'Tous les imports JSON doivent passer par un aperçu avant le choix de traitement')
+assert.match(libraryImportButtonSource, /props\.seriesLibrary === 'anime' \? parseAnimeCollectionJson/, 'Animation doit lire sa propre section JSON')
+assert.match(libraryImportButtonSource, /props\.bookLibrary === 'mangas' \? parseMangasCollectionJson/, 'Mangas doit lire sa propre section JSON')
+assert.match(libraryImportButtonSource, /replaceAcknowledged/, 'Un remplacement demande un consentement supplémentaire')
+assert.match(libraryImportButtonSource, /requestConfirmation/, 'Toute écriture doit passer par une confirmation explicite')
+assert.match(libraryImportButtonSource, /<JsonImportPreview[\s\S]*fileName=\{fileName\}[\s\S]*items=\{props\.kind === 'films'/, 'L’aperçu JSON doit identifier le fichier et recevoir les fiches analysées')
 assert.match(libraryImportButtonSource, /items\.slice\(0, 5\)/, 'L’aperçu JSON doit limiter l’extrait affiché pour garder le dialogue lisible')
-assert.match(libraryImportButtonSource, /onContinue=\{\(\) => setStep\('mode'\)\}/, 'Le choix Remplacer ou Fusionner ne doit venir qu’après l’aperçu JSON')
+assert.match(libraryImportButtonSource, /if \(!finishPreparation\(items\)\) setStep\('mode'\)/, 'Après aperçu : préparation sans écriture pour l’onboarding, sinon choix du mode')
 assert.match(collectionImportFlowSource, /title=\{duplicate\.existing\.title\}/, 'Le résolveur doit afficher le titre d’origine, avec sa casse et ses accents, et non la clé normalisée')
-assert.match(libraryImportButtonSource, /series: \{ pluralLabel: 'séries et animations japonaises', gender: 'feminine' \}/, 'L’import partagé doit nommer Séries et Animation japonaise et conserver les accords féminins')
+assert.match(libraryImportButtonSource, /mediumPluralLabel=\{libraryLabel/, 'Le choix de traitement doit nommer uniquement la bibliothèque ouverte')
 assert.match(libraryImportButtonSource, /games: \{ pluralLabel: 'jeux', gender: 'masculine' \}/, 'Le choix d’import doit employer le pluriel correct de Jeux')
 assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détectée' : 'détectées'/, 'Le choix d’import doit accorder les noms féminins au singulier et au pluriel')
 assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détecté' : 'détectés'/, 'Le choix d’import doit accorder les noms masculins au singulier et au pluriel')
@@ -2239,8 +2248,8 @@ assert.match(dialogFocusSource, /if \(!isTopDialog\(\)\) return/, 'Seule la fen�
 assert.match(dialogFocusSource, /returnFocusRef\.current\.focus\(\{ preventScroll: true \}\)/, 'La fermeture doit restaurer le focus sans déplacer la page')
 assert.match(dialogFocusSource, /if \(focusable\.length === 0\) \{\s+event\.preventDefault\(\)\s+dialog\.focus\(\)/s, 'Tab doit rester dans le dialogue même lorsqu’aucun contrôle ne reste actif')
 assert.match(dialogFocusSource, /if \(event\.key === 'Escape'\) \{\s+event\.preventDefault\(\)\s+if \(!closeDisabled\) onClose\(\)/s, 'Escape doit rester sans effet pendant une écriture en cours')
-assert.match(portabilitySource, /Sauvegarde Sylloge/, 'L’export global doit être nommé Sauvegarde Sylloge dans les Paramètres')
-assert.match(portabilitySource, /fullLibrary/, 'Le hub de portabilité doit charger les cinq collections pour ses actions par médium')
+assert.match(portabilitySource, /Exporter une copie[\s\S]*createLibraryDocument|createLibraryDocument[\s\S]*Exporter une copie/, 'La copie JSON du profil entier doit pouvoir être exportée depuis Sauvegarde')
+assert.match(portabilitySource, /libraryRepository\.loadLibrary\(library\.profile\.id\)[\s\S]*full\.anime[\s\S]*full\.mangas/, 'Le hub de portabilité doit charger les sept bibliothèques pour ses actions par médium')
 // Jalon 0.4.29 : un seul bouton Exporter par médium, dialogue de formats JSON/CSV.
 assert.match(mainSource, /LibraryExportFlow kind="films"/, 'La bibliothèque Films doit utiliser le flux d’export unifié')
 assert.match(mainSource, /LibraryExportFlow kind="series"/, 'La bibliothèque Séries doit utiliser le flux d’export unifié')
@@ -2256,7 +2265,8 @@ assert.match(libraryExportFlowSource, /<AccessibleDialog/, 'Le choix du format d
 assert.match(libraryExportFlowSource, /runExport/, 'Aucune écriture ne doit avoir lieu avant le choix explicite du format')
 assert.doesNotMatch(mainSource, /scrollIntoView\(\{ block: 'start' \}\)/, 'Les entrées de la sidebar Paramètres ne doivent plus faire défiler des ancres')
 assert.match(mainSource, /SETTINGS_NAVIGATION/, 'La sidebar doit disposer de sa navigation locale de réglages')
-assert.match(mainSource, /Importer et exporter/, 'La navigation locale doit inclure le hub Importer et exporter')
+assert.match(portabilitySource, /label: 'Importer et exporter'/, 'La navigation locale doit inclure le hub Importer et exporter')
+assert.match(mainSource, /SETTINGS_SECTIONS\.map/, 'La navigation des Paramètres doit suivre l’ordre unique des sections')
 assert.match(mainSource, /Retour à la bibliothèque/, 'Les Paramètres doivent toujours proposer un retour explicite à la bibliothèque')
 assert.match(mainSource, /section={settingsSection}/, 'La navigation interne doit afficher la rubrique demandée sans conserver les autres pages')
 assert.match(nativePortabilityBridgeSource, /invoke\('save_export_csv'/, 'Le frontend doit appeler le pont Tauri CSV dédié')
@@ -2283,7 +2293,12 @@ assert.match(importContainersContractSource, /jalon `0\.4\.18`/, 'Le contrat doi
 assert.match(nativePortabilitySource, /\.begin\(\)/, 'L’import doit démarrer une transaction SQLite atomique côté Rust')
 assert.match(nativePortabilitySource, /\.commit\(\)/, 'L’import doit valider explicitement la transaction SQLite')
 assert.match(nativePortabilitySource, /write_snapshot_atomically/, 'Les snapshots doivent passer par une écriture atomique native')
-assert.match(nativePortabilitySource, /SNAPSHOT_RETENTION_COUNT: usize = 30/, 'La rétention native doit être limitée à 30 snapshots')
+assert.match(nativePortabilitySource, /RECENT_BACKUP_COPIES: usize = 3;\s*const WEEKLY_BACKUP_ARCHIVES: usize = 4;\s*const MONTHLY_BACKUP_ARCHIVES: usize = 6;/, 'Conservation par paliers : 3 copies récentes, 4 hebdomadaires, 6 mensuelles')
+assert.match(readFileSync(new URL('../src/domain/backupRestore.ts', import.meta.url), 'utf8'), /BACKUP_RETENTION = \{ recent: 3, weekly: 4, monthly: 6 \}/, 'L’interface annonce la même conservation que le moteur natif')
+{
+  const tauriEntry = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
+  assert.match(tauriEntry, /\.plugin\(migration_backup::init\(\)\)\s*\.plugin\(\s*tauri_plugin_sql::Builder/, 'La copie avant migration doit s’initialiser juste avant le greffon SQL qui applique les migrations')
+}
 for (const portableSource of [transferSource, csvTransferSource, backupServiceSource, nativePortabilityProductionSource]) {
   assert.doesNotMatch(portableSource, /film_tmdb_cache|payload_json|refresh_after|expires_at|CachedFilmTmdbPresentationDto/, 'Le cache TMDB doit rester inaccessible aux exports et snapshots portables (code de production)')
 }
@@ -2483,14 +2498,14 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
 
   const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
   assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format sylloge-library')
-  assert.equal(document.version, 3, 'Le document doit porter la version 3')
+  assert.equal(document.version, 4, 'Le document doit porter la version 4')
 
   const serialized = serializeLibraryDocument(document)
   const preview = validateLibraryDocument(serialized)
   assert.equal(preview.errors.length, 0, `Un aller-retour v3 doit être valide : ${JSON.stringify(preview.errors)}`)
   assert.deepEqual(
     preview.counts,
-    { films: 1, series: 0, anime: 1, books: 0, mangas: 1, games: 1, artworks: 1 },
+    { films: 1, series: 0, anime: 1, books: 0, mangas: 1, games: 1, artworks: 1, custom: 0 },
     'Les compteurs doivent refléter les sept sections et router animation/manga',
   )
   assert.equal(preview.document?.anime[0]?.category, 'animation', 'La catégorie Série doit survivre à l’aller-retour dans anime')
@@ -2753,7 +2768,7 @@ assert.match(seriesFormSource, /<Stepper/, 'Le compteur de saisons doit utiliser
 assert.match(stepperSource, /aria-label=\{`Ajouter 1 à \$\{label\}`\}/, 'Le bouton + doit rester accessible')
 assert.match(stepperSource, /aria-label=\{`Retirer 1 à \$\{label\}`\}/, 'Le bouton − doit rester accessible')
 assert.match(seriesDetailSource, /saison/, 'La fiche doit afficher l’avancement en saisons')
-assert.match(mainSource043, /icon\('series'\)\} Séries/, 'La sidebar doit proposer l’entrée Séries')
+assert.match(mainSource043, /icon\('series', activeItem === '[^']+'\)\}<span className="nav-item-label">Séries/, 'La sidebar doit proposer l’entrée Séries')
 assert.match(mainSource043, /seriesForLibrary\(seriesCollection, scope\)/, 'Séries et Animation japonaise partitionnent les fiches existantes sans copie')
 assert.match(mainSource043, /searchSeries/, 'La recherche Séries doit reposer sur le repository')
 assert.match(mediaRepositorySource, /searchSeries/, 'Le repository doit exposer la recherche Séries')
@@ -2873,9 +2888,9 @@ const rustBooksSource = readFileSync(new URL('../src-tauri/src/books.rs', import
 
 assert.match(bookFormDomainSource, /resolveBookStatusForTotalChange/, 'La bascule Lu → En cours à nouveau tome doit vivre dans le domaine')
 assert.match(bookFormSource, /<Stepper/, 'Le compteur de tomes Manga et Comics doit utiliser les boutons +/−')
-assert.match(bookFormSource, /Ajouter une citation/, 'Le formulaire doit permettre plusieurs citations personnelles')
-assert.match(bookDetailSource, /<details className="quotes-section"/, 'La fiche doit afficher les citations dans un espace escamotable')
-assert.match(mainSource045, /icon\('book'\)\} Livres/, 'La sidebar doit proposer l’entrée Livres')
+assert.match(bookFormSource, /<QuotesEditor/, 'Le formulaire doit permettre plusieurs citations personnelles dans l’éditeur partagé')
+assert.match(bookDetailSource, /<QuotesSection/, 'La fiche doit afficher les citations dans une section ouverte et partagée')
+assert.match(mainSource045, /icon\('book', activeItem === '[^']+'\)\}<span className="nav-item-label">Livres/, 'La sidebar doit proposer l’entrée Livres')
 assert.match(mainSource045, /mediaRepository\.listBooks/, 'La collection Livres doit être relue depuis SQLite')
 assert.match(nativeBooksSource, /create_book_atomically/, 'La création Livre et ses citations doit passer par une commande native atomique')
 assert.match(nativeBooksSource, /update_book_atomically/, 'La modification Livre et ses citations doit passer par une commande native atomique')
@@ -2909,7 +2924,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
 
   const overflow = validateBookForm({
     ...base,
-    category: 'comics',
+    category: 'manga',
     status: 'en cours',
     volumesRead: '13',
     volumesTotal: '12',
@@ -2938,7 +2953,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
     quotes: ['  Première citation  ', '   ', 'Seconde citation'],
   })
   assert.equal(quotes.success, true)
-  assert.deepEqual(quotes.data.quotes, ['Première citation', 'Seconde citation'], 'Les citations doivent être ordonnées, nettoyées et les lignes vides ignorées')
+  assert.deepEqual(quotes.data.quotes, ['  Première citation  ', 'Seconde citation'], 'Les citations doivent garder leur texte exact et leur ordre ; seuls les brouillons vides sont ignorés')
 
   const badRating = validateBookForm({ ...base, status: 'lu', rating: '4.3' })
   assert.equal(badRating.success, false, 'La note doit rester par demi-points')
@@ -3106,7 +3121,7 @@ assert.match(rustBooksSource, /update_book_and_quotes_is_atomic/, 'Une preuve Ru
   )
 }
 
-assert.match(mainSource045, /booksForLibrary\(bookCollection, scope\)/, 'Livres et Mangas présentent des collections séparées, les comics restant dans Livres')
+assert.match(mainSource045, /booksForLibrary\(bookCollection, scope\)/, 'Livres et Mangas présentent des collections séparées ; les comics ont leur propre bibliothèque')
 assert.match(mainSource045, /searchBooks/, 'La recherche Livres doit reposer sur le repository SQLite')
 assert.match(mainSource045, /kind="books"/, 'La bibliothèque Livres doit proposer son import unitaire')
 assert.match(mainSource045, /LibraryExportFlow kind="books"/, 'La bibliothèque Livres doit proposer son export dédié')
@@ -3125,7 +3140,7 @@ const gameFormSource = readFileSync(new URL('../src/components/GameForm.tsx', im
 const gameDetailSource = readFileSync(new URL('../src/components/GameDetail.tsx', import.meta.url), 'utf8')
 const mainSource047 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
 
-assert.match(mainSource047, /icon\('game'\)\} Jeux/, 'La sidebar doit proposer l’entrée Jeux')
+assert.match(mainSource047, /icon\('game', activeItem === '[^']+'\)\}<span className="nav-item-label">Jeux/, 'La sidebar doit proposer l’entrée Jeux')
 assert.match(mainSource047, /mediaRepository\.listGames/, 'La collection Jeux doit être relue depuis SQLite')
 assert.match(mainSource047, /mediaRepository\.createGame/, 'La création Jeu doit écrire dans le repository SQLite')
 assert.match(mainSource047, /mediaRepository\.updateGame/, 'La modification Jeu doit écrire dans le repository SQLite')
@@ -3295,7 +3310,7 @@ const artworkFormSource = readFileSync(new URL('../src/components/ArtworkForm.ts
 const artworkDetailSource = readFileSync(new URL('../src/components/ArtworkDetail.tsx', import.meta.url), 'utf8')
 const mainSource048 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
 
-assert.match(mainSource048, /icon\('art'\)\} Art/, 'La sidebar doit proposer l’entrée Art')
+assert.match(mainSource048, /icon\('art', activeItem === '[^']+'\)\}<span className="nav-item-label">Art/, 'La sidebar doit proposer l’entrée Art')
 assert.match(mainSource048, /mediaRepository\.listArtworks/, 'La collection Art doit être relue depuis SQLite')
 assert.match(mainSource048, /mediaRepository\.createArtwork/, 'La création d’œuvre doit écrire dans le repository SQLite')
 assert.match(mainSource048, /mediaRepository\.updateArtwork/, 'La modification d’œuvre doit écrire dans le repository SQLite')
@@ -4407,7 +4422,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const databaseSource0611 = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
   assert.match(mainSource0611, /__reactRoot/, 'Le montage React doit réutiliser la racine existante : plus de double rendu au HMR invalidé')
   assert.doesNotMatch(mainSource0611, /export const MEDIUM_DOT_COLORS/, 'main.tsx ne doit exporter aucune constante non-composant (Fast Refresh)')
-  assert.match(mainSource0611, /\{icon\('panel'\)\} Barre latérale/, 'La bascule de sidebar garde son icône en mode développé')
+  assert.match(mainSource0611, /<PinIcon filled=\{expanded\} \/><span className="nav-item-label">/, 'L’épingle de sidebar garde son icône dans les deux modes')
   assert.match(gameDomainSource0611, /\['à jouer', 'joué', 'abandonné'\]/, 'Les statuts Jeux se limitent à À jouer / Joué / Abandonné')
   assert.match(migration14Source, /SET status = 'joué'/, 'La migration 14 remappe « en cours » et « regardé » vers « joué »')
   assert.match(databaseSource0611, /version: 14/, 'La migration 14 est enregistrée séquentiellement')
@@ -4577,7 +4592,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   )
   assert.doesNotMatch(bookSource0624, /<select[\s\S]*?id="book-category"/, 'Livres : le sélecteur Type natif doit disparaître')
   assert.match(bookSource0624, /statuses=\{BOOK_CATEGORIES\}[\s\S]*ariaLabel="Type de livre"/, 'Livres : Livre, Manga et Comics doivent devenir des boutons segmentés accessibles')
-  assert.match(bookSource0624, /\{verdictVisible && \([\s\S]*className="quote-editor"/, 'Livres : les citations personnelles doivent être absentes du rendu « À lire »')
+  assert.match(bookSource0624, /<QuotesEditor[\s\S]*?values=\{values.quotes\}/, 'Livres : les citations restent éditables indépendamment du verdict, y compris À lire')
 
   for (const [source, provider] of [[seriesSource0624, 'TMDB'], [bookSource0624, 'Open Library'], [gameSource0624, 'IGDB']]) {
     assert.match(source, /providerLink\?: MediaProviderReference \| null/, `${provider} : le formulaire doit connaître l’association persistante`)
@@ -4641,23 +4656,32 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
 // Jalon 0.6.25 — Paramètres dédiés, identité locale et premier lancement réel.
 {
   const mainSource0625 = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
-  const settingsSource0625 = readFileSync(new URL('../src/components/Portability.tsx', import.meta.url), 'utf8')
+  const settingsSource0625 = settingsSurfaceSource()
   const avatarSource0625 = readFileSync(new URL('../src/components/ProfileAvatar.tsx', import.meta.url), 'utf8')
   const nativeProfilesSource0625 = readFileSync(new URL('../src-tauri/src/profiles.rs', import.meta.url), 'utf8')
   const migrationSource0625 = readFileSync(new URL('../src-tauri/migrations/0019_profile_identity_and_first_run.sql', import.meta.url), 'utf8')
   const databaseSource0625 = readFileSync(new URL('../src-tauri/src/database.rs', import.meta.url), 'utf8')
   const stylesSource0625 = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 
-  assert.match(mainSource0625, /const effectiveExpanded = settingsOpen \|\| expanded/, 'Paramètres : la barre latérale doit rester déployée indépendamment du réglage bibliothèque')
-  assert.doesNotMatch(mainSource0625, /settingsOpen \? \([\s\S]{0,500}className="sidebar-toggle"/, 'Paramètres : le bouton de réduction de la barre latérale doit disparaître')
-  assert.match(settingsSource0625, /className="settings-hero"[\s\S]*Local et privé/, 'Paramètres : chaque section doit avoir un en-tête professionnel et rappeler la confidentialité locale')
+  const sidebarFrameSource = readFileSync(new URL('../src/components/FloatingSidebarFrame.tsx', import.meta.url), 'utf8')
+  assert.match(sidebarFrameSource, /if \(settings\) return <aside className="sidebar sidebar-settings sidebar-expanded">/, 'Paramètres : la barre latérale doit rester déployée indépendamment du réglage bibliothèque')
+  const settingsFooter = mainSource0625.split('{settingsOpen ? (')[2]?.split(') : (')[0] ?? ''
+  assert.match(settingsFooter, /onReturnToLibrary/, 'Paramètres : le pied propose le retour à la bibliothèque')
+  assert.doesNotMatch(settingsFooter, /sidebar-toggle/, 'Paramètres : le bouton de réduction de la barre latérale doit disparaître')
+  assert.match(settingsSource0625, /className="settings-hero"/, 'Paramètres : chaque section garde un en-tête commun')
+  assert.match(settingsSource0625, /Aucun compte\. Les bibliothèques restent sur ce Mac/, 'Paramètres : la page À propos rappelle que les données restent locales')
   assert.match(settingsSource0625, /ProfileAvatarPicker[\s\S]*profilesRepository\.update/, 'Profils : la photo locale doit être réellement modifiable et persistée')
 
-  assert.match(mainSource0625, /Étape 1 sur 3[\s\S]*Étape 2 sur 3[\s\S]*Étape 3 sur 3/, 'Onboarding : identité, apparence et bibliothèque doivent former un parcours ordonné')
-  assert.match(mainSource0625, /ProfileAvatarPicker[\s\S]*THEME_OPTIONS[\s\S]*Restaurer Sylloge/, 'Onboarding : pseudo, photo, thème et restauration doivent être proposés')
-  assert.match(mainSource0625, /validateLibraryDocument\(picked\.contents\)/, 'Onboarding : une sauvegarde complète doit être validée avant toute création de profil')
-  assert.match(mainSource0625, /selectAfterCreation: true[\s\S]*importLibraryDocumentIntoEmptyProfile/, 'Onboarding : le profil créé doit être sélectionné puis restauré uniquement dans son état vide')
-  assert.match(mainSource0625, /finish\('empty'\)[\s\S]*Plus tard/, 'Onboarding : le choix Plus tard doit créer une bibliothèque vide explicite')
+  const onboardingSource = readFileSync(new URL('../src/components/Onboarding.tsx', import.meta.url), 'utf8')
+  const backupCatalogSource = readFileSync(new URL('../src/domain/backupRestore.ts', import.meta.url), 'utf8')
+  const onboardingDomainSource = readFileSync(new URL('../src/domain/onboarding.ts', import.meta.url), 'utf8')
+  assert.match(mainSource0625, /<Onboarding/, 'Le véritable premier lancement doit monter le parcours partagé')
+  assert.match(onboardingSource, /const STEPS[\s\S]*id: 'profile'[\s\S]*id: 'library'[\s\S]*id: 'backup'/, 'Onboarding : profil, préparation puis protection doivent former un parcours ordonné')
+  assert.match(onboardingSource, /ProfileAvatarPicker[\s\S]*THEMES[\s\S]*Restaurer Sylloge/, 'Pseudo, photo, thème et restauration restent disponibles')
+  assert.match(backupCatalogSource, /validateLibraryDocument\(file.contents\)/, 'Toutes les copies proposées doivent être validées par le parseur de production')
+  assert.match(onboardingDomainSource, /selectAfterCreation: true[\s\S]*deps.importDocument/, 'La création finale doit restaurer dans le nouveau profil sélectionné')
+  assert.match(onboardingSource, /Continuer sans sauvegarde automatique pour le moment/, 'Le démarrage sans sauvegarde exige un choix explicite')
+  assert.match(onboardingSource, /createdRef.current = library[\s\S]*configureBackupDestination/, 'Un échec de copie ne doit pas perdre ni recréer le profil finalisé')
 
   assert.match(avatarSource0625, /AVATAR_SIZE = 256/, 'Avatar : la photo doit être normalisée à une taille locale bornée')
   assert.match(avatarSource0625, /MAX_SOURCE_BYTES = 8 \* 1024 \* 1024/, 'Avatar : la photo source doit être bornée avant décodage')
@@ -4695,7 +4719,8 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(mainSource0626, /className="onboarding-backdrop"/, 'Onboarding : le premier lancement doit occuper la fenêtre entière, sans gabarit de pop-up')
   assert.match(stylesSource0626, /\.onboarding-backdrop \{[\s\S]*?position: fixed;[\s\S]*?inset: 0/, 'Onboarding : le conteneur plein cadre doit couvrir la fenêtre sans marge')
   assert.match(stylesSource0626, /\.onboarding-shell \{[\s\S]*?height: 100vh/, 'Onboarding : la fenêtre de premier lancement doit remplir toute la hauteur')
-  assert.match(mainSource0626, /onboarding-identity-row[\s\S]*ProfileAvatarPicker[\s\S]*compact/, 'Onboarding : l’avatar compact doit précéder le champ pseudo à l’étape Profil')
+  const onboardingSource0626 = readFileSync(new URL('../src/components/Onboarding.tsx', import.meta.url), 'utf8')
+  assert.match(onboardingSource0626, /onboarding-identity-row[\s\S]*ProfileAvatarPicker[\s\S]*compact/, 'Onboarding : l’avatar compact doit précéder le champ pseudo à l’étape Profil')
   const compactAvatarBranch = avatarSource0626.match(/compact \? \(([\s\S]*?)\) : \(/)?.[1] ?? ''
   assert.match(compactAvatarBranch, /profile-avatar-pencil/, 'Onboarding : le crayon superposé doit ouvrir le sélecteur de photo')
   assert.doesNotMatch(compactAvatarBranch, /secondary-button/, 'Onboarding : le mode compact ne doit pas afficher de bouton « Choisir une photo »')

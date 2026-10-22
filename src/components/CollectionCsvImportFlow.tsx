@@ -32,7 +32,7 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
   return (
     <div className="assistant-content">
       <ol className="assistant-steps" aria-label="Étapes de l’import CSV">
-        {['Mapping', 'Aperçu'].map((label, index) => {
+        {['Colonnes', 'Aperçu'].map((label, index) => {
           const current = step === 'mapping' ? 1 : 2
           return <li className={index + 1 === current ? 'active' : index + 1 < current ? 'complete' : ''} key={label}>{label}</li>
         })}
@@ -43,8 +43,7 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
 
       {step === 'mapping' && (
         <section className="assistant-stage">
-          <p className="card-kicker">Mapping</p>
-          <h3>Relie les colonnes de ton fichier à Sylloge</h3>
+          <h3>Faire correspondre les colonnes</h3>
           {groups.map((group) => {
             const isSecondary = group.id === 'editorial'
             return (
@@ -133,7 +132,7 @@ function CollectionCsvPreviewPanel({
         <span>{valid ? `${itemCount} fiche${itemCount > 1 ? 's prêtes' : ' prête'}` : 'Import bloqué'}</span>
       </div>
       <dl className="transfer-summary compact films-import-summary">
-        <div><dt>Format</dt><dd>{preview.sourceKind === 'sylloge-csv-v1' ? 'CSV Sylloge v1' : 'CSV avec mapping'}</dd></div>
+        <div><dt>Format</dt><dd>{preview.sourceKind === 'sylloge-csv-v1' ? 'CSV Sylloge v1' : 'CSV avec correspondances'}</dd></div>
         <div><dt>Lignes lues</dt><dd>{preview.totalItemCount}</dd></div>
         <div><dt>Fiches prêtes</dt><dd>{preview.validItemCount}</dd></div>
         <div><dt>Blocages</dt><dd>{blockingErrors.length}</dd></div>
@@ -141,26 +140,26 @@ function CollectionCsvPreviewPanel({
       {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes non importées :</b> {preview.ignoredColumns.join(', ')}. Les métadonnées éditoriales restent récupérables via la recherche assistée.</p>}
       {infos.length > 0 && (
         <details className="import-warnings" open={blockingErrors.length === 0}>
-          <summary>{infos.length} champ{infos.length > 1 ? 's' : ''} laissé{infos.length > 1 ? 's' : ''} vide{infos.length > 1 ? 's' : ''} — valeur non reconnue dans ton fichier</summary>
+          <summary>{infos.length} champ{infos.length > 1 ? 's' : ''} laissé{infos.length > 1 ? 's' : ''} vide{infos.length > 1 ? 's' : ''} — valeur non reconnue dans le fichier</summary>
           <ol>{infos.map((info, index) => <li key={`${info.path}-${index}`}><code>{info.path.replace('.info', '')}</code> {info.message}</li>)}</ol>
-          <p>Ces fiches sont importées sans ces champs. Tu pourras les compléter plus tard, fiche par fiche.</p>
+          <p>Ces fiches seront importées sans ces champs, qui restent modifiables dans leur fiche.</p>
         </details>
       )}
       {valid && (
         <p className="import-contextual-hint">
-          L’étape suivante te propose Remplacer ou Fusionner. Rien n’est encore écrit : tu pourras relire le résumé complet après l’import.
+          L’étape suivante permet de comparer les doublons ou de remplacer cette bibliothèque. Une confirmation finale précède toute écriture.
         </p>
       )}
       {!valid ? (
         <div className="validation-errors" role="alert">
-          <p>Aucune donnée n’a été écrite. Corrige le mapping ou le fichier avant de réessayer.</p>
+          <p>Aucune donnée n’a été écrite. Corriger les correspondances ou le fichier avant de réessayer.</p>
           {preview.items === null && blockingErrors.length === 0 && <p>Ce fichier ne contient aucune fiche importable.</p>}
           {blockingErrors.length > 0 && <ol>{blockingErrors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {error.message}</li>)}</ol>}
         </div>
       ) : <div className="import-confirmation"><p>{itemCount} fiche{itemCount > 1 ? 's sont prêtes' : ' est prête'} à être comparée{itemCount > 1 ? 's' : ''} à la collection du profil courant. Aucune donnée n’a encore été écrite.</p></div>}
       <div className="assistant-actions">
         {preview.sourceKind !== 'sylloge-csv-v1' && <button className="secondary-button" type="button" onClick={onBack}>Modifier</button>}
-        <button className="primary-button" type="button" disabled={!valid} onClick={onContinue}>Continuer vers Remplacer ou Fusionner</button>
+        <button className="primary-button" type="button" disabled={!valid} onClick={onContinue}>Continuer</button>
       </div>
     </section>
   )

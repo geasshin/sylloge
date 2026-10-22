@@ -101,6 +101,8 @@ export type NativeImportLibraryDocumentPayload = {
   mangas: SyllogeLibraryDocument['mangas']
   games: SyllogeLibraryDocument['games']
   artworks: SyllogeLibraryDocument['artworks']
+  /** Bibliothèques personnalisées (v4) : activation et fiches du profil. */
+  customLibraries: SyllogeLibraryDocument['customLibraries']
 }
 
 export type ImportLibraryDocumentResult = {
@@ -112,6 +114,8 @@ export type ImportLibraryDocumentResult = {
   mangaCount: number
   gameCount: number
   artworkCount: number
+  customLibraryCount?: number
+  customEntryCount?: number
 }
 
 export function pickImportJson(): Promise<PickedJsonFile | null> {
@@ -190,9 +194,13 @@ export type ProfileSummary = {
   updatedAt: string
   filmCount: number
   seriesCount: number
+  animeCount: number
   bookCount: number
+  mangaCount: number
   gameCount: number
   artworkCount: number
+  /** Fiches des bibliothèques personnalisées (0021). */
+  customCount?: number
 }
 
 export type CollectionImportPlan<F> = {

@@ -1,0 +1,92 @@
+async page => {
+  page.setDefaultTimeout(6000)
+  const checks = []
+  const errors = []
+  const assert = (ok, label) => { if (!ok) throw new Error(label); checks.push(label) }
+  page.on('pageerror', error => errors.push(String(error)))
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=empty')
+  await page.evaluate(() => localStorage.removeItem('sylloge-sidebar-pinned'))
+  await page.reload()
+  const sidebar = page.locator('.sidebar:not(.sidebar-settings)')
+  const nav = page.getByRole('navigation', { name: 'Navigation principale' })
+  await nav.waitFor()
+  const labels = await nav.locator('button').evaluateAll(bs => bs.map(b => b.getAttribute('aria-label')))
+  assert(JSON.stringify(labels) === JSON.stringify(['Accueil', 'Films', 'Séries', 'Animation japonaise', 'Livres', 'Mangas', 'Jeux', 'Art', 'Ajouter une bibliothèque']), 'Nouveau profil : sept bibliothèques et le + uniquement')
+  const mainLeft = () => page.locator('.app > .main').evaluate(el => el.getBoundingClientRect().left)
+  const left = await mainLeft()
+  await nav.getByRole('button', { name: 'Films', exact: true }).hover()
+  await page.waitForTimeout(650)
+  assert(await sidebar.evaluate(el => el.classList.contains('sidebar-expanded')), 'Survol : le panneau se déploie')
+  assert(await mainLeft() === left, 'Le survol ne déplace pas le contenu')
+  const pin = sidebar.locator('.sidebar-toggle')
+  await pin.click()
+  await page.mouse.move(850, 700)
+  await page.waitForTimeout(650)
+  assert(await pin.getAttribute('aria-pressed') === 'true', 'Épingle activée')
+  assert(await sidebar.evaluate(el => el.classList.contains('sidebar-expanded')), 'Épinglée : reste ouverte hors survol')
+  assert(await mainLeft() > left, 'Épinglée : réserve la place du panneau')
+  await page.reload()
+  await sidebar.waitFor()
+  assert(await pin.getAttribute('aria-pressed') === 'true', 'Épingle conservée après redémarrage')
+  await pin.click()
+  await page.mouse.move(850, 700)
+  await page.waitForTimeout(650)
+  assert(await sidebar.evaluate(el => el.classList.contains('sidebar-rail')), 'Détachée : revient aux icônes seules')
+  // Le focus clavier ouvre les noms et permet de rejoindre le contenu sans piège.
+  await page.keyboard.press('Tab')
+  await nav.getByRole('button', { name: 'Animation japonaise', exact: true }).focus()
+  await page.waitForTimeout(350)
+  assert(await sidebar.evaluate(el => el.classList.contains('sidebar-expanded')), 'Focus clavier : noms visibles')
+  await page.keyboard.press('Enter')
+  await page.getByRole('heading', { name: 'Animation japonaise', level: 1 }).waitFor()
+  assert(true, 'Navigation Animation japonaise au clavier')
+  await sidebar.getByRole('button', { name: 'Paramètres', exact: true }).click()
+  await page.getByRole('navigation', { name: 'Navigation des paramètres' }).waitFor()
+  assert(true, 'Paramètres : navigation dédiée préservée')
+  await page.getByRole('button', { name: 'Retour à la bibliothèque' }).click()
+  await nav.waitFor()
+  // Le focus clavier dans la barre garde légitimement les noms visibles : on le
+  // sort vers le contenu avant de vérifier qu'aucune ouverture de survol ne subsiste.
+  await page.locator('.library-header h1').click()
+  await page.mouse.move(850, 700)
+  await page.waitForFunction(() => document.querySelector('.sidebar').classList.contains('sidebar-rail'))
+  assert(await sidebar.evaluate(el => el.classList.contains('sidebar-rail')), 'Retour des paramètres : aucune ouverture temporaire résiduelle')
+  await nav.getByRole('button', { name: 'Ajouter une bibliothèque' }).click()
+  const catalog = page.getByRole('dialog', { name: 'Ajouter une bibliothèque' })
+  await catalog.waitFor()
+  await page.keyboard.press('Escape')
+  assert(await nav.getByRole('button', { name: 'Ajouter une bibliothèque' }).evaluate(el => el === document.activeElement), 'Catalogue : Échap restaure le focus au +')
+  // Cas chargé : les quinze bibliothèques, petite fenêtre et pied toujours accessible.
+  await page.setViewportSize({ width: 1000, height: 760 })
+  await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full')
+  await nav.waitFor()
+  for (const name of ['Magazines', 'Livres audio', 'Podcasts', 'Documentaires et reportages']) {
+    await nav.getByRole('button', { name: 'Ajouter une bibliothèque' }).click()
+    await page.getByRole('dialog', { name: 'Ajouter une bibliothèque' }).getByRole('button', { name: `Ajouter ${name}`, exact: true }).click()
+    await page.getByRole('dialog', { name: 'Ajouter une bibliothèque' }).waitFor({ state: 'hidden' })
+  }
+  assert(await nav.locator('button').count() === 17, 'Toutes les bibliothèques ajoutées : accueil, quinze bibliothèques et +')
+  if (await pin.getAttribute('aria-pressed') !== 'true') await pin.click()
+  await page.mouse.move(900, 700)
+  await page.waitForTimeout(500)
+  for (const button of await nav.locator('button').all()) {
+    await button.scrollIntoViewIfNeeded()
+    const visible = await button.evaluate(el => {
+      const r = el.getBoundingClientRect(), nav = el.closest('nav').getBoundingClientRect()
+      return r.top >= nav.top - 1 && r.bottom <= nav.bottom + 1
+    })
+    assert(visible, `Quinze bibliothèques : ${await button.getAttribute('aria-label')} accessible en entier`)
+  }
+  assert(await pin.evaluate(el => {
+    const r = el.getBoundingClientRect(), nav = document.querySelector('.sidebar-surface > nav').getBoundingClientRect()
+    return r.top > nav.bottom && r.bottom < innerHeight
+  }), 'Quinze bibliothèques : épingle hors du défilement et sans chevauchement')
+  await page.keyboard.press('Tab')
+  await nav.getByRole('button', { name: 'Magazines', exact: true }).focus()
+  await page.keyboard.press('Enter')
+  await page.getByRole('heading', { name: 'Magazines', level: 1 }).waitFor()
+  assert(true, 'Quinze bibliothèques : navigation clavier dans la liste défilante')
+  assert(errors.length === 0, `Aucune erreur de page : ${errors.join('; ')}`)
+  return JSON.stringify({ ok: true, checks })
+}

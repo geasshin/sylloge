@@ -43,6 +43,8 @@ function collectionOnly(library: CulturalLibrary, kind: LibraryExportMedium): Cu
     mangas: kind === 'mangas' ? library.mangas : [],
     games: kind === 'games' ? library.games : [],
     artworks: kind === 'artworks' ? library.artworks : [],
+    // Une bibliothèque de base exportée seule n'emporte aucune bibliothèque personnalisée.
+    customLibraries: [],
   }
 }
 
@@ -62,6 +64,7 @@ function exportMedium(kind: LibraryExportMedium, bookLibrary?: BookLibraryKey, s
  */
 export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary }: LibraryExportFlowProps) {
   const [open, setOpen] = useState(false)
+  const [scope, setScope] = useState<'collection' | 'profile'>('collection')
   const [saving, setSaving] = useState<ExportFormat | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const medium = exportMedium(kind, bookLibrary, seriesLibrary)
@@ -74,9 +77,13 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
     try {
       const loaded = await libraryRepository.loadLibrary(profileId)
       if (format === 'json') {
-        const document = createLibraryDocument(collectionOnly(loaded, medium))
-        const savedName = await saveExportJson(libraryExportFileName(document.exportedAt), serializeLibraryDocument(document))
-        setMessage(savedName ? `Export JSON enregistré dans « ${savedName} ».` : 'Export annulé.')
+        const document = createLibraryDocument(scope === 'profile' ? loaded : collectionOnly(loaded, medium))
+        const suggestedName = scope === 'profile' ? libraryExportFileName(document.exportedAt) : libraryExportFileName(document.exportedAt).replace('sylloge-sauvegarde-', `sylloge-${medium}-`)
+        const savedName = await saveExportJson(suggestedName, serializeLibraryDocument(document))
+        const count = scope === 'profile'
+          ? loaded.films.length + loaded.series.length + loaded.anime.length + loaded.books.length + loaded.mangas.length + loaded.games.length + loaded.artworks.length
+          : loaded[medium].length
+        setMessage(savedName ? `Export JSON enregistré dans « ${savedName} » · ${count} fiches · ${scope === 'profile' ? 'tout le profil' : mediumLabel}.` : 'Export annulé. Aucun fichier n’a été écrit.')
       } else {
         const exported = createCollectionCsvExport(loaded, medium)
         const savedName = await saveExportCsv(exported.fileName, exported.contents)
@@ -89,7 +96,7 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
           ? `Export CSV enregistré dans « ${savedName} » avec ${exported.count} ${countLabel}.`
           : 'Export CSV annulé. Aucun fichier n’a été écrit.')
       }
-      setOpen(false)
+      // Le bilan reste lisible dans la fenêtre, y compris en cas d’annulation.
     } catch (error) {
       console.error(`Impossible d’exporter ${mediumLabel}.`, error)
       setMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
@@ -100,18 +107,25 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
 
   return (
     <span className="transfer-action">
-      <button className="secondary-button" type="button" onClick={() => setOpen(true)}>
+      <button className="secondary-button" type="button" onClick={() => { setScope('collection'); setMessage(null); setOpen(true) }}>
         Exporter
       </button>
-      {message && <span className="transfer-action-message" role="status">{message}</span>}
+      {message && !open && <span className="transfer-action-message" role="status">{message}</span>}
       {open && (
         <AccessibleDialog
-          title={`Exporter ${mediumLabel}`}
+          title={scope === 'profile' ? 'Exporter tout le profil' : `Exporter ${mediumLabel}`}
           description="Choisir le format du fichier. La bibliothèque locale n’est pas modifiée."
           closeDisabled={saving !== null}
           onClose={() => setOpen(false)}
           size="md"
         >
+          <div className="assistant-content export-review">
+          <fieldset className="transfer-scope">
+            <legend>Contenu à exporter</legend>
+            <label><input type="radio" name="export-scope" checked={scope === 'collection'} disabled={saving !== null} onChange={() => setScope('collection')} />{mediumLabel} uniquement</label>
+            <label><input type="radio" name="export-scope" checked={scope === 'profile'} disabled={saving !== null} onChange={() => setScope('profile')} />Tout le profil · toutes ses bibliothèques</label>
+          </fieldset>
+          <p className="import-contextual-hint">JSON pour conserver une copie réimportable ; CSV pour travailler dans un tableur. Aucun envoi en ligne, aucune modification des fiches.</p>
           <div className="export-format-options">
             <button
               className="export-format-option"
@@ -120,17 +134,20 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
               onClick={() => void runExport('json')}
             >
               <b>{saving === 'json' ? 'Export en cours…' : 'JSON Sylloge'}</b>
-              <small>Document complet et versionné, réimportable dans Sylloge.</small>
+              <small>Copie réimportable des données personnelles : notes, avis, dates, favoris, progression et citations. Les caches fournisseurs et les réglages de l’application sont exclus.</small>
             </button>
-            <button
+            {scope === 'collection' && <button
               className="export-format-option"
               type="button"
               disabled={saving !== null}
               onClick={() => void runExport('csv')}
             >
               <b>{saving === 'csv' ? 'Export en cours…' : 'CSV'}</b>
-              <small>Table lisible dans un tableur, pensée pour être relue ailleurs.</small>
-            </button>
+              <small>Colonnes UTF-8 pour un tableur. Les citations restent des cellules JSON ; les champs libres d’Art et les identifiants de citations ne sont pas inclus. Privilégier JSON pour une copie fidèle.</small>
+            </button>}
+          </div>
+          {message && <p className="inline-report" role="status">{message}</p>}
+          <div className="assistant-actions"><button className="secondary-button" type="button" disabled={saving !== null} onClick={() => setOpen(false)}>Fermer</button></div>
           </div>
         </AccessibleDialog>
       )}

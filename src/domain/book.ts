@@ -1,11 +1,11 @@
-export const BOOK_CATEGORIES = ['livre', 'manga', 'comics'] as const
+/** Les comics ont leur propre bibliothèque depuis le 22 octobre 2026. */
+export const BOOK_CATEGORIES = ['livre', 'manga'] as const
 
 export type BookCategory = (typeof BOOK_CATEGORIES)[number]
 
 export const BOOK_CATEGORY_LABELS: Record<BookCategory, string> = {
   livre: 'Livre',
   manga: 'Manga',
-  comics: 'Comics',
 }
 
 export const BOOK_STATUSES = ['à lire', 'en cours', 'abandonné', 'lu'] as const
@@ -47,6 +47,22 @@ export type Book = {
   createdAt: string
   updatedAt: string
   quotes: BookQuote[]
+}
+
+/** Conserver l'identité d'un passage inchangé, même réordonné ou présent deux fois. */
+export function reconcileBookQuotes(
+  bookId: string,
+  bodies: readonly string[],
+  createdAt: string,
+  createId: () => string,
+  previous: readonly BookQuote[] = [],
+): BookQuote[] {
+  const available = [...previous]
+  return bodies.filter(body => body.trim() !== '').map((body, position) => {
+    const index = available.findIndex(quote => quote.body === body)
+    const reused = index >= 0 ? available.splice(index, 1)[0] : null
+    return { id: reused?.id ?? createId(), bookId, body, position, createdAt: reused?.createdAt ?? createdAt }
+  })
 }
 
 /**

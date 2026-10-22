@@ -12,7 +12,7 @@ Une seule personne : Aurélien, qui tient sa bibliothèque culturelle personnell
 
 ## Product Purpose
 
-Sylloge rassemble en un seul endroit sept bibliothèques : Films, Séries, Animation japonaise, Livres (dont comics), Mangas, Jeux et Art. Pour chaque œuvre, elle conserve le statut, la note sur cinq, le coup de cœur, la critique personnelle, les dates et la progression ; livres et mangas gardent aussi des citations. Réussir, c’est que la collection soit agréable à parcourir, que l’ajout et la mise à jour d’une œuvre prennent quelques secondes, et que la mémoire personnelle (avis, dates, activité) soit mise en valeur.
+Sylloge rassemble en un seul endroit sept bibliothèques de base : Films, Séries, Animation japonaise, Livres, Mangas, Jeux et Art, auxquelles chaque profil peut ajouter des bibliothèques personnalisées tirées de modèles prêts (Comics, Musique, Podcasts, Spectacles…). Pour chaque œuvre, elle conserve le statut, la note sur cinq, le coup de cœur, la critique personnelle, les dates et la progression ; livres et mangas gardent aussi des citations. Réussir, c’est que la collection soit agréable à parcourir, que l’ajout et la mise à jour d’une œuvre prennent quelques secondes, et que la mémoire personnelle (avis, dates, activité) soit mise en valeur.
 
 ## Positioning
 

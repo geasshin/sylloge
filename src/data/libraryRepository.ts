@@ -23,6 +23,8 @@ import {
   type NowFactory,
 } from './filmsRepository.ts'
 import { mediaRepository, SqliteMediaRepository } from './mediaRepository.ts'
+import { customLibraryRepository, SqliteCustomLibraryRepository } from './customLibraryRepository.ts'
+import type { CustomLibrary } from '../domain/customLibraries.ts'
 import {
   importLibraryDocumentAtomically,
   importLibraryDocumentIntoEmptyProfile,
@@ -39,6 +41,7 @@ export type CulturalLibrary = {
   mangas: Book[]
   games: Game[]
   artworks: Artwork[]
+  customLibraries: CustomLibrary[]
 }
 
 type ProfileRow = {
@@ -129,6 +132,18 @@ function prepareNativeLibraryImport(
       id: createId(),
       profileId: profile.id,
     })),
+    customLibraries: (document.customLibraries ?? []).map((library) => ({
+      ...library,
+      entries: library.entries.map((entry) => {
+        const id = createId()
+        return {
+          ...entry,
+          id,
+          profileId: profile.id,
+          quotes: entry.quotes.map((quote) => ({ ...quote, id: createId(), entryId: id })),
+        }
+      }),
+    })),
   }
 
   for (const book of [...payload.books, ...payload.mangas]) {
@@ -143,7 +158,7 @@ function prepareNativeLibraryImport(
 }
 
 /**
- * Agrège les cinq collections d'un profil et orchestre les imports atomiques
+ * Agrège les sept bibliothèques d'un profil et orchestre les imports atomiques
  * d'un document sylloge-library v2, avec régénération des identifiants locaux.
  */
 export class SqliteLibraryRepository {
@@ -153,6 +168,7 @@ export class SqliteLibraryRepository {
   private readonly importNative: NativeLibraryDocumentImporter
   private readonly importIntoEmptyNative: NativeLibraryDocumentImporter
   private readonly media: SqliteMediaRepository
+  private readonly custom: SqliteCustomLibraryRepository
 
   constructor(
     loadDatabase: DatabaseLoader = loadSyllogeDatabase,
@@ -161,6 +177,7 @@ export class SqliteLibraryRepository {
     importNative: NativeLibraryDocumentImporter = importLibraryDocumentAtomically,
     media: SqliteMediaRepository = mediaRepository,
     importIntoEmptyNative: NativeLibraryDocumentImporter = importLibraryDocumentIntoEmptyProfile,
+    custom: SqliteCustomLibraryRepository | null = null,
   ) {
     this.loadDatabase = loadDatabase
     this.createId = createId
@@ -168,6 +185,8 @@ export class SqliteLibraryRepository {
     this.importNative = importNative
     this.importIntoEmptyNative = importIntoEmptyNative
     this.media = media
+    // Même base que le dépôt : un chargeur injecté en test vaut pour les deux.
+    this.custom = custom ?? (loadDatabase === loadSyllogeDatabase ? customLibraryRepository : new SqliteCustomLibraryRepository(loadDatabase, createId, now))
   }
 
   async loadLibrary(profileId: string): Promise<CulturalLibrary> {
@@ -185,7 +204,7 @@ export class SqliteLibraryRepository {
       throw new Error(`Le profil local ${profileId} est introuvable.`)
     }
 
-    const [filmLibrary, series, anime, books, mangas, games, artworks] = await Promise.all([
+    const [filmLibrary, series, anime, books, mangas, games, artworks, customLibraries] = await Promise.all([
       filmsRepository.loadLibrary(profileId),
       this.media.listSeries(profileId, 'series'),
       this.media.listSeries(profileId, 'anime'),
@@ -193,6 +212,7 @@ export class SqliteLibraryRepository {
       this.media.listBooks(profileId, 'mangas'),
       this.media.listGames(profileId),
       this.media.listArtworks(profileId),
+      this.custom.loadAll(profileId),
     ])
 
     return {
@@ -204,6 +224,7 @@ export class SqliteLibraryRepository {
       mangas,
       games,
       artworks,
+      customLibraries,
     }
   }
 
@@ -249,6 +270,8 @@ export class SqliteLibraryRepository {
       || (result.mangaCount ?? 0) !== payload.mangas.length
       || result.gameCount !== payload.games.length
       || result.artworkCount !== payload.artworks.length
+      || (result.customLibraryCount ?? 0) !== payload.customLibraries.length
+      || (result.customEntryCount ?? 0) !== payload.customLibraries.reduce((total, library) => total + library.entries.length, 0)
     ) {
       throw new Error('Le rapport SQLite de l’import ne correspond pas au document validé.')
     }
@@ -275,6 +298,8 @@ export class SqliteLibraryRepository {
       || (result.mangaCount ?? 0) !== payload.mangas.length
       || result.gameCount !== payload.games.length
       || result.artworkCount !== payload.artworks.length
+      || (result.customLibraryCount ?? 0) !== payload.customLibraries.length
+      || (result.customEntryCount ?? 0) !== payload.customLibraries.reduce((total, library) => total + library.entries.length, 0)
     ) {
       throw new Error('Le rapport SQLite de l’import ne correspond pas au document validé.')
     }

@@ -12,7 +12,7 @@ export type { ProfileSummary }
 
 /**
  * Couche d'accès aux profils locaux (jalon 0.4.4). Un profil est une
- * identité pure : il regroupe les cinq collections d'une même base SQLite.
+ * identité pure : il regroupe les sept bibliothèques d'une même base SQLite.
  */
 export class ProfilesRepository {
   list(): Promise<ProfileSummary[]> {

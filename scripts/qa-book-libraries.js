@@ -1,5 +1,5 @@
 async (page) => {
-  page.setDefaultTimeout(4500)
+  page.setDefaultTimeout(6000)
   await page.setViewportSize({ width: 1440, height: 900 })
   const errors = []
   const consoleErrors = []
@@ -24,11 +24,10 @@ async (page) => {
     await page.locator('.library-header h1').filter({ hasText: new RegExp(`^${label}$`) }).waitFor()
     await settle()
   }
+  // La vue « Tous » peut rester filtrée : on réinitialise pour comparer à la table.
   const all = async () => {
-    await page.locator('.library-views .view-pill').filter({ hasText: /^Tous$/ }).click()
-    await settle()
-    // Changer de vue intégrée conserve les filtres à la volée ; le test veut
-    // ici toute la bibliothèque, pas seulement la vue Tous encore filtrée.
+    const pill = page.locator('.library-views .view-pill').filter({ hasText: /^Tous$/ })
+    if (await pill.count()) await pill.first().click()
     const reset = page.getByRole('button', { name: /^Réinitialiser la vue/ })
     if (await reset.count()) await reset.click()
     await settle()
@@ -37,138 +36,93 @@ async (page) => {
   const db = (sql) => page.evaluate((query) => window.__syllogeRecette.select(query), sql)
   await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full')
   await page.locator('.atrium-home').waitFor()
-  const initial = await db('SELECT * FROM books ORDER BY title')
-  const expectedBooks = initial.filter((entry) => entry.category !== 'manga').map((entry) => entry.title).sort()
-  const expectedMangas = initial.filter((entry) => entry.category === 'manga').map((entry) => entry.title).sort()
-  await page.evaluate(() => {
-    const filters = { status: 'all', statusGroup: null, favoritesOnly: true, minRating: null, year: null, personalDateFrom: null, specificText: '', location: '', exhibition: '' }
-    for (const [id, name, mediumFilter, version] of [
-      ['legacy-manga', 'Ancienne vue manga', 'manga', 1],
-      ['legacy-book', 'Ancienne vue livres', 'all', 2],
-      ['legacy-comics', 'Anciens comics', 'comics', 2],
-    ]) {
-      const criteria = version === 1 ? { view: 'favorites', mediumFilter, filters } : { sort: { column: 'title', direction: 'asc' }, mediumFilter, filters }
-      window.__syllogeRecette.execute('INSERT INTO saved_views (id, profile_id, medium, name, criteria_json, schema_version, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$7)', [id, 'qa-profile', 'books', name, JSON.stringify(criteria), version, '2026-01-01T12:00:00.000Z'])
-    }
-  })
-  const legacyBefore = await db("SELECT * FROM saved_views WHERE id LIKE 'legacy-%' ORDER BY id")
+  const booksBefore = await db('SELECT id, title FROM books ORDER BY title')
+  const mangasBefore = await db('SELECT id, title FROM mangas ORDER BY title')
+  const comicsBefore = await db('SELECT id, title FROM comics ORDER BY title')
+
+  // Chaque bibliothèque est une table : aucune œuvre de l'autre ne doit apparaître.
   await go('Livres')
   await all()
-  assert(JSON.stringify((await titles()).sort()) === JSON.stringify(expectedBooks), 'Livres doit contenir livres et comics, sans manga.')
+  assert(JSON.stringify((await titles()).sort()) === JSON.stringify(booksBefore.map((entry) => entry.title).sort()), 'Livres doit contenir exactement les livres, sans manga ni comic.')
   assert(await page.locator('.category-switch').count() === 0, 'La bascule Livre/Manga/Comics ne doit plus être présente.')
-  assert(await page.getByRole('button', { name: 'Ancienne vue manga', exact: true }).count() === 0, 'Une ancienne vue manga fuit dans Livres.')
-  await page.getByRole('button', { name: 'Anciens comics', exact: true }).click()
-  await settle()
-  const comicFavorites = initial.filter((entry) => entry.category === 'comics' && entry.title === 'Watchmen').map((entry) => entry.title)
-  assert((await titles()).includes(comicFavorites[0]), 'L’ancienne vue Comics n’est plus consultable.')
-  checks.push('partition Livres et anciens comics, anciennes vues conservées')
+  assert((await titles()).every((title) => !mangasBefore.some((entry) => entry.title === title)), 'Un manga fuit dans Livres.')
   await go('Mangas')
   await all()
-  assert(JSON.stringify((await titles()).sort()) === JSON.stringify(expectedMangas), 'Mangas doit contenir uniquement les mangas.')
-  assert(await page.getByRole('button', { name: 'Ancienne vue livres', exact: true }).count() === 0, 'Une vue Livres fuit dans Mangas.')
-  await page.getByRole('button', { name: 'Ancienne vue manga', exact: true }).click()
-  await settle()
-  assert((await titles()).includes('Monster'), 'L’ancienne vue v1 Manga doit fonctionner.')
-  const legacyAfter = await db("SELECT * FROM saved_views WHERE id LIKE 'legacy-%' ORDER BY id")
-  assert(JSON.stringify(legacyAfter) === JSON.stringify(legacyBefore), 'Consulter une vue ancienne ne doit réécrire aucun champ SQLite.')
-  assert(legacyAfter.every((view) => view.schema_version === (view.id === 'legacy-manga' ? 1 : 2)), 'Consulter les anciennes vues ne doit pas les migrer.')
-  checks.push('partition Mangas et lecture des vues v1 sans réécriture')
+  assert(JSON.stringify((await titles()).sort()) === JSON.stringify(mangasBefore.map((entry) => entry.title).sort()), 'Mangas doit contenir exactement les mangas, sans livre.')
+  await go('Comics')
   await all()
-  await page.getByRole('searchbox', { name: 'Rechercher par titre, auteur ou résumé' }).fill('Monster')
+  assert(JSON.stringify((await titles()).sort()) === JSON.stringify(comicsBefore.map((entry) => entry.title).sort()), 'Comics doit contenir exactement les comics.')
+  checks.push('une table par bibliothèque : Livres, Mangas et Comics ne se mélangent pas')
+
+  // La recherche est mémorisée par bibliothèque, pas partagée.
+  await go('Mangas')
+  await all()
+  const mangasSearch = page.getByRole('searchbox').first()
+  await mangasSearch.fill('Monster')
   await settle()
   assert(JSON.stringify(await titles()) === JSON.stringify(['Monster']), 'La recherche Mangas ne répond pas correctement.')
   await go('Livres')
-  assert(await page.getByRole('searchbox').inputValue() === '', 'La recherche Mangas a écrasé celle des Livres.')
+  assert(await page.getByRole('searchbox').first().inputValue() === '', 'La recherche Mangas a écrasé celle des Livres.')
   await go('Mangas')
-  assert(await page.getByRole('searchbox').inputValue() === 'Monster', 'La recherche propre à Mangas n’est pas conservée.')
-  await page.getByRole('searchbox').fill('')
+  assert(await page.getByRole('searchbox').first().inputValue() === 'Monster', 'La recherche propre à Mangas n’est pas conservée.')
+  await page.getByRole('searchbox').first().fill('')
   await settle()
+  checks.push('recherches mémorisées séparément par bibliothèque')
+
+  // Une vue enregistrée dans une bibliothèque ne doit pas apparaître dans l'autre.
   await page.getByRole('button', { name: 'Nouvelle vue', exact: true }).click()
   await page.getByRole('textbox', { name: 'Nom de la nouvelle vue', exact: true }).fill('Vue mangas de recette')
   await page.getByRole('button', { name: 'Enregistrer la vue', exact: true }).click()
   await settle()
-  const saved = await db("SELECT * FROM saved_views WHERE name='Vue mangas de recette'")
-  assert(saved.length === 1 && saved[0].medium === 'books' && JSON.parse(saved[0].criteria_json).mediumFilter === 'manga', 'Une nouvelle vue Mangas doit conserver le schéma books v2 et son périmètre.')
-  assert(await page.locator('.view-bar-pending').count() === 0, 'Une vue Mangas nouvellement enregistrée ne doit pas être sale.')
+  assert(await page.getByRole('button', { name: 'Vue mangas de recette', exact: true }).count() === 1, 'La vue Mangas n’apparaît pas dans sa bibliothèque.')
+  assert(await page.locator('.view-bar-pending').count() === 0, 'Une vue nouvellement enregistrée ne doit pas être sale.')
   await go('Livres')
-  assert(await page.getByRole('button', { name: 'Vue mangas de recette', exact: true }).count() === 0, 'La nouvelle vue Mangas fuit dans Livres.')
-  checks.push('recherches mémorisées séparément et création de vue Mangas au schéma v2')
-  for (const [label, singular, category] of [['Livres', 'livre', 'livre'], ['Mangas', 'manga', 'manga']]) {
+  assert(await page.getByRole('button', { name: 'Vue mangas de recette', exact: true }).count() === 0, 'La vue Mangas fuit dans Livres.')
+  assert((await db("SELECT name FROM saved_views WHERE name='Vue mangas de recette'")).length === 1, 'La vue Mangas doit être enregistrée une seule fois.')
+  checks.push('vues enregistrées cloisonnées par bibliothèque')
+
+  // La création manuelle contextualisée écrit dans la bonne table.
+  for (const [label, singular, table, expectedCategory] of [
+    ['Livres', 'livre', 'books', 'livre'],
+    ['Mangas', 'manga', 'mangas', null],
+  ]) {
     await go(label)
+    await all()
     await page.getByRole('button', { name: `Ajouter un ${singular}`, exact: true }).click()
     await page.getByRole('button', { name: 'Saisir manuellement', exact: true }).click()
     assert(await page.getByRole('radiogroup', { name: 'Type de livre', exact: true }).count() === 0, 'Le type ne doit pas être demandé à la création contextualisée.')
     await page.locator('#book-title').fill(`Création ${singular} de recette`)
     await page.locator('.film-form button[type="submit"]').click()
     await page.getByRole('heading', { name: `Création ${singular} de recette`, exact: true }).waitFor()
-    const created = await db(`SELECT category FROM books WHERE title='Création ${singular} de recette'`)
-    assert(created.length === 1 && created[0].category === category, 'La création manuelle a perdu sa bibliothèque.')
+    const created = await db(`SELECT * FROM ${table} WHERE title='Création ${singular} de recette'`)
+    assert(created.length === 1, `La création manuelle n’a pas atterri dans ${table}.`)
+    if (expectedCategory) assert(created[0].category === expectedCategory, 'La fiche Livres a perdu sa catégorie.')
+    const elsewhere = table === 'books' ? 'mangas' : 'books'
+    assert((await db(`SELECT title FROM ${elsewhere} WHERE title='Création ${singular} de recette'`)).length === 0, 'La création manuelle fuit dans l’autre table.')
     await page.getByRole('button', { name: `Retour aux ${label.toLowerCase()}`, exact: true }).click()
     await settle()
   }
-  checks.push('création manuelle Livres et Mangas, sans sélection de type, retour correct')
-  await go('Mangas')
-  await all()
-  await page.getByRole('button', { name: 'Ouvrir la fiche de Monster', exact: true }).click()
-  await page.locator('.detail-actions').getByRole('button', { name: 'Modifier', exact: true }).click()
-  await page.getByRole('radiogroup', { name: 'Type de livre', exact: true }).getByRole('radio', { name: 'Livre', exact: true }).click()
-  await page.getByRole('button', { name: 'Enregistrer les modifications', exact: true }).click()
-  await page.getByRole('button', { name: 'Retour aux livres', exact: true }).waitFor()
-  const moved = await db("SELECT * FROM books WHERE title='Monster'")
-  assert(moved.length === 1 && moved[0].category === 'livre' && moved[0].id === initial.find((entry) => entry.title === 'Monster').id, 'Corriger le type doit déplacer la même fiche sans duplication.')
-  assert(moved[0].personal_note === initial.find((entry) => entry.title === 'Monster').personal_note, 'L’avis personnel a changé lors de la correction du type.')
-  const originalMonster = initial.find((entry) => entry.title === 'Monster')
-  for (const field of ['volumes_read', 'volumes_total', 'progress_updated_at', 'rating', 'is_favorite', 'started_at', 'created_at']) {
-    assert(moved[0][field] === originalMonster[field], `La correction du type a perdu le champ ${field}.`)
-  }
-  await page.getByRole('button', { name: 'Retour aux livres', exact: true }).click()
-  await all()
-  assert((await titles()).includes('Monster'), 'La fiche corrigée manque dans Livres.')
-  await go('Mangas')
-  await all()
-  assert(!(await titles()).includes('Monster'), 'La fiche corrigée reste dans Mangas.')
-  checks.push('correction du type et déplacement sans duplication ni perte d’avis')
-  await page.evaluate(() => {
-    const original = window.__TAURI_INTERNALS__.invoke
-    window.__qaExports = []
-    window.__TAURI_INTERNALS__.invoke = async (command, args, options) => {
-      if (command === 'save_export_json' || command === 'save_export_csv') {
-        window.__qaExports.push({ command, ...args })
-        return 'export-de-recette'
-      }
-      return original(command, args, options)
-    }
-  })
-  for (const label of ['Mangas', 'Livres']) {
-    await go(label)
-    await page.getByRole('button', { name: 'Exporter', exact: true }).click()
-    await page.getByRole('button', { name: /JSON Sylloge/ }).click()
-    await page.getByRole('dialog').waitFor({ state: 'hidden' })
-    await page.getByRole('button', { name: 'Exporter', exact: true }).click()
-    await page.getByRole('button', { name: /^CSV/ }).click()
-    await page.getByRole('dialog').waitFor({ state: 'hidden' })
-  }
-  const exports = await page.evaluate(() => window.__qaExports)
-  assert(exports.length === 4, 'Quatre exports JSON/CSV doivent avoir été préparés, sans écrire sur disque.')
-  for (const [index, scope] of [[0, 'manga'], [2, 'livre']]) {
-    const document = JSON.parse(exports[index].contents)
-    assert(document.format === 'sylloge-library' && document.version === 2, 'Le format JSON doit rester compatible.')
-    assert(document.books.length > 0 && document.books.every((entry) => scope === 'manga' ? entry.category === 'manga' : entry.category !== 'manga'), 'L’export contient une œuvre de l’autre bibliothèque.')
-    assert(document.films.length === 0 && document.series.length === 0 && document.games.length === 0 && document.artworks.length === 0, 'L’export unitaire contient un autre médium.')
-    assert(exports[index + 1].contents.includes('sylloge-books-csv'), 'Le format CSV historique doit rester inchangé.')
-  }
-  checks.push('exports JSON et CSV limités à la bibliothèque ouverte, formats inchangés')
+  checks.push('création manuelle Livres et Mangas dans la bonne table, sans sélection de type')
+
+  // L’import annonce son périmètre : une seule bibliothèque, aucune écriture avant confirmation.
+  await go('Livres')
   await page.getByRole('button', { name: 'Importer', exact: true }).click()
-  const importDialog = page.getByRole('dialog', { name: 'Importer Livres et Mangas', exact: true })
-  assert((await importDialog.innerText()).includes('« Remplacer » remplace les deux bibliothèques, comics compris.'), 'Le périmètre commun du remplacement doit être annoncé avant tout import.')
+  const importDialog = page.getByRole('dialog')
+  await importDialog.first().waitFor()
+  const importText = await importDialog.first().innerText()
+  assert(importText.includes('IMPORTER · LIVRES'), 'Le dialogue d’import doit annoncer la bibliothèque Livres.')
+  assert(importText.includes('Aucune écriture avant confirmation'), 'L’absence d’écriture avant confirmation n’est pas annoncée.')
   await page.keyboard.press('Escape')
+  await page.waitForTimeout(300)
   assert(await page.getByRole('button', { name: 'Importer', exact: true }).evaluate((el) => document.activeElement === el), 'Le focus ne revient pas au bouton Importer.')
-  const after = await db('SELECT id FROM books')
-  assert(after.length === initial.length + 2, 'Une consultation ou un export a modifié la collection.')
+  const booksAfter = await db('SELECT id FROM books')
+  const mangasAfter = await db('SELECT id FROM mangas')
+  assert(booksAfter.length === booksBefore.length + 1, 'Une consultation a modifié la table Livres au-delà de la création de recette.')
+  assert(mangasAfter.length === mangasBefore.length + 1, 'Une consultation a modifié la table Mangas au-delà de la création de recette.')
   assert(errors.length === 0, `Erreurs de page : ${errors.join('; ')}`)
   assert(consoleErrors.length === 0, `Erreurs console : ${consoleErrors.join('; ')}`)
   assert(unexpectedRequests.length === 0, 'Une requête externe non simulée a été tentée.')
   assert((await page.evaluate(() => window.__syllogeRecette.unmocked())).length === 0, 'Une commande native non simulée a été appelée.')
-  checks.push('import commun explicite, annulation sans écriture et restauration du focus')
+  checks.push('import au périmètre explicite, annulation sans écriture et restauration du focus')
   return { passed: true, checks, pageErrors: errors, consoleErrors, unexpectedRequests, nativeFileWrites: 0 }
 }

@@ -22,6 +22,7 @@ import { Poster } from './Poster.tsx'
 import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 import { Stepper } from './Stepper.tsx'
+import { QuotesEditor } from './Quotes.tsx'
 
 function previewableCoverUrl(value: string): string | null {
   try {
@@ -67,7 +68,7 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
   const assisted = providerLink !== null
   const previewTitle = values.title.trim() || 'Titre à renseigner'
   const previewUrl = previewableCoverUrl(values.coverUrl)
-  const hasVolumes = values.category === 'manga' || values.category === 'comics'
+  const hasVolumes = values.category === 'manga'
     || values.volumesRead.trim() !== '' || values.volumesTotal.trim() !== ''
   const progressVisible = hasVolumes && (values.status === 'en cours' || values.status === 'abandonné' || values.status === 'lu')
   const noun = values.category === 'manga' ? 'manga' : 'livre'
@@ -118,26 +119,6 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
     })
     setErrors((current) => ({ ...current, [key]: undefined }))
     setSaveError(null)
-  }
-
-  const updateQuote = (index: number, body: string) => {
-    setValues((current) => ({
-      ...current,
-      quotes: current.quotes.map((quote, quoteIndex) => quoteIndex === index ? body : quote),
-    }))
-    setErrors((current) => ({ ...current, quotes: undefined }))
-    setSaveError(null)
-  }
-
-  const addQuote = () => {
-    setValues((current) => ({ ...current, quotes: [...current.quotes, ''] }))
-  }
-
-  const removeQuote = (index: number) => {
-    setValues((current) => ({
-      ...current,
-      quotes: current.quotes.filter((_, quoteIndex) => quoteIndex !== index),
-    }))
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -299,42 +280,12 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
             </div>
           )}
 
-          {verdictVisible && (
-            <section className="quote-editor" aria-labelledby="quote-editor-title">
-            <div className="quote-editor-heading">
-              <div>
-                <h2 id="quote-editor-title">Citations personnelles</h2>
-                <p>Conservez les passages que vous souhaitez retrouver sur cette fiche.</p>
-              </div>
-              <button className="secondary-button" type="button" onClick={addQuote}>Ajouter une citation</button>
-            </div>
-            {values.quotes.length === 0 ? (
-              <p className="quote-editor-empty">Aucune citation ajoutée.</p>
-            ) : (
-              <div className="quote-editor-list">
-                {values.quotes.map((quote, index) => (
-                  <div className="quote-editor-item" key={index}>
-                    <div className="field">
-                      <label htmlFor={`book-quote-${index}`}>Citation {index + 1}</label>
-                      <textarea
-                        id={`book-quote-${index}`}
-                        rows={3}
-                        value={quote}
-                        onChange={(event) => updateQuote(index, event.target.value)}
-                        autoCorrect="off"
-                        spellCheck={false}
-                      />
-                    </div>
-                    <button className="delete-link" type="button" onClick={() => removeQuote(index)}>
-                      Retirer cette citation
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {errors.quotes && <p className="field-error">{errors.quotes}</p>}
-            </section>
-          )}
+          <QuotesEditor
+            values={values.quotes}
+            onChange={(quotes) => { setValues(current => ({ ...current, quotes })); setSaveError(null) }}
+            disabled={saving}
+            error={errors.quotes}
+          />
 
           {/* Champs éditoriaux visibles sans toggle. */}
           {!assisted && (

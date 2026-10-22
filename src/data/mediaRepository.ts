@@ -1,5 +1,5 @@
 import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkCustomField, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
-import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
+import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, reconcileBookQuotes, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
 import { seriesLibraryForCategory } from '../domain/seriesLibraries.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
@@ -929,7 +929,7 @@ export class SqliteMediaRepository {
       updatedAt,
       quotes: quotes === undefined
         ? existing.quotes
-        : createBookQuotes(id, quotes, updatedAt, this.createId),
+        : createBookQuotes(id, quotes, updatedAt, this.createId, existing.quotes),
     })
     const { quotes: updatedQuotes, ...nativeBook } = book
     await this.updateBookNative({ book: nativeBook, quotes: updatedQuotes, library })
@@ -1328,17 +1328,9 @@ function createBookQuotes(
   bodies: string[],
   createdAt: string,
   createId: IdFactory,
+  previous: BookQuote[] = [],
 ): BookQuote[] {
-  return bodies
-    .map((body) => body.trim())
-    .filter(Boolean)
-    .map((body, position) => ({
-      id: createId(),
-      bookId,
-      body,
-      position,
-      createdAt,
-    }))
+  return reconcileBookQuotes(bookId, bodies, createdAt, createId, previous)
 }
 
 function resolveProgressTimestamp(

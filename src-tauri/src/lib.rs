@@ -1,6 +1,8 @@
 mod books;
+mod custom_entries;
 mod database;
 mod igdb;
+mod migration_backup;
 mod openlibrary;
 mod portability;
 mod profiles;
@@ -14,6 +16,8 @@ pub fn run() {
         .manage(portability::BackupSnapshotLock::default())
         .manage(updater::PendingUpdate::default())
         .plugin(tauri_plugin_dialog::init())
+        // Avant le greffon SQL : il copie la base si une migration est en attente.
+        .plugin(migration_backup::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations(database::DATABASE_URL, database::migrations())
@@ -29,10 +33,15 @@ pub fn run() {
             portability::save_export_json,
             portability::save_export_csv,
             portability::get_backup_settings,
+            portability::pick_backup_destination,
+            portability::configure_backup_destination,
             portability::pick_backup_directory,
             portability::clear_backup_settings,
             portability::save_manual_backup_snapshot,
             portability::save_automatic_backup_snapshot,
+            portability::list_backup_snapshots,
+            portability::read_backup_snapshot,
+            portability::find_backup_candidates,
             portability::import_library_atomically,
             portability::import_library_document_atomically,
             portability::import_library_document_into_empty_profile,
@@ -52,6 +61,10 @@ pub fn run() {
             books::create_book_atomically,
             books::update_book_atomically,
             books::delete_book_atomically,
+            custom_entries::create_custom_entry_atomically,
+            custom_entries::update_custom_entry_atomically,
+            custom_entries::delete_custom_entry_atomically,
+            custom_entries::remove_custom_library_atomically,
             updater_preferences::get_updater_preferences,
             updater_preferences::set_updater_automatic_checks_enabled,
             updater_preferences::set_ignored_updater_version,

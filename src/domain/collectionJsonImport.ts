@@ -10,7 +10,7 @@ export type CollectionJsonImportResult<T> =
   | { items: T[]; error: null }
   | { items: null; error: string }
 
-const INVALID_LIBRARY = 'Le fichier n’est pas une bibliothèque Sylloge v1, v2 ou v3 valide. Aucune donnée n’a été écrite.'
+const INVALID_LIBRARY = 'Le fichier n’est pas une bibliothèque Sylloge (versions 1 à 4) valide. Aucune donnée n’a été écrite.'
 
 export function parseFilmsCollectionJson(contents: string): CollectionJsonImportResult<Film> {
   const libraryPreview = validateLibraryDocument(contents)
@@ -64,9 +64,16 @@ export function parseBooksCollectionJson(contents: string): CollectionJsonImport
     return { items: null, error: INVALID_LIBRARY }
   }
 
-  return preview.document.books.length > 0
-    ? { items: preview.document.books, error: null }
-    : { items: null, error: 'Ce fichier Sylloge ne contient aucun livre à importer.' }
+  // Des comics rangés dans Livres par un ancien document rejoignent la
+  // bibliothèque Comics : l'import Livres ne les écrit pas et le dit.
+  const comics = preview.document.customLibraries.find((library) => library.libraryId === 'comics')?.entries.length ?? 0
+  if (preview.document.books.length > 0) return { items: preview.document.books, error: null }
+  return {
+    items: null,
+    error: comics > 0
+      ? 'Ce fichier ne contient aucun livre. Ses comics ont leur propre bibliothèque : restaurez la sauvegarde complète pour les retrouver.'
+      : 'Ce fichier Sylloge ne contient aucun livre à importer.',
+  }
 }
 
 /** Import unitaire de la bibliothèque Mangas. */

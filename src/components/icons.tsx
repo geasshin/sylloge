@@ -1,6 +1,23 @@
 /** Identité visuelle : signe Sylloge et iconographie des médiums (SVG inline). */
 
+import { navigationIconPaths } from './navigationIconPaths.ts'
+
 type IconProps = { size?: number }
+type NavigationIconProps = IconProps & { filled?: boolean }
+
+/** Les deux poids gardent le dessin approuvé et héritent de l’encre du contrôle. */
+function NavigationIcon({
+  name,
+  size,
+  filled,
+}: NavigationIconProps & { name: keyof typeof navigationIconPaths }) {
+  const paths = navigationIconPaths[name]
+  return (
+    <svg width={size} height={size} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+      <path d={filled ? paths.fill : paths.regular} />
+    </svg>
+  )
+}
 
 const strokeProps = {
   fill: 'none',
@@ -20,99 +37,58 @@ export function ArrowLeftIcon({ size = 17 }: IconProps) {
   )
 }
 
-export function HomeIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <path {...strokeProps} d="M3.5 9.5 10 3.5l6.5 6v6.2a1.3 1.3 0 0 1-1.3 1.3H4.8a1.3 1.3 0 0 1-1.3-1.3V9.5Z" />
-      <path {...strokeProps} d="M8 16.5v-4.3h4v4.3" />
-    </svg>
-  )
+export function HomeIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="home" size={size} filled={filled} />
 }
 
-export function FilmIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <rect {...strokeProps} x="2.75" y="4" width="14.5" height="12" rx="2" />
-      <path {...strokeProps} d="M6.2 4v12M13.8 4v12" />
-      <path {...strokeProps} d="M2.75 8h3.45M13.8 8h3.45M2.75 12h3.45M13.8 12h3.45" strokeOpacity=".65" />
-    </svg>
-  )
+export function FilmIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="film" size={size} filled={filled} />
 }
 
-export function SeriesIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <rect {...strokeProps} x="2.75" y="6" width="14.5" height="10" rx="2" />
-      <path {...strokeProps} d="m7 3 3 3 3-3" />
-    </svg>
-  )
+export function SeriesIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="series" size={size} filled={filled} />
 }
 
 /** Animation : deux cellulos décalés et un signe de lecture, sans motif culturel. */
-export function AnimeIcon({ size = 17 }: IconProps) {
+export function AnimeIcon({ size = 17, filled = false }: NavigationIconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <path {...strokeProps} d="M6 3.5h9.5A1.5 1.5 0 0 1 17 5v8" />
-      <rect {...strokeProps} x="3" y="6.5" width="11" height="10" rx="1.5" />
-      <path {...strokeProps} d="m7 9 4 2.5L7 14Z" />
+      <path {...strokeProps} strokeWidth={1.25} d="M6 3.5h9.5A1.5 1.5 0 0 1 17 5v8" />
+      {filled ? (
+        <path
+          fill="currentColor"
+          fillRule="evenodd"
+          d="M4.5 5.875h8A2.125 2.125 0 0 1 14.625 8v7A2.125 2.125 0 0 1 12.5 17.125h-8A2.125 2.125 0 0 1 2.375 15V8A2.125 2.125 0 0 1 4.5 5.875ZM7 9.125v4.75l4-2.375Z"
+        />
+      ) : (
+        <>
+          <rect {...strokeProps} strokeWidth={1.25} x="3" y="6.5" width="11" height="10" rx="1.5" />
+          <path fill="currentColor" d="M7 9.125v4.75l4-2.375Z" />
+        </>
+      )}
     </svg>
   )
 }
 
-export function BookIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <path {...strokeProps} d="M10 5.6C8.8 4.4 6.9 3.9 4 4v11.4c2.9-.1 4.8.4 6 1.6 1.2-1.2 3.1-1.7 6-1.6V4c-2.9-.1-4.8.4-6 1.6Z" />
-      <path {...strokeProps} d="M10 5.6v11.4" />
-    </svg>
-  )
+export function BookIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="book" size={size} filled={filled} />
 }
 
 /** Mangas : une série de tomes sur l'étagère, distincte du livre ouvert dans le rail. */
-export function MangaIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <rect {...strokeProps} x="2.8" y="3.5" width="3.6" height="13" rx="1" />
-      <rect {...strokeProps} x="7.6" y="3.5" width="3.6" height="13" rx="1" />
-      <rect {...strokeProps} x="12.4" y="4.1" width="3.6" height="12.4" rx="1" transform="rotate(12 16 16.5)" />
-      <path {...strokeProps} d="M2.8 6.6h3.6M7.6 6.6h3.6" strokeOpacity=".65" />
-    </svg>
-  )
+export function MangaIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="manga" size={size} filled={filled} />
 }
 
-export function GameIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <path {...strokeProps} d="M6.2 5.5h7.6a4.3 4.3 0 0 1 4.2 3.6l.6 3.8c.2 1.4-.9 2.6-2.2 2.6-.8 0-1.5-.4-1.9-1l-.9-1.2H6.4L5.5 14.5c-.4.6-1.1 1-1.9 1-1.3 0-2.4-1.2-2.2-2.6l.6-3.8a4.3 4.3 0 0 1 4.2-3.6Z" />
-      <path {...strokeProps} d="M6.3 8.6v3M4.8 10.1h3" />
-      <circle cx="13.6" cy="9" r=".95" fill="currentColor" stroke="none" />
-      <circle cx="15.4" cy="11" r=".95" fill="currentColor" stroke="none" />
-    </svg>
-  )
+export function GameIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="game" size={size} filled={filled} />
 }
 
-export function ArtIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
-      <path {...strokeProps} d="M10 3a7 7 0 0 0-7 7c0 3.4 2.6 5 4.6 5 1.2 0 1.9-.8 2.4-1.6.4-.6.9-.9 1.6-.7l3 .8A3.4 3.4 0 0 0 17 10a7 7 0 0 0-7-7Z" />
-      <circle cx="7.2" cy="8" r="1.05" fill="currentColor" stroke="none" />
-      <circle cx="10" cy="6.2" r="1.05" fill="currentColor" stroke="none" />
-      <circle cx="12.8" cy="8" r="1.05" fill="currentColor" stroke="none" />
-    </svg>
-  )
+export function ArtIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="art" size={size} filled={filled} />
 }
 
-export function SettingsIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      {/* Engrenage d'après Feather Icons (MIT) */}
-      <circle {...strokeProps} cx="12" cy="12" r="3" />
-      <path
-        {...strokeProps}
-        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
-      />
-    </svg>
-  )
+export function SettingsIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="settings" size={size} filled={filled} />
 }
 
 export function SearchIcon({ size = 15 }: IconProps) {
@@ -166,13 +142,13 @@ export function TrashIcon({ size = 16 }: IconProps) {
 }
 
 /** Panneau latéral : bascule rail / étendue de la barre de navigation. */
-export function PanelIcon({ size = 17 }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <rect {...strokeProps} x="3" y="4" width="18" height="16" rx="2.5" />
-      <line {...strokeProps} x1="9.5" y1="4" x2="9.5" y2="20" />
-    </svg>
-  )
+export function PanelIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="panel" size={size} filled={filled} />
+}
+
+/** Épingler la barre latérale, plein lorsque son maintien est actif. */
+export function PinIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="pin" size={size} filled={filled} />
 }
 
 /** Maillon brisé : dissociation d'une fiche et de son fournisseur. */
@@ -194,4 +170,42 @@ export function CalendarIcon({ size = 17 }: IconProps) {
       <path {...strokeProps} d="M3 8.5h14M7 2.8v3M13 2.8v3" />
     </svg>
   )
+}
+
+// ─── Bibliothèques personnalisées (0021) ───────────────────────────────────
+
+export function ComicIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="comic" size={size} filled={filled} />
+}
+
+export function MagazineIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="magazine" size={size} filled={filled} />
+}
+
+export function AudiobookIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="audiobook" size={size} filled={filled} />
+}
+
+export function MusicIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="music" size={size} filled={filled} />
+}
+
+export function PodcastIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="podcast" size={size} filled={filled} />
+}
+
+export function DocumentaryIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="documentary" size={size} filled={filled} />
+}
+
+export function ShowIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="show" size={size} filled={filled} />
+}
+
+export function BoardGameIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="boardGame" size={size} filled={filled} />
+}
+
+export function PlusIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="plus" size={size} filled={filled} />
 }

@@ -18,11 +18,11 @@ const book = (category) => ({
   createdAt: timestamp, updatedAt: timestamp,
   quotes: [{ id: `quote-${category}`, bookId: `qa-${category}`, body: 'Citation de recette.', position: 0, createdAt: timestamp }],
 })
-const books = ['livre', 'manga', 'comics'].map(book)
+const books = ['livre', 'manga'].map(book)
 // Le type ne modifie que la partition, jamais le verdict ou l'avancement.
 // Ces valeurs traversent la même validation que le formulaire et le CSV.
-for (const source of ['livre', 'manga', 'comics']) {
-  for (const target of ['livre', 'manga', 'comics']) {
+for (const source of ['livre', 'manga']) {
+  for (const target of ['livre', 'manga']) {
     const original = { ...book(source), status: 'en cours', volumesRead: 11, volumesTotal: 18 }
     const validated = validateBookForm({ ...bookToFormValues(original), category: target })
     assert.ok(validated.success, `${source} → ${target} : correction valide`)
@@ -36,23 +36,24 @@ for (const source of ['livre', 'manga', 'comics']) {
     }
   }
 }
+// Les comics ont leur propre bibliothèque (migration 0021) : le formulaire
+// Livres refuse désormais cette catégorie au lieu de l'enregistrer dans books.
+assert.equal(validateBookForm({ ...bookToFormValues(book('livre')), category: 'comics' }).success, false, 'Livres refuse la catégorie comics')
 books.push({ ...book('livre'), id: 'qa-corrected', title: 'Ancien manga corrigé', status: 'en cours', volumesRead: 11, volumesTotal: 18, quotes: [{ ...book('livre').quotes[0], id: 'quote-corrected', bookId: 'qa-corrected' }] })
 const library = { profile, films: [], series: [], books, games: [], artworks: [] }
 const before = JSON.stringify(library)
 assert.equal(bookLibraryForCategory('manga'), 'mangas')
-assert.equal(bookLibraryForCategory('comics'), 'books')
-assert.deepEqual(booksForLibrary(books, 'books').map((entry) => entry.category), ['livre', 'comics', 'livre'])
+assert.deepEqual(booksForLibrary(books, 'books').map((entry) => entry.category), ['livre', 'livre'])
 assert.deepEqual(booksForLibrary(books, 'mangas').map((entry) => entry.category), ['manga'])
-assert.deepEqual(bookLibraryCategories('books'), ['livre', 'comics'])
+assert.deepEqual(bookLibraryCategories('books'), ['livre'])
 assert.deepEqual(bookLibraryCategories('mangas'), ['manga'])
-assert.deepEqual(bookLibraryCategories('books', 'comics'), ['comics'])
+assert.deepEqual(bookLibraryCategories('books', 'comics'), ['livre'], 'Une ancienne vue Comics retombe sur Livres')
 // Une liste vide serait lue par SQLite comme « toutes les catégories » : un
 // filtre étranger retombe sur les catégories de la bibliothèque, jamais sur [].
-assert.deepEqual(bookLibraryCategories('books', 'manga'), ['livre', 'comics'], 'Une ancienne sélection Manga ne doit pas ouvrir les mangas dans Livres')
+assert.deepEqual(bookLibraryCategories('books', 'manga'), ['livre'], 'Une ancienne sélection Manga ne doit pas ouvrir les mangas dans Livres')
 assert.deepEqual(bookLibraryCategories('mangas', 'livre'), ['manga'], 'Une ancienne sélection Livre ne doit pas ouvrir les livres dans Mangas')
-assert.deepEqual(bookLibraryCategories('books', 'inconnue'), ['livre', 'comics'], 'Une valeur inconnue retombe sur toute la bibliothèque')
-assert.equal(bookLibraryStoredFilter('books', ['livre', 'comics']), 'all')
-assert.equal(bookLibraryStoredFilter('books', ['comics']), 'comics')
+assert.deepEqual(bookLibraryCategories('books', 'inconnue'), ['livre'], 'Une valeur inconnue retombe sur toute la bibliothèque')
+assert.equal(bookLibraryStoredFilter('books', ['livre']), 'all')
 assert.equal(bookLibraryStoredFilter('books', []), 'all', 'Aucune catégorie ne s’enregistre comme un filtre vide')
 assert.equal(bookLibraryStoredFilter('books', ['manga']), 'all', 'Livres n’enregistre jamais la catégorie Manga')
 assert.equal(bookLibraryStoredFilter('mangas', ['manga']), 'manga')
@@ -88,7 +89,8 @@ for (const version of [1, 2]) {
       ? { view: 'favorites', mediumFilter, filters: EMPTY_LIBRARY_FILTERS }
       : { sort: { column: 'rating', direction: 'desc' }, mediumFilter, filters: { ...EMPTY_LIBRARY_FILTERS, favoritesOnly: true } })
     const saved = { id: `view-${version}-${mediumFilter}`, profileId: profile.id, medium: 'books', name: 'Vue de recette', criteria, createdAt: timestamp, updatedAt: timestamp }
-    assert.equal(criteria.mediumFilter, mediumFilter)
+    // Une ancienne vue Comics se relit comme toute la bibliothèque Livres.
+    assert.equal(criteria.mediumFilter, mediumFilter === 'comics' ? 'all' : mediumFilter)
     assert.equal(criteria.filters.favoritesOnly, true)
     assert.equal(bookViewBelongsToLibrary(saved, 'mangas'), mediumFilter === 'manga')
     assert.equal(bookViewBelongsToLibrary(saved, 'books'), mediumFilter !== 'manga')
@@ -101,7 +103,7 @@ for (const scope of ['books', 'mangas']) {
   const json = serializeLibraryDocument(createLibraryDocument(scoped))
   const validated = validateLibraryDocument(json)
   assert.ok(validated.document, JSON.stringify(validated.errors))
-  assert.equal(validated.document.version, 3)
+  assert.equal(validated.document.version, 4)
   const imported = kind === 'mangas' ? parseMangasCollectionJson(json) : parseBooksCollectionJson(json)
   assert.ok(imported.items, imported.error)
   assert.deepEqual(imported.items.map((entry) => entry.category), scoped.books.map((entry) => entry.category))
@@ -125,4 +127,4 @@ for (const scope of ['books', 'mangas']) {
   }
 }
 assert.equal(JSON.stringify(library), before, 'Consulter ou exporter une partition ne modifie aucune donnée')
-console.log('Livres/Mangas : partitions, comics, vues v1/v2 et aller-retour JSON/CSV vérifiés sur fixtures.')
+console.log('Livres/Mangas : partitions, refus des comics, vues v1/v2 et aller-retour JSON/CSV vérifiés sur fixtures.')

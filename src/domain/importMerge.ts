@@ -17,7 +17,7 @@ import type { Series } from './series.ts'
  *   que les champs descriptifs vides.
  */
 
-export type DuplicateResolution = 'keep-existing' | 'keep-imported'
+export type DuplicateResolution = 'keep-existing' | 'keep-imported' | 'keep-both'
 
 export type FilmDuplicate = {
   normalizedTitle: string
@@ -100,7 +100,7 @@ export function countModifiedDuplicateResolutions<D extends { normalizedTitle: s
   resolutions: ReadonlyMap<string, DuplicateResolution>,
 ): number {
   return duplicates.reduce(
-    (count, duplicate) => count + (resolutions.get(duplicate.normalizedTitle) === 'keep-imported' ? 1 : 0),
+    (count, duplicate) => count + (resolutions.has(duplicate.normalizedTitle) && resolutions.get(duplicate.normalizedTitle) !== 'keep-existing' ? 1 : 0),
     0,
   )
 }
@@ -297,6 +297,10 @@ export function resolveFilmMerge(
 
   for (const duplicate of plan.duplicates) {
     const resolution = resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'
+    if (resolution === 'keep-both') {
+      inserts.push({ ...duplicate.imported, updatedAt: now })
+      continue
+    }
     if (resolution === 'keep-imported') {
       updates.push({
         ...duplicate.imported,
@@ -327,6 +331,10 @@ export function resolveSeriesMerge(
 
   for (const duplicate of plan.duplicates) {
     const resolution = resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'
+    if (resolution === 'keep-both') {
+      inserts.push({ ...duplicate.imported, updatedAt: now })
+      continue
+    }
     if (resolution === 'keep-imported') {
       updates.push({
         ...duplicate.imported,
@@ -357,6 +365,10 @@ export function resolveBookMerge(
 
   for (const duplicate of plan.duplicates) {
     const resolution = resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'
+    if (resolution === 'keep-both') {
+      inserts.push({ ...duplicate.imported, updatedAt: now })
+      continue
+    }
     if (resolution === 'keep-imported') {
       updates.push({
         ...duplicate.imported,
@@ -389,6 +401,10 @@ export function resolveGameMerge(
 
   for (const duplicate of plan.duplicates) {
     const resolution = resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'
+    if (resolution === 'keep-both') {
+      inserts.push({ ...duplicate.imported, updatedAt: now })
+      continue
+    }
     updates.push(resolution === 'keep-imported'
       ? {
           ...duplicate.imported,
@@ -415,6 +431,10 @@ export function resolveArtworkMerge(
 
   for (const duplicate of plan.duplicates) {
     const resolution = resolutions.get(duplicate.normalizedTitle) ?? 'keep-existing'
+    if (resolution === 'keep-both') {
+      inserts.push({ ...duplicate.imported, updatedAt: now })
+      continue
+    }
     updates.push(resolution === 'keep-imported'
       ? {
           ...duplicate.imported,

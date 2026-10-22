@@ -8,6 +8,7 @@ import {
   updaterErrorMessage,
   type AvailableUpdate,
 } from '../data/updaterService.ts'
+import { SettingsRow } from './settings/SettingsLayout.tsx'
 
 type UpdaterSettingsProps = {
   availableUpdate: AvailableUpdate | null
@@ -164,71 +165,59 @@ export function UpdaterSettings({
     setMessage({ kind: 'info', text: `La version ${availableUpdate.version} est reportée pour cette session.` })
   }
 
+  const busy = checking || installing || savingIgnoredVersion
   return (
-    <div className="portability-card updater-card">
-      <p>
-        Sylloge consulte le fichier de release signé publié sur GitHub. Une branche Git ne peut jamais être téléchargée ou installée comme mise à jour : l’archive doit porter la signature de la clé du projet.
-      </p>
-
+    <>
       {loadingPreferences ? (
-        <p className="backup-state" role="status">Lecture des préférences de mise à jour…</p>
+        <SettingsRow label="Lecture des préférences de mise à jour…" />
       ) : preferences ? (
         <>
-          <div className="updater-preference">
-            <div>
-              <h3>Recherche automatique</h3>
-              <p>Vérifier les releases GitHub signées à l’ouverture de Sylloge.</p>
-            </div>
-            <label className="updater-checkbox">
+          <SettingsRow label="Rechercher automatiquement" detail="À l’ouverture de Sylloge, vérifier si une nouvelle version signée est publiée.">
+            <label className="settings-switch">
               <input
                 type="checkbox"
+                role="switch"
                 checked={preferences.automaticChecksEnabled}
                 onChange={(event) => void changeAutomaticChecks(event.target.checked)}
                 disabled={savingAutomaticChecks || checking || installing}
               />
-              <span>Rechercher automatiquement</span>
+              <span className="visually-hidden">Rechercher automatiquement les mises à jour</span>
             </label>
-          </div>
-
-          <div className="updater-actions">
-            <button className="secondary-button" type="button" onClick={() => void checkManually()} disabled={checking || installing || savingIgnoredVersion}>
+          </SettingsRow>
+          <SettingsRow label="Vérifier maintenant" detail="Seules les versions publiées et signées par le projet peuvent être installées.">
+            <button className="secondary-button" type="button" onClick={() => void checkManually()} disabled={busy}>
               {checking ? 'Vérification…' : 'Rechercher les mises à jour'}
             </button>
-            {preferences.ignoredVersion && (
-              <button className="secondary-button" type="button" onClick={() => void restoreIgnoredVersion()} disabled={savingIgnoredVersion || checking || installing}>
-                {savingIgnoredVersion ? 'Rétablissement…' : `Rétablir ${preferences.ignoredVersion}`}
+          </SettingsRow>
+          {preferences.ignoredVersion && (
+            <SettingsRow label={`Version ${preferences.ignoredVersion} ignorée`} detail="Elle ne sera plus proposée tant qu’elle reste ignorée.">
+              <button className="secondary-button" type="button" onClick={() => void restoreIgnoredVersion()} disabled={busy}>
+                {savingIgnoredVersion ? 'Rétablissement…' : 'Rétablir'}
               </button>
-            )}
-          </div>
-
+            </SettingsRow>
+          )}
           {availableUpdate && (
-            <section className="updater-available" aria-labelledby="available-update-title">
-              <div>
-                <p className="card-kicker">Release GitHub signée</p>
-                <h3 id="available-update-title">Version {availableUpdate.version} disponible</h3>
-              </div>
-              {availableUpdate.notes && <p className="updater-notes">{availableUpdate.notes}</p>}
-              <div className="updater-actions">
-                <button className="primary-button" type="button" onClick={() => void installAvailableUpdate()} disabled={installing || savingIgnoredVersion}>
-                  {installing ? 'Téléchargement et installation…' : 'Télécharger et installer'}
-                </button>
-                <button className="secondary-button" type="button" onClick={deferAvailableUpdate} disabled={installing || savingIgnoredVersion}>
-                  Plus tard
-                </button>
-                <button className="secondary-button" type="button" onClick={() => void ignoreAvailableVersion()} disabled={installing || savingIgnoredVersion}>
-                  {savingIgnoredVersion ? 'Enregistrement…' : 'Ignorer cette version'}
-                </button>
-              </div>
-            </section>
+            <SettingsRow label={`Version ${availableUpdate.version} disponible`} detail={availableUpdate.notes || 'Nouvelle version signée.'}>
+              <button className="primary-button" type="button" onClick={() => void installAvailableUpdate()} disabled={installing || savingIgnoredVersion}>
+                {installing ? 'Installation…' : 'Installer'}
+              </button>
+              <button className="secondary-button" type="button" onClick={deferAvailableUpdate} disabled={installing || savingIgnoredVersion}>Plus tard</button>
+              <button className="secondary-button" type="button" onClick={() => void ignoreAvailableVersion()} disabled={installing || savingIgnoredVersion}>
+                {savingIgnoredVersion ? 'Enregistrement…' : 'Ignorer'}
+              </button>
+            </SettingsRow>
           )}
         </>
-      ) : null}
-
-      {message && (
-        <p className={`inline-report ${message.kind === 'error' ? 'error' : ''}`} role={message.kind === 'error' ? 'alert' : 'status'}>
-          {message.text}
-        </p>
+      ) : (
+        <SettingsRow label="Préférences de mise à jour indisponibles" tone="danger" />
       )}
-    </div>
+      {message && (
+        <div className="settings-row">
+          <p className={`inline-report settings-inline ${message.kind === 'error' ? 'error' : ''}`} role={message.kind === 'error' ? 'alert' : 'status'}>
+            {message.text}
+          </p>
+        </div>
+      )}
+    </>
   )
 }

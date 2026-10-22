@@ -57,15 +57,25 @@ async (page) => {
         await page.setViewportSize({ width, height })
         for (const expanded of [false, true]) {
           if ((await page.locator('.sidebar-toggle').getAttribute('aria-pressed') === 'true') !== expanded) await page.locator('.sidebar-toggle').click()
+          // Le survol déploie la barre : on sort la souris et on attend l'état
+          // stabilisé, sinon la mesure porte sur une transition.
+          await page.mouse.move(900, 700)
+          await page.waitForFunction((want) => document.querySelector('.sidebar').classList.contains(want ? 'sidebar-expanded' : 'sidebar-rail'), expanded)
           await settle()
-          const metrics = await page.evaluate(() => {
+          const metrics = await page.evaluate((isExpanded) => {
             const h = document.querySelector('.library-header h1').getBoundingClientRect()
             const buttons = [...document.querySelectorAll('.library-header-actions button')].filter((b) => b.checkVisibility())
             const n = document.querySelector('.sidebar button[aria-label="Animation japonaise"]')
-            return { overflow: document.documentElement.scrollWidth - innerWidth, headingInside: h.left >= 0 && h.right <= innerWidth, actionsInside: buttons.every((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1 && b.scrollWidth <= b.clientWidth + 1 }), sidebarFits: n.scrollWidth <= n.clientWidth + 1 }
-          })
+            const side = document.querySelector('.sidebar')
+            const label = n.querySelector('.nav-item-label')
+            // Replié, le libellé est volontairement hors du rail (rogné, invisible) :
+            // on vérifie alors que le rail lui-même ne déborde pas, et que les noms
+            // sont entièrement visibles seulement quand la barre est déployée.
+            const labelClipped = label ? label.getBoundingClientRect().right > n.getBoundingClientRect().right + 1 : false
+            return { overflow: document.documentElement.scrollWidth - innerWidth, headingInside: h.left >= 0 && h.right <= innerWidth, actionsInside: buttons.every((b) => { const r = b.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth + 1 && b.scrollWidth <= b.clientWidth + 1 }), sidebarFits: side.scrollWidth <= side.clientWidth + 1, labelsFullyVisible: !isExpanded || !labelClipped }
+          }, expanded)
           measurements.push({ theme, label, width, expanded, ...metrics })
-          check(metrics.overflow <= 1 && metrics.headingInside && metrics.actionsInside && metrics.sidebarFits, 'libellés-entiers-sans-débordement', { theme, label, width, expanded, metrics })
+          check(metrics.overflow <= 1 && metrics.headingInside && metrics.actionsInside && metrics.sidebarFits && metrics.labelsFullyVisible, 'libellés-entiers-sans-débordement', { theme, label, width, expanded, metrics })
           if (expanded) check(await nav('Animation japonaise').locator('.nav-item-text svg').evaluate((e) => e.getBoundingClientRect().width) >= 17.9, 'icône-animation-non-comprimée', { theme, width })
         }
       }
@@ -75,13 +85,18 @@ async (page) => {
       const exported = await page.evaluate(() => JSON.parse(window.__splitExports.at(-1).args.contents))
       check(exported[table].length === expected.length && exported[table].every((e) => expected.includes(e.title)), 'export-json-borné', { label })
       check(['films', 'series', 'books', 'games', 'artworks'].filter((k) => k !== table).every((k) => exported[k].length === 0), 'export-autres-collections-vides', { label })
+      // L'export laisse le dialogue ouvert pour enchaîner un autre format.
+      await page.getByRole('dialog').getByRole('button', { name: 'Fermer', exact: true }).click()
+      await page.getByRole('dialog').waitFor({ state: 'hidden' })
       await page.getByRole('button', { name: 'Exporter', exact: true }).click()
       await page.getByRole('button', { name: /^CSV/ }).click()
       const csv = await page.evaluate(() => window.__splitExports.at(-1).args.contents)
       const excluded = (await sql(`SELECT title FROM ${otherTable}`)).map((r) => r.title)
       check(expected.every((t) => csv.includes(t)) && excluded.every((t) => !csv.includes(t)), 'export-csv-borné', { label })
+      await page.getByRole('dialog').getByRole('button', { name: 'Fermer', exact: true }).click()
+      await page.getByRole('dialog').waitFor({ state: 'hidden' })
       await page.getByRole('button', { name: 'Importer', exact: true }).click()
-      check((await page.getByRole('dialog').textContent()).includes('remplace les deux bibliothèques'), 'import-avertissement-partagé', { label })
+      check((await page.getByRole('dialog').textContent()).includes(`Importer · ${label}`), 'import-avertissement-partagé', { label })
       await page.keyboard.press('Escape')
       check(await page.getByRole('button', { name: 'Importer', exact: true }).evaluate((b) => b === document.activeElement), 'retour-focus-import', { label })
       await page.getByRole('button', { name: 'Nouvelle vue', exact: true }).click()

@@ -70,7 +70,7 @@ export function SeriesCategorySwitch({ selected, onSelectionChange }: {
   )
 }
 
-/** Interrupteur prêt à l'emploi pour les Livres : Livre | Manga | Comics. */
+/** Interrupteur prêt à l'emploi pour les Livres : Livre | Manga. */
 export function BookCategorySwitch({ selected, onSelectionChange }: {
   selected: readonly string[]
   onSelectionChange: (next: string[]) => void
@@ -80,7 +80,7 @@ export function BookCategorySwitch({ selected, onSelectionChange }: {
       categories={[...BOOK_CATEGORIES]}
       value={selected}
       onChange={onSelectionChange}
-      labels={{ livre: 'Livre', manga: 'Manga', comics: 'Comics' }}
+      labels={{ livre: 'Livre', manga: 'Manga' }}
     />
   )
 }

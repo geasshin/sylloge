@@ -13,25 +13,31 @@
  * fournisseur (TMDB, IGDB, OpenLibrary) n'est contacté.
  *
  * Scénarios, via ?scenario= :
- *   full (défaut)  cinq collections remplies, six bibliothèques d’interface
+ *   full (défaut)  sept bibliothèques remplies
  *   empty          profil ouvert mais bibliothèques vides
  *   onboarding     aucun profil : premier lancement
  */
 import initSqlJs, { type Database, type SqlValue } from 'sql.js'
 import sqlWasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url'
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks'
+import type { NativeCustomEntryWritePayload } from '../data/nativeCustomEntries.ts'
+import type { CustomLibraryId } from '../domain/customLibraries.ts'
 import {
   QA_PROFILE_ID,
   QA_PROFILE_NAME,
   QA_RECETTE_NOW,
   seedArtworks,
   seedBooks,
+  seedCustomLibraries,
   seedFilms,
   seedGames,
   seedSeries,
 } from './appSeed.ts'
 
 type Scenario = 'full' | 'empty' | 'onboarding'
+
+/** Tables des bibliothèques personnalisées (migration 0021). */
+const CUSTOM_TABLES = ['comics', 'magazines', 'audiobooks', 'music', 'podcasts', 'documentaries', 'shows', 'board_games'] as const
 type Args = Record<string, unknown>
 type Row = Record<string, unknown>
 
@@ -119,6 +125,10 @@ if (scenario === 'full') {
   mangaQuotes.forEach((row) => insert('manga_quotes', row))
   seedGames().forEach((row) => insert('games', row))
   seedArtworks().forEach((row) => insert('artworks', row))
+  const custom = seedCustomLibraries()
+  custom.libraries.forEach((row) => insert('profile_libraries', row))
+  custom.entries.forEach(([table, row]) => insert(table, row))
+  custom.quotes.forEach((row) => insert('comic_quotes', row))
 }
 
 // ─── Commandes Rust reproduites ─────────────────────────────────────────────
@@ -127,13 +137,107 @@ function fail(message: string): never {
   throw message
 }
 
+/** Native whole-profile commands are reproduced only in the in-memory QA DB.
+ * They remain separate evidence from the real Rust transaction tests. */
+function importPortableProfile(payload: Row, create: boolean) {
+  const profile = payload.profile as Row
+  const sections = ['films', 'series', 'anime', 'books', 'mangas', 'games', 'artworks'] as const
+  db.exec('BEGIN')
+  try {
+    if (create) insert('profiles', { id: profile.id, name: profile.name, created_at: profile.createdAt, updated_at: profile.updatedAt })
+    else {
+      if (select('SELECT id FROM profiles WHERE id = $1', [profile.id]).length !== 1) fail('Profil cible introuvable.')
+      for (const table of [...sections, ...CUSTOM_TABLES]) if (Number(select(`SELECT COUNT(*) AS n FROM ${table} WHERE profile_id = $1`, [profile.id])[0].n) > 0) fail('Le profil cible doit être vide.')
+    }
+    for (const table of sections) {
+      for (const entry of (payload[table] ?? []) as Row[]) {
+        const row: Row = {}
+        for (const [key, value] of Object.entries(entry)) {
+          if (key === 'quotes' || ((table === 'anime' || table === 'mangas') && key === 'category')) continue
+          const column = key.replace(/[A-Z]/gu, character => `_${character.toLowerCase()}`)
+          row[column] = key === 'customFields' ? JSON.stringify(value ?? []) : value
+        }
+        insert(table, row)
+        if (table === 'books' || table === 'mangas') for (const quote of (entry.quotes ?? []) as Row[]) {
+          insert(table === 'books' ? 'book_quotes' : 'manga_quotes', { id: quote.id, [table === 'books' ? 'book_id' : 'manga_id']: entry.id, body: quote.body, position: quote.position, created_at: quote.createdAt })
+        }
+      }
+    }
+    let customEntryCount = 0
+    const customLibraries = (payload.customLibraries ?? []) as Row[]
+    for (const library of customLibraries) {
+      const table = String(library.libraryId)
+      if (!(CUSTOM_TABLES as readonly string[]).includes(table)) fail(`Bibliothèque inconnue : ${table}.`)
+      execute('INSERT INTO profile_libraries (profile_id, library_id, position, added_at) VALUES ($1, $2, $3, $4) ON CONFLICT(profile_id, library_id) DO NOTHING', [profile.id, table, library.position, library.addedAt])
+      for (const entry of (library.entries ?? []) as Row[]) {
+        const row: Row = {}
+        for (const [key, value] of Object.entries(entry)) {
+          if (key === 'quotes') continue
+          row[key.replace(/[A-Z]/gu, character => `_${character.toLowerCase()}`)] = key === 'details' ? JSON.stringify(value ?? {}) : value
+        }
+        insert(table, row)
+        customEntryCount += 1
+        const quotes = (entry.quotes ?? []) as Row[]
+        if (quotes.length > 0 && table !== 'comics') fail('Seuls les comics portent des citations.')
+        for (const quote of quotes) insert('comic_quotes', { id: quote.id, comic_id: entry.id, body: quote.body, position: quote.position, created_at: quote.createdAt })
+      }
+    }
+    db.exec('COMMIT')
+    return { profileId: profile.id, filmCount: (payload.films as Row[]).length, seriesCount: (payload.series as Row[]).length,
+      animeCount: ((payload.anime ?? []) as Row[]).length, bookCount: (payload.books as Row[]).length,
+      mangaCount: ((payload.mangas ?? []) as Row[]).length, gameCount: (payload.games as Row[]).length, artworkCount: (payload.artworks as Row[]).length,
+      customLibraryCount: customLibraries.length, customEntryCount }
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+/** Copies JSON simulées : contenu en mémoire, registre dans la table backup_snapshots. */
+const backupFiles = new Map<string, string>()
+let backupSequence = 0
+
+function writeBackupCopy(profileId: unknown, contents: unknown) {
+  if (!backupSettings(profileId)) fail('Aucun dossier de sauvegarde configuré.')
+  backupSequence += 1
+  const stamp = new Date(Date.now() + backupSequence).toISOString()
+  const fileName = `sylloge-sauvegarde-${stamp.slice(0, 10)}-${stamp.slice(11, 13)}h${stamp.slice(14, 16)}-recette-${String(backupSequence).padStart(20, '0')}.json`
+  backupFiles.set(fileName, String(contents))
+  execute('INSERT INTO backup_snapshots (profile_id, file_name, created_at) VALUES ($1, $2, $3)', [profileId, fileName, stamp])
+  const retained = Number(select('SELECT COUNT(*) AS n FROM backup_snapshots WHERE profile_id = $1', [profileId])[0].n)
+  return { fileName, retainedSnapshotCount: retained }
+}
+
+function listBackupCopies(profileId: unknown) {
+  if (!backupSettings(profileId)) return []
+  return select('SELECT file_name, created_at FROM backup_snapshots WHERE profile_id = $1 ORDER BY created_at DESC, file_name DESC', [profileId])
+    .map((row) => ({ fileName: row.file_name, createdAt: row.created_at, available: backupFiles.has(String(row.file_name)) }))
+}
+
+function readBackupCopy(profileId: unknown, fileName: unknown) {
+  const registered = select('SELECT 1 FROM backup_snapshots WHERE profile_id = $1 AND file_name = $2', [profileId, fileName]).length === 1
+  const contents = backupFiles.get(String(fileName))
+  if (!registered || contents === undefined) fail('Cette copie n’appartient pas à ce profil ou n’existe plus.')
+  return contents
+}
+
+function backupSettings(profileId: unknown) {
+  const row = select('SELECT backup_directory, last_automatic_snapshot_day FROM backup_settings WHERE profile_id = $1', [profileId])[0]
+  return row ? { backupDirectory: row.backup_directory, lastAutomaticSnapshotDay: row.last_automatic_snapshot_day, directoryAvailable: true } : null
+}
+function configureBackup(profileId: unknown, directory: unknown) {
+  if (!select('SELECT id FROM profiles WHERE id = $1', [profileId]).length) fail('Profil introuvable.')
+  execute('INSERT INTO backup_settings (profile_id, backup_directory, last_automatic_snapshot_day, updated_at) VALUES ($1, $2, NULL, $3) ON CONFLICT(profile_id) DO UPDATE SET backup_directory = excluded.backup_directory, last_automatic_snapshot_day = NULL, updated_at = excluded.updated_at', [profileId, directory, now()])
+  return backupSettings(profileId)
+}
+
 function listProfiles() {
   return select(`SELECT p.id, p.name, p.avatar_data_url, p.created_at, p.updated_at,
       (SELECT COUNT(*) FROM films WHERE profile_id = p.id) AS film_count,
       (SELECT COUNT(*) FROM series WHERE profile_id = p.id) AS series_count,
+      (SELECT COUNT(*) FROM anime WHERE profile_id = p.id) AS anime_count,
       (SELECT COUNT(*) FROM books WHERE profile_id = p.id) AS book_count,
+      (SELECT COUNT(*) FROM mangas WHERE profile_id = p.id) AS manga_count,
       (SELECT COUNT(*) FROM games WHERE profile_id = p.id) AS game_count,
-      (SELECT COUNT(*) FROM artworks WHERE profile_id = p.id) AS artwork_count
+      (SELECT COUNT(*) FROM artworks WHERE profile_id = p.id) AS artwork_count,
+      (${CUSTOM_TABLES.map((table) => `(SELECT COUNT(*) FROM ${table} WHERE profile_id = p.id)`).join(' + ')}) AS custom_count
     FROM profiles p ORDER BY p.created_at ASC, p.name COLLATE NOCASE ASC`).map((row) => ({
     id: row.id,
     name: row.name,
@@ -142,9 +246,12 @@ function listProfiles() {
     updatedAt: row.updated_at,
     filmCount: row.film_count,
     seriesCount: row.series_count,
+    animeCount: row.anime_count,
     bookCount: row.book_count,
+    mangaCount: row.manga_count,
     gameCount: row.game_count,
     artworkCount: row.artwork_count,
+    customCount: row.custom_count,
   }))
 }
 
@@ -155,40 +262,157 @@ function profileName(name: unknown): string {
   return trimmed
 }
 
-type BookPayload = { book: Row; quotes: Array<{ id: string; bookId: string; body: string; position: number; createdAt: string }> }
+type BookPayload = { library: string; book: Row; quotes: Array<{ id: string; bookId: string; body: string; position: number; createdAt: string }> }
 
-function writeBook(payload: BookPayload, mode: 'create' | 'update') {
+type BookTable = 'books' | 'mangas'
+function bookTable(value: unknown): BookTable {
+  const table = typeof value === 'string' ? value.trim() : ''
+  if (table !== 'books' && table !== 'mangas') fail(`Bibliothèque de livres inconnue : « ${String(value)} ».`)
+  return table as BookTable
+}
+function bookCategoryTable(value: unknown): BookTable {
+  const category = String(value).trim()
+  if (category.toLowerCase() === 'comics') fail('Les comics ont leur propre bibliothèque : enregistrez-les dans la bibliothèque Comics.')
+  if (category === 'manga') return 'mangas'
+  if (category === 'livre') return 'books'
+  return fail(`Catégorie de livre inconnue : « ${category} ».`)
+}
+function bookQuotes(table: BookTable) {
+  return table === 'mangas' ? { table: 'manga_quotes', owner: 'manga_id' } : { table: 'book_quotes', owner: 'book_id' }
+}
+
+function writeBook(payload: BookPayload, mode: 'create' | 'update'): void {
   const book = payload.book
+  const source = bookTable(payload.library)
+  const categoryTable = bookCategoryTable(book.category)
+  const target = mode === 'create' ? source : categoryTable
+  if (mode === 'create' && source === 'books' && categoryTable === 'mangas') fail('Un manga doit être enregistré dans la bibliothèque Mangas.')
+  if (!String(book.id ?? '').trim() || !String(book.profileId ?? '').trim()) fail('Le livre ou son profil possède un identifiant invalide.')
   if (!String(book.title ?? '').trim()) fail('Le titre du livre est obligatoire.')
-  const columns = {
+  payload.quotes.forEach((quote, index) => {
+    if (!quote.id.trim() || quote.bookId !== book.id) fail('Une citation ne correspond pas au livre à enregistrer.')
+    if (!quote.body.trim() || quote.position !== index) fail('Les citations doivent être non vides et ordonnées.')
+  })
+  const columns: Row = {
     title: book.title, author: book.author, year: book.year, summary: book.summary,
-    category: book.category, status: book.status, rating: book.rating, is_favorite: book.isFavorite,
+    ...(target === 'books' ? { category: book.category } : {}),
+    status: book.status, rating: book.rating, is_favorite: book.isFavorite,
     volumes_read: book.volumesRead, volumes_total: book.volumesTotal,
     progress_updated_at: book.progressUpdatedAt, started_at: book.startedAt,
     cover_url: book.coverUrl, personal_note: book.personalNote, updated_at: book.updatedAt,
   }
   db.exec('BEGIN')
   try {
-    if (mode === 'create') {
-      insert('books', { id: book.id, profile_id: book.profileId, ...columns, created_at: book.createdAt } as Row)
+    if (mode === 'update' && select(`SELECT id FROM ${source} WHERE id = $1 AND profile_id = $2`, [book.id, book.profileId]).length !== 1) fail('Le livre à modifier est introuvable dans le profil courant.')
+    if (mode === 'create' || source !== target) {
+      insert(target, { id: book.id, profile_id: book.profileId, ...columns, created_at: book.createdAt })
     } else {
       const entries = Object.entries(columns)
       const [affected] = execute(
-        `UPDATE books SET ${entries.map(([column], index) => `${column} = $${index + 1}`).join(', ')} WHERE id = $${entries.length + 1} AND profile_id = $${entries.length + 2}`,
+        `UPDATE ${target} SET ${entries.map(([column], index) => `${column} = $${index + 1}`).join(', ')} WHERE id = $${entries.length + 1} AND profile_id = $${entries.length + 2}`,
         [...entries.map(([, value]) => value), book.id, book.profileId],
       )
-      if (affected !== 1) fail('Le livre à modifier est introuvable.')
-      execute('DELETE FROM book_quotes WHERE book_id = $1', [book.id])
+      if (affected !== 1) fail('Le livre à modifier est introuvable dans le profil courant.')
+      const quotes = bookQuotes(target)
+      execute(`DELETE FROM ${quotes.table} WHERE ${quotes.owner} = $1`, [book.id])
     }
-    payload.quotes.forEach((quote) => insert('book_quotes', {
-      id: quote.id, book_id: quote.bookId, body: quote.body, position: quote.position, created_at: quote.createdAt,
+    const quotes = bookQuotes(target)
+    payload.quotes.forEach((quote) => insert(quotes.table, {
+      id: quote.id, [quotes.owner]: quote.bookId, body: quote.body, position: quote.position, created_at: quote.createdAt,
     }))
+    if (source !== target) {
+      // Move links before deleting the source: its AFTER DELETE trigger must
+      // not delete the moved link. The source quote cascade stays in this tx.
+      execute('UPDATE media_provider_links SET medium = $1, updated_at = $2 WHERE profile_id = $3 AND medium = $4 AND media_id = $5', [target, book.updatedAt, book.profileId, source, book.id])
+      execute(`DELETE FROM ${source} WHERE id = $1 AND profile_id = $2`, [book.id, book.profileId])
+    }
     db.exec('COMMIT')
-  } catch (error) {
-    db.exec('ROLLBACK')
-    throw error
-  }
+  } catch (error) { db.exec('ROLLBACK'); throw error }
 }
+
+function deleteBook(profileId: unknown, bookId: unknown, library: unknown): void {
+  const table = bookTable(library)
+  if (!String(profileId ?? '').trim() || !String(bookId ?? '').trim()) fail('Le livre ou son profil possède un identifiant invalide.')
+  db.exec('BEGIN')
+  try {
+    const [affected] = execute(`DELETE FROM ${table} WHERE id = $1 AND profile_id = $2`, [bookId, profileId])
+    if (affected !== 1) fail('Le livre à supprimer est introuvable dans le profil courant.')
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+// ─── Custom-entry native command mocks ─────────────────────────────────────
+
+function customTable(libraryId: unknown): CustomLibraryId {
+  if (typeof libraryId !== 'string' || !(CUSTOM_TABLES as readonly string[]).includes(libraryId)) fail(`Bibliothèque inconnue : ${String(libraryId)}.`)
+  return libraryId as CustomLibraryId
+}
+
+function writeCustomEntry(payload: NativeCustomEntryWritePayload, mode: 'create' | 'update'): void {
+  const table = customTable(payload.libraryId)
+  const entry = payload.entry
+  if (!entry.id.trim() || !entry.profileId.trim()) fail('La fiche ou son profil possède un identifiant invalide.')
+  if (!entry.title.trim()) fail('Le titre est obligatoire.')
+  if (!['à découvrir', 'en cours', 'terminé', 'abandonné'].includes(entry.status)) fail('Le statut de la fiche est invalide.')
+  if (table !== 'comics' && entry.quotes.length) fail('Seuls les comics portent des citations.')
+  entry.quotes.forEach((quote, index) => {
+    if (!quote.id.trim() || quote.entryId !== entry.id) fail('Une citation ne correspond pas à la fiche à enregistrer.')
+    if (!quote.body.trim() || quote.position !== index) fail('Les citations doivent être non vides et ordonnées.')
+  })
+  const columns: Row = {
+    title: entry.title, creator: entry.creator, year: entry.year, status: entry.status,
+    rating: entry.rating, is_favorite: entry.isFavorite, progress_current: entry.progressCurrent,
+    progress_total: entry.progressTotal, progress_updated_at: entry.progressUpdatedAt,
+    started_at: entry.startedAt, finished_at: entry.finishedAt, cover_url: entry.coverUrl,
+    summary: entry.summary, personal_note: entry.personalNote, details: JSON.stringify(entry.details), updated_at: entry.updatedAt,
+  }
+  db.exec('BEGIN')
+  try {
+    if (mode === 'create') insert(table, { id: entry.id, profile_id: entry.profileId, ...columns, created_at: entry.createdAt })
+    else {
+      const fields = Object.entries(columns)
+      const [affected] = execute(
+        `UPDATE ${table} SET ${fields.map(([column], index) => `${column} = $${index + 1}`).join(', ')} WHERE id = $${fields.length + 1} AND profile_id = $${fields.length + 2}`,
+        [...fields.map(([, value]) => value), entry.id, entry.profileId],
+      )
+      if (affected !== 1) fail('La fiche à modifier est introuvable dans le profil courant.')
+    }
+    if (table === 'comics') {
+      const previous = mode === 'update' ? select('SELECT id, body, created_at FROM comic_quotes WHERE comic_id = $1 ORDER BY position ASC, id ASC', [entry.id]) : []
+      if (mode === 'update') execute('DELETE FROM comic_quotes WHERE comic_id = $1', [entry.id])
+      for (const quote of entry.quotes) {
+        const reusedIndex = previous.findIndex(old => old.body === quote.body)
+        const reused = reusedIndex >= 0 ? previous.splice(reusedIndex, 1)[0] : null
+        insert('comic_quotes', { id: reused?.id ?? quote.id, comic_id: quote.entryId, body: quote.body, position: quote.position, created_at: reused?.created_at ?? quote.createdAt })
+      }
+    }
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+function deleteCustomEntry(profileId: string, libraryId: CustomLibraryId, entryId: string): void {
+  const table = customTable(libraryId)
+  if (!profileId.trim() || !entryId.trim()) fail('La fiche ou son profil possède un identifiant invalide.')
+  db.exec('BEGIN')
+  try {
+    const [affected] = execute(`DELETE FROM ${table} WHERE id = $1 AND profile_id = $2`, [entryId, profileId])
+    if (affected !== 1) fail('La fiche à supprimer est introuvable dans le profil courant.')
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+function removeCustomLibrary(profileId: string, libraryId: CustomLibraryId): void {
+  const table = customTable(libraryId)
+  if (!profileId.trim()) fail('Le profil possède un identifiant invalide.')
+  db.exec('BEGIN')
+  try {
+    execute(`DELETE FROM ${table} WHERE profile_id = $1`, [profileId])
+    execute('DELETE FROM profile_libraries WHERE profile_id = $1 AND library_id = $2', [profileId, table])
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+// ─── End custom-entry native command mocks ─────────────────────────────────
 
 function updaterPreferences() {
   const [row] = select('SELECT automatic_checks_enabled, ignored_version, updated_at FROM updater_preferences WHERE singleton = 1')
@@ -303,7 +527,9 @@ function handle(cmd: string, args: Args): unknown {
       const profileId = args.profileId
       db.exec('BEGIN')
       execute('DELETE FROM book_quotes WHERE book_id IN (SELECT id FROM books WHERE profile_id = $1)', [profileId])
-      for (const table of ['films', 'series', 'books', 'games', 'artworks', 'backup_snapshots', 'backup_settings', 'saved_views']) {
+      execute('DELETE FROM manga_quotes WHERE manga_id IN (SELECT id FROM mangas WHERE profile_id = $1)', [profileId])
+      execute('DELETE FROM comic_quotes WHERE comic_id IN (SELECT id FROM comics WHERE profile_id = $1)', [profileId])
+      for (const table of ['films', 'series', 'anime', 'books', 'mangas', 'games', 'artworks', ...CUSTOM_TABLES, 'profile_libraries', 'backup_snapshots', 'backup_settings', 'saved_views']) {
         execute(`DELETE FROM ${table} WHERE profile_id = $1`, [profileId])
       }
       execute('DELETE FROM profiles WHERE id = $1', [profileId])
@@ -315,10 +541,13 @@ function handle(cmd: string, args: Args): unknown {
     // Livres (écriture atomique côté Rust)
     case 'create_book_atomically': writeBook(args.payload as BookPayload, 'create'); return null
     case 'update_book_atomically': writeBook(args.payload as BookPayload, 'update'); return null
-    case 'delete_book_atomically':
-      execute('DELETE FROM book_quotes WHERE book_id = $1', [args.bookId])
-      execute('DELETE FROM books WHERE id = $1 AND profile_id = $2', [args.bookId, args.profileId])
-      return null
+    case 'delete_book_atomically': deleteBook(args.profileId, args.bookId, args.library); return null
+
+    // Bibliothèques personnalisées : mêmes transactions et contrats void que Rust.
+    case 'create_custom_entry_atomically': writeCustomEntry(args.payload as NativeCustomEntryWritePayload, 'create'); return null
+    case 'update_custom_entry_atomically': writeCustomEntry(args.payload as NativeCustomEntryWritePayload, 'update'); return null
+    case 'delete_custom_entry_atomically': deleteCustomEntry(args.profileId as string, args.libraryId as CustomLibraryId, args.entryId as string); return null
+    case 'remove_custom_library_atomically': removeCustomLibrary(args.profileId as string, args.libraryId as CustomLibraryId); return null
 
     // Préférences de mise à jour
     case 'check_for_app_update': return null // aucune mise à jour disponible en recette
@@ -330,12 +559,27 @@ function handle(cmd: string, args: Args): unknown {
       execute('UPDATE updater_preferences SET ignored_version = $1, updated_at = $2 WHERE singleton = 1', [args.ignoredVersion ?? null, now()])
       return updaterPreferences()
 
-    // Sauvegardes : aucun dossier choisi, aucune écriture
-    case 'get_backup_settings': return null
-    case 'pick_backup_directory': return { backupDirectory: '/Users/recette/Sauvegardes Sylloge', lastAutomaticSnapshotDay: null, directoryAvailable: true }
-    case 'clear_backup_settings': return null
-    case 'save_manual_backup_snapshot':
-    case 'save_automatic_backup_snapshot': return { fileName: `sylloge-recette-${now().slice(0, 10)}.json`, retainedSnapshotCount: 3 }
+    // Sauvegardes : aucun fichier réel, réglages dans SQLite mémoire seulement.
+    case 'get_backup_settings': return backupSettings(args.profileId)
+    case 'pick_backup_destination': return { backupDirectory: '/recette/Sauvegardes Sylloge', lastAutomaticSnapshotDay: null, directoryAvailable: true }
+    case 'configure_backup_destination': return configureBackup(args.profileId, args.backupDirectory)
+    case 'pick_backup_directory': return configureBackup(args.profileId, '/recette/Sauvegardes Sylloge')
+    case 'clear_backup_settings': execute('DELETE FROM backup_settings WHERE profile_id = $1', [args.profileId]); return null
+    case 'save_manual_backup_snapshot': return writeBackupCopy(args.profileId, args.contents)
+    case 'save_automatic_backup_snapshot': {
+      const settings = backupSettings(args.profileId)
+      if (!settings) return { outcome: 'notConfigured', fileName: null }
+      if (settings.lastAutomaticSnapshotDay === args.automaticDay) return { outcome: 'alreadySaved', fileName: null }
+      const saved = writeBackupCopy(args.profileId, args.contents)
+      execute('UPDATE backup_settings SET last_automatic_snapshot_day = $1 WHERE profile_id = $2', [args.automaticDay, args.profileId])
+      return { outcome: 'saved', fileName: saved.fileName }
+    }
+    case 'list_backup_snapshots': return listBackupCopies(args.profileId)
+    case 'read_backup_snapshot': return readBackupCopy(args.profileId, args.fileName)
+    // Recherche bornée : aucune sauvegarde sur la machine de recette par défaut.
+    case 'find_backup_candidates': return { candidates: [], unreadableLocations: [] }
+    case 'import_library_document_into_empty_profile': return importPortableProfile(args.payload as Row, false)
+    case 'import_library_document_atomically': return importPortableProfile(args.payload as Row, true)
 
     // Sélecteurs et exports : l'utilisateur « annule »
     case 'pick_import_any':

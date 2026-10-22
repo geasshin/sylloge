@@ -186,7 +186,7 @@ export function seedSeries(): { series: Row[]; anime: Row[] } {
 
 // ─── Livres ─────────────────────────────────────────────────────────────────
 
-type BookSeed = [title: string, author: string, year: number, category: 'livre' | 'manga' | 'comics', status: string, rating: number | null, favorite: 0 | 1, read: number | null, total: number | null, addedDaysAgo: number, cover: boolean, quotes?: string[]]
+type BookSeed = [title: string, author: string, year: number, category: 'livre' | 'manga', status: string, rating: number | null, favorite: 0 | 1, read: number | null, total: number | null, addedDaysAgo: number, cover: boolean, quotes?: string[]]
 
 const BOOKS: BookSeed[] = [
   ['Les Années', 'Annie Ernaux', 2008, 'livre', 'lu', 5, 1, null, null, 4, true, ['Toutes les images disparaîtront.']],
@@ -201,9 +201,6 @@ const BOOKS: BookSeed[] = [
   ['Vagabond', 'Takehiko Inoue', 1998, 'manga', 'en cours', 5, 1, 22, 37, 22, true],
   ['Pluto', 'Naoki Urasawa', 2003, 'manga', 'lu', 4.5, 0, 8, 8, 80, true],
   ['Frieren', 'Kanehito Yamada, Tsukasa Abe', 2020, 'manga', 'à lire', null, 0, 0, 13, 95, true],
-  ['Watchmen', 'Alan Moore, Dave Gibbons', 1986, 'comics', 'lu', 5, 1, null, null, 150, true],
-  ['Maus', 'Art Spiegelman', 1986, 'comics', 'lu', 5, 0, null, null, 175, true],
-  ['Saga', 'Brian K. Vaughan, Fiona Staples', 2012, 'comics', 'en cours', 4, 0, 3, 11, 200, false],
 ]
 
 /** Une bibliothèque = une table : Livres et Mangas sont séparés. */
@@ -315,6 +312,72 @@ export function seedArtworks(): Row[] {
     created_at: at(addedDaysAgo),
     updated_at: at(Math.max(0, addedDaysAgo - 1)),
   }))
+}
+
+// ─── Bibliothèques personnalisées (0021) ─────────────────────────────────────
+
+type CustomSeed = [title: string, creator: string, year: number | null, status: string, rating: number | null, favorite: 0 | 1, current: number | null, total: number | null, addedDaysAgo: number, cover: boolean, details: Record<string, string>, quotes?: string[]]
+
+/** Quatre bibliothèques ajoutées ; les quatre autres restent proposées. */
+const CUSTOM_LIBRARIES: Array<[table: string, entries: CustomSeed[]]> = [
+  ['comics', [
+    ['Watchmen', 'Alan Moore', 1986, 'terminé', 5, 1, 12, 12, 150, true, { format: 'Comics', artist: 'Dave Gibbons', publisher: 'DC Comics' }, ['Qui garde les gardiens ?']],
+    ['Maus', 'Art Spiegelman', 1986, 'terminé', 5, 0, 2, 2, 175, true, { format: 'Roman graphique', publisher: 'Pantheon' }],
+    ['Saga', 'Brian K. Vaughan', 2012, 'en cours', 4, 0, 3, 11, 200, false, { format: 'Comics', artist: 'Fiona Staples', series: 'Saga', publisher: 'Image' }],
+    ['Blacksad', 'Juan Díaz Canales', 2000, 'à découvrir', null, 0, null, 7, 30, true, { format: 'Bande dessinée', artist: 'Juanjo Guarnido', publisher: 'Dargaud' }],
+  ]],
+  ['music', [
+    ['Kind of Blue', 'Miles Davis', 1959, 'terminé', 5, 1, null, null, 3, true, { format: 'Album', genre: 'Jazz modal', label: 'Columbia' }],
+    ['Blonde', 'Frank Ocean', 2016, 'terminé', 4.5, 1, null, null, 9, true, { format: 'Album', genre: 'R&B', label: 'Boys Don’t Cry' }],
+    ['Promises', 'Floating Points, Pharoah Sanders', 2021, 'en cours', null, 0, null, null, 15, true, { format: 'Album', genre: 'Jazz', label: 'Luaka Bop' }],
+    ['Vespertine', 'Björk', 2001, 'à découvrir', null, 0, null, null, 40, false, { format: 'Album', label: 'One Little Indian' }],
+  ]],
+  ['shows', [
+    ['Cyrano de Bergerac', 'Edmond Rostand', null, 'terminé', 4.5, 1, null, null, 21, true, { type: 'Théâtre', direction: 'Denis Podalydès', venue: 'Comédie-Française', city: 'Paris' }],
+    ['Le Lac des cygnes', 'Ballet de l’Opéra de Paris', null, 'à découvrir', null, 0, null, null, 8, false, { type: 'Danse', venue: 'Opéra Bastille', city: 'Paris' }],
+  ]],
+  ['board_games', [
+    ['Azul', 'Michael Kiesling', 2017, 'terminé', 4, 0, 14, null, 60, true, { type: 'Familial', publisher: 'Plan B Games', players: '2 à 4', duration: '40 min' }],
+    ['Spirit Island', 'R. Eric Reuss', 2017, 'en cours', 4.5, 1, 6, null, 25, true, { type: 'Coopératif', publisher: 'Greater Than Games', players: '1 à 4', duration: '120 min' }],
+  ]],
+]
+
+export function seedCustomLibraries(): { libraries: Row[]; entries: Array<[table: string, row: Row]>; quotes: Row[] } {
+  const libraries: Row[] = []
+  const entries: Array<[string, Row]> = []
+  const quotes: Row[] = []
+  CUSTOM_LIBRARIES.forEach(([table, seeds], position) => {
+    libraries.push({ profile_id: QA_PROFILE_ID, library_id: table, position, added_at: at(220 - position) })
+    seeds.forEach(([title, creator, year, status, rating, favorite, current, total, addedDaysAgo, hasCover, details, entryQuotes]) => {
+      const id = `${table}-${slugify(title)}`
+      const square = table === 'music' || table === 'board_games'
+      entries.push([table, {
+        id,
+        profile_id: QA_PROFILE_ID,
+        title,
+        creator,
+        year,
+        status,
+        rating,
+        is_favorite: favorite,
+        progress_current: current,
+        progress_total: total,
+        progress_updated_at: current !== null ? at(addedDaysAgo) : null,
+        started_at: status === 'à découvrir' ? null : day(addedDaysAgo + 3),
+        finished_at: status === 'terminé' ? day(addedDaysAgo) : null,
+        cover_url: hasCover ? `https://picsum.photos/seed/sylloge-${id}/${square ? '600/600' : '400/600'}` : null,
+        summary: null,
+        personal_note: null,
+        details: JSON.stringify(details),
+        created_at: at(addedDaysAgo),
+        updated_at: at(Math.max(0, addedDaysAgo - 1)),
+      }])
+      ;(entryQuotes ?? []).forEach((body, quotePosition) => {
+        quotes.push({ id: `${id}-quote-${quotePosition}`, comic_id: id, body, position: quotePosition, created_at: at(addedDaysAgo) })
+      })
+    })
+  })
+  return { libraries, entries, quotes }
 }
 
 export const QA_RECETTE_NOW = new Date(RECETTE_NOW).toISOString()

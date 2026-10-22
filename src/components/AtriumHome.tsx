@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Poster } from './Poster.tsx'
+import { useHomeAutoplay } from '../domain/preferences.ts'
 import type { FilmLibrary } from '../data/filmsRepository.ts'
 import type { Film } from '../domain/film.ts'
 import type { Series } from '../domain/series.ts'
@@ -620,8 +621,9 @@ function FeaturedCarousel({
   const [keyboardInside, setKeyboardInside] = useState(false)
   const reducedMotion = usePrefersReducedMotion()
   const pageVisible = usePageVisible()
+  const [autoplay] = useHomeAutoplay()
   const current = count > 0 ? index % count : 0
-  const canRotate = count > 1 && !reducedMotion
+  const canRotate = count > 1 && !reducedMotion && autoplay
   const rotating = canRotate && !paused && !hovered && !keyboardInside && pageVisible
 
   useEffect(() => {

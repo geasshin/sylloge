@@ -6,7 +6,7 @@
 
 - **L'application est gratuite et open source.** Le dépôt `geasshin/sylloge` devient public, et la communication du site s'appuie dessus.
 - **Un service cloud payant reste possible plus tard** (multi-appareil), sans changer de licence.
-- **Le proxy de clés viendra plus tard**, porté par des fonctions Vercel.
+- **Le proxy de clés est en production**, porté par des fonctions Vercel ; les clients TMDB/IGDB n’embarquent plus de clés.
 - **Les imports passent par des tutoriels guidés** : lien vers la page d'export du service, étapes numérotées, puis le fichier déposé dans Sylloge.
 
 ## Bloc 1 — Ouvrir le projet (bloquant pour distribuer)
@@ -41,52 +41,77 @@ Dans le workflow de release, avant publication : un appel à `/api/health` du pr
 
 Un dépôt public rend la reconstruction de l'application triviale, donc l'extraction des clés d'API aussi. Le risque ne change pas, il devient visible. Raison de plus pour passer au proxy avant une diffusion large.
 
-## Bloc 2 — Imports guidés
+## Bloc 2 — Imports et exports guidés
 
-Le principe : Sylloge ne se connecte jamais à la place de la personne. Elle l'accompagne jusqu'au fichier, puis reconnaît ce fichier sans lui demander de choisir un format. Rien n'est écrit sans confirmation.
+**Implémenté et vérifié localement le 22 octobre 2026 ; pas encore publié.** Rapport et commandes : [QA_IMPORT_EXPORT.md](QA_IMPORT_EXPORT.md).
 
-### 2.1 Un tutoriel par service
+Le parcours commun aux sept bibliothèques propose l’origine du fichier, un tutoriel avec liens officiels et réserves, puis l’analyse locale. Aperçu, comparaison des doublons, résumé des ajouts/mises à jour/suppressions et confirmation finale précèdent toute écriture. Un remplacement demande une case de consentement supplémentaire ; il ne touche que la bibliothèque ouverte.
 
-Pour chaque service, un écran qui contient : un lien direct vers la page d'export, trois à cinq étapes numérotées avec le nom exact du menu, le nom du fichier attendu, et une zone qui accepte aussi le glisser-déposer.
+### Sources réellement prises en charge
 
-| Service | Page d'export | Fichier attendu |
+| Service | Entrée | Reprise et limites |
 |---|---|---|
-| Letterboxd | Settings, Import and Export | `ratings.csv`, `watched.csv`, `watchlist.csv`, `diary.csv` |
-| Goodreads | My Books, Import and export | `goodreads_library_export.csv` |
-| StoryGraph | Manage account, export | CSV d'export |
-| MyAnimeList | Export de la liste | XML |
-| AniList | Settings, export des données | JSON |
-| TV Time | Demande d'export RGPD | archive de JSON et CSV |
-| BetaSeries | Compte, export | CSV |
-| Notion | Base exportée | ZIP |
+| Letterboxd | CSV ou ZIP complet | Regroupement des cinq tables reconnues ; notes, statuts, dernière date explicite, avis et historique dans la note personnelle. Les contradictions bloquent. |
+| Goodreads | CSV de bibliothèque | Livres uniquement ; auteurs, année, note personnelle /5, statut, avis et notes privées. Les dates de fin ne deviennent pas des débuts de lecture. |
+| Notion | CSV ou ZIP Markdown/CSV | Correspondances explicites ; sélection de la table. Certaines notes Markdown sont associables dans Films seulement. |
+| BetaSeries / TV Time | CSV compatible ou archive existante | Guides avec réserves ; correspondances génériques, aucun connecteur dédié ni export actuel garanti. |
+| MyAnimeList | Guide de sauvegarde XML | Import direct XML/gzip non pris en charge ; cette limite est visible dès le choix de la source. |
 
-Les URL et les libellés changent avec le temps : chaque tutoriel porte une date de vérification, et un lien mort est un défaut à corriger.
+Les exports Sylloge JSON/CSV restent réimportables selon leurs contrats. Le JSON peut porter sur la bibliothèque ouverte ou les sept bibliothèques du profil ; il reste la copie fidèle recommandée. Le CSV est limité à une bibliothèque et ne transporte pas les champs libres d’Art ni l’identité complète des citations.
 
-### 2.2 Reconnaissance automatique
+### Preuves et travail différé
 
-Le fichier déposé est identifié seul : nom, en-tête de colonnes, signature du contenu. Le mapping est proposé, jamais imposé. Un même ZIP peut contenir plusieurs exports et donner un plan : « 842 films Letterboxd, 310 livres Goodreads, 96 séries TV Time ».
+- Reconnaissance par contenu, avec tests synthétiques et limites décrites dans [IMPORTS_TIERS_MOTEUR.md](IMPORTS_TIERS_MOTEUR.md).
+- Sources publiques et dates des tutoriels dans [IMPORT_GUIDES_SOURCES.md](IMPORT_GUIDES_SOURCES.md). Aucun téléchargement depuis un compte connecté n’a été exécuté.
+- Choix « Conserver les deux fiches » pour les homonymes face à la bibliothèque existante ; aucune obligation de fusionner deux œuvres seulement parce que leurs titres sont identiques.
+- Les mélanges de services dans une archive reconnue sont bloqués ; aucun plan multi-bibliothèque implicite n’est exécuté.
+- Restent différés : glisser-déposer natif, adaptateurs XML/gzip MyAnimeList et autres services, corpus d’exports réels anonymisés. Leur présence dans la proposition initiale ne constitue pas un support livré.
+- Les sélecteurs macOS réels et un parcours complet dans une application native isolée restent à exercer avant une déclaration de validation native exhaustive.
 
-Un corpus de fichiers réels anonymisés sert de base de test : chaque format reconnu a sa fixture, et la reconnaissance est vérifiée à chaque build. Sans ce corpus, elle se dégrade sans qu'on le voie.
+## Bloc 3 — Premier lancement, sauvegardes et réglages
 
-### 2.3 Ce qu'on ne fera pas
+**Implémenté localement le 22 octobre 2026 ; non committé, non publié.** Rapport et limites : [QA_ONBOARDING_SAUVEGARDES.md](QA_ONBOARDING_SAUVEGARDES.md).
 
-Se connecter aux services à la place de la personne. Aucun n'expose d'API d'historique complet, et stocker leurs identifiants contredirait le modèle local. Le tutoriel est la bonne réponse, pas un contournement.
+### 3.1 Onboarding : démarrer et protéger la bibliothèque
 
-## Bloc 3 — Premier lancement et réglages
+- Conserver un parcours court avec identité et thème, puis trois départs explicites : **partir de zéro**, **restaurer une sauvegarde Sylloge**, **importer depuis un autre service**.
+- **Restaurer une sauvegarde existante** : sélectionner un fichier ; prévoir aussi la sélection d’un dossier de sauvegardes, avec liste des copies valides, dates et contenu, puis choix de la version et aperçu avant confirmation. Ne jamais restaurer automatiquement le fichier le plus récent sans consentement.
+- **Importer un service tiers dès l’onboarding** : ouvrir directement les guides, liens d’export et aperçus du bloc 2 ; réutiliser ses adaptateurs et confirmations, sans second moteur ni détour obligatoire par les réglages. Annoncer les formats non pris en charge.
+- **Choisir le dossier des futures sauvegardes**, quelle que soit l’origine de la bibliothèque : dossier local ou dossier iCloud Drive / Google Drive présent sur l’ordinateur et inscriptible. Ce choix est distinct de la source de restauration ; choisir une ancienne sauvegarde ne configure pas implicitement sa destination future.
+- Vérifier l’accès au dossier, expliquer la politique de conservation et créer une première sauvegarde après finalisation réussie du profil et des imports. Une annulation ou un dossier inaccessible ne doit jamais être présenté comme une protection active.
+- Expliquer que le fournisseur synchronise les fichiers de sauvegarde choisis. Ne pas déplacer la base SQLite active dans un dossier cloud ; ne pas présenter ce mécanisme comme une synchronisation multi-appareil de Sylloge.
 
-- **Onboarding** : proposer d'importer tout de suite ou de partir d'une bibliothèque vide ; choix du thème ; une phrase sur le fichier local. Trois écrans au maximum.
+### 3.2 Un parcours unique de sauvegarde et restauration
+
+- Présenter les actions par intention : **Sauvegarder Sylloge**, **Restaurer Sylloge**, **Importer d’un service**, **Exporter vers un tableur**. Réutiliser le même parcours dans l’onboarding et les réglages.
+- **Décision confirmée par Aurélien** : un **fichier JSON unique, versionné**, sert à exporter une sauvegarde Sylloge et à réimporter le profil entier. Les sauvegardes manuelles, automatiques et leur restauration utilisent ce même contrat ; aucun choix DB/JSON à imposer dans le parcours ordinaire. Le CSV reste un export tabulaire secondaire.
+- **Portée confirmée pour la restauration** : le profil entier et ses sept bibliothèques. Définir et afficher les champs effectivement sauvegardés ; préserver notes, avis, favoris, dates, progression, citations, champs personnalisés et relations. Les profils non concernés ne doivent pas être remplacés. L’extension à tous les profils de l’installation n’est pas implicite.
+- La base `.db` reste le stockage de travail interne. Une éventuelle récupération exceptionnelle d’une ancienne base est hors du parcours standard et hors de ce lot ; elle ne constitue pas un second format de sauvegarde promis.
+- Conserver la lecture des anciennes sauvegardes JSON ; clarifier les noms historiques de snapshots et retirer les libellés et compteurs restés à cinq collections. Aperçu des sept bibliothèques et confirmation explicite pour toute restauration globale.
+
+### 3.3 Réglages et critères de validation
+
 - **Profils** : créer, renommer, supprimer, avec la conséquence écrite sur les données.
-- **Réglages** : une page par sujet (apparence, bibliothèque et sauvegardes, imports, mises à jour, à propos), chaque réglage avec sa conséquence écrite. Les réglages de mise à jour se réduisent à « rechercher automatiquement » une fois le jeton supprimé.
-- **Sauvegardes** : rendre lisible la sauvegarde automatique existante, proposer une restauration, et sauvegarder automatiquement avant toute migration de schéma.
+- **Réglages** : une page par sujet (apparence, bibliothèque et sauvegardes, imports, mises à jour, à propos), chaque réglage avec sa conséquence écrite.
+- **Sauvegardes** : rendre lisibles dossier actif, dernière réussite, absence de protection et restauration ; sauvegarder automatiquement avant toute migration de schéma.
+- Vérifier chaque départ de l’onboarding, retour/annulation/erreur, mauvaise sauvegarde, ancienne version et dossier inaccessible avec des fixtures isolées. Aucune écriture avant confirmation ; aucune perte des autres bibliothèques ou profils ; aucune sauvegarde annoncée réussie avant son écriture réelle.
+- Exercer le parcours natif de sélection des fichiers et dossiers avant publication. La compatibilité iCloud Drive / Google Drive doit être distinguée d’un essai effectif sur ces fournisseurs.
 
 ## Bloc 4 — Bibliothèques personnalisées
 
-- Un « + » sous la barre des bibliothèques propose des modèles prêts : Comics, Recettes, Vinyles, Photos, Podcasts, Jeux de société.
-- Un modèle définit : libellé, icône, unité de progression, champs propres, vues par défaut, statuts.
-- Contrainte technique : chaque bibliothèque devient une table créée à la demande, avec les mêmes garanties que les sept actuelles. C'est une migration, pas un ajout d'écran. À faire après le bloc 2.
+**Implémenté localement le 22 octobre 2026, non publié.** Rapport : [QA_BIBLIOTHEQUES_PERSONNALISEES.md](QA_BIBLIOTHEQUES_PERSONNALISEES.md).
+
+- Décision d’Aurélien : uniquement des modèles prêts, ajoutés par un « + » sous les bibliothèques de la barre latérale, dans une fenêtre de choix. Huit modèles validés : Comics (bandes dessinées comprises), Magazines, Livres audio, Musique (albums), Podcasts, Documentaires et reportages, Spectacles (théâtre compris), Jeux de société.
+- Comics devient une bibliothèque personnalisée ; Livres n’a plus de catégorie Comics. La migration 0021 déplace d’éventuels anciens comics de `books` vers `comics`, citations comprises.
+- Une table par modèle (migration 0021), créée d’avance et vide tant que la bibliothèque n’est pas ajoutée ; `profile_libraries` garde la liste et l’ordre par profil. Un modèle définit libellé, icône, statuts proposés, progression, champs propres et filtre principal (`src/domain/customLibraries.ts`).
+- Supprimer une bibliothèque supprime ses fiches sans copie, après confirmation qui annonce leur nombre.
+- Le JSON de sauvegarde passe en version 4 (`customLibraries`) ; restauration, changement d’ordinateur et premier lancement les reprennent. Les versions 1 à 3 restent lisibles.
+- Hors de ce premier lot : vues enregistrées, accueil, import/export par bibliothèque et recherche de métadonnées pour les bibliothèques personnalisées.
 
 ## Bloc 5 — Solidité et finitions
 
+- **Portabilité intégrale de l’expérience — objectif futur confirmé** : permettre de récupérer dans un JSON documenté toutes les informations personnelles conservées par Sylloge, au-delà des seules fiches : organisation du profil, vues enregistrées, préférences pertinentes, bibliothèques et champs personnalisés, liens et historique réellement stocké. Établir un inventaire explicite des inclusions/exclusions ; ne jamais inventer des événements qui n’ont pas été enregistrés. Exclure les secrets et données techniques non nécessaires à la portabilité.
+- **Liberté de quitter Sylloge** : garder ce JSON lisible et exploitable sans l’application, avec schéma/version documentés et compatibilité de lecture des anciennes sauvegardes. Prévoir ultérieurement des conversions vers les formats acceptés par d’autres services, avec aperçu des champs perdus ou transformés. Un JSON Sylloge ne devient pas automatiquement importable chez un tiers ; ces conversions ne sont pas encore implémentées.
 - **Performance** : virtualiser les grilles au-delà de quelques centaines de fiches, mesurer avec une bibliothèque de 5 000 entrées.
 - **Accessibilité** : navigation clavier complète, contrastes vérifiés sur les deux thèmes, libellés de commande lisibles.
 - **Diagnostic** : un export de diagnostic (version, système, dernières erreurs) sans aucune donnée de bibliothèque, pour aider un utilisateur à distance.

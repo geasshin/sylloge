@@ -13,6 +13,8 @@ import { localToday } from '../domain/filmForm.ts'
 import {
   createLibraryDocument,
   serializeLibraryDocument,
+  SYLLOGE_LIBRARY_SECTIONS,
+  type ExportableLibrary,
 } from '../domain/libraryDocument.ts'
 import { libraryRepository } from './libraryRepository.ts'
 
@@ -41,14 +43,7 @@ const nativeBridge: BackupNativeBridge = {
   saveAutomaticBackupSnapshot,
 }
 
-type LibraryLoader = (profileId: string) => Promise<{
-  profile: FilmLibrary['profile']
-  films: FilmLibrary['films']
-  series: import('../domain/series.ts').Series[]
-  books: import('../domain/book.ts').Book[]
-  games: import('../domain/game.ts').Game[]
-  artworks: import('../domain/artwork.ts').Artwork[]
-}>
+type LibraryLoader = (profileId: string) => Promise<ExportableLibrary>
 
 export class BackupService {
   private readonly native: BackupNativeBridge
@@ -78,32 +73,35 @@ export class BackupService {
   }
 
   async saveManualSnapshot(library: FilmLibrary): Promise<BackupNotice> {
-    const now = this.now()
-    const { contents, worksCount } = await this.createSnapshot(library, now)
+    let worksCount: number | null = null
 
     try {
-      const result = await this.native.saveManualBackupSnapshot(library.profile.id, contents)
+      const snapshot = await this.createSnapshot(library, this.now())
+      worksCount = snapshot.worksCount
+      const result = await this.native.saveManualBackupSnapshot(library.profile.id, snapshot.contents)
       return {
         kind: 'success',
-        message: `Snapshot JSON enregistré : ${result.fileName}. ${result.retainedSnapshotCount} snapshot${result.retainedSnapshotCount === 1 ? '' : 's'} conservé${result.retainedSnapshotCount === 1 ? '' : 's'} pour ce profil.`,
+        message: `Sauvegarde JSON enregistrée : ${result.fileName}. ${result.retainedSnapshotCount} copie${result.retainedSnapshotCount === 1 ? '' : 's'} conservée${result.retainedSnapshotCount === 1 ? '' : 's'} pour ce profil.`,
       }
     } catch (error) {
       console.error('Impossible de créer le snapshot JSON manuel.', error)
       return {
         kind: 'error',
-        message: `La sauvegarde JSON manuelle a échoué. Les ${worksCount === 1 ? 'donnée déjà enregistrée reste' : 'données déjà enregistrées restent'} dans SQLite.`,
+        message: `La sauvegarde JSON manuelle a échoué. ${worksCount === 1 ? 'La donnée déjà enregistrée reste' : 'Les données déjà enregistrées restent'} dans SQLite.`,
       }
     }
   }
 
   async tryAutomaticSnapshot(library: FilmLibrary): Promise<BackupNotice | null> {
-    const now = this.now()
-    const { contents, worksCount } = await this.createSnapshot(library, now)
+    let worksCount: number | null = null
 
     try {
+      const now = this.now()
+      const snapshot = await this.createSnapshot(library, now)
+      worksCount = snapshot.worksCount
       const result = await this.native.saveAutomaticBackupSnapshot(
         library.profile.id,
-        contents,
+        snapshot.contents,
         localToday(now),
       )
       if (result.outcome === 'saved') {
@@ -117,26 +115,23 @@ export class BackupService {
       console.error('Impossible de créer le snapshot JSON automatique.', error)
       return {
         kind: 'error',
-        message: `La sauvegarde automatique JSON a échoué. Les ${worksCount === 1 ? 'donnée déjà enregistrée reste' : 'données déjà enregistrées restent'} dans SQLite.`,
+        message: `La sauvegarde automatique JSON a échoué. ${worksCount === 1 ? 'La donnée déjà enregistrée reste' : 'Les données déjà enregistrées restent'} dans SQLite.`,
       }
     }
   }
 
   /**
-   * Snapshot au format sylloge-library v2 : les cinq collections du profil,
-   * pour une restauration fidèle (jalon 0.4.4).
+   * Snapshot au format sylloge-library v4 : les sept bibliothèques du profil
+   * et ses bibliothèques personnalisées. Le chargeur historique à cinq listes
+   * reste accepté par le sérialiseur.
    */
   private async createSnapshot(library: FilmLibrary, now: Date): Promise<{ contents: string; worksCount: number }> {
     const full = await this.loadLibrary(library.profile.id)
     const document = createLibraryDocument(full, now.toISOString())
     return {
       contents: serializeLibraryDocument(document),
-      worksCount:
-        document.films.length
-        + document.series.length
-        + document.books.length
-        + document.games.length
-        + document.artworks.length,
+      worksCount: SYLLOGE_LIBRARY_SECTIONS.reduce((total, section) => total + document[section].length, 0)
+        + document.customLibraries.reduce((total, custom) => total + custom.entries.length, 0),
     }
   }
 }

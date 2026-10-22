@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { QuotesSection } from './Quotes.tsx'
 import {
   BOOK_CATEGORY_LABELS,
   BOOK_STATUS_LABELS,
@@ -144,26 +145,13 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
             </div>
           )}
 
-          <section className="mine-block">
-            {book.personalNote && (
+          {book.personalNote && (
+            <section className="mine-block">
               <blockquote className="review-personal">{book.personalNote}</blockquote>
-            )}
-            {book.quotes.length > 0 && (
-              <details className="quotes-section">
-                <summary>
-                  {book.quotes.length} {book.quotes.length === 1 ? 'citation personnelle' : 'citations personnelles'}
-                </summary>
-                <ol className="quotes-list">
-                  {book.quotes.map((quote) => (
-                    <li key={quote.id}>
-                      <blockquote>{quote.body}</blockquote>
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            )}
-            <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier</button>
-          </section>
+              <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier l’avis</button>
+            </section>
+          )}
+          <QuotesSection quotes={book.quotes} onEdit={onEdit} />
         </div>
       </article>
 

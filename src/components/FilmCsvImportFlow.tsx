@@ -86,7 +86,7 @@ export function FilmCsvImportFlow({
   return (
     <div className="assistant-content">
       <ol className="assistant-steps" aria-label="Étapes de l’import CSV ou ZIP">
-        {['Source', 'Mapping', 'Aperçu'].map((label, index) => {
+        {['Source', 'Colonnes', 'Aperçu'].map((label, index) => {
           const current = step === 'source' ? 1 : step === 'mapping' ? 2 : 3
           return <li className={index + 1 === current ? 'active' : index + 1 < current ? 'complete' : ''} key={label}>{label}</li>
         })}
@@ -125,7 +125,7 @@ export function FilmCsvImportFlow({
           </p>
           <div className="assistant-actions">
             <button className="primary-button" type="button" disabled={prepared === null} onClick={() => setStep(nextStep)}>
-              {prepared?.session.kind === 'generic' ? 'Régler le mapping' : 'Voir l’aperçu'}
+              {prepared?.session.kind === 'generic' ? 'Vérifier les colonnes' : 'Voir l’aperçu'}
             </button>
           </div>
         </section>
@@ -133,7 +133,6 @@ export function FilmCsvImportFlow({
 
       {step === 'mapping' && prepared?.session.kind === 'generic' && prepared.configuration !== null && (
         <section className="assistant-stage">
-          <p className="card-kicker">Mapping</p>
           <h3>Choisir où importer chaque colonne</h3>
           <p className="films-import-details">Seules vos données de suivi sont importées. Les métadonnées du film restent exclues et pourront être complétées plus tard.</p>
           <SourceToDestinationMapping
@@ -300,7 +299,7 @@ function FilmCsvImportPreviewPanel({
       )}
       {!valid ? (
         <div className="validation-errors" role="alert">
-          <p>Aucune donnée n’a été écrite. Corrigez le mapping ou le fichier avant de réessayer.</p>
+          <p>Aucune donnée n’a été écrite. Corriger les correspondances ou le fichier avant de réessayer.</p>
           {films.length === 0 && preview.errors.length === 0 && <p>Ce fichier ne contient aucun film importable.</p>}
           {preview.errors.length > 0 && (
             <ol>{preview.errors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {error.message}</li>)}</ol>
@@ -313,7 +312,7 @@ function FilmCsvImportPreviewPanel({
       )}
       <div className="assistant-actions">
         <button className="secondary-button" type="button" onClick={onBack}>Modifier</button>
-        <button className="primary-button" type="button" disabled={!valid} onClick={onContinue}>Continuer vers Remplacer ou Fusionner</button>
+        <button className="primary-button" type="button" disabled={!valid} onClick={onContinue}>Continuer</button>
       </div>
     </section>
   )

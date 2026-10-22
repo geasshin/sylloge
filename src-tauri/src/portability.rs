@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::{HashSet, VecDeque},
     fs::{self, OpenOptions},
     io::{Cursor, Read, Write},
     path::{Path, PathBuf},
@@ -10,11 +11,24 @@ use tauri::{async_runtime::Mutex, AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_sql::{DbInstances, DbPool};
 
+use crate::books::{is_comics_category, COMICS_HAVE_THEIR_OWN_LIBRARY};
 use crate::database::DATABASE_URL;
 
-const SNAPSHOT_RETENTION_COUNT: usize = 30;
-const SNAPSHOT_PREFIX: &str = "sylloge-films-v1-";
+const RECENT_BACKUP_COPIES: usize = 3;
+const WEEKLY_BACKUP_ARCHIVES: usize = 4;
+const MONTHLY_BACKUP_ARCHIVES: usize = 6;
+const SNAPSHOT_PREFIX: &str = "sylloge-sauvegarde-";
+// Copies écrites avant les noms explicites : toujours reconnues et nettoyées.
+const LEGACY_SNAPSHOT_PREFIX: &str = "sylloge-films-v1-";
+const SNAPSHOT_NANOS_PER_MINUTE: u128 = 60_000_000_000;
+const SNAPSHOT_COUNTER_MODULUS: u128 = 1_000_000_000;
 const MAX_IMPORT_FILE_BYTES: u64 = 16 * 1024 * 1024;
+// Toute copie écrite par Sylloge doit rester relisible et restaurable : cette
+// borne sert à la fois à l’admission à l’écriture et à la lecture des copies
+// enregistrées. Elle est plus large que l’import de fichiers tiers, pour qu’un
+// profil volumineux garde des copies utilisables au lieu d’en produire
+// d’illisibles qui évinceraient les bonnes.
+const MAX_SNAPSHOT_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ZIP_CONTAINER_ENTRIES: usize = 512;
 const MAX_ZIP_PATH_COMPONENTS: usize = 8;
 const MAX_ZIP_NESTING_DEPTH: usize = 4;
@@ -88,7 +102,54 @@ pub struct BackupSnapshotResult {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct RegisteredBackupSnapshot {
     file_name: String,
+    created_at: String,
 }
+
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupSnapshotEntry {
+    file_name: String,
+    created_at: String,
+    available: bool,
+}
+
+/// Copie Sylloge trouvée sur le Mac : `location` est un libellé lisible
+/// (« iCloud Drive › Sylloge »), `modified_at` en millisecondes Unix.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FoundBackup {
+    file_name: String,
+    location: String,
+    modified_at: i64,
+    contents: String,
+}
+
+#[derive(Serialize, Clone, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FoundBackups {
+    candidates: Vec<FoundBackup>,
+    unreadable_locations: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct BackupSearchLimits {
+    /// Dossiers imbriqués sous une racine : 0 pour un fichier posé à la racine.
+    max_depth: usize,
+    /// Dossiers lus au total, racines comprises.
+    max_directories: usize,
+    /// Fichiers les plus récents réellement lus.
+    max_candidates: usize,
+    max_file_bytes: u64,
+    max_total_bytes: u64,
+}
+
+const BACKUP_SEARCH_LIMITS: BackupSearchLimits = BackupSearchLimits {
+    max_depth: 3,
+    max_directories: 3_000,
+    max_candidates: 12,
+    max_file_bytes: MAX_IMPORT_FILE_BYTES,
+    max_total_bytes: 64 * 1024 * 1024,
+};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -121,6 +182,60 @@ pub struct ImportLibraryDocumentPayload {
     mangas: Vec<ImportManga>,
     games: Vec<ImportGame>,
     artworks: Vec<ImportArtwork>,
+    /// Bibliothèques personnalisées (modèles prêts) ajoutées au profil, avec
+    /// leurs fiches. Absente d’un document antérieur : aucune n’est créée.
+    #[serde(default)]
+    custom_libraries: Vec<ImportCustomLibrary>,
+}
+
+/// Bibliothèque personnalisée d’un document : `libraryId` doit être l’un des
+/// huit modèles prêts ; `position` et `addedAt` alimentent `profile_libraries`.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportCustomLibrary {
+    library_id: String,
+    position: i64,
+    added_at: String,
+    entries: Vec<ImportCustomEntry>,
+}
+
+/// Fiche d’une bibliothèque personnalisée : mêmes colonnes pour les huit
+/// tables. `details` est un objet JSON dont chaque valeur est un texte.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportCustomEntry {
+    id: String,
+    profile_id: String,
+    title: String,
+    creator: Option<String>,
+    year: Option<i64>,
+    status: String,
+    rating: Option<f64>,
+    is_favorite: bool,
+    progress_current: Option<i64>,
+    progress_total: Option<i64>,
+    progress_updated_at: Option<String>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+    cover_url: Option<String>,
+    summary: Option<String>,
+    personal_note: Option<String>,
+    details: serde_json::Map<String, serde_json::Value>,
+    created_at: String,
+    updated_at: String,
+    /// Citations : acceptées pour Comics seulement.
+    #[serde(default)]
+    quotes: Vec<ImportCustomQuote>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImportCustomQuote {
+    id: String,
+    entry_id: String,
+    body: String,
+    position: i64,
+    created_at: String,
 }
 
 #[derive(Deserialize)]
@@ -301,8 +416,16 @@ pub struct ImportArtwork {
     discovered_at: Option<String>,
     image_url: Option<String>,
     personal_note: Option<String>,
+    #[serde(default)]
+    custom_fields: Vec<ImportArtworkCustomField>,
     created_at: String,
     updated_at: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ImportArtworkCustomField {
+    name: String,
+    value: String,
 }
 
 #[derive(Serialize)]
@@ -323,6 +446,10 @@ pub struct ImportLibraryDocumentResult {
     manga_count: usize,
     game_count: usize,
     artwork_count: usize,
+    /// Bibliothèques personnalisées présentes dans le document.
+    custom_library_count: usize,
+    /// Fiches de ces bibliothèques, toutes confondues.
+    custom_entry_count: usize,
 }
 
 #[derive(Serialize)]
@@ -434,8 +561,7 @@ pub async fn pick_import_json(app: AppHandle) -> Result<Option<PickedJsonFile>, 
     let path = file_path
         .into_path()
         .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
-    let contents = fs::read_to_string(&path)
-        .map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))?;
+    let contents = read_utf8_file_with_limit(&path, MAX_SNAPSHOT_FILE_BYTES)?;
     let name = path
         .file_name()
         .and_then(|value| value.to_str())
@@ -491,7 +617,16 @@ pub async fn pick_import_films_csv_or_notion(
 }
 
 fn read_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, String> {
-    let metadata = fs::metadata(path)
+    if !fs::metadata(path)
+        .map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))?
+        .is_file()
+    {
+        return Err("Le chemin choisi n’est pas un fichier.".to_string());
+    }
+    let file = fs::File::open(path)
+        .map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))?;
+    let metadata = file
+        .metadata()
         .map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))?;
     if !metadata.is_file() {
         return Err("Le chemin choisi n’est pas un fichier.".to_string());
@@ -502,7 +637,22 @@ fn read_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, Stri
             maximum_bytes / (1024 * 1024)
         ));
     }
-    fs::read(path).map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))
+    read_import_bytes(file, maximum_bytes)
+}
+
+fn read_import_bytes(reader: impl Read, maximum_bytes: u64) -> Result<Vec<u8>, String> {
+    let mut contents = Vec::new();
+    reader
+        .take(maximum_bytes.saturating_add(1))
+        .read_to_end(&mut contents)
+        .map_err(|error| format!("Impossible de lire le fichier choisi : {error}"))?;
+    if contents.len() as u64 > maximum_bytes {
+        return Err(format!(
+            "Le fichier choisi dépasse la limite sûre de {} Mio.",
+            maximum_bytes / (1024 * 1024)
+        ));
+    }
+    Ok(contents)
 }
 
 fn read_utf8_file_with_limit(path: &Path, maximum_bytes: u64) -> Result<String, String> {
@@ -824,9 +974,7 @@ impl ContainerExtraction {
                     "Un fichier du dossier choisi dépasse la limite sûre de 16 Mio.".to_string(),
                 );
             }
-            let bytes = fs::read(&path).map_err(|error| {
-                format!("Impossible de lire un fichier du dossier choisi : {error}")
-            })?;
+            let bytes = read_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?;
             self.count_decompressed_bytes(bytes.len(), "Le dossier choisi")?;
             let contents = String::from_utf8(bytes)
                 .map_err(|_| format!("Le fichier « {display_name} » doit être encodé en UTF-8."))?;
@@ -1035,8 +1183,39 @@ fn safe_export_file_name(suggested_name: &str, fallback_name: &str) -> String {
 }
 
 fn write_export_file(path: &Path, contents: &str, fallback_name: &str) -> Result<String, String> {
-    fs::write(path, contents)
-        .map_err(|error| format!("Impossible d’écrire l’export choisi : {error}"))?;
+    // Écrire à côté puis renommer : un échec ne doit pas tronquer un export
+    // existant, ni modifier une autre cible via un lien symbolique ou physique.
+    let directory = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let nonce = SNAPSHOT_NONCE.fetch_add(1, Ordering::Relaxed);
+    let temporary = directory.join(format!(
+        ".sylloge-export-{}-{nonce}.tmp",
+        std::process::id()
+    ));
+    let mut created = false;
+    let result = (|| -> Result<(), std::io::Error> {
+        let mut options = OpenOptions::new();
+        options.create_new(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&temporary)?;
+        created = true;
+        file.write_all(contents.as_bytes())?;
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&temporary, path)
+    })();
+    if let Err(error) = result {
+        if created {
+            let _ = fs::remove_file(&temporary);
+        }
+        return Err(format!("Impossible d’écrire l’export choisi : {error}"));
+    }
     Ok(path
         .file_name()
         .and_then(|value| value.to_str())
@@ -1052,6 +1231,66 @@ pub async fn get_backup_settings(
     let pool = sqlite_pool(&db_instances).await?;
     ensure_profile_exists(&pool, &profile_id).await?;
     read_backup_settings(&pool, &profile_id).await
+}
+
+#[tauri::command]
+pub async fn pick_backup_destination(app: AppHandle) -> Result<Option<BackupSettings>, String> {
+    let selected_path = app
+        .dialog()
+        .file()
+        .set_title("Choisir le dossier des futures sauvegardes Sylloge")
+        .blocking_pick_folder()
+        .map(|folder_path| {
+            folder_path
+                .into_path()
+                .map_err(|error| format!("Chemin de dossier illisible : {error}"))
+        })
+        .transpose()?;
+
+    inspect_backup_destination(selected_path.as_deref())
+}
+
+// Une présélection vérifiée, sans accès à SQLite ni création de profil.
+fn inspect_backup_destination(
+    selected_path: Option<&Path>,
+) -> Result<Option<BackupSettings>, String> {
+    let Some(selected_path) = selected_path else {
+        return Ok(None);
+    };
+    let directory = validate_backup_directory_writable(selected_path)?;
+    Ok(Some(BackupSettings {
+        backup_directory: directory.to_string_lossy().into_owned(),
+        last_automatic_snapshot_day: None,
+        directory_available: true,
+    }))
+}
+
+#[tauri::command]
+pub async fn configure_backup_destination(
+    db_instances: State<'_, DbInstances>,
+    backup_snapshot_lock: State<'_, BackupSnapshotLock>,
+    profile_id: String,
+    backup_directory: String,
+) -> Result<BackupSettings, String> {
+    configure_backup_destination_with_state(
+        &db_instances,
+        &backup_snapshot_lock,
+        &profile_id,
+        &backup_directory,
+    )
+    .await
+}
+
+async fn configure_backup_destination_with_state(
+    db_instances: &DbInstances,
+    backup_snapshot_lock: &BackupSnapshotLock,
+    profile_id: &str,
+    backup_directory: &str,
+) -> Result<BackupSettings, String> {
+    let _lock = backup_snapshot_lock.0.lock().await;
+    let pool = sqlite_pool(db_instances).await?;
+    // La destination peut avoir changé depuis sa présélection : sonder à nouveau.
+    configure_backup_directory(&pool, profile_id, Path::new(backup_directory)).await
 }
 
 #[tauri::command]
@@ -1134,6 +1373,331 @@ pub async fn save_automatic_backup_snapshot(
             file_name: None,
         },
     })
+}
+
+/// Copies enregistrées du profil, de la plus récente à la plus ancienne.
+/// `available` : fichier ordinaire (jamais un lien) présent dans le dossier
+/// configuré. Ne modifie ni le registre ni les fichiers.
+#[tauri::command]
+pub async fn list_backup_snapshots(
+    db_instances: State<'_, DbInstances>,
+    backup_snapshot_lock: State<'_, BackupSnapshotLock>,
+    profile_id: String,
+) -> Result<Vec<BackupSnapshotEntry>, String> {
+    let _lock = backup_snapshot_lock.0.lock().await;
+    let pool = sqlite_pool(&db_instances).await?;
+    list_registered_backup_snapshots(&pool, &profile_id).await
+}
+
+/// Contenu d’une copie enregistrée et possédée par le profil, lue sans
+/// écriture dans le dossier configuré.
+#[tauri::command]
+pub async fn read_backup_snapshot(
+    db_instances: State<'_, DbInstances>,
+    backup_snapshot_lock: State<'_, BackupSnapshotLock>,
+    profile_id: String,
+    file_name: String,
+) -> Result<String, String> {
+    let _lock = backup_snapshot_lock.0.lock().await;
+    let pool = sqlite_pool(&db_instances).await?;
+    read_registered_backup_snapshot(&pool, &profile_id, &file_name).await
+}
+
+async fn list_registered_backup_snapshots(
+    pool: &sqlx::SqlitePool,
+    profile_id: &str,
+) -> Result<Vec<BackupSnapshotEntry>, String> {
+    ensure_profile_exists(pool, profile_id).await?;
+    let Some(settings) = read_backup_settings(pool, profile_id).await? else {
+        return Ok(Vec::new());
+    };
+    let directory = validate_backup_directory(Path::new(&settings.backup_directory)).ok();
+
+    Ok(registered_backup_snapshots(pool, profile_id)
+        .await?
+        .into_iter()
+        .map(|snapshot| BackupSnapshotEntry {
+            available: directory
+                .as_deref()
+                .and_then(|directory| {
+                    registered_snapshot_path(directory, profile_id, &snapshot.file_name)
+                })
+                .is_some_and(|path| regular_file_metadata(&path).is_ok()),
+            file_name: snapshot.file_name,
+            created_at: snapshot.created_at,
+        })
+        .collect())
+}
+
+async fn read_registered_backup_snapshot(
+    pool: &sqlx::SqlitePool,
+    profile_id: &str,
+    file_name: &str,
+) -> Result<String, String> {
+    ensure_profile_exists(pool, profile_id).await?;
+    let settings = read_backup_settings(pool, profile_id)
+        .await?
+        .ok_or_else(|| "Aucun dossier de sauvegarde n’est configuré pour ce profil.".to_string())?;
+    let registered: i64 = sqlx::query_scalar(
+        "SELECT EXISTS(
+           SELECT 1 FROM backup_snapshots WHERE profile_id = $1 AND file_name = $2
+         )",
+    )
+    .bind(profile_id)
+    .bind(file_name)
+    .fetch_one(pool)
+    .await
+    .map_err(|error| format!("Impossible de lire le registre des snapshots : {error}"))?;
+    if registered != 1 {
+        return Err("Cette copie n’est pas enregistrée pour ce profil.".to_string());
+    }
+    let directory = validate_backup_directory(Path::new(&settings.backup_directory))?;
+    let path = registered_snapshot_path(&directory, profile_id, file_name)
+        .ok_or_else(|| "Le nom de cette copie ne correspond pas à ce profil.".to_string())?;
+
+    read_regular_utf8_file(&path, MAX_SNAPSHOT_FILE_BYTES)
+        .map_err(|error| format!("La copie « {file_name} » ne peut pas être lue : {error}"))
+}
+
+/// Lecture bornée d’un fichier ordinaire, sans suivre de lien symbolique : le
+/// chemin est contrôlé avant et après la lecture et doit rester le même fichier.
+fn read_regular_utf8_file(path: &Path, maximum_bytes: u64) -> Result<String, String> {
+    let before = regular_file_metadata(path)?;
+    let contents = read_utf8_file_with_limit(path, maximum_bytes)?;
+    let after = regular_file_metadata(path)?;
+    if !is_same_file(&before, &after) {
+        return Err("le fichier a été remplacé pendant sa lecture.".to_string());
+    }
+    Ok(contents)
+}
+
+fn regular_file_metadata(path: &Path) -> Result<fs::Metadata, String> {
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            "le fichier est introuvable.".to_string()
+        } else {
+            format!("le fichier est illisible : {error}")
+        }
+    })?;
+    if metadata.file_type().is_symlink() {
+        return Err("le chemin est un lien symbolique, qui n’est jamais suivi.".to_string());
+    }
+    if !metadata.is_file() {
+        return Err("le chemin ne désigne pas un fichier ordinaire.".to_string());
+    }
+    Ok(metadata)
+}
+
+#[cfg(unix)]
+fn is_same_file(before: &fs::Metadata, after: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    before.dev() == after.dev() && before.ino() == after.ino()
+}
+
+#[cfg(not(unix))]
+fn is_same_file(_before: &fs::Metadata, _after: &fs::Metadata) -> bool {
+    true
+}
+
+/// Recherche bornée de copies Sylloge dans les dossiers usuels du Mac, sans
+/// profil, sans écriture et sans suivre de lien.
+#[tauri::command]
+pub async fn find_backup_candidates() -> Result<FoundBackups, String> {
+    let home = std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .map(PathBuf::from)
+        .ok_or_else(|| {
+            "Le dossier personnel est introuvable : aucune recherche n’a été lancée.".to_string()
+        })?;
+    tauri::async_runtime::spawn_blocking(move || find_backup_candidates_in(&home))
+        .await
+        .map_err(|error| format!("La recherche de sauvegardes a été interrompue : {error}"))
+}
+
+fn find_backup_candidates_in(home: &Path) -> FoundBackups {
+    find_backup_candidates_with_limits(home, &BACKUP_SEARCH_LIMITS)
+}
+
+struct BackupSearchFile {
+    path: PathBuf,
+    file_name: String,
+    location: String,
+    modified_at: i64,
+    size: u64,
+}
+
+fn find_backup_candidates_with_limits(home: &Path, limits: &BackupSearchLimits) -> FoundBackups {
+    let mut unreadable_locations = Vec::new();
+    let mut pending = backup_search_roots(home, &mut unreadable_locations)
+        .into_iter()
+        .map(|(location, path)| (path, location, 0))
+        .collect::<VecDeque<_>>();
+    let mut visited_directories = 0;
+    let mut files = Vec::new();
+
+    // En largeur, toutes racines confondues : le plafond de dossiers coupe les
+    // niveaux profonds avant de priver une racine de sa visite.
+    while let Some((directory, location, depth)) = pending.pop_front() {
+        if visited_directories == limits.max_directories {
+            break;
+        }
+        visited_directories += 1;
+        let entries = match fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) => {
+                // Seule une racine illisible est signalée ; un sous-dossier
+                // illisible est simplement sauté.
+                if depth == 0 && error.kind() != std::io::ErrorKind::NotFound {
+                    push_unique(&mut unreadable_locations, location);
+                }
+                continue;
+            }
+        };
+        let mut entries = entries.filter_map(Result::ok).collect::<Vec<_>>();
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let Ok(name) = entry.file_name().into_string() else {
+                continue;
+            };
+            // Le type d’une entrée ne suit pas les liens symboliques.
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if name.starts_with('.') || file_type.is_symlink() {
+                continue;
+            }
+            if file_type.is_dir() {
+                // Un point dans le nom écarte aussi les paquets (.app, .photoslibrary…).
+                if depth < limits.max_depth && !name.contains('.') {
+                    pending.push_back((entry.path(), format!("{location} › {name}"), depth + 1));
+                }
+                continue;
+            }
+            if !file_type.is_file() || !is_backup_candidate_name(&name) {
+                continue;
+            }
+            let Ok(metadata) = entry.metadata() else {
+                continue;
+            };
+            if !metadata.is_file() || metadata.len() > limits.max_file_bytes {
+                continue;
+            }
+            files.push(BackupSearchFile {
+                path: entry.path(),
+                modified_at: metadata.modified().map(epoch_milliseconds).unwrap_or(0),
+                size: metadata.len(),
+                file_name: name,
+                location: location.clone(),
+            });
+        }
+    }
+
+    files.sort_by(|left, right| {
+        right
+            .modified_at
+            .cmp(&left.modified_at)
+            .then_with(|| left.location.cmp(&right.location))
+            .then_with(|| left.file_name.cmp(&right.file_name))
+    });
+    let mut total_bytes = 0_u64;
+    let mut candidates = Vec::new();
+    for file in files.into_iter().take(limits.max_candidates) {
+        if total_bytes.saturating_add(file.size) > limits.max_total_bytes {
+            continue;
+        }
+        // Illisible, non UTF-8 ou remplacé entre-temps : la copie est sautée.
+        let Ok(contents) = read_regular_utf8_file(&file.path, limits.max_file_bytes) else {
+            continue;
+        };
+        let length = contents.len() as u64;
+        if total_bytes.saturating_add(length) > limits.max_total_bytes {
+            continue;
+        }
+        total_bytes += length;
+        candidates.push(FoundBackup {
+            file_name: file.file_name,
+            location: file.location,
+            modified_at: file.modified_at,
+            contents,
+        });
+    }
+
+    FoundBackups {
+        candidates,
+        unreadable_locations,
+    }
+}
+
+/// Racines de recherche et leur libellé. Une racine absente, qui n’est pas un
+/// dossier ou qui est un lien symbolique est ignorée sans message.
+fn backup_search_roots(
+    home: &Path,
+    unreadable_locations: &mut Vec<String>,
+) -> Vec<(String, PathBuf)> {
+    let mut roots = vec![(
+        "iCloud Drive".to_string(),
+        home.join("Library/Mobile Documents/com~apple~CloudDocs"),
+    )];
+    let cloud_storage = home.join("Library/CloudStorage");
+    if is_real_directory(&cloud_storage) {
+        match fs::read_dir(&cloud_storage) {
+            Ok(entries) => {
+                let mut providers = entries
+                    .filter_map(Result::ok)
+                    .filter_map(|entry| entry.file_name().into_string().ok())
+                    .filter(|name| !name.starts_with('.'))
+                    .collect::<Vec<_>>();
+                providers.sort();
+                roots.extend(
+                    providers
+                        .into_iter()
+                        .map(|name| (cloud_storage_label(&name), cloud_storage.join(name))),
+                );
+            }
+            Err(_) => push_unique(unreadable_locations, "Stockage en ligne".to_string()),
+        }
+    }
+    roots.push(("Documents".to_string(), home.join("Documents")));
+    roots.push(("Bureau".to_string(), home.join("Desktop")));
+    roots.push(("Téléchargements".to_string(), home.join("Downloads")));
+    roots.retain(|(_, path)| is_real_directory(path));
+    roots
+}
+
+fn cloud_storage_label(folder_name: &str) -> String {
+    if folder_name.starts_with("GoogleDrive-") {
+        "Google Drive".to_string()
+    } else if folder_name.starts_with("Dropbox") {
+        "Dropbox".to_string()
+    } else if folder_name.starts_with("OneDrive") {
+        "OneDrive".to_string()
+    } else {
+        folder_name.to_string()
+    }
+}
+
+fn is_real_directory(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.is_dir())
+}
+
+fn is_backup_candidate_name(file_name: &str) -> bool {
+    let lower = file_name.to_ascii_lowercase();
+    lower.starts_with("sylloge-") && lower.ends_with(".json")
+}
+
+fn push_unique(values: &mut Vec<String>, value: String) {
+    if !values.contains(&value) {
+        values.push(value);
+    }
+}
+
+fn epoch_milliseconds(time: SystemTime) -> i64 {
+    match time.duration_since(UNIX_EPOCH) {
+        Ok(elapsed) => i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX),
+        Err(error) => {
+            i64::try_from(error.duration().as_millis()).map_or(i64::MIN, |millis| -millis)
+        }
+    }
 }
 
 #[tauri::command]
@@ -1390,6 +1954,14 @@ async fn write_snapshot_for_settings(
     if contents.trim().is_empty() {
         return Err("Le document JSON de sauvegarde est vide.".to_string());
     }
+    // Admission avant écriture, enregistrement et conservation : une copie
+    // qu’on ne saurait pas relire ne doit jamais remplacer une copie lisible.
+    if contents.len() as u64 > MAX_SNAPSHOT_FILE_BYTES {
+        return Err(format!(
+            "Le document de sauvegarde dépasse la limite sûre de {} Mio : aucune copie n’a été écrite, les copies existantes sont intactes.",
+            MAX_SNAPSHOT_FILE_BYTES / (1024 * 1024)
+        ));
+    }
 
     let directory = validate_backup_directory(Path::new(&settings.backup_directory))?;
     let sequence = snapshot_sequence()?;
@@ -1411,7 +1983,7 @@ fn snapshot_sequence() -> Result<u128, String> {
         .map_err(|error| format!("Horloge système indisponible pour la sauvegarde : {error}"))
 }
 
-fn snapshot_prefix(profile_id: &str) -> String {
+fn snapshot_profile_token(profile_id: &str) -> String {
     let mut token = String::new();
     for byte in profile_id.as_bytes() {
         if byte.is_ascii_alphanumeric() || *byte == b'-' {
@@ -1421,15 +1993,34 @@ fn snapshot_prefix(profile_id: &str) -> String {
             write!(&mut token, "{byte:02x}").expect("écriture dans une chaîne");
         }
     }
-    format!("{SNAPSHOT_PREFIX}{token}-")
+    token
 }
 
+/// Nom explicite d’une nouvelle copie, à la minute UTC de l’écriture
+/// (`sequence` : nanosecondes depuis l’époque Unix) :
+/// `sylloge-sauvegarde-AAAA-MM-JJ-HHhMM-<profil>-<nonce>.json`. Le nonce de 20
+/// chiffres juxtapose les nanosecondes écoulées dans cette minute (11 chiffres)
+/// et un compteur du processus (9 chiffres) : deux écritures de la même minute,
+/// même après un relancement ou un recul d’horloge, gardent des noms distincts.
 fn snapshot_file_name(profile_id: &str, sequence: u128) -> String {
-    let nonce = SNAPSHOT_NONCE.fetch_add(1, Ordering::Relaxed);
+    let counter = SNAPSHOT_NONCE.fetch_add(1, Ordering::Relaxed);
+    let nonce = (sequence % SNAPSHOT_NANOS_PER_MINUTE) * SNAPSHOT_COUNTER_MODULUS
+        + u128::from(counter) % SNAPSHOT_COUNTER_MODULUS;
     format!(
-        "{}{:020}-{nonce:020}.json",
-        snapshot_prefix(profile_id),
-        sequence
+        "{SNAPSHOT_PREFIX}{}-{}-{nonce:020}.json",
+        snapshot_minute_stamp(sequence),
+        snapshot_profile_token(profile_id)
+    )
+}
+
+fn snapshot_minute_stamp(sequence: u128) -> String {
+    let seconds = i64::try_from(sequence / 1_000_000_000).unwrap_or(i64::MAX);
+    let (year, month, day) = civil_from_days(seconds.div_euclid(86_400));
+    let second_of_day = seconds.rem_euclid(86_400);
+    format!(
+        "{year:04}-{month:02}-{day:02}-{:02}h{:02}",
+        second_of_day / 3_600,
+        second_of_day % 3_600 / 60
     )
 }
 
@@ -1487,8 +2078,8 @@ async fn registered_backup_snapshots(
     pool: &sqlx::SqlitePool,
     profile_id: &str,
 ) -> Result<Vec<RegisteredBackupSnapshot>, String> {
-    let rows: Vec<(String,)> = sqlx::query_as(
-        "SELECT file_name
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT file_name, created_at
          FROM backup_snapshots
          WHERE profile_id = $1
          ORDER BY created_at DESC, file_name DESC",
@@ -1500,7 +2091,10 @@ async fn registered_backup_snapshots(
 
     Ok(rows
         .into_iter()
-        .map(|(file_name,)| RegisteredBackupSnapshot { file_name })
+        .map(|(file_name, created_at)| RegisteredBackupSnapshot {
+            file_name,
+            created_at,
+        })
         .collect())
 }
 
@@ -1551,7 +2145,16 @@ async fn apply_snapshot_retention(
     }
 
     let snapshots = registered_backup_snapshots(pool, profile_id).await?;
-    for snapshot in snapshots.iter().skip(SNAPSHOT_RETENTION_COUNT) {
+    let retained = retained_snapshot_names(
+        &snapshots
+            .iter()
+            .map(|snapshot| (snapshot.file_name.clone(), snapshot.created_at.clone()))
+            .collect::<Vec<_>>(),
+    );
+    for snapshot in snapshots
+        .iter()
+        .filter(|snapshot| !retained.contains(&snapshot.file_name))
+    {
         let Some(path) = registered_snapshot_path(directory, profile_id, &snapshot.file_name)
         else {
             remove_registered_backup_snapshot(pool, profile_id, &snapshot.file_name).await?;
@@ -1576,6 +2179,161 @@ async fn apply_snapshot_retention(
     Ok(registered_backup_snapshots(pool, profile_id).await?.len())
 }
 
+/// Conservation par paliers d’un profil : les trois copies les plus récentes,
+/// puis, de la plus récente à la plus ancienne, une copie par semaine (lundi →
+/// dimanche, date UTC) qu’aucune copie gardée ne représente encore, au plus
+/// quatre, puis de même une par mois civil, au plus six : 13 copies datées au
+/// maximum. Une date de création illisible garde toujours sa copie, hors
+/// paliers : on ne supprime jamais sur une date incomprise, et une telle copie
+/// n’évince aucune copie datée.
+fn retained_snapshot_names(snapshots: &[(String, String)]) -> HashSet<String> {
+    let mut selection = TierSelection::default();
+    let mut dated = Vec::new();
+    for (file_name, created_at) in snapshots {
+        match snapshot_creation_day(created_at) {
+            Some(day) => dated.push((file_name, created_at, day)),
+            None => {
+                selection.retained.insert(file_name.clone());
+            }
+        }
+    }
+    // Même ordre que le registre : created_at DESC, puis file_name DESC.
+    dated.sort_by(|left, right| right.1.cmp(left.1).then_with(|| right.0.cmp(left.0)));
+
+    let (recent, older) = dated.split_at(dated.len().min(RECENT_BACKUP_COPIES));
+    for (file_name, _, day) in recent {
+        selection.keep(file_name, *day);
+    }
+    let mut weekly_archives = 0;
+    let mut not_kept_weekly = Vec::new();
+    for entry in older {
+        let (file_name, _, day) = entry;
+        if weekly_archives < WEEKLY_BACKUP_ARCHIVES && !selection.weeks.contains(&day.week) {
+            selection.keep(file_name, *day);
+            weekly_archives += 1;
+        } else {
+            not_kept_weekly.push(entry);
+        }
+    }
+    let mut monthly_archives = 0;
+    for (file_name, _, day) in not_kept_weekly {
+        if monthly_archives == MONTHLY_BACKUP_ARCHIVES {
+            break;
+        }
+        if !selection.months.contains(&day.month) {
+            selection.keep(file_name, *day);
+            monthly_archives += 1;
+        }
+    }
+
+    selection.retained
+}
+
+#[derive(Default)]
+struct TierSelection {
+    retained: HashSet<String>,
+    weeks: HashSet<i64>,
+    months: HashSet<(i64, u32)>,
+}
+
+impl TierSelection {
+    fn keep(&mut self, file_name: &str, day: SnapshotDay) {
+        self.retained.insert(file_name.to_string());
+        self.weeks.insert(day.week);
+        self.months.insert(day.month);
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SnapshotDay {
+    /// Lundi de la semaine, en jours depuis le 1970-01-01.
+    week: i64,
+    month: (i64, u32),
+}
+
+/// Lit une date du registre au seul format qu’il écrit,
+/// `AAAA-MM-JJTHH:MM:SS.fffZ` (UTC). Toute autre forme, ou une date
+/// impossible, est illisible : `None`.
+fn snapshot_creation_day(created_at: &str) -> Option<SnapshotDay> {
+    let bytes = created_at.as_bytes();
+    let separators = [
+        (4, b'-'),
+        (7, b'-'),
+        (10, b'T'),
+        (13, b':'),
+        (16, b':'),
+        (19, b'.'),
+        (23, b'Z'),
+    ];
+    if !has_separators(bytes, 24, &separators) {
+        return None;
+    }
+    let field = |range: std::ops::Range<usize>| ascii_number(&bytes[range]);
+    let (year, month, day) = (field(0..4)?, field(5..7)?, field(8..10)?);
+    let (hour, minute, second) = (field(11..13)?, field(14..16)?, field(17..19)?);
+    field(20..23)?;
+    if hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    let day_number = civil_day_number(i64::from(year), month, day)?;
+    Some(SnapshotDay {
+        // Le 1970-01-01 est un jeudi : (jour + 3) mod 7 compte depuis lundi.
+        week: day_number - (day_number + 3).rem_euclid(7),
+        month: (i64::from(year), month),
+    })
+}
+
+/// Jours depuis le 1970-01-01 d’une date civile valide.
+fn civil_day_number(year: i64, month: u32, day: u32) -> Option<i64> {
+    if !(1..=12).contains(&month) || day == 0 || day > days_in_month(year, month) {
+        return None;
+    }
+    Some(days_from_civil(year, month, day))
+}
+
+fn days_in_month(year: i64, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        _ if year % 400 == 0 || (year % 4 == 0 && year % 100 != 0) => 29,
+        _ => 28,
+    }
+}
+
+/// Calendrier grégorien proleptique sans dépendance (algorithme
+/// `days_from_civil` de Howard Hinnant).
+fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
+    let year = if month <= 2 { year - 1 } else { year };
+    let era = year.div_euclid(400);
+    let year_of_era = year.rem_euclid(400);
+    let month = i64::from(month);
+    let shifted_month = if month > 2 { month - 3 } else { month + 9 };
+    let day_of_year = (153 * shifted_month + 2) / 5 + i64::from(day) - 1;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    era * 146_097 + day_of_era - 719_468
+}
+
+/// Inverse de `days_from_civil` : (année, mois, jour) d’un nombre de jours
+/// depuis le 1970-01-01.
+pub(crate) fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let days = days + 719_468;
+    let era = days.div_euclid(146_097);
+    let day_of_era = days.rem_euclid(146_097);
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted_month = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted_month + 2) / 5 + 1;
+    let month = if shifted_month < 10 {
+        shifted_month + 3
+    } else {
+        shifted_month - 9
+    };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    // Bornés par construction : mois 1..=12, jour 1..=31.
+    (year, month as u32, day as u32)
+}
+
 fn registered_snapshot_path(
     directory: &Path,
     profile_id: &str,
@@ -1583,23 +2341,77 @@ fn registered_snapshot_path(
 ) -> Option<PathBuf> {
     let path = Path::new(file_name);
     let is_single_file_name = path.file_name().and_then(|name| name.to_str()) == Some(file_name);
-    (is_single_file_name && is_owned_snapshot_name(file_name, &snapshot_prefix(profile_id)))
+    (is_single_file_name && is_owned_snapshot_name(file_name, profile_id))
         .then(|| directory.join(file_name))
 }
 
-fn is_owned_snapshot_name(file_name: &str, prefix: &str) -> bool {
-    let Some(sequence_and_nonce) = file_name
-        .strip_prefix(prefix)
-        .and_then(|name| name.strip_suffix(".json"))
-    else {
+/// Une copie appartient au profil seulement si son nom suit exactement l’un
+/// des deux formats que Sylloge écrit pour lui : l’actuel
+/// `sylloge-sauvegarde-AAAA-MM-JJ-HHhMM-<profil>-<20 chiffres>.json` ou
+/// l’historique `sylloge-films-v1-<profil>-<20 chiffres>-<20 chiffres>.json`.
+/// Les longueurs fixes empêchent un profil dont l’identifiant prolonge celui
+/// d’un autre de revendiquer ses copies.
+fn is_owned_snapshot_name(file_name: &str, profile_id: &str) -> bool {
+    let token = snapshot_profile_token(profile_id);
+    let Some(name) = file_name.strip_suffix(".json") else {
         return false;
     };
-    let bytes = sequence_and_nonce.as_bytes();
+    if let Some(rest) = name.strip_prefix(SNAPSHOT_PREFIX) {
+        let (Some(stamp), Some(rest)) = (rest.get(..16), rest.get(16..)) else {
+            return false;
+        };
+        return is_snapshot_minute_stamp(stamp.as_bytes())
+            && rest
+                .strip_prefix('-')
+                .and_then(|rest| rest.strip_prefix(token.as_str()))
+                .and_then(|rest| rest.strip_prefix('-'))
+                .is_some_and(|nonce| is_digit_run(nonce, 20));
+    }
+    name.strip_prefix(LEGACY_SNAPSHOT_PREFIX)
+        .and_then(|rest| rest.strip_prefix(token.as_str()))
+        .and_then(|rest| rest.strip_prefix('-'))
+        .and_then(|rest| rest.split_once('-'))
+        .is_some_and(|(sequence, nonce)| is_digit_run(sequence, 20) && is_digit_run(nonce, 20))
+}
 
-    bytes.len() == 41
-        && bytes[20] == b'-'
-        && bytes[..20].iter().all(|byte| byte.is_ascii_digit())
-        && bytes[21..].iter().all(|byte| byte.is_ascii_digit())
+fn is_digit_run(value: &str, length: usize) -> bool {
+    value.len() == length && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// `AAAA-MM-JJ-HHhMM` désignant une minute qui existe.
+fn is_snapshot_minute_stamp(stamp: &[u8]) -> bool {
+    if !has_separators(stamp, 16, &[(4, b'-'), (7, b'-'), (10, b'-'), (13, b'h')]) {
+        return false;
+    }
+    let field = |range: std::ops::Range<usize>| ascii_number(&stamp[range]);
+    match (
+        field(0..4),
+        field(5..7),
+        field(8..10),
+        field(11..13),
+        field(14..16),
+    ) {
+        (Some(year), Some(month), Some(day), Some(hour), Some(minute)) => {
+            hour <= 23 && minute <= 59 && civil_day_number(i64::from(year), month, day).is_some()
+        }
+        _ => false,
+    }
+}
+
+fn has_separators(bytes: &[u8], length: usize, separators: &[(usize, u8)]) -> bool {
+    bytes.len() == length
+        && separators
+            .iter()
+            .all(|(index, separator)| bytes[*index] == *separator)
+}
+
+/// Valeur d’un champ de chiffres ASCII (quatre au plus), `None` sinon.
+fn ascii_number(digits: &[u8]) -> Option<u32> {
+    digits.iter().try_fold(0_u32, |value, digit| {
+        digit
+            .is_ascii_digit()
+            .then(|| value * 10 + u32::from(digit - b'0'))
+    })
 }
 
 fn validate_calendar_day(day: &str) -> Result<(), String> {
@@ -1887,7 +2699,248 @@ impl<'a> From<&'a ImportManga> for MangaRecord<'a> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Bibliothèques personnalisées (modèles prêts, migration 0021)
+// ---------------------------------------------------------------------------
+
+/// Table de citations d’une bibliothèque personnalisée et colonne qui désigne
+/// la fiche parente.
+pub(crate) struct CustomQuotesTable {
+    pub(crate) table: &'static str,
+    pub(crate) parent_column: &'static str,
+}
+
+/// Bibliothèque personnalisée connue du moteur. `id` est la valeur stockée
+/// dans `profile_libraries` ; il vaut le nom de la table. Seules ces chaînes
+/// statiques entrent dans une requête SQL : un identifiant lu dans un document
+/// n’y est jamais interpolé.
+pub(crate) struct CustomLibrary {
+    pub(crate) id: &'static str,
+    pub(crate) table: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) quotes: Option<CustomQuotesTable>,
+}
+
+/// Les huit modèles prêts, dans l’ordre de la migration 0021. Les huit tables
+/// partagent les mêmes colonnes ; seule Comics a une table de citations.
+pub(crate) static CUSTOM_LIBRARIES: [CustomLibrary; 8] = [
+    CustomLibrary {
+        id: "comics",
+        table: "comics",
+        label: "Comics",
+        quotes: Some(CustomQuotesTable {
+            table: "comic_quotes",
+            parent_column: "comic_id",
+        }),
+    },
+    CustomLibrary {
+        id: "magazines",
+        table: "magazines",
+        label: "Magazines",
+        quotes: None,
+    },
+    CustomLibrary {
+        id: "audiobooks",
+        table: "audiobooks",
+        label: "Livres audio",
+        quotes: None,
+    },
+    CustomLibrary {
+        id: "music",
+        table: "music",
+        label: "Musique",
+        quotes: None,
+    },
+    CustomLibrary {
+        id: "podcasts",
+        table: "podcasts",
+        label: "Podcasts",
+        quotes: None,
+    },
+    CustomLibrary {
+        id: "documentaries",
+        table: "documentaries",
+        label: "Documentaires et reportages",
+        quotes: None,
+    },
+    CustomLibrary {
+        id: "shows",
+        table: "shows",
+        label: "Spectacles",
+        quotes: None,
+    },
+    CustomLibrary {
+        id: "board_games",
+        table: "board_games",
+        label: "Jeux de société",
+        quotes: None,
+    },
+];
+
+/// Somme SQL des fiches personnalisées d’un profil, toutes tables confondues.
+/// `profile` est une expression SQL écrite dans le code (`p.id`, `$1`),
+/// jamais une valeur reçue.
+pub(crate) fn custom_entry_count_sql(profile: &str) -> String {
+    CUSTOM_LIBRARIES
+        .iter()
+        .map(|library| {
+            format!(
+                "(SELECT COUNT(*) FROM {} WHERE profile_id = {profile})",
+                library.table
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" + ")
+}
+
+/// Statuts stockés, communs aux huit tables (contrainte CHECK de 0021).
+const CUSTOM_ENTRY_STATUSES: [&str; 4] = ["à découvrir", "en cours", "terminé", "abandonné"];
+
+/// Refus d’un document qui garde des comics dans sa section Livres.
+const COMICS_IN_BOOKS_SECTION_ERROR: &str =
+    "Les comics ont leur propre bibliothèque : ce document doit les placer dans la section Comics.";
+
+fn custom_library(library_id: &str) -> Option<&'static CustomLibrary> {
+    CUSTOM_LIBRARIES
+        .iter()
+        .find(|library| library.id == library_id)
+}
+
+/// Contrôles des bibliothèques personnalisées d’un document, avant toute
+/// écriture. Renvoie, dans l’ordre du document, la bibliothèque reconnue de
+/// chaque section : l’écriture n’utilise que ces tables.
+fn validate_custom_libraries(
+    payload: &ImportLibraryDocumentPayload,
+) -> Result<Vec<&'static CustomLibrary>, String> {
+    let mut libraries: Vec<&'static CustomLibrary> =
+        Vec::with_capacity(payload.custom_libraries.len());
+    for section in &payload.custom_libraries {
+        let library = custom_library(&section.library_id).ok_or_else(|| {
+            format!(
+                "Bibliothèque personnalisée inconnue : « {} ».",
+                section.library_id
+            )
+        })?;
+        if libraries.iter().any(|known| known.id == library.id) {
+            return Err(format!(
+                "La bibliothèque {} apparaît deux fois dans le document.",
+                library.label
+            ));
+        }
+        for entry in &section.entries {
+            if !CUSTOM_ENTRY_STATUSES.contains(&entry.status.as_str()) {
+                return Err(format!(
+                    "La fiche {} « {} » porte un statut inconnu : « {} ».",
+                    library.label, entry.title, entry.status
+                ));
+            }
+            if let Some((key, _)) = entry.details.iter().find(|(_, value)| !value.is_string()) {
+                return Err(format!(
+                    "Le détail « {key} » de la fiche {} « {} » doit être un texte.",
+                    library.label, entry.title
+                ));
+            }
+            if library.quotes.is_none() && !entry.quotes.is_empty() {
+                return Err(format!(
+                    "La bibliothèque {} n’accepte pas de citations : la fiche « {} » en contient.",
+                    library.label, entry.title
+                ));
+            }
+            if entry.quotes.iter().any(|quote| quote.entry_id != entry.id) {
+                return Err(format!(
+                    "Une citation ne correspond pas à la fiche {} « {} ».",
+                    library.label, entry.title
+                ));
+            }
+        }
+        libraries.push(library);
+    }
+    Ok(libraries)
+}
+
+async fn insert_custom_entry(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    library: &CustomLibrary,
+    entry: &ImportCustomEntry,
+) -> Result<(), String> {
+    let details = serde_json::to_string(&entry.details).map_err(|error| {
+        format!(
+            "Impossible de conserver les détails de la fiche {} « {} » : {error}",
+            library.label, entry.title
+        )
+    })?;
+    sqlx::query(&format!(
+        "INSERT INTO {} (
+            id, profile_id, title, creator, year, status, rating, is_favorite,
+            progress_current, progress_total, progress_updated_at, started_at,
+            finished_at, cover_url, summary, personal_note, details, created_at, updated_at
+         ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+         )",
+        library.table
+    ))
+    .bind(&entry.id)
+    .bind(&entry.profile_id)
+    .bind(&entry.title)
+    .bind(canonical_optional_text(&entry.creator))
+    .bind(entry.year)
+    .bind(&entry.status)
+    .bind(entry.rating)
+    .bind(if entry.is_favorite { 1 } else { 0 })
+    .bind(entry.progress_current)
+    .bind(entry.progress_total)
+    .bind(canonical_optional_text(&entry.progress_updated_at))
+    .bind(canonical_optional_text(&entry.started_at))
+    .bind(canonical_optional_text(&entry.finished_at))
+    .bind(canonical_optional_text(&entry.cover_url))
+    .bind(canonical_optional_text(&entry.summary))
+    .bind(canonical_optional_text(&entry.personal_note))
+    .bind(details)
+    .bind(&entry.created_at)
+    .bind(&entry.updated_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|error| {
+        format!(
+            "Impossible d’importer la fiche {} « {} » : {error}",
+            library.label, entry.title
+        )
+    })?;
+
+    if let Some(quotes) = &library.quotes {
+        let statement = format!(
+            "INSERT INTO {} (id, {}, body, position, created_at) VALUES ($1, $2, $3, $4, $5)",
+            quotes.table, quotes.parent_column
+        );
+        for quote in &entry.quotes {
+            sqlx::query(&statement)
+                .bind(&quote.id)
+                .bind(&entry.id)
+                .bind(&quote.body)
+                .bind(quote.position)
+                .bind(&quote.created_at)
+                .execute(&mut **transaction)
+                .await
+                .map_err(|error| {
+                    format!(
+                        "Impossible d’importer une citation de la fiche {} « {} » : {error}",
+                        library.label, entry.title
+                    )
+                })?;
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_library_categories(payload: &ImportLibraryDocumentPayload) -> Result<(), String> {
+    if payload
+        .books
+        .iter()
+        .any(|book| is_comics_category(&book.category))
+    {
+        return Err(COMICS_IN_BOOKS_SECTION_ERROR.to_string());
+    }
     for anime in &payload.anime {
         if let Some(category) = &anime.category {
             if !is_animation_category(category) {
@@ -2164,6 +3217,11 @@ async fn write_library_document_import(
             .artworks
             .iter()
             .any(|artwork| !targets_import_profile(&artwork.profile_id))
+        || payload
+            .custom_libraries
+            .iter()
+            .flat_map(|library| &library.entries)
+            .any(|entry| !targets_import_profile(&entry.profile_id))
     {
         return Err("Un élément ne cible pas le profil d’import.".to_string());
     }
@@ -2194,6 +3252,8 @@ async fn write_library_document_import(
         }
     }
 
+    let custom_libraries = validate_custom_libraries(payload)?;
+
     let mut transaction = pool
         .begin()
         .await
@@ -2221,7 +3281,10 @@ async fn write_library_document_import(
             return Err("Le profil courant est introuvable.".to_string());
         }
 
-        let existing_works: i64 = sqlx::query_scalar(
+        // Profil vide : aucune fiche dans les sept bibliothèques de base ni
+        // dans les huit bibliothèques personnalisées. Une bibliothèque ajoutée
+        // sans fiche ne compte pas.
+        let existing_works: i64 = sqlx::query_scalar(&format!(
             "SELECT
                 (SELECT COUNT(*) FROM films WHERE profile_id = $1)
               + (SELECT COUNT(*) FROM series WHERE profile_id = $1)
@@ -2229,8 +3292,10 @@ async fn write_library_document_import(
               + (SELECT COUNT(*) FROM books WHERE profile_id = $1)
               + (SELECT COUNT(*) FROM mangas WHERE profile_id = $1)
               + (SELECT COUNT(*) FROM games WHERE profile_id = $1)
-              + (SELECT COUNT(*) FROM artworks WHERE profile_id = $1)",
-        )
+              + (SELECT COUNT(*) FROM artworks WHERE profile_id = $1)
+              + {}",
+            custom_entry_count_sql("$1")
+        ))
         .bind(&payload.profile.id)
         .fetch_one(&mut *transaction)
         .await
@@ -2336,12 +3401,14 @@ async fn write_library_document_import(
     }
 
     for artwork in &payload.artworks {
+        let custom_fields = serde_json::to_string(&artwork.custom_fields)
+            .map_err(|error| format!("Impossible de conserver les champs de l’œuvre : {error}"))?;
         sqlx::query(
             "INSERT INTO artworks (
                 id, profile_id, title, artist, year, form, location, exhibition, status,
-                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at, custom_fields
              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
              )",
         )
         .bind(&artwork.id)
@@ -2359,6 +3426,7 @@ async fn write_library_document_import(
         .bind(canonical_optional_text(&artwork.personal_note))
         .bind(&artwork.created_at)
         .bind(&artwork.updated_at)
+        .bind(custom_fields)
         .execute(&mut *transaction)
         .await
         .map_err(|error| {
@@ -2367,6 +3435,33 @@ async fn write_library_document_import(
                 artwork.title
             )
         })?;
+    }
+
+    // Bibliothèques personnalisées : uniquement les tables reconnues par
+    // `validate_custom_libraries`. Une bibliothèque déjà ajoutée au profil
+    // garde sa place ; ses fiches sont importées.
+    for (library, section) in custom_libraries.iter().zip(&payload.custom_libraries) {
+        sqlx::query(
+            "INSERT INTO profile_libraries (profile_id, library_id, position, added_at)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT(profile_id, library_id) DO NOTHING",
+        )
+        .bind(&payload.profile.id)
+        .bind(library.id)
+        .bind(section.position)
+        .bind(&section.added_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| {
+            format!(
+                "Impossible d’ajouter la bibliothèque {} au profil : {error}",
+                library.label
+            )
+        })?;
+
+        for entry in &section.entries {
+            insert_custom_entry(&mut transaction, library, entry).await?;
+        }
     }
 
     if create_profile {
@@ -2425,6 +3520,12 @@ fn library_document_result(payload: &ImportLibraryDocumentPayload) -> ImportLibr
         manga_count,
         game_count: payload.games.len(),
         artwork_count: payload.artworks.len(),
+        custom_library_count: payload.custom_libraries.len(),
+        custom_entry_count: payload
+            .custom_libraries
+            .iter()
+            .map(|library| library.entries.len())
+            .sum(),
     }
 }
 
@@ -2646,6 +3747,9 @@ async fn write_books_import_plan(
             .chain(plan.updates.iter().map(|book| book.profile_id.as_str())),
     )?;
     for book in plan.inserts.iter().chain(plan.updates.iter()) {
+        if is_comics_category(&book.category) {
+            return Err(COMICS_HAVE_THEIR_OWN_LIBRARY.to_string());
+        }
         validate_import_book_quotes(book)?;
     }
 
@@ -3448,12 +4552,14 @@ async fn upsert_artwork(
     let discovered_at = canonical_optional_text(&artwork.discovered_at);
     let image_url = canonical_optional_text(&artwork.image_url);
     let personal_note = canonical_optional_text(&artwork.personal_note);
+    let custom_fields = serde_json::to_string(&artwork.custom_fields)
+        .map_err(|error| format!("Impossible de conserver les champs de l’œuvre : {error}"))?;
     let result = if is_update {
         sqlx::query(
             "UPDATE artworks SET
                 title = $3, artist = $4, year = $5, form = $6, location = $7,
                 exhibition = $8, status = $9, is_favorite = $10, discovered_at = $11,
-                image_url = $12, personal_note = $13, updated_at = $14
+                image_url = $12, personal_note = $13, updated_at = $14, custom_fields = $15
              WHERE id = $1 AND profile_id = $2",
         )
         .bind(&artwork.id)
@@ -3470,6 +4576,7 @@ async fn upsert_artwork(
         .bind(image_url)
         .bind(personal_note)
         .bind(&artwork.updated_at)
+        .bind(&custom_fields)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -3482,8 +4589,8 @@ async fn upsert_artwork(
         sqlx::query(
             "INSERT INTO artworks (
                 id, profile_id, title, artist, year, form, location, exhibition, status,
-                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at, custom_fields
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
         )
         .bind(&artwork.id)
         .bind(&artwork.profile_id)
@@ -3500,6 +4607,7 @@ async fn upsert_artwork(
         .bind(personal_note)
         .bind(&artwork.created_at)
         .bind(&artwork.updated_at)
+        .bind(&custom_fields)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -3520,9 +4628,17 @@ async fn upsert_artwork(
 }
 
 #[cfg(test)]
+#[path = "custom_libraries_tests.rs"]
+mod custom_libraries_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use sqlx::sqlite::SqlitePoolOptions;
+
+    include!("portability_io_tests.rs");
+    include!("backup_destination_tests.rs");
+    include!("backup_retention_tests.rs");
 
     type CanonicalFilmRow = (
         Option<String>,
@@ -4404,16 +5520,20 @@ mod tests {
                 .expect("rétention enregistrée");
 
             assert_eq!(
-                retained, 30,
-                "la conservation doit garder 30 entrées suivies"
+                retained, 3,
+                "des copies du même jour ne gardent que les trois plus récentes"
             );
             assert!(
-                !directory.join(&default_files[0]).exists(),
-                "le snapshot suivi le plus ancien doit être retiré"
+                default_files[..28]
+                    .iter()
+                    .all(|file_name| !directory.join(file_name).exists()),
+                "les copies suivies hors paliers doivent être retirées"
             );
             assert!(
-                directory.join(&default_files[30]).exists(),
-                "le snapshot suivi le plus récent doit rester"
+                default_files[28..]
+                    .iter()
+                    .all(|file_name| directory.join(file_name).exists()),
+                "les trois copies suivies les plus récentes doivent rester"
             );
             assert!(
                 foreign_file.exists(),
@@ -4498,7 +5618,7 @@ mod tests {
                 .expect("lecture du dossier")
                 .filter_map(Result::ok)
                 .filter_map(|entry| entry.file_name().into_string().ok())
-                .filter(|name| is_owned_snapshot_name(name, &snapshot_prefix("default")))
+                .filter(|name| is_owned_snapshot_name(name, "default"))
                 .count();
             assert_eq!(
                 current_files, 1,
@@ -4560,7 +5680,7 @@ mod tests {
                 .expect("lecture du second dossier")
                 .filter_map(Result::ok)
                 .filter_map(|entry| entry.file_name().into_string().ok())
-                .filter(|name| is_owned_snapshot_name(name, &snapshot_prefix("default")))
+                .filter(|name| is_owned_snapshot_name(name, "default"))
                 .count();
             assert_eq!(
                 snapshots_in_second_directory, 1,
@@ -4672,7 +5792,7 @@ mod tests {
             include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
             include_str!("../migrations/0009_add_selected_poster_url.sql"),
             include_str!("../migrations/0010_create_cultural_media.sql"),
-            // 0011 à 0018 puis 0020 : schéma courant des tests de portabilité.
+            // 0011 à 0018 puis 0020 et 0021 : schéma courant des tests de portabilité.
             // 0019 est volontairement omise : sur une base vierge elle supprime
             // le profil technique « default » dont ces fixtures ont besoin.
             include_str!("../migrations/0011_nullable_current_profile.sql"),
@@ -4684,6 +5804,7 @@ mod tests {
             include_str!("../migrations/0017_media_provider_links.sql"),
             include_str!("../migrations/0018_backfill_media_provider_links.sql"),
             include_str!("../migrations/0020_split_anime_and_mangas.sql"),
+            include_str!("../migrations/0021_custom_libraries.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -4960,9 +6081,11 @@ mod tests {
                     discovered_at: Some("2026-06-15".to_string()),
                     image_url: None,
                     personal_note: None,
+                    custom_fields: Vec::new(),
                     created_at: timestamp.clone(),
                     updated_at: timestamp.clone(),
                 }],
+                custom_libraries: Vec::new(),
             };
 
             write_library_document_import(&pool, &payload, true)
@@ -5075,6 +6198,7 @@ mod tests {
                 mangas: Vec::new(),
                 games: Vec::new(),
                 artworks: Vec::new(),
+                custom_libraries: Vec::new(),
             };
 
             write_library_document_import(&pool, &payload, false)
@@ -5110,6 +6234,7 @@ mod tests {
                 mangas: Vec::new(),
                 games: Vec::new(),
                 artworks: Vec::new(),
+                custom_libraries: Vec::new(),
             };
             let result = write_library_document_import(&pool, &second_payload, false).await;
             assert!(
@@ -5174,6 +6299,7 @@ mod tests {
                 mangas: Vec::new(),
                 games: Vec::new(),
                 artworks: Vec::new(),
+                custom_libraries: Vec::new(),
             };
 
             let result = write_library_document_import(&pool, &payload, true).await;
@@ -5321,6 +6447,7 @@ mod tests {
                 discovered_at: Some("2026-07-22".to_string()),
                 image_url: None,
                 personal_note: Some("Avis local".to_string()),
+                custom_fields: Vec::new(),
                 created_at: timestamp.to_string(),
                 updated_at: timestamp.to_string(),
             };
@@ -5574,6 +6701,7 @@ mod tests {
             mangas: Vec::new(),
             games: Vec::new(),
             artworks: Vec::new(),
+            custom_libraries: Vec::new(),
         }
     }
 

@@ -2,9 +2,25 @@
 
 **État au 16 octobre 2026.** Cette feuille de route remplace les anciens trains et versions décrits dans les archives. Aucun numéro de version n’est attribué aux prochains lots : chaque push sur `main` publie automatiquement une release corrective.
 
+## Actualisation du 22 octobre 2026
+
+Le bloc d’ouverture publique (MIT, updater sans jeton, proxy serveur) est livré. Le **bloc 2 import/export est implémenté et vérifié localement**, avec guides tiers, confirmations, portée explicite des exports et protections de fichiers ; aucun push ni nouvelle publication dans ce lot. Les limites de formats, le corpus synthétique et les essais natifs restant à exercer figurent dans [QA_IMPORT_EXPORT.md](QA_IMPORT_EXPORT.md). Le périmètre courant des prochains blocs est détaillé dans [PLAN_VERS_1.0.md](PLAN_VERS_1.0.md) ; les sections datées du 16 octobre ci-dessous décrivent l’état antérieur.
+
+### Lot onboarding et sauvegardes : implémenté localement, non publié
+
+Livré dans l’arbre de travail le 22 octobre 2026 : premier lancement à trois départs (vide, restauration Sylloge, import d’un service), choix du dossier des futures sauvegardes avec première copie après finalisation, restauration du JSON de profil (sept bibliothèques) depuis l’onboarding et les réglages, libellés sans « cinq collections ». Rapport, limites et décisions à valider : [QA_ONBOARDING_SAUVEGARDES.md](QA_ONBOARDING_SAUVEGARDES.md).
+
+Avant publication : arbitrer les décisions du rapport, exercer les sélecteurs macOS, décider du commit sur une branche de travail. Un push sur `main` publierait une release.
+
+Lot suivant, implémenté localement le même jour : conservation par paliers (3 récentes, 4 hebdomadaires, 6 mensuelles), noms explicites, liste et restauration des copies, recherche bornée des sauvegardes sur le Mac, Paramètres recomposés, suppression de profil corrigée pour l’animation et les mangas. Détails dans le même rapport.
+
+Bloc 4, implémenté localement le 22 octobre 2026, non publié : bibliothèques personnalisées à partir de huit modèles prêts (Comics, Magazines, Livres audio, Musique, Podcasts, Documentaires et reportages, Spectacles, Jeux de société), ajoutées par le « + » de la barre latérale. Une table par modèle (migration 0021), JSON de sauvegarde en version 4. Comics quitte Livres. Rapport : [QA_BIBLIOTHEQUES_PERSONNALISEES.md](QA_BIBLIOTHEQUES_PERSONNALISEES.md).
+
+Planifié, non commencé : récupération de toute l’expérience Sylloge dans un JSON documenté, conversions vers d’autres services, restauration de base `.db` (hors parcours standard).
+
 ## Cible confirmée
 
-Sylloge est une application personnelle utilisée localement sur Mac. Elle compte sept bibliothèques, une seule base `sylloge.db` et une table par bibliothèque : `films`, `series`, `anime`, `books`, `mangas`, `games`, `artworks`. Décision du 20 octobre 2026 : la séparation n’est pas seulement visuelle, chaque bibliothèque possède sa table et ses fiches. Le but des prochains changements est de rendre l’application plus claire, cohérente, fiable et agréable à utiliser.
+Sylloge est une application personnelle utilisée localement sur Mac. Elle compte sept bibliothèques de base, une seule base `sylloge.db` et une table par bibliothèque : `films`, `series`, `anime`, `books`, `mangas`, `games`, `artworks`. Décision du 20 octobre 2026 : la séparation n’est pas seulement visuelle, chaque bibliothèque possède sa table et ses fiches. Depuis le 22 octobre 2026, un profil peut ajouter des bibliothèques personnalisées tirées de modèles prêts, chacune avec sa table (`comics`, `magazines`, `audiobooks`, `music`, `podcasts`, `documentaries`, `shows`, `board_games`). Le but des prochains changements est de rendre l’application plus claire, cohérente, fiable et agréable à utiliser.
 
 Aucun chantier de distribution Windows ou de bêta publique n’est actif.
 

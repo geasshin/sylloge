@@ -55,22 +55,20 @@ export function ImportModeChoice({ mediumLabel, mediumPluralLabel, mediumGender,
     <div className="assistant-content">
       <p className="assistant-introduction">
         {importedCount} {importedCount === 1 ? mediumLabel : mediumPluralLabel} {detectedWord} dans le fichier.
-        Votre collection actuelle en contient {existingCount}. Choisissez comment les importer.
+        La bibliothèque actuelle en contient {existingCount}. Choisir comment les réunir.
       </p>
       <div className="assistant-choice-grid">
-        <button className="transfer-choice" type="button" onClick={() => onChoose('replace')}>
-          <span className="card-kicker">Repartir de zéro</span>
-          <b>Remplacer</b>
-          <small>Remplace votre collection actuelle de {mediumPluralLabel} par les fiches du fichier.</small>
-        </button>
         <button className="transfer-choice" type="button" onClick={() => onChoose('merge')}>
-          <span className="card-kicker">Conserver l’existant</span>
           <b>Fusionner</b>
-          <small>Conserve vos {mediumPluralLabel} {mediumGender === 'feminine' ? 'actuelles' : 'actuels'}, ajoute les nouveautés et préserve vos notes et favoris.</small>
+          <small>Ajouter les nouveautés, comparer les doublons et préserver par défaut les notes, avis, dates et favoris déjà présents. Recommandé pour compléter la bibliothèque.</small>
+        </button>
+        <button className="transfer-choice" type="button" onClick={() => onChoose('replace')}>
+          <b>Remplacer</b>
+          <small>Retirer les fiches de cette bibliothèque et les remplacer par celles du fichier. Une confirmation supplémentaire sera demandée.</small>
         </button>
       </div>
       <p className="import-contextual-hint">
-        En cas de doute, choisissez Fusionner : rien n’est supprimé et les fiches en double vous seront proposées une par une.
+        Aucune écriture à cette étape. Les doublons seront comparés avant le résumé final.
       </p>
       <div className="assistant-actions">
         <button className="secondary-button" type="button" onClick={onCancel}>Annuler</button>
@@ -99,8 +97,9 @@ function DuplicateItem<F extends { title: string }>({ title, existing, imported,
           onClick={() => onResolve('keep-existing')}
           aria-pressed={resolution === 'keep-existing'}
         >
-          <span className="card-kicker">Fiche actuelle</span>
+          <b>Fiche actuelle</b>
           {renderSummary(existing, 'existing')}
+          {'personalNote' in existing && typeof existing.personalNote === 'string' && <small className="duplicate-personal-note">{existing.personalNote}</small>}
         </button>
         <button
           className={`duplicate-choice ${resolution === 'keep-imported' ? 'selected' : ''}`}
@@ -108,10 +107,14 @@ function DuplicateItem<F extends { title: string }>({ title, existing, imported,
           onClick={() => onResolve('keep-imported')}
           aria-pressed={resolution === 'keep-imported'}
         >
-          <span className="card-kicker">Fiche importée</span>
+          <b>Fiche importée</b>
           {renderSummary(imported, 'imported')}
+          {'personalNote' in imported && typeof imported.personalNote === 'string' && <small className="duplicate-personal-note">{imported.personalNote}</small>}
         </button>
       </div>
+      <button className="secondary-button duplicate-keep-both" type="button" aria-pressed={resolution === 'keep-both'} onClick={() => onResolve('keep-both')}>
+        Conserver les deux fiches
+      </button>
     </div>
   )
 }
@@ -154,7 +157,7 @@ export function DuplicatesResolver<F extends { title: string }, D extends { norm
     <div className="duplicates-actions">
       <button className="secondary-button" type="button" onClick={onBack} disabled={confirming}>Retour</button>
       <button className="primary-button" type="button" onClick={confirm} disabled={confirming}>
-        {confirming ? 'Fusion…' : 'Confirmer la fusion'}
+        {confirming ? 'Validation…' : 'Valider ces choix'}
       </button>
     </div>
   )
@@ -162,8 +165,8 @@ export function DuplicatesResolver<F extends { title: string }, D extends { norm
   return (
     <div className="assistant-content">
       <p className="assistant-introduction">
-        {duplicates.length} {duplicates.length === 1 ? 'doublon détecté' : 'doublons détectés'} (même titre).
-        Pour chacun, choisissez la fiche à conserver.
+        {duplicates.length} {duplicates.length === 1 ? 'rapprochement proposé' : 'rapprochements proposés'} au titre normalisé.
+        Un même titre peut désigner deux œuvres différentes : comparer les dates et les auteurs, puis conserver une fiche ou les deux. Les informations personnelles existantes sont prioritaires par défaut.
       </p>
       <div className="duplicates-header">
         <div className="duplicates-summary" role="status" aria-live="polite">

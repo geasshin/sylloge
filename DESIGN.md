@@ -65,14 +65,14 @@ Décisions du 18 octobre 2026 : vues nettement distinctes et toutes visibles, ac
 
 ## Livres et Mangas
 
-Décision du 19 octobre 2026 : Mangas devient une bibliothèque distincte. Depuis le 20 octobre 2026, chaque bibliothèque possède sa propre table dans l’unique base `sylloge.db` (`books` pour Livres, `mangas` pour Mangas). Pas de bibliothèque Comics : les comics restent dans Livres, avec leur catégorie.
+Décision du 19 octobre 2026 : Mangas devient une bibliothèque distincte. Depuis le 20 octobre 2026, chaque bibliothèque possède sa propre table dans l’unique base `sylloge.db` (`books` pour Livres, `mangas` pour Mangas). Depuis le 22 octobre 2026, Comics est une bibliothèque personnalisée : Livres n’a plus de catégorie Comics.
 
 - **Navigation** : Mangas a sa propre entrée dans la barre latérale (pictogramme d’une série de tomes, distinct du livre ouvert de Livres, le seul repère visible en rail), son compteur, son onglet d’accueil et son bilan. Recherche, vue, filtres et tri sont mémorisés séparément pour chacune.
-- **Barre** : aucune bascule de catégorie. Dans Livres, « Filtrer » propose un champ Type (Livre, Comics) seulement si d’anciens comics existent ou si une vue l’a restreint : une catégorie active n’est jamais un filtre invisible.
+- **Barre** : aucune bascule de catégorie ni champ Type dans Livres.
 - **Création** : le bouton d’ajout et la recherche Open Library portent le nom de la bibliothèque ouverte ; le type n’est pas demandé, il découle de la bibliothèque. En modification, le champ Type reste disponible : le corriger déplace la même fiche dans l’autre bibliothèque, sans doublon ni perte d’avancement. Les compteurs déjà renseignés restent visibles et modifiables, même après un passage en Livre.
 - **Fiche** : le retour et la suppression ramènent à l’écran d’origine (accueil, Livres ou Mangas).
 - **Vues enregistrées** : distinctes par bibliothèque (une vue Mangas est une vue Livres de catégorie manga, au schéma v2 existant) ; les anciennes vues v1 et v2 sont lues sans réécriture. Les noms restent uniques entre Livres et Mangas, ce que l’aide de création et le message d’erreur disent.
-- **Transferts** : l’export JSON ou CSV ne contient que la bibliothèque ouverte, les autres collections vides. L’import reste commun aux deux et annonce, avant toute écriture, que « Remplacer » vaut pour Livres et Mangas, comics compris.
+- **Transferts** : l’export unitaire JSON/CSV et l’import ciblent uniquement la bibliothèque ouverte. Un JSON de profil complet peut être exporté explicitement. « Remplacer » ne touche jamais l’autre bibliothèque ; aperçu, bilan et consentement précèdent toute écriture.
 
 ## Séries et Animation japonaise
 
@@ -82,4 +82,24 @@ Décision du 20 octobre 2026 : sept bibliothèques, sept tables dans l’unique 
 - **Navigation et accueil** : entrée, icône, compteur, onglet, bilan et rangées distincts. « Tout » reste l’union sans doublons. Recherche, vues, filtres, tri et position de retour indépendants ; retour depuis l’accueil préservé.
 - **Création et modification** : pas de bascule de catégorie dans les bibliothèques ; la création manuelle ou TMDB hérite de la bibliothèque ouverte. Type reste modifiable sur une fiche existante, pour déplacer cette même fiche sans recréation.
 - **Vues** : schéma v2 inchangé ; les anciennes vues `animation` deviennent des vues du médium `anime`, les vues manga du médium `mangas`. Les noms redeviennent propres à chaque bibliothèque.
-- **Transferts et association** : document JSON en version 3, avec une section par bibliothèque. Export, import, « Tout associer » et « Remplacer » portent sur la bibliothèque ouverte. Les fichiers v1 et v2 restent lisibles.
+- **Transferts et association** : document JSON en version 4, avec une section par bibliothèque de base et une liste `customLibraries`. Export, import, « Tout associer » et « Remplacer » portent sur la bibliothèque ouverte. Les fichiers v1 à v3 restent lisibles.
+
+## Bibliothèques personnalisées
+
+Décision du 22 octobre 2026 : des modèles prêts s’ajoutent aux sept bibliothèques de base. Huit modèles : Comics, Magazines, Livres audio, Musique, Podcasts, Documentaires et reportages, Spectacles, Jeux de société.
+
+- **Barre latérale** : les bibliothèques ajoutées suivent Art dans le groupe « Ajoutées », dans l’ordre d’ajout, avec icône et compteur. Le dernier item, « Ajouter une bibliothèque » (« + » en rail), ouvre le catalogue. Au premier lancement, seuls les sept modèles de base sont présents ; les autres restent dans le catalogue tant qu’ils ne sont pas ajoutés.
+- **Catalogue** : fenêtre commune (`AccessibleDialog`, grande), modèles rangés par famille (Lecture, Écoute, Écran, Scène, Jeu) en cartes sur deux colonnes : icône, nom, description d’une ligne ou deux, état « Ajouter » ou « Ajoutée ». Un clic ajoute la bibliothèque et l’ouvre.
+- **Bibliothèque** : même en-tête et même grille que les autres. Barre d’outils : recherche en pilule (titre, créateur et champs propres), pastilles de statut aux libellés du modèle, puis à droite le filtre principal du modèle (format, type, périodicité) et le tri. Pas de vues enregistrées dans ce premier lot. La suppression de la bibliothèque est une icône discrète de l’en-tête ; sa confirmation annonce le nombre de fiches supprimées.
+- **Visuels** : affiche 2:3 pour Comics, Magazines, Documentaires et Spectacles ; carré pour Musique, Livres audio, Podcasts et Jeux de société, en grille, en fiche et dans le formulaire.
+- **Fiche et formulaire** : même gabarit que les autres médiums. Statuts propres au modèle (Spectacles : « À voir » et « Vu » seulement), progression quand le modèle en a une, date de fin, champs propres sur deux colonnes, résumé ; citations pour Comics seulement.
+
+## Barre latérale Îlot
+
+Direction validée par Aurélien le 22 octobre 2026 : panneau flottant monochrome, détaché du bord de 10px, rayon 20px et ombre thémée. Rail de 62px (40px utiles), panneau ouvert de 236px. Accueil, groupe Bibliothèques (les sept de base), groupe Ajoutées, « + », profil, épingle et Paramètres.
+
+- **Ouverture temporaire** : survol après 140ms ; fermeture 220ms après la sortie. Le panneau s’ouvre par-dessus la page, sans déplacer son contenu. Le focus clavier affiche également les noms ; Échap referme l’ouverture temporaire.
+- **Épingle** : « Garder ouverte » réserve la largeur du panneau. « Détacher la barre » rend le rail. Choix mémorisé sur cet appareil (`sylloge-sidebar-pinned`), hors sauvegarde de profil. Paramètres conserve sa navigation dédiée, toujours déployée.
+- **Alignement** : les icônes occupent un emplacement fixe de 40px ; SVG en bloc, 20px, centrés dans le même emplacement dans les deux modes. Les noms et compteurs apparaissent en fondu. Indicateur actif carré arrondi en rail, rangée arrondie en mode ouvert.
+- **Mouvement** : 260ms, courbe `cubic-bezier(.23,1,.32,1)`, neutralisé en mouvement réduit. La liste centrale peut défiler si toutes les bibliothèques sont ajoutées ; profil et commandes restent accessibles en pied.
+- **Pictogrammes** : tracés Phosphor sous licence MIT (copiés localement, aucune dépendance), versions régulière et pleine pour la destination active. Animation japonaise utilise un dessin original de cellulos superposés et un signe de lecture, sans étoile. Attribution dans `docs/licenses/phosphor-icons.txt`.

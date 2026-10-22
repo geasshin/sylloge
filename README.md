@@ -30,6 +30,20 @@ npm run tauri:dev
 
 Un clone propre se lance et se construit sans aucune clé : TMDB et IGDB passent par le proxy du projet, qui détient les secrets dans l’environnement Vercel. Aucun fichier de secret n’est requis, ni pour le développement, ni pour un build. Les métadonnées restent facultatives dans l’application, et une clé compromise se remplace dans Vercel sans republier de version.
 
+## Importer et exporter
+
+Une sauvegarde Sylloge est un fichier JSON unique du profil entier : sept bibliothèques de base et bibliothèques personnalisées ajoutées (format `sylloge-library` version 4 ; les versions 1 à 3 restent lisibles). Paramètres > Importer et exporter la crée et la restaure ; le premier lancement propose la même restauration, ainsi que le choix du dossier des futures sauvegardes : un dossier local, ou iCloud Drive ou Google Drive lorsque ce dossier est présent sur l’ordinateur.
+
+Depuis chaque bibliothèque, **Importer** propose les guides d’export, l’analyse locale et un aperçu, puis une fusion ou un remplacement explicitement confirmé. Le JSON Sylloge et le CSV de chaque bibliothèque restent reconnus. Les adaptateurs Letterboxd (CSV/ZIP complet) et Goodreads (CSV, Livres uniquement) exposent les champs repris et exclus ; Notion et les CSV externes disposent de correspondances vérifiables. Un même titre peut être conservé dans deux fiches distinctes.
+
+**Exporter** permet de choisir la bibliothèque ouverte (JSON ou CSV) ou les sept bibliothèques du profil (JSON). Privilégier le JSON pour une copie fidèle : le CSV v1 ne contient pas les champs libres d’Art ni les identifiants et dates des citations. Les caches des fournisseurs, réglages et vues enregistrées restent hors de ce format de données personnelles.
+
+Les limites des formats tiers sont visibles dans les guides : MyAnimeList XML/gzip n’est pas directement importable, et aucun nouvel export TV Time ou BetaSeries n’est garanti. Aucun compte tiers ni identifiant n’est connecté dans Sylloge.
+
+- [Formats tiers et règles de conversion](docs/IMPORTS_TIERS_MOTEUR.md)
+- [Sources et vérification des tutoriels](docs/IMPORT_GUIDES_SOURCES.md)
+- [Recette import/export et limites de preuve](docs/QA_IMPORT_EXPORT.md)
+
 ## Contrôles du projet
 
 ```bash
