@@ -6,28 +6,47 @@ function MoveIcon({ down = false }: { down?: boolean }) {
 }
 
 /** Éditeur commun : les citations restent indépendantes du statut de lecture. */
-export function QuotesEditor({ values, onChange, disabled = false, error }: {
+export function QuotesEditor({ values, onChange, disabled = false, error, autoFocusLast = false }: {
   values: string[]
   onChange: (values: string[]) => void
   disabled?: boolean
   error?: string
+  /** Ouvre l’éditeur directement sur le dernier passage (arrivée depuis la fiche). */
+  autoFocusLast?: boolean
 }) {
   const id = useId()
   const section = useRef<HTMLElement>(null)
   const addButton = useRef<HTMLButtonElement>(null)
   const [focusIndex, setFocusIndex] = useState<number | null>(null)
+  /** Index dont il faut rendre le focus au bouton de déplacement après rendu. */
+  const [moveFocus, setMoveFocus] = useState<number | null>(null)
   useEffect(() => {
     if (focusIndex === null) return
     section.current?.querySelectorAll<HTMLTextAreaElement>('textarea')[focusIndex]?.focus()
     setFocusIndex(null)
   }, [focusIndex, values.length])
+  // Le focus reste sur le geste en cours : au clavier, Entrée répète le
+  // déplacement au lieu d’insérer un saut de ligne dans le champ voisin.
+  useEffect(() => {
+    if (moveFocus === null) return
+    const item = section.current?.querySelectorAll<HTMLElement>('.quote-editor-item')[moveFocus]
+    const button = item?.querySelector<HTMLButtonElement>('button.quote-move:not(:disabled)')
+      ?? item?.querySelector<HTMLButtonElement>('button.quote-move')
+    button?.focus()
+    setMoveFocus(null)
+  }, [moveFocus, values])
+  useEffect(() => {
+    if (!autoFocusLast) return
+    const fields = section.current?.querySelectorAll<HTMLTextAreaElement>('textarea')
+    fields?.[fields.length - 1]?.focus()
+  }, [autoFocusLast])
   const move = (index: number, offset: number) => {
     const next = [...values]
     const target = index + offset
     if (target < 0 || target >= values.length) return
     ;[next[index], next[target]] = [next[target], next[index]]
     onChange(next)
-    setFocusIndex(target)
+    setMoveFocus(target)
   }
   // Retirer la dernière citation ne doit pas laisser le focus hors de la
   // fenêtre : il revient au bouton d’ajout, qui reste la seule cible utile.
@@ -53,8 +72,8 @@ export function QuotesEditor({ values, onChange, disabled = false, error }: {
             <div className="quote-editor-toolbar">
               <label htmlFor={`${id}-${index}`}>Citation {index + 1}</label>
               <div className="quote-editor-actions">
-                <button type="button" className="quote-action" aria-label={`Déplacer la citation ${index + 1} vers le haut`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><MoveIcon /></button>
-                <button type="button" className="quote-action" aria-label={`Déplacer la citation ${index + 1} vers le bas`} disabled={disabled || index === values.length - 1} onClick={() => move(index, 1)}><MoveIcon down /></button>
+                <button type="button" className="quote-action quote-move" aria-label={`Déplacer la citation ${index + 1} vers le haut`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><MoveIcon /></button>
+                <button type="button" className="quote-action quote-move" aria-label={`Déplacer la citation ${index + 1} vers le bas`} disabled={disabled || index === values.length - 1} onClick={() => move(index, 1)}><MoveIcon down /></button>
                 <button type="button" className="quote-action quote-remove" aria-label={`Retirer la citation ${index + 1}`} disabled={disabled} onClick={() => remove(index)}><TrashIcon size={16} /></button>
               </div>
             </div>
@@ -70,14 +89,19 @@ export function QuotesEditor({ values, onChange, disabled = false, error }: {
 /** Lecture ouverte, sous la fiche : aucune citation dissimulée dans un accordéon. */
 export function QuotesSection({ quotes, onEdit }: {
   quotes: readonly { id: string; body: string }[]
-  onEdit: () => void
+  onEdit: (options?: { addQuote?: boolean }) => void
 }) {
   const id = useId()
   return (
     <section className="quotes-section" aria-labelledby={`${id}-title`}>
       <div className="quote-editor-heading">
-        <div><h2 id={`${id}-title`}>Citations</h2><p>{quotes.length} {quotes.length === 1 ? 'citation personnelle' : 'citations personnelles'}</p></div>
-        <button className="text-button" type="button" onClick={onEdit}>{quotes.length ? 'Modifier les citations' : 'Ajouter une citation'}</button>
+        <div>
+          <h2 id={`${id}-title`}>Citations</h2>
+          <p>{quotes.length === 0 ? 'Aucune citation' : `${quotes.length} ${quotes.length === 1 ? 'citation personnelle' : 'citations personnelles'}`}</p>
+        </div>
+        {/* Sur une fiche vide, le bouton annonce une intention d’ajout : le
+            formulaire s’ouvre alors sur un passage vide, prêt à la saisie. */}
+        <button className="text-button" type="button" onClick={() => onEdit(quotes.length === 0 ? { addQuote: true } : undefined)}>{quotes.length ? 'Modifier les citations' : 'Ajouter une citation'}</button>
       </div>
       {quotes.length ? (
         <ol className="quotes-list">

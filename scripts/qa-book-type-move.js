@@ -32,10 +32,11 @@ async (page) => {
   // Une seule validation déplace la fiche et enregistre une citation neuve.
   await openLibrary('Mangas')
   await page.getByRole('button', { name: 'Ouvrir la fiche de Monster', exact: true }).click()
+  // Le CTA d’une fiche sans citation ouvre déjà un passage vide : on le remplit
+  // directement, sans second clic dans le formulaire.
   await page.getByRole('button', { name: 'Ajouter une citation' }).first().click()
   const dialog = page.getByRole('dialog')
   await dialog.waitFor()
-  await dialog.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
   await dialog.locator('textarea[placeholder="Saisir le passage…"]').fill(QUOTE)
   await dialog.getByRole('radio', { name: 'Livre', exact: true }).click()
   await dialog.getByRole('button', { name: 'Enregistrer les modifications', exact: true }).click()

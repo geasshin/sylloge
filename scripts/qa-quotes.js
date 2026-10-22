@@ -98,28 +98,42 @@ async page => {
   const emptySection = page.locator('.quotes-section')
   await emptySection.scrollIntoViewIfNeeded()
   assert(await emptySection.getByText('Les passages conservés dans cette œuvre apparaîtront ici.').isVisible(), 'fiche sans citation : état vide explicite')
+  assert(await emptySection.getByText('Aucune citation', { exact: true }).isVisible(), 'fiche sans citation : compteur au singulier juste')
   await emptySection.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
   const ctaForm = page.getByRole('dialog', { name: 'Modifier la fiche' })
   await ctaForm.waitFor()
-  assert(await ctaForm.getByText('Un passage marquant, une phrase à retrouver… Ajouter une première citation.').isVisible(), 'CTA de la fiche vide : ouvre l’éditeur sur l’état vide')
-  await ctaForm.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
-  await ctaForm.getByLabel('Citation 1', { exact: true }).fill('Premier passage, déplacé ensuite au clavier.')
+  // Le CTA de la fiche vide ouvre l’éditeur sur un passage déjà créé et focalisé :
+  // une seule action mène à la saisie, sans second clic dans le formulaire.
+  const draftField = ctaForm.getByLabel('Citation 1', { exact: true })
+  await draftField.waitFor()
+  const draftFocus = await page.evaluate(() => ({
+    placeholder: document.activeElement?.getAttribute('placeholder') ?? null,
+    insideDialog: Boolean(document.activeElement?.closest('[role="dialog"]')),
+  }))
+  assert(draftFocus.placeholder === 'Saisir le passage…' && draftFocus.insideDialog, 'CTA de la fiche vide : le passage créé reçoit le focus')
+  await draftField.fill('Premier passage, déplacé ensuite au clavier.')
   await ctaForm.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
   await ctaForm.getByLabel('Citation 2', { exact: true }).fill('Second passage.')
-  // Déplacement au clavier : le bouton reçoit le focus puis Entrée, et le champ
-  // déplacé reprend le focus pour continuer la saisie.
+  // Déplacement au clavier : le focus reste sur le geste, donc Entrée répète le
+  // déplacement au lieu d’insérer un saut de ligne dans un champ voisin.
   const upButton = ctaForm.getByRole('button', { name: 'Déplacer la citation 2 vers le haut', exact: true })
   await upButton.focus()
   await page.keyboard.press('Enter')
   await page.waitForTimeout(150)
-  const focusedValue = await page.evaluate(() => document.activeElement?.value ?? null)
-  assert(focusedValue === 'Second passage.', 'déplacement au clavier : le champ déplacé reprend le focus')
+  const afterMove = await page.evaluate(() => ({
+    label: document.activeElement?.getAttribute('aria-label') ?? null,
+    isField: document.activeElement?.tagName === 'TEXTAREA',
+  }))
+  assert(!afterMove.isField && Boolean(afterMove.label?.startsWith('Déplacer la citation')), 'déplacement au clavier : le focus reste sur le bouton de déplacement')
   assert((await ctaForm.getByLabel('Citation 1', { exact: true }).inputValue()) === 'Second passage.', 'déplacement au clavier : ordre appliqué')
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(150)
+  assert((await ctaForm.getByLabel('Citation 1', { exact: true }).inputValue()) === 'Premier passage, déplacé ensuite au clavier.', 'déplacement au clavier : Entrée répète le geste')
   await ctaForm.getByRole('button', { name: 'Enregistrer les modifications', exact: true }).click()
   await ctaForm.waitFor({ state: 'hidden' })
   const [emptyEntry] = await select('SELECT id FROM books WHERE title = $1', [emptyTitle])
   let ctaQuotes = await select('SELECT id, body, position FROM book_quotes WHERE book_id = $1 ORDER BY position', [emptyEntry.id])
-  assert(ctaQuotes.length === 2 && ctaQuotes[0].body === 'Second passage.', 'déplacement au clavier : positions écrites dans l’ordre')
+  assert(ctaQuotes.length === 2 && ctaQuotes[0].body === 'Premier passage, déplacé ensuite au clavier.', 'déplacement au clavier : positions écrites dans l’ordre')
   // Supprimer la dernière citation ramène la fiche à son état vide, sans ligne résiduelle.
   await page.locator('.quotes-section').getByRole('button', { name: 'Modifier les citations', exact: true }).click()
   const lastForm = page.getByRole('dialog', { name: 'Modifier la fiche' })
@@ -138,6 +152,31 @@ async page => {
   assert(ctaQuotes.length === 0, 'suppression de la dernière citation : aucune ligne résiduelle')
   await page.locator('.quotes-section').scrollIntoViewIfNeeded()
   assert(await page.locator('.quotes-section').getByText('Les passages conservés dans cette œuvre apparaîtront ici.').isVisible(), 'suppression de la dernière citation : retour à l’état vide')
+  // Même intention d’ajout pour une bibliothèque personnalisée : le code du
+  // comic passe par CustomLibraryScreen, pas par BookDetail.
+  await mainNav.getByRole('button', { name: 'Comics', exact: true }).click()
+  const comicTitle = 'Recette sans citation comics'
+  await page.getByRole('button', { name: 'Ajouter un comic', exact: true }).first().click()
+  const comicCreate = page.getByRole('dialog').last()
+  await comicCreate.getByLabel('Titre', { exact: true }).fill(comicTitle)
+  await comicCreate.getByRole('button', { name: 'Ajouter un comic', exact: true }).click()
+  await comicCreate.waitFor({ state: 'hidden' })
+  await page.getByRole('heading', { name: comicTitle, exact: true, level: 1 }).waitFor()
+  const comicSection = page.locator('.quotes-section')
+  await comicSection.scrollIntoViewIfNeeded()
+  assert(await comicSection.getByText('Aucune citation', { exact: true }).isVisible(), 'comic sans citation : compteur au singulier juste')
+  await comicSection.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
+  const comicEdit = page.getByRole('dialog')
+  await comicEdit.waitFor()
+  const comicDraft = comicEdit.getByLabel('Citation 1', { exact: true })
+  await comicDraft.waitFor()
+  const comicFocus = await page.evaluate(() => ({
+    placeholder: document.activeElement?.getAttribute('placeholder') ?? null,
+    inside: Boolean(document.activeElement?.closest('[role="dialog"]')),
+  }))
+  assert(comicFocus.placeholder === 'Saisir le passage…' && comicFocus.inside, 'CTA d’un comic vide : le passage créé reçoit le focus')
+  await comicEdit.getByRole('button', { name: 'Annuler', exact: true }).click()
+  await comicEdit.waitFor({ state: 'hidden' })
   assert(errors.length === 0, `Aucune erreur JS : ${errors.join('; ')}`)
   return JSON.stringify({ ok: true, checks })
 }

@@ -20,7 +20,7 @@ type BookDetailProps = {
   book: Book
   onBack: () => void
   backLabel: string
-  onEdit: () => void
+  onEdit: (options?: { addQuote?: boolean }) => void
   /** Modification de la couverture par URL depuis le crayon. */
   onCoverEdit?: (url: string | null) => Promise<void> | void
   /** Ouverture de la pop-up d'association Open Library (même parcours que les films). */
@@ -58,7 +58,7 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
       <header className="page-action-bar detail-action-bar">
         <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={backLabel}>{icon('arrow-left')}</button>
         <div className="detail-actions">
-          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+          <button className="icon-action-button" type="button" onClick={() => onEdit()} title="Modifier la fiche">
             {icon('pencil')}
             <span>Modifier</span>
           </button>
@@ -148,7 +148,7 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
           {book.personalNote && (
             <section className="mine-block">
               <blockquote className="review-personal">{book.personalNote}</blockquote>
-              <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier l’avis</button>
+              <button className="link-accent review-edit-link" type="button" onClick={() => onEdit()}>Modifier l’avis</button>
             </section>
           )}
           <QuotesSection quotes={book.quotes} onEdit={onEdit} />

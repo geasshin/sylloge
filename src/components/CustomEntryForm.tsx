@@ -32,6 +32,8 @@ function previewableUrl(value: string): string | null {
 type CustomEntryFormProps = {
   libraryId: CustomLibraryId
   entry?: CustomEntry
+  /** Arrivée depuis « Ajouter une citation » : ouvre un passage vide et le focalise. */
+  initialQuoteDraft?: boolean
   onCancel: () => void
   onSave: (input: CustomEntryWriteInput) => Promise<void>
 }
@@ -41,9 +43,12 @@ type CustomEntryFormProps = {
  * modèle : statuts proposés, progression, date, champs propres et citations.
  * Même gabarit que les autres médiums (visuel et verdict à gauche).
  */
-export function CustomEntryForm({ libraryId, entry, onCancel, onSave }: CustomEntryFormProps) {
+export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, onCancel, onSave }: CustomEntryFormProps) {
   const template = CUSTOM_LIBRARY_TEMPLATES[libraryId]
-  const [values, setValues] = useState<CustomEntryFormValues>(() => entry ? customEntryToFormValues(entry) : emptyCustomEntryForm(libraryId))
+  const [values, setValues] = useState<CustomEntryFormValues>(() => {
+    const base = entry ? customEntryToFormValues(entry) : emptyCustomEntryForm(libraryId)
+    return initialQuoteDraft ? { ...base, quotes: [...base.quotes, ''] } : base
+  })
   const [errors, setErrors] = useState<CustomEntryFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -126,7 +131,7 @@ export function CustomEntryForm({ libraryId, entry, onCancel, onSave }: CustomEn
                 placeholder="Titre"
                 aria-invalid={Boolean(errors.title)}
                 aria-describedby={errors.title ? `${idPrefix}-title-error` : undefined}
-                autoFocus
+                autoFocus={!initialQuoteDraft}
               />
               {errors.title && <p className="field-error" id={`${idPrefix}-title-error`}>{errors.title}</p>}
             </div>
@@ -253,7 +258,7 @@ export function CustomEntryForm({ libraryId, entry, onCancel, onSave }: CustomEn
               </div>
             </div>
 
-            {template.quotes && <QuotesEditor values={values.quotes} onChange={quotes => update('quotes', quotes)} disabled={saving} />}
+            {template.quotes && <QuotesEditor values={values.quotes} onChange={quotes => update('quotes', quotes)} disabled={saving} autoFocusLast={initialQuoteDraft} />}
 
             {errors.coverUrl && <p className="form-error" role="alert">{errors.coverUrl}</p>}
             {saveError && <p className="form-error" role="alert">{saveError}</p>}

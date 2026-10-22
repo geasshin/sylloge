@@ -32,7 +32,7 @@ type LoadState =
   | { status: 'ready'; entries: CustomEntry[] }
   | { status: 'error' }
 
-type FormState = { mode: 'create' } | { mode: 'edit'; entry: CustomEntry } | null
+type FormState = { mode: 'create' } | { mode: 'edit'; entry: CustomEntry; quoteDraft?: boolean } | null
 
 type CustomLibraryScreenProps = {
   libraryId: CustomLibraryId
@@ -162,6 +162,7 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
         <CustomEntryForm
           libraryId={libraryId}
           entry={form.mode === 'edit' ? form.entry : undefined}
+          initialQuoteDraft={form.mode === 'edit' && form.quoteDraft === true}
           onCancel={() => setForm(null)}
           onSave={save}
         />
@@ -177,7 +178,7 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
             libraryId={libraryId}
             entry={openEntry}
             onBack={() => onOpenEntry(null)}
-            onEdit={() => setForm({ mode: 'edit', entry: openEntry })}
+            onEdit={(options) => setForm({ mode: 'edit', entry: openEntry, quoteDraft: options?.addQuote === true })}
             onCoverEdit={async (url) => {
               await customLibraryRepository.setCover(profileId, libraryId, openEntry.id, url)
               replaceEntry({ ...openEntry, coverUrl: url })
@@ -336,7 +337,7 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
   libraryId: CustomLibraryId
   entry: CustomEntry
   onBack: () => void
-  onEdit: () => void
+  onEdit: (options?: { addQuote?: boolean }) => void
   onCoverEdit: (url: string | null) => Promise<void>
   onDelete: () => Promise<void>
 }) {
@@ -366,7 +367,7 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
       <header className="page-action-bar detail-action-bar">
         <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={`Retour à ${template.label}`}><ArrowLeftIcon /></button>
         <div className="detail-actions">
-          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+          <button className="icon-action-button" type="button" onClick={() => onEdit()} title="Modifier la fiche">
             <PencilIcon />
             <span>Modifier</span>
           </button>
@@ -441,7 +442,7 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
             {entry.personalNote ? (
               <>
                 <blockquote className="review-personal">{entry.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier</button>
+                <button className="link-accent review-edit-link" type="button" onClick={() => onEdit()}>Modifier</button>
               </>
             ) : (
               <p className="mine-empty">Ton avis s’écrira ici.</p>

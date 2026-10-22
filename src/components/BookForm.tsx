@@ -52,14 +52,20 @@ type BookFormProps = {
   /** Intégré à une pop-up hôte (0.6.10) : le formulaire vit dans la fenêtre,
       sans <main> pleine page ni barre de retour redondante. */
   embeddedInDialog?: boolean
+  /** Arrivée depuis « Ajouter une citation » : ouvre un passage vide et le focalise. */
+  initialQuoteDraft?: boolean
   onCancel: () => void
   onSave: (input: BookWriteInput) => Promise<void>
 }
 
-export function BookForm({ book, creationCategory, initialValues, providerLink = null, embeddedInDialog = false, onCancel, onSave }: BookFormProps) {
-  const [values, setValues] = useState<BookFormValues>(() => book
-    ? bookToFormValues(book)
-    : { ...EMPTY_BOOK_FORM, ...initialValues, category: creationCategory ?? initialValues?.category ?? EMPTY_BOOK_FORM.category, quotes: initialValues?.quotes ?? [] })
+export function BookForm({ book, creationCategory, initialValues, providerLink = null, embeddedInDialog = false, initialQuoteDraft = false, onCancel, onSave }: BookFormProps) {
+  const [values, setValues] = useState<BookFormValues>(() => {
+    const base = book
+      ? bookToFormValues(book)
+      : { ...EMPTY_BOOK_FORM, ...initialValues, category: creationCategory ?? initialValues?.category ?? EMPTY_BOOK_FORM.category, quotes: initialValues?.quotes ?? [] }
+    // Intention « ajouter une citation » : un passage vide attend la saisie.
+    return initialQuoteDraft ? { ...base, quotes: [...base.quotes, ''] } : base
+  })
   const [errors, setErrors] = useState<BookFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -174,7 +180,7 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
               aria-label={values.category === 'manga' ? 'Titre du manga' : 'Titre du livre'}
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'book-title-error' : undefined}
-              autoFocus={!assisted}
+              autoFocus={!assisted && !initialQuoteDraft}
             />
             {errors.title && <p className="field-error" id="book-title-error">{errors.title}</p>}
           </div>
@@ -285,6 +291,7 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
             onChange={(quotes) => { setValues(current => ({ ...current, quotes })); setSaveError(null) }}
             disabled={saving}
             error={errors.quotes}
+            autoFocusLast={initialQuoteDraft}
           />
 
           {/* Champs éditoriaux visibles sans toggle. */}

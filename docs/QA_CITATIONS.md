@@ -2,7 +2,10 @@
 
 ## Ce qui est livré
 
-- Un éditeur de citations commun à Livres, Mangas et Comics (`src/components/Quotes.tsx`) : ajout, retrait, déplacement vers le haut ou le bas, focus rendu au champ déplacé, texte exact conservé (accents, guillemets, sauts de ligne).
+- Un éditeur de citations commun à Livres, Mangas et Comics (`src/components/Quotes.tsx`) : ajout, retrait, déplacement vers le haut ou le bas, texte exact conservé (accents, guillemets, sauts de ligne).
+- « Ajouter une citation » depuis une fiche vide ouvre le formulaire sur un passage déjà créé et focalisé : une seule action mène à la saisie, pour les livres comme pour les comics. Le titre de la fenêtre ne prend plus le focus dans ce cas.
+- Au clavier, le déplacement garde le focus sur le geste : Entrée répète le déplacement au lieu d’insérer un saut de ligne dans un champ voisin.
+- Une fiche sans citation affiche « Aucune citation », jamais « 0 citations personnelles ».
 - Retirer la dernière citation rend le focus au bouton d’ajout : le focus ne sort jamais de la fenêtre modale, donc une validation de trop ne referme pas la fiche.
 - Une section « Citations » en bas de fiche, sous les informations de l’œuvre, avec compteur et action « Modifier les citations ». Aucune citation n’est repliée dans un accordéon.
 - Les citations restent indépendantes du statut de lecture : une œuvre « À lire » peut porter des citations.
@@ -35,7 +38,7 @@ Défaut corrigé avant publication : une copie de sauvegarde plus grosse que la 
 
 | Recette | Contrôles |
 | --- | --- |
-| `qa-quotes.js` | 97 |
+| `qa-quotes.js` | 101 |
 | `qa-library-separation.js` | 154 assertions |
 | `qa-library-toolbar.js` | 112 |
 | `qa-transfers.js` | 70 |

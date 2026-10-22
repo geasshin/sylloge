@@ -1982,7 +1982,7 @@ function App() {
   type AddFlow =
     | { medium: 'film'; step: 'search'; initialValues?: FilmFormValues; provenance?: FilmMetadataProvenance | null; tmdbPresentation?: TmdbFilmPresentation; editFilmId?: string }
     | { medium: 'série'; step: 'search'; initialValues?: SeriesFormValues; providerLink?: MediaProviderReference | null; editSeriesId?: string; seriesLibrary?: SeriesLibraryKey }
-    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; providerLink?: MediaProviderReference | null; editBookId?: string; bookLibrary?: BookLibraryKey }
+    | { medium: 'livre'; step: 'search'; initialValues?: BookFormValues; providerLink?: MediaProviderReference | null; editBookId?: string; bookLibrary?: BookLibraryKey; quoteDraft?: boolean }
     | { medium: 'jeu'; step: 'search'; initialValues?: GameFormValues; providerLink?: MediaProviderReference | null; editGameId?: string }
     | { medium: 'artwork'; step: 'form'; editArtworkId?: string }
   const [addFlow, setAddFlow] = useState<AddFlow | null>(null)
@@ -2994,12 +2994,12 @@ function App() {
           book={book}
           onBack={() => goBackTo(view.returnTo)}
           backLabel={bookBackLabel(view.returnTo)}
-          onEdit={async () => {
+          onEdit={async (options) => {
             const book = bookCollection.find((entry) => entry.id === view.bookId)
             if (book) {
               // 0.6.18 : Modifier rouvre la pop-up, préremplie.
               const providerLink = await mediaRepository.getMediaProviderLink(library.profile.id, bookLibraryForCategory(book.category), book.id)
-              setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), providerLink, editBookId: book.id, bookLibrary: bookLibraryForCategory(book.category) })
+              setAddFlow({ medium: 'livre', step: 'search', initialValues: bookToFormValues(book), providerLink, editBookId: book.id, bookLibrary: bookLibraryForCategory(book.category), quoteDraft: options?.addQuote === true })
             }
           }}
           onAssociate={() => {
@@ -3454,6 +3454,7 @@ function App() {
                   creationCategory={editBookId ? undefined : addFlow.bookLibrary === 'mangas' ? 'manga' : 'livre'}
                   initialValues={initialValues}
                   providerLink={addFlow.providerLink ?? null}
+                  initialQuoteDraft={addFlow.quoteDraft === true}
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: BookWriteInput) => {
                     const library = libraryState.library
