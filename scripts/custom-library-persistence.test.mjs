@@ -158,7 +158,9 @@ test('no repository read runs until the native transaction has committed', async
 
 test('a successful void native command still requires the committed entry to be re-readable', async () => {
   const { repository } = harness(null, { create: async () => {} })
-  await assert.rejects(repository.create('reader', 'music', input({ quotes: [] })), /créée.*relue/u)
+  // Le message doit dire que l’écriture a eu lieu ET qu’il faut recharger,
+  // sinon l’utilisateur recrée la fiche et produit un doublon.
+  await assert.rejects(repository.create('reader', 'music', input({ quotes: [] })), /enregistrée.*relue.*rechargez[^.]*doublon/u)
 })
 
 test('three existing constructor dependencies remain compatible for reads', async () => {

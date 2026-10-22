@@ -230,7 +230,7 @@ export class SqliteCustomLibraryRepository {
     }
     await this.createNative({ libraryId, entry })
     const created = await this.get(profileId, libraryId, id)
-    if (!created) throw new Error('La fiche créée n’a pas pu être relue depuis SQLite.')
+    if (!created) throw new Error('La fiche a été enregistrée, mais elle n’a pas pu être relue depuis SQLite : rechargez la bibliothèque avant de réessayer, pour ne pas créer de doublon.')
     return created
   }
 
@@ -253,7 +253,7 @@ export class SqliteCustomLibraryRepository {
     }
     await this.updateNative({ libraryId, entry })
     const updated = await this.get(profileId, libraryId, id)
-    if (!updated) throw new Error('La fiche modifiée n’a pas pu être relue depuis SQLite.')
+    if (!updated) throw new Error('La fiche a été enregistrée, mais elle n’a pas pu être relue depuis SQLite : rechargez la bibliothèque avant de réessayer.')
     return updated
   }
 
@@ -293,7 +293,9 @@ export class SqliteCustomLibraryRepository {
   /** Prépare sans écrire ; les occurrences inchangées gardent chacune leur identité. */
   private prepareQuotes(entryId: string, bodies: string[], now: string, previous: CustomQuote[] = []): CustomQuote[] {
     const available = [...previous]
-    return bodies.map((body, position) => {
+    // Même contrat que `reconcileBookQuotes` : un passage vide n’est jamais
+    // enregistré, et les positions restent contiguës.
+    return bodies.filter(body => body.trim() !== '').map((body, position) => {
       const reusedIndex = available.findIndex(quote => quote.body === body)
       const reused = reusedIndex >= 0 ? available.splice(reusedIndex, 1)[0] : null
       return { id: reused?.id ?? this.createId(), entryId, body, position, createdAt: reused?.createdAt ?? now }

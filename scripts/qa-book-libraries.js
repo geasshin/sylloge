@@ -1,6 +1,9 @@
 async (page) => {
   page.setDefaultTimeout(6000)
   await page.setViewportSize({ width: 1440, height: 900 })
+  // Les transitions de vue déplacent le bouton retour : on les neutralise pour
+  // des clics déterministes.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   const errors = []
   const consoleErrors = []
   const unexpectedRequests = []

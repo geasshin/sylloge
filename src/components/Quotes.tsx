@@ -14,6 +14,7 @@ export function QuotesEditor({ values, onChange, disabled = false, error }: {
 }) {
   const id = useId()
   const section = useRef<HTMLElement>(null)
+  const addButton = useRef<HTMLButtonElement>(null)
   const [focusIndex, setFocusIndex] = useState<number | null>(null)
   useEffect(() => {
     if (focusIndex === null) return
@@ -28,6 +29,14 @@ export function QuotesEditor({ values, onChange, disabled = false, error }: {
     onChange(next)
     setFocusIndex(target)
   }
+  // Retirer la dernière citation ne doit pas laisser le focus hors de la
+  // fenêtre : il revient au bouton d’ajout, qui reste la seule cible utile.
+  const remove = (index: number) => {
+    const next = values.filter((_, position) => position !== index)
+    onChange(next)
+    if (next.length === 0) addButton.current?.focus()
+    else setFocusIndex(Math.max(0, index - 1))
+  }
   return (
     <section className="quote-editor" aria-labelledby={`${id}-title`} ref={section}>
       <div className="quote-editor-heading">
@@ -35,7 +44,7 @@ export function QuotesEditor({ values, onChange, disabled = false, error }: {
           <h2 id={`${id}-title`}>Citations</h2>
           <p>Les passages à garder, dans leur ordre de lecture.</p>
         </div>
-        <button className="secondary-button quote-add" type="button" disabled={disabled} onClick={() => { setFocusIndex(values.length); onChange([...values, '']) }}><PlusIcon />Ajouter une citation</button>
+        <button ref={addButton} className="secondary-button quote-add" type="button" disabled={disabled} onClick={() => { setFocusIndex(values.length); onChange([...values, '']) }}><PlusIcon />Ajouter une citation</button>
       </div>
       {values.length === 0 && <p className="quote-editor-empty">Un passage marquant, une phrase à retrouver… Ajouter une première citation.</p>}
       <div className="quote-editor-list">
@@ -46,10 +55,10 @@ export function QuotesEditor({ values, onChange, disabled = false, error }: {
               <div className="quote-editor-actions">
                 <button type="button" className="quote-action" aria-label={`Déplacer la citation ${index + 1} vers le haut`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><MoveIcon /></button>
                 <button type="button" className="quote-action" aria-label={`Déplacer la citation ${index + 1} vers le bas`} disabled={disabled || index === values.length - 1} onClick={() => move(index, 1)}><MoveIcon down /></button>
-                <button type="button" className="quote-action quote-remove" aria-label={`Retirer la citation ${index + 1}`} disabled={disabled} onClick={() => { onChange(values.filter((_, i) => i !== index)); setFocusIndex(Math.max(0, index - 1)) }}><TrashIcon size={16} /></button>
+                <button type="button" className="quote-action quote-remove" aria-label={`Retirer la citation ${index + 1}`} disabled={disabled} onClick={() => remove(index)}><TrashIcon size={16} /></button>
               </div>
             </div>
-            <textarea id={`${id}-${index}`} value={body} rows={3} placeholder="Saisir le passage…" disabled={disabled} onChange={event => onChange(values.map((value, i) => i === index ? event.target.value : value))} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} />
+            <textarea id={`${id}-${index}`} value={body} rows={3} placeholder="Saisir le passage…" disabled={disabled} onChange={event => onChange(values.map((value, i) => i === index ? event.target.value : value))} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} autoCorrect="off" spellCheck={false} />
           </div>
         ))}
       </div>

@@ -3,6 +3,7 @@
 ## Ce qui est livré
 
 - Un éditeur de citations commun à Livres, Mangas et Comics (`src/components/Quotes.tsx`) : ajout, retrait, déplacement vers le haut ou le bas, focus rendu au champ déplacé, texte exact conservé (accents, guillemets, sauts de ligne).
+- Retirer la dernière citation rend le focus au bouton d’ajout : le focus ne sort jamais de la fenêtre modale, donc une validation de trop ne referme pas la fiche.
 - Une section « Citations » en bas de fiche, sous les informations de l’œuvre, avec compteur et action « Modifier les citations ». Aucune citation n’est repliée dans un accordéon.
 - Les citations restent indépendantes du statut de lecture : une œuvre « À lire » peut porter des citations.
 - Une seule table de citations par bibliothèque (`book_quotes`, `manga_quotes`, `comic_quotes`), dans la même base SQLite que la bibliothèque.
@@ -10,6 +11,9 @@
 ## Identité et atomicité
 
 - À l’enregistrement, une citation dont le texte n’a pas changé garde son identifiant et sa date de création, y compris lorsque l’ordre change ou que deux citations ont le même texte.
+- Le rapprochement se fait sur le texte exact : corriger une citation produit une nouvelle citation (nouvel identifiant, nouvelle date). C’est un choix assumé — aucun défaut visible aujourd’hui, aucune identité affichée — mais il faudra transporter l’identifiant dans le formulaire avant toute synchronisation entre appareils, sinon une correction deviendra un doublon.
+- Le champ de saisie neutralise la correction automatique et le correcteur (`autoCorrect="off"`, `spellCheck={false}`), comme l’ancien éditeur : un passage cité ne doit pas être réécrit par macOS.
+- Les corps vides ne sont jamais enregistrés, sur les deux chemins de préparation (`reconcileBookQuotes` et `prepareQuotes`), et les positions restent contiguës.
 - Les écritures passent par une transaction unique côté Rust : `create_custom_entry_atomically`, `update_custom_entry_atomically`, `delete_custom_entry_atomically`, `remove_custom_library_atomically`.
 - Un échec tardif sur une citation annule la fiche entière et toutes ses anciennes citations ; aucun état intermédiaire ne reste en base.
 - Le dépôt relit la base après le commit natif : l’interface n’affiche jamais un succès non écrit.
@@ -31,7 +35,7 @@ Défaut corrigé avant publication : une copie de sauvegarde plus grosse que la 
 
 | Recette | Contrôles |
 | --- | --- |
-| `qa-quotes.js` | 89 |
+| `qa-quotes.js` | 97 |
 | `qa-library-separation.js` | 154 assertions |
 | `qa-library-toolbar.js` | 112 |
 | `qa-transfers.js` | 70 |
@@ -58,4 +62,6 @@ Changer le type d’une fiche (Livre ↔ Manga) la déplace de table : même ide
 
 - L’automatisation graphique native passe par l’accessibilité macOS : après bascule d’espace ou activation d’une autre application, la fenêtre accepte l’observation mais refuse l’entrée tant qu’elle n’est pas ramenée au premier plan. Les parcours vérifiés en natif sont ceux listés ci-dessus ; le reste est couvert par les recettes navigateur et les tests Rust.
 - Les recettes navigateur utilisent `sql.js` avec les vraies migrations, pas le moteur Rust : la parité est assurée par les tests Rust correspondants, pas par une exécution native de chaque parcours.
+- La couture IPC des fiches personnalisées est vérifiée à la lecture, pas par un test : les clés TypeScript (`libraryId`, `entry`, `profileId`, `isFavorite`, `progressCurrent`…) correspondent une à une aux structures Rust (`#[serde(rename_all = "camelCase")]`) et les paramètres de commande aux noms snake_case attendus. Un test couvrant la couche `#[tauri::command]` elle-même reste à écrire.
+- Créer ou modifier une fiche dont la bibliothèque n’est pas activée pour le profil n’est pas refusé par la commande native : le cas n’est pas atteignable depuis l’interface, qui n’expose que les bibliothèques actives.
 - Le passage d’un profil très volumineux (> 64 Mio de JSON) fait échouer la sauvegarde avec un message explicite plutôt que de produire une copie inutilisable ; aucune copie n’est alors perdue.

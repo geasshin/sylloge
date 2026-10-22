@@ -80,6 +80,64 @@ async page => {
       assert(result.ok, `${width}/${theme} : sauvegarde et restauration des trois bibliothèques`)
     }
   }
+  // Cas limites, une seule fois : fiche sans citation, déplacement au clavier,
+  // suppression de la dernière citation et retour à l’état vide.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full')
+  const mainNav = page.getByRole('navigation', { name: 'Navigation principale' })
+  await mainNav.waitFor()
+  await mainNav.getByRole('button', { name: 'Livres', exact: true }).click()
+  await page.getByRole('button', { name: 'Ajouter un livre', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Saisir manuellement', exact: true }).click()
+  const emptyForm = page.getByRole('dialog').last()
+  const emptyTitle = 'Recette sans citation'
+  await emptyForm.getByLabel('Titre du livre', { exact: true }).fill(emptyTitle)
+  await emptyForm.getByRole('button', { name: 'Ajouter le livre', exact: true }).click()
+  await emptyForm.waitFor({ state: 'hidden' })
+  await page.getByRole('heading', { name: emptyTitle, exact: true, level: 1 }).waitFor()
+  const emptySection = page.locator('.quotes-section')
+  await emptySection.scrollIntoViewIfNeeded()
+  assert(await emptySection.getByText('Les passages conservés dans cette œuvre apparaîtront ici.').isVisible(), 'fiche sans citation : état vide explicite')
+  await emptySection.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
+  const ctaForm = page.getByRole('dialog', { name: 'Modifier la fiche' })
+  await ctaForm.waitFor()
+  assert(await ctaForm.getByText('Un passage marquant, une phrase à retrouver… Ajouter une première citation.').isVisible(), 'CTA de la fiche vide : ouvre l’éditeur sur l’état vide')
+  await ctaForm.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
+  await ctaForm.getByLabel('Citation 1', { exact: true }).fill('Premier passage, déplacé ensuite au clavier.')
+  await ctaForm.getByRole('button', { name: 'Ajouter une citation', exact: true }).click()
+  await ctaForm.getByLabel('Citation 2', { exact: true }).fill('Second passage.')
+  // Déplacement au clavier : le bouton reçoit le focus puis Entrée, et le champ
+  // déplacé reprend le focus pour continuer la saisie.
+  const upButton = ctaForm.getByRole('button', { name: 'Déplacer la citation 2 vers le haut', exact: true })
+  await upButton.focus()
+  await page.keyboard.press('Enter')
+  await page.waitForTimeout(150)
+  const focusedValue = await page.evaluate(() => document.activeElement?.value ?? null)
+  assert(focusedValue === 'Second passage.', 'déplacement au clavier : le champ déplacé reprend le focus')
+  assert((await ctaForm.getByLabel('Citation 1', { exact: true }).inputValue()) === 'Second passage.', 'déplacement au clavier : ordre appliqué')
+  await ctaForm.getByRole('button', { name: 'Enregistrer les modifications', exact: true }).click()
+  await ctaForm.waitFor({ state: 'hidden' })
+  const [emptyEntry] = await select('SELECT id FROM books WHERE title = $1', [emptyTitle])
+  let ctaQuotes = await select('SELECT id, body, position FROM book_quotes WHERE book_id = $1 ORDER BY position', [emptyEntry.id])
+  assert(ctaQuotes.length === 2 && ctaQuotes[0].body === 'Second passage.', 'déplacement au clavier : positions écrites dans l’ordre')
+  // Supprimer la dernière citation ramène la fiche à son état vide, sans ligne résiduelle.
+  await page.locator('.quotes-section').getByRole('button', { name: 'Modifier les citations', exact: true }).click()
+  const lastForm = page.getByRole('dialog', { name: 'Modifier la fiche' })
+  await lastForm.waitFor()
+  await lastForm.getByRole('button', { name: 'Retirer la citation 2', exact: true }).click()
+  await lastForm.getByRole('button', { name: 'Retirer la citation 1', exact: true }).click()
+  await page.waitForTimeout(150)
+  const focusAfterRemoval = await page.evaluate(() => ({
+    text: document.activeElement?.textContent?.trim() ?? null,
+    insideDialog: Boolean(document.activeElement?.closest('[role="dialog"]')),
+  }))
+  assert(focusAfterRemoval.text === 'Ajouter une citation' && focusAfterRemoval.insideDialog, 'suppression de la dernière citation : le focus reste dans la fenêtre, sur le bouton d’ajout')
+  await lastForm.getByRole('button', { name: 'Enregistrer les modifications', exact: true }).click()
+  await lastForm.waitFor({ state: 'hidden' })
+  ctaQuotes = await select('SELECT id FROM book_quotes WHERE book_id = $1', [emptyEntry.id])
+  assert(ctaQuotes.length === 0, 'suppression de la dernière citation : aucune ligne résiduelle')
+  await page.locator('.quotes-section').scrollIntoViewIfNeeded()
+  assert(await page.locator('.quotes-section').getByText('Les passages conservés dans cette œuvre apparaîtront ici.').isVisible(), 'suppression de la dernière citation : retour à l’état vide')
   assert(errors.length === 0, `Aucune erreur JS : ${errors.join('; ')}`)
   return JSON.stringify({ ok: true, checks })
 }
