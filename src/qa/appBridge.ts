@@ -616,9 +616,19 @@ function handle(cmd: string, args: Args): unknown {
       execute('DELETE FROM film_tmdb_cache WHERE film_id = $1', [args.filmId])
       execute('UPDATE films SET provider_name = NULL, provider_id = NULL WHERE id = $1', [args.filmId])
       return null
-    case 'set_film_tmdb_poster':
+    case 'set_film_tmdb_poster': {
+      // Même contrat que la commande native (tmdb/mod.rs) : pas d'association, pas de choix ; et
+      // seule une affiche connue du cache est acceptée. Un simulateur plus souple masquerait qu'un
+      // lien personnel ne peut pas passer par ici.
+      const current = cachedFilm(args.filmId)
+      if (!current) fail('Aucune association TMDB pour ce film.')
+      if (args.posterUrl != null) {
+        const known = [current.presentation.posterUrl, ...(current.presentation.alternativePosterUrls ?? [])]
+        if (!known.includes(args.posterUrl)) fail("L'affiche choisie ne fait pas partie des affiches TMDB du cache.")
+      }
       execute('UPDATE film_tmdb_cache SET selected_poster_url = $1 WHERE film_id = $2', [args.posterUrl ?? null, args.filmId])
       return cachedFilm(args.filmId)
+    }
     case 'search_igdb_games':
       return fakeCandidates(args.query).map((candidate) => ({ gameId: 700_000 + candidate.id, title: candidate.title, releaseYear: candidate.year, coverUrl: candidate.poster }))
     case 'preview_igdb_game':

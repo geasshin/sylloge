@@ -4166,3 +4166,26 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .at-activity-body { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
   .at-activity-panel { padding: var(--space-4); }
 }
+
+/* Aperçu du lien collé dans le dialogue d'adresse d'image (toutes les bibliothèques). */
+.poster-url-preview {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+.poster-url-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+.poster-url-preview p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: .875rem;
+}

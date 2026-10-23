@@ -1,4 +1,5 @@
 import { FILM_STATUSES, normalizeFilm, type Film, type FilmStatus } from '../domain/film.ts'
+import { isHttpUrl } from '../domain/customLibraries.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import type { LibrarySort } from '../domain/libraryViews.ts'
@@ -461,6 +462,32 @@ export class SqliteFilmsRepository {
         id,
         profileId,
       ],
+    )
+
+    if (result.rowsAffected !== 1) {
+      throw new Error('Le film à modifier est introuvable dans le profil courant.')
+    }
+
+    return updatedAt
+  }
+
+  /**
+   * Enregistre seulement l'adresse de l'affiche : depuis la fiche, le lien personnel ne doit pas
+   * passer par une réécriture complète qui reprendrait les champs d'une lecture périmée.
+   * `null` retire le lien et rend la main à l'affiche du fournisseur.
+   */
+  async updateFilmPoster(profileId: string, id: string, posterUrl: string | null): Promise<string> {
+    const stored = posterUrl === null || posterUrl.trim() === '' ? null : posterUrl.trim()
+    if (stored !== null && !isHttpUrl(stored)) {
+      throw new Error('L’adresse de l’affiche doit commencer par http:// ou https://.')
+    }
+    const database = await this.loadDatabase()
+    const updatedAt = this.now()
+    const result = await database.execute(
+      `UPDATE films
+       SET poster_url = $1, updated_at = $2
+       WHERE id = $3 AND profile_id = $4`,
+      [stored, updatedAt, id, profileId],
     )
 
     if (result.rowsAffected !== 1) {

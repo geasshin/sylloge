@@ -12,20 +12,12 @@ import {
 } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import type { TmdbFilmPresentation } from '../data/tmdbService.ts'
+import { resolveFilmPoster } from '../domain/filmPoster.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { FocusDialog } from './FocusDialog.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 
-/** Une URL d'affiche n'est prévisualisée que si elle est http(s) valide. */
-function previewablePosterUrl(value: string): string | null {
-  try {
-    const url = new URL(value.trim())
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
-  } catch {
-    return null
-  }
-}
 function formatFilmReleaseDate(value: string | null): string | null {
   if (!value) return null
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : null
@@ -49,8 +41,6 @@ type FilmFormProps = {
   tmdbPresentation?: TmdbFilmPresentation | null
   /** Cache TMDB de la fiche en édition : pré-remplit les champs éditoriaux. */
   tmdbCache?: import('../data/tmdbService.ts').CachedFilmTmdbPresentation | null
-  /** Modification de l'affiche par URL depuis le crayon sur l'aperçu. */
-  onPosterEdit?: (url: string | null) => Promise<void> | void
   /** Rendu en pop-up modale centrée au-dessus de la bibliothèque (fond flouté). */
   asDialog?: boolean
   /** Titre réduit dans une pop-up hôte qui gère déjà son propre en-tête. */
@@ -65,7 +55,7 @@ type FilmFormProps = {
   onSave: (input: FilmWriteInput, provenance: FilmMetadataProvenance | null) => Promise<void>
 }
 
-export function FilmForm({ film, initialValues, provenance = null, tmdbPresentation = null, tmdbCache = null, onPosterEdit, asDialog = false, compactHeading = false, embeddedInDialog = false, fetchTmdbCache, onCancel, onSave }: FilmFormProps) {
+export function FilmForm({ film, initialValues, provenance = null, tmdbPresentation = null, tmdbCache = null, asDialog = false, compactHeading = false, embeddedInDialog = false, fetchTmdbCache, onCancel, onSave }: FilmFormProps) {
   const [values, setValues] = useState<FilmFormValues>(() => film ? filmToFormValues(film) : { ...EMPTY_FILM_FORM, ...initialValues })
   const [errors, setErrors] = useState<FilmFormErrors>({})
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -114,10 +104,10 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
   // « À découvrir » : pas encore de verdict, on masque note, cœur, date et avis.
   const verdictVisible = values.status !== 'à découvrir'
   const previewTitle = values.title.trim() || t("Titre à renseigner")
-  // 0.6.16 : en édition, l'affiche enrichie TMDB est montrée même si la
-  // colonne locale est vide — on voit ce que la fiche a vraiment.
-  const previewUrl = previewablePosterUrl(values.posterUrl)
-    ?? (film ? enrichment?.selectedPosterUrl ?? null : null)
+  // Même règle que la fiche détail (domain/filmPoster.ts) : un lien collé ici passe devant
+  // l'affiche du fournisseur, et une fiche associée dont la colonne locale est vide montre
+  // l'affiche TMDB au lieu de « Sans affiche ».
+  const previewUrl = resolveFilmPoster(values.posterUrl, film ? enrichment : null)
 
   // Une fiche historique « en attente » reste affichée et modifiable.
   const statusSegments: FilmStatus[] = FORM_STATUSES.includes(values.status)
@@ -194,7 +184,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
             title={previewTitle}
             src={previewUrl}
             className="form-poster-preview-lg"
-            onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined}
+            onEdit={() => setPosterDialogOpen(true)}
           />
         </div>
         <div className={`film-poster-verdict ${verdictVisible ? 'is-visible' : 'is-empty'}`}>
@@ -311,10 +301,9 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
       label="Affiche"
       currentUrl={values.posterUrl}
       onClose={() => setPosterDialogOpen(false)}
-      onSave={async (url) => {
-        update('posterUrl', url ?? '')
-        await onPosterEdit?.(url)
-      }}
+      // Le lien rejoint le formulaire et s'enregistre avec « Enregistrer » : annuler le
+      // formulaire annule aussi le lien, comme pour tous les autres champs.
+      onSave={(url) => update('posterUrl', url ?? '')}
     />
   )
 
@@ -340,6 +329,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
       <div className="editor-dialog-embedded">
         {heading}
         {form}
+        {posterEditor}
       </div>
     )
   }

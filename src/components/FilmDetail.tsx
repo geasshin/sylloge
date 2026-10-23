@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FILM_STATUS_LABELS, type Film } from '../domain/film.ts'
+import { isCustomFilmPoster, resolveFilmPoster } from '../domain/filmPoster.ts'
 import {
   getFilmTmdbCache,
   removeTmdbAssociation,
@@ -8,6 +9,7 @@ import {
 } from '../data/tmdbService.ts'
 import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
+import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 import { icon } from '../main.tsx'
@@ -19,10 +21,12 @@ type FilmDetailProps = {
   onEdit: () => void
   onDelete: () => Promise<void>
   onAssociateTmdb: () => void
+  /** Enregistre (ou retire, avec null) l'adresse de l'affiche dans la colonne locale de la fiche. */
+  onPosterChange: (url: string | null) => Promise<void>
   tmdbNotice?: string | null
 }
 
-export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, tmdbNotice = null }: FilmDetailProps) {
+export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, tmdbNotice = null }: FilmDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -31,8 +35,11 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
   const [removingAssociation, setRemovingAssociation] = useState(false)
   const [showPosterGallery, setShowPosterGallery] = useState(false)
   const [savingPoster, setSavingPoster] = useState(false)
+  const [posterUrlOpen, setPosterUrlOpen] = useState(false)
 
-  const displayPosterUrl = tmdbCache?.selectedPosterUrl ?? tmdbCache?.presentation.posterUrl ?? film.posterUrl
+  // Même règle que le formulaire, l'accueil et les cartes : domain/filmPoster.ts.
+  const displayPosterUrl = resolveFilmPoster(film.posterUrl, tmdbCache)
+  const customPosterUrl = isCustomFilmPoster(film.posterUrl, tmdbCache) ? film.posterUrl : null
   const displayTitle = tmdbCache?.presentation.title ?? film.title
   const displayOriginalTitle = tmdbCache?.presentation.originalTitle ?? film.originalTitle
   const displayDirector = tmdbCache?.presentation.directors.join(', ') || film.director
@@ -74,6 +81,10 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
     try {
       const updated = await setFilmTmdbPoster(film.id, url)
       setTmdbCache(updated)
+      // L'adresse de la fiche suit le choix : un lien personnel resté en colonne locale
+      // masquerait sinon l'affiche que l'on vient de choisir, et la galerie n'est pas dans la
+      // sauvegarde JSON alors que l'adresse locale y est.
+      await onPosterChange(url)
     } catch (error) {
       console.error('Impossible d\'enregistrer le choix d\'affiche.', error)
     } finally {
@@ -143,17 +154,12 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
         {/* Colonne gauche : l'œuvre objet + ton verdict dessous */}
         <div className="detail-side">
           <div className="poster-container detail-poster-wrap">
-            <Poster title={displayTitle} src={displayPosterUrl} className="detail-poster" />
-            {allPosters.length > 1 && (
-              <button
-                className="poster-edit-button"
-                type="button"
-                onClick={() => setShowPosterGallery(true)}
-                aria-label={t("Choisir une autre affiche")}
-              >
-                ✎
-              </button>
-            )}
+            <Poster
+              title={displayTitle}
+              src={displayPosterUrl}
+              className="detail-poster"
+              onEdit={() => (allPosters.length > 1 ? setShowPosterGallery(true) : setPosterUrlOpen(true))}
+            />
           </div>
           <div className="detail-status">
             <StatusBadge status={film.status} labels={FILM_STATUS_LABELS} />
@@ -185,12 +191,21 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
           <TmdbPosterDialog
             title={displayTitle}
             posters={allPosters}
-            selectedUrl={tmdbCache?.selectedPosterUrl ?? null}
+            selectedUrl={customPosterUrl ?? tmdbCache?.selectedPosterUrl ?? null}
             saving={savingPoster}
             onSelect={handleSelectPoster}
+            onCustom={onPosterChange}
             onClose={() => setShowPosterGallery(false)}
           />
         )}
+        <PosterUrlDialog
+          open={posterUrlOpen}
+          title={displayTitle}
+          label="Affiche"
+          currentUrl={film.posterUrl}
+          onClose={() => setPosterUrlOpen(false)}
+          onSave={onPosterChange}
+        />
 
         {/* Bloc œuvre puis partie personnelle, dans la même respiration */}
         <div className="detail-body">

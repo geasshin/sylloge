@@ -9,6 +9,11 @@ type TmdbPosterDialogProps = {
   selectedUrl: string | null
   saving: boolean
   onSelect: (url: string | null) => void
+  /**
+   * Lien collé par la personne. Il ne fait pas partie des affiches du fournisseur : l'envoyer à
+   * `onSelect` le ferait refuser par le cache TMDB, qui ne connaît que ses propres affiches.
+   */
+  onCustom?: (url: string | null) => Promise<void> | void
   onClose: () => void
 }
 
@@ -23,6 +28,7 @@ export function TmdbPosterDialog({
   selectedUrl,
   saving,
   onSelect,
+  onCustom,
   onClose,
 }: TmdbPosterDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -32,6 +38,8 @@ export function TmdbPosterDialog({
   useDialogFocus(dialogRef, onClose, saving || addOpen)
 
   const currentUrl = customUrl ?? selectedUrl ?? posters[0] ?? null
+  // Le lien personnel n'est pas dans la liste du fournisseur : sans tuile, le choix actif serait invisible.
+  const customTile = currentUrl !== null && !posters.includes(currentUrl) ? currentUrl : null
 
   return (
     <>
@@ -77,6 +85,18 @@ export function TmdbPosterDialog({
               <span aria-hidden="true" className="poster-dialog-add-plus">+</span>
               <small>{t("Ajouter")}</small>
             </button>
+            {customTile && (
+              <button
+                className="poster-dialog-item active"
+                type="button"
+                aria-pressed="true"
+                aria-label={t('Affiche actuellement choisie')}
+                disabled={saving}
+              >
+                <img src={customTile} alt="" loading="lazy" />
+                <span className="poster-dialog-check" aria-hidden="true">✓</span>
+              </button>
+            )}
             {posters.map((url) => (
               <button
                 key={url}
@@ -115,7 +135,7 @@ export function TmdbPosterDialog({
                 className="primary-button"
                 type="button"
                 disabled={saving || currentUrl === null}
-                onClick={() => { if (customUrl) onSelect(customUrl); onClose() }}
+                onClick={() => { if (customUrl && !onCustom) onSelect(customUrl); onClose() }}
               >
                 {saving ? t("Enregistrement…") : t("Valider")}
               </button>
@@ -130,9 +150,10 @@ export function TmdbPosterDialog({
           label="Affiche"
           currentUrl={currentUrl}
           onClose={() => setAddOpen(false)}
-          onSave={(url) => {
+          onSave={async (url) => {
             setCustomUrl(url)
-            if (url) onSelect(url)
+            if (onCustom) await onCustom(url)
+            else if (url) onSelect(url)
           }}
         />
       )}

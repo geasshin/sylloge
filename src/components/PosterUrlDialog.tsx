@@ -3,6 +3,16 @@ import { t, translateMessage } from '../i18n/core.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import { posterResetHint, posterEditTitle, type PosterLabel } from './Poster.tsx'
 
+/** Adresse http(s) valide à prévisualiser, sinon null. */
+function previewableUrl(value: string): string | null {
+  try {
+    const url = new URL(value.trim())
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Dialogue de modification du visuel d'une fiche par URL.
  * Utilisé depuis le crayon posé sur l'affiche/couverture/visuel des fiches.
@@ -26,15 +36,21 @@ export function PosterUrlDialog({
   const [value, setValue] = useState(currentUrl ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // `unreachable` mémorise l'adresse dont le chargement a échoué : changer d'adresse efface l'alerte.
+  const [unreachable, setUnreachable] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setValue(currentUrl ?? '')
       setError(null)
+      setUnreachable(null)
     }
   }, [open, currentUrl])
 
   if (!open) return null
+
+  // L'image est seulement affichée depuis son adresse : rien n'est téléchargé ni copié dans Sylloge.
+  const previewUrl = previewableUrl(value)
 
   const submit = async () => {
     const trimmed = value.trim()
@@ -73,6 +89,15 @@ export function PosterUrlDialog({
             autoFocus
           />
         </label>
+        {previewUrl && (
+          <div className="poster-url-preview" data-state={unreachable === previewUrl ? 'unreachable' : 'ready'}>
+            {unreachable === previewUrl ? (
+              <p role="status">{t('Cette adresse ne semble pas mener à une image.')}</p>
+            ) : (
+              <img src={previewUrl} alt="" onError={() => setUnreachable(previewUrl)} />
+            )}
+          </div>
+        )}
         <p className="import-hint">{posterResetHint(label)}</p>
         {error && <p className="validation-errors" role="alert">{translateMessage(error)}</p>}
         <div className="assistant-actions assistant-actions-single">

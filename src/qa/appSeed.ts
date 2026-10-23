@@ -40,7 +40,9 @@ const FILMS: FilmSeed[] = [
   ['Aftersun', 'Charlotte Wells', 2022, 'terminé', 5, 1, 26, true, 'Revu deux fois. La dernière danse sous la lumière stroboscopique.'],
   ['Tár', 'Todd Field', 2022, 'abandonné', 2.5, 0, 31, true],
   ['Retour à Séoul', 'Davy Chou', 2022, 'à découvrir', null, 0, 38, true],
-  ['Drive My Car', 'Ryūsuke Hamaguchi', 2021, 'terminé', 4.5, 0, 45, true],
+  // Associé à TMDB mais sans affiche locale : l'affiche ne vit que dans le cache du fournisseur,
+  // comme pour une fiche associée après coup. La fiche et son formulaire doivent la montrer.
+  ['Drive My Car', 'Ryūsuke Hamaguchi', 2021, 'terminé', 4.5, 0, 45, false],
   ['Petite Maman', 'Céline Sciamma', 2021, 'terminé', 4, 0, 52, false],
   ['Portrait de la jeune fille en feu', 'Céline Sciamma', 2019, 'terminé', 5, 1, 60, true],
   ['Burning', 'Lee Chang-dong', 2018, 'en attente', null, 0, 75, true],

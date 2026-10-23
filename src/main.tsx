@@ -54,7 +54,7 @@ import { CUSTOM_LIBRARY_TEMPLATES, type CustomLibraryId, type EnabledCustomLibra
 
 
 import type { TmdbSearchCandidate, TmdbFilmPresentation } from './data/tmdbService.ts'
-import { setFilmTmdbPoster, associateFilmWithTmdb, getFilmTmdbCache, resolveFilmDisplayPoster, resolveFilmDisplayDirector, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
+import { associateFilmWithTmdb, getFilmTmdbCache, resolveFilmDisplayPoster, resolveFilmDisplayDirector, previewTmdbFilm, previewTmdbSeries, searchTmdbSeries } from './data/tmdbService.ts'
 import { previewOpenLibraryBook, searchOpenLibraryBooks, type OpenLibraryBookCandidate } from './data/openLibraryService.ts'
 import { previewIgdbGame, searchIgdbGames, type IgdbGameCandidate } from './data/igdbService.ts'
 import { autoAssociateFilms } from './domain/autoAssociate.ts'
@@ -1914,16 +1914,20 @@ type SqliteFilmDetailProps = {
   onEdit: () => void
   onDelete: () => Promise<void>
   onAssociateTmdb: () => void
+  /** Enregistre (ou retire, avec null) l'adresse de l'affiche dans la colonne locale de la fiche. */
+  onPosterChange: (url: string | null) => Promise<void>
   tmdbNotice?: string | null
 }
 
-function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, tmdbNotice }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, tmdbNotice }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    setState({ status: 'loading' })
+    // Une relecture de la même fiche (affiche enregistrée depuis la fiche) garde l'écran en place :
+    // repasser par « Chargement » fermerait la galerie d'affiches ouverte.
+    setState((current) => (current.status === 'ready' && current.film.id === filmId ? current : { status: 'loading' }))
 
     filmsRepository.getFilm(profileId, filmId).then(
       (film) => {
@@ -1943,7 +1947,7 @@ function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel
   }, [attempt, detailRevision, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} tmdbNotice={tmdbNotice} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} onPosterChange={onPosterChange} tmdbNotice={tmdbNotice} />
   }
 
   return (
@@ -2893,6 +2897,15 @@ function App() {
           }
         }}
         tmdbNotice={tmdbNotice?.filmId === view.filmId ? tmdbNotice.message : null}
+        onPosterChange={async (url) => {
+          const updatedAt = await filmsRepository.updateFilmPoster(library.profile.id, view.filmId, url)
+          const updatedLibrary: FilmLibrary = {
+            ...library,
+            films: library.films.map((entry) => (entry.id === view.filmId ? { ...entry, posterUrl: url, updatedAt } : entry)),
+          }
+          setLibraryState({ status: 'ready', library: updatedLibrary })
+          requestAutomaticBackup(updatedLibrary)
+        }}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
           const updatedLibrary: FilmLibrary = {
@@ -3364,16 +3377,6 @@ function App() {
                   tmdbPresentation={addFlow.tmdbPresentation ?? null}
                   asDialog={false}
                   onCancel={() => setAddFlow(null)}
-                  onPosterEdit={async (url) => {
-                    if (!editFilmId) return
-                    const updated = await setFilmTmdbPoster(editFilmId, url)
-                    const library = libraryState.library
-                    const updatedLibrary: FilmLibrary = {
-                      ...library,
-                      films: sortFilms(library.films.map((entry) => entry.id === editFilmId ? { ...entry, posterUrl: updated.selectedPosterUrl ?? updated.presentation.posterUrl ?? entry.posterUrl } : entry)),
-                    }
-                    setLibraryState({ status: 'ready', library: updatedLibrary })
-                  }}
                   onSave={async (input, provenance) => {
                     const library = libraryState.library
                     if (editFilmId) {

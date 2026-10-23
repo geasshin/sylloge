@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { resolveFilmPoster } from '../domain/filmPoster.ts'
 import { getLocale } from '../i18n/core.ts'
 
 export type TmdbSearchCandidate = {
@@ -111,8 +112,7 @@ export async function resolveFilmDisplayPoster(
   fallback: string | null = null,
 ): Promise<string | null> {
   try {
-    const cache = await getFilmTmdbCache(filmId)
-    return cache?.selectedPosterUrl ?? cache?.presentation.posterUrl ?? fallback
+    return resolveFilmPoster(fallback, await getFilmTmdbCache(filmId))
   } catch {
     return fallback
   }
