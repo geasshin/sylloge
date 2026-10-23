@@ -170,3 +170,21 @@ jobs:
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
             -F draft=false \
             -F target_commitish="$GITHUB_SHA" >/dev/null
+
+      # Le manifeste est partagé : macOS y ajoute ses deux cibles ici, Windows y ajoute
+      # `windows-x86_64` dans son propre workflow puis vérifie l'ensemble. Contrôler ici
+      # les cibles macOS évite de publier une release que les clients Mac ne peuvent pas lire.
+      - name: Vérifier le manifeste macOS publié
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          verify_dir="$RUNNER_TEMP/verify"
+          mkdir -p "$verify_dir"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern latest.json --dir "$verify_dir" --clobber
+          node scripts/merge-tauri-latest-json.mjs --check "$verify_dir/latest.json" \
+            --version "${TAG#v}" \
+            --require darwin-aarch64 --require darwin-x86_64

@@ -90,11 +90,16 @@ pub async fn install_app_update(
         .map_err(|_| "UPDATER_INSTALL_FAILED".to_string())
 }
 
-/// Le manifeste est servi par la release publique. Son absence et sa lecture
-/// doivent rester deux diagnostics distincts.
+/// Le manifeste est servi par la release publique. Son absence, son contenu et la
+/// plateforme du client doivent rester trois diagnostics distincts : une entrée
+/// manquante ressemblait à une panne réseau, et Windows ne pouvait jamais se mettre
+/// à jour tant que `latest.json` ne publiait que `darwin-*`.
 fn map_check_error(error: UpdaterError) -> String {
     match error {
         UpdaterError::ReleaseNotFound => "UPDATER_MANIFEST_INVALID".to_string(),
+        UpdaterError::TargetNotFound(_) | UpdaterError::TargetsNotFound(_) => {
+            "UPDATER_TARGET_MISSING".to_string()
+        }
         _ => "UPDATER_CHECK_FAILED".to_string(),
     }
 }
@@ -110,5 +115,15 @@ mod tests {
             map_check_error(UpdaterError::ReleaseNotFound),
             "UPDATER_MANIFEST_INVALID"
         );
+    }
+
+    #[test]
+    fn missing_platform_is_not_reported_as_a_network_failure() {
+        let error = map_check_error(UpdaterError::TargetNotFound("windows-x86_64".to_string()));
+        assert_eq!(error, "UPDATER_TARGET_MISSING");
+        let fallbacks = map_check_error(UpdaterError::TargetsNotFound(vec![
+            "darwin-aarch64".to_string()
+        ]));
+        assert_eq!(fallbacks, "UPDATER_TARGET_MISSING");
     }
 }

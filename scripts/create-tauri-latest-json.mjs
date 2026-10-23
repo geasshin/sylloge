@@ -67,6 +67,7 @@ if (!signature) throw new Error('Le fichier .sig est vide.')
 const manifest = {
   version,
   notes,
+  pub_date: new Date().toISOString(),
   platforms: {
     [target]: {
       signature,

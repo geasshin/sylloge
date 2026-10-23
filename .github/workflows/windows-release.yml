@@ -94,18 +94,103 @@ jobs:
         shell: bash
         run: ls -R src-tauri/target/release/bundle
 
-      - name: Attacher les artefacts à la release du tag
+      # La release appartient au workflow macOS : il crée le brouillon, attache les
+      # artefacts macOS, publie latest.json puis ouvre la release. Windows ne crée
+      # jamais la release et attend qu'elle existe.
+      - name: Attendre la release créée par macOS
         if: env.RELEASE_TAG != ''
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           tag="$RELEASE_TAG"
-          gh release create "$tag" \
-            --title "Sylloge ${tag#v} — Windows" \
-            --notes "Installateur Windows (NSIS) et signature de mise à jour." \
-            src-tauri/target/release/bundle/nsis/*.exe \
-            src-tauri/target/release/bundle/nsis/*.sig || \
-          gh release upload "$tag" \
-            src-tauri/target/release/bundle/nsis/*.exe \
-            src-tauri/target/release/bundle/nsis/*.sig --clobber
+          for attempt in $(seq 1 40); do
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Release $tag trouvée."
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "La release $tag n'existe pas : la publication macOS n'a pas abouti." >&2
+          exit 1
+
+      - name: Attacher l’installateur Windows et sa signature
+        if: env.RELEASE_TAG != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          shopt -s nullglob
+          exe_files=(src-tauri/target/release/bundle/nsis/*.exe)
+          sig_files=(src-tauri/target/release/bundle/nsis/*.sig)
+          if [[ ${#exe_files[@]} -ne 1 || ${#sig_files[@]} -ne 1 ]]; then
+            echo "Les artefacts NSIS attendus sont absents ou ambigus : ${exe_files[*]} ${sig_files[*]}" >&2
+            exit 1
+          fi
+          gh release upload "$tag" "${exe_files[0]}" "${sig_files[0]}" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+      # Sans cette entrée, tauri-plugin-updater répond TargetNotFound côté Windows :
+      # le client ne peut jamais se mettre à jour et l'erreur ressemble à une panne réseau.
+      - name: Ajouter Windows au manifeste de mise à jour
+        if: env.RELEASE_TAG != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          version="${tag#v}"
+          manifest_dir="$RUNNER_TEMP/manifest"
+          mkdir -p "$manifest_dir"
+
+          # Le manifeste est partagé : tant que macOS ne l'a pas publié, le fusionner
+          # produirait un manifeste sans entrée darwin et casserait l'autre plateforme.
+          downloaded=0
+          for attempt in $(seq 1 40); do
+            if gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+                 --pattern latest.json --dir "$manifest_dir" --clobber 2>/dev/null; then
+              downloaded=1
+              break
+            fi
+            sleep 15
+          done
+          if [[ "$downloaded" -ne 1 || ! -s "$manifest_dir/latest.json" ]]; then
+            echo "latest.json n'a pas été publié par macOS : Windows resterait sans mise à jour." >&2
+            exit 1
+          fi
+
+          shopt -s nullglob
+          installer="$(ls src-tauri/target/release/bundle/nsis/*.exe)"
+          signature="$(ls src-tauri/target/release/bundle/nsis/*.sig)"
+          asset_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$(basename "$installer")"
+
+          node scripts/merge-tauri-latest-json.mjs \
+            --manifest "$manifest_dir/latest.json" \
+            --version "$version" \
+            --platform windows-x86_64 \
+            --url "$asset_url" \
+            --signature-file "$signature" \
+            --output "$manifest_dir/latest.json"
+
+          gh release upload "$tag" "$manifest_dir/latest.json" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Vérifier le manifeste publié pour les deux plateformes
+        if: env.RELEASE_TAG != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          verify_dir="$RUNNER_TEMP/verify"
+          mkdir -p "$verify_dir"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern latest.json --dir "$verify_dir" --clobber
+          node scripts/merge-tauri-latest-json.mjs --check "$verify_dir/latest.json" \
+            --version "${tag#v}" \
+            --require darwin-aarch64 --require darwin-x86_64 --require windows-x86_64

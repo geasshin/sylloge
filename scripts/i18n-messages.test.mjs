@@ -250,11 +250,11 @@ describe('Messages du domaine : import CSV de collection', () => {
     const session = prepareCollectionCsvImport('series', 'Titre,Statut,Saisons vues\nSérie,peut-être,douze\n')
     const errors = previewCollectionCsvImport(session, { title: 'Titre', status: 'Statut', seasonsSeen: 'Saisons vues' }).errors
     expectIn(errors, 'Statut « peut-être » n’est pas un statut reconnu — champ laissé vide.', 'Status “peut-être” is not a recognised status — field left empty.')
-    expectIn(errors, 'Saisons vues : Compteur « douze » illisible — champ laissé vide.', 'Seasons watched: unreadable count “douze” — field left empty.')
+    expectIn(errors, 'Saisons vues « douze » illisible — champ laissé vide.', 'Seasons watched: unreadable “douze” — field left empty.')
     const dates = prepareCollectionCsvImport('books', 'Titre,Début de lecture\nLivre,32/13/2026\n')
-    expectIn(previewCollectionCsvImport(dates, { title: 'Titre', startedAt: 'Début de lecture' }).errors, 'Début de lecture : Date « 32/13/2026 » invalide — champ laissé vide.', 'Reading start: invalid date “32/13/2026” — field left empty.')
+    expectIn(previewCollectionCsvImport(dates, { title: 'Titre', startedAt: 'Début de lecture' }).errors, 'Début de lecture « 32/13/2026 » invalide — champ laissé vide.', 'Reading start: invalid date “32/13/2026” — field left empty.')
     const games = prepareCollectionCsvImport('games', 'Titre,Année\nJeu,douze\n')
-    expectIn(previewCollectionCsvImport(games, { title: 'Titre', year: 'Année' }).errors, 'Année : Compteur « douze » illisible — champ laissé vide.', 'Year: unreadable count “douze” — field left empty.')
+    expectIn(previewCollectionCsvImport(games, { title: 'Titre', year: 'Année' }).errors, 'Année « douze » illisible — champ laissé vide.', 'Year: unreadable “douze” — field left empty.')
   })
 
   test('contrat CSV Sylloge : format, version, JSON, favori et nombre', () => {

@@ -426,7 +426,7 @@ function parseGenericRow(
   }
   const rating = () => {
     const normalized = normalizeImportRating(value('rating'))
-    if (normalized.warning) warnings.push(`Note ${normalized.warning}`)
+    if (normalized.warning) warnings.push(normalized.warning)
     return normalized.value
   }
   const favorite = (): boolean => {
@@ -435,13 +435,13 @@ function parseGenericRow(
     return normalizeImportFavorite(raw)
   }
   const count = (key: string, label: string): string => {
-    const normalized = normalizeImportCount(value(key))
-    if (normalized.warning) warnings.push(`${label} ${normalized.warning}`)
+    const normalized = normalizeImportCount(value(key), label)
+    if (normalized.warning) warnings.push(normalized.warning)
     return normalized.value?.toString() ?? ''
   }
   const date = (key: string, label: string): string => {
-    const normalized = normalizeImportDate(value(key))
-    if (normalized.warning) warnings.push(`${label} ${normalized.warning}`)
+    const normalized = normalizeImportDate(value(key), label)
+    if (normalized.warning) warnings.push(normalized.warning)
     return normalized.value ?? ''
   }
   if (kind === 'series' || kind === 'anime') {
@@ -451,7 +451,7 @@ function parseGenericRow(
         ?? (kind === 'anime' ? 'animation' : 'série télé')) as SeriesFormValues['category'],
       status: status('série', 'à voir') as SeriesFormValues['status'],
       rating: rating()?.toString() ?? '',
-      isFavorite: favorite(), seasonsSeen: count('seasonsSeen', 'Saisons vues :'), seasonsTotal: count('seasonsTotal', 'Saisons total :'),
+      isFavorite: favorite(), seasonsSeen: count('seasonsSeen', 'Saisons vues :'), seasonsTotal: count('seasonsTotal', 'Saisons au total :'),
       startedAt: date('startedAt', 'Début de visionnage :'), posterUrl: value('posterUrl'), personalNote: value('personalNote'),
     } satisfies SeriesFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)
@@ -469,7 +469,7 @@ function parseGenericRow(
         ?? (kind === 'mangas' ? 'manga' : 'livre')) as BookFormValues['category'],
       status: status('livre', 'à lire') as BookFormValues['status'],
       rating: rating()?.toString() ?? '',
-      isFavorite: favorite(), volumesRead: count('volumesRead', 'Tomes lus :'), volumesTotal: count('volumesTotal', 'Tomes total :'),
+      isFavorite: favorite(), volumesRead: count('volumesRead', 'Tomes lus :'), volumesTotal: count('volumesTotal', 'Tomes au total :'),
       startedAt: date('startedAt', 'Début de lecture :'), coverUrl: value('coverUrl'), personalNote: value('personalNote'), quotes: quotes.map((quote) => quote.body),
     } satisfies BookFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)

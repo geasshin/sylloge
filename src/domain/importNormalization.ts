@@ -180,7 +180,8 @@ export function isRecognizableFavorite(value: string | null): boolean {
  * « 23.08.2026 », formats Notion longs (« August 23, 2026 », « 23 août 2026 »).
  * Illisible → null.
  */
-export function normalizeImportDate(value: string | null): Normalized<string> {
+export function normalizeImportDate(value: string | null, label = 'Date'): Normalized<string> {
+  label = label.replace(/\s*:\s*$/, '')
   const raw = (value ?? '').trim()
   if (!raw) return { value: null, warning: null }
 
@@ -199,14 +200,14 @@ export function normalizeImportDate(value: string | null): Normalized<string> {
     if (date.getUTCMonth() === month - 1 && date.getUTCDate() === day) {
       return { value: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`, warning: null }
     }
-    return { value: null, warning: `Date « ${raw} » invalide — champ laissé vide.` }
+    return { value: null, warning: `${label} « ${raw} » invalide — champ laissé vide.` }
   }
 
   // Formats textuels : « 23 août 2026 », « August 23, 2026 », « 23 August 2026 ».
   const textual = parseTextualDate(raw)
   if (textual) return { value: textual, warning: null }
 
-  return { value: null, warning: `Date « ${raw} » illisible — champ laissé vide.` }
+  return { value: null, warning: `${label} « ${raw} » illisible — champ laissé vide.` }
 }
 
 const FR_MONTHS: Record<string, number> = {
@@ -243,10 +244,11 @@ function parseTextualDate(raw: string): string | null {
 /* --------------------------------- Compteurs ---------------------------------- */
 
 /** Entier positif ou nul tolérant : « 12 », « 12 saisons », « S01E02 » non. */
-export function normalizeImportCount(value: string | null): Normalized<number> {
+export function normalizeImportCount(value: string | null, label = 'Compteur'): Normalized<number> {
+  label = label.replace(/\s*:\s*$/, '')
   const raw = (value ?? '').trim()
   if (!raw) return { value: null, warning: null }
   const match = /^(\d+)/.exec(normalizeLoose(raw))
   if (match) return { value: Number(match[1]), warning: null }
-  return { value: null, warning: `Compteur « ${raw} » illisible — champ laissé vide.` }
+  return { value: null, warning: `${label} « ${raw} » illisible — champ laissé vide.` }
 }

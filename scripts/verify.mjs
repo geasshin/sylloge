@@ -182,7 +182,10 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       '--output', outputPath,
     ], { encoding: 'utf8' })
     assert.equal(result.status, 0, `Le générateur latest.json doit réussir : ${result.stderr}`)
-    assert.deepEqual(JSON.parse(readFileSync(outputPath, 'utf8')), {
+    const generatedManifest = JSON.parse(readFileSync(outputPath, 'utf8'))
+    assert.match(generatedManifest.pub_date, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, 'Le manifeste doit être daté')
+    delete generatedManifest.pub_date
+    assert.deepEqual(generatedManifest, {
       version: '0.3.0',
       notes: 'Notes de la fixture',
       platforms: {

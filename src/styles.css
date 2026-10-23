@@ -4159,3 +4159,10 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 .update-notice-dismiss:hover { color: var(--color-text); }
 .update-notice-dismiss:disabled { cursor: default; color: var(--color-text-subtle); }
+
+/* Accueil en fenêtre étroite : la grille d'activité passe sur une seule colonne, sinon
+   ses deux colonnes (340 px + gouttière) poussent la page au-delà de la fenêtre. */
+@media (max-width: 820px) {
+  .at-activity-body { grid-template-columns: minmax(0, 1fr); gap: var(--space-5); }
+  .at-activity-panel { padding: var(--space-4); }
+}

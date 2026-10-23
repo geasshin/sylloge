@@ -7,6 +7,7 @@
 3. [Plan de remise à plat](PLAN_REMISE_A_PLAT.md) : étapes accomplies et critères de clôture.
 4. [Mode de travail](WORKFLOW.md) et [base visuelle](../DESIGN.md) : règles courantes.
    [Langues de l’interface](I18N.md) : détection, choix, écriture des textes et contrôles.
+   [Mises à jour](UPDATER.md) : annonce dans l’application, manifeste `latest.json`, rôles des deux workflows de release.
 5. [Compte rendu du lot 1](plans/brief-imports-films-series.md) : changements livrés et vérifications factices.
 6. [Contrats de données](CONTRAT_CSV_FILMS_V1.md), [collections CSV](CONTRAT_CSV_COLLECTIONS_V1.md), [conteneurs d’import](CONTRAT_CONTENEURS_IMPORT_V1.md) et [compatibilité Films](CONTRAT_FILMS_V1.md) : références à vérifier avant de modifier les formats.
 

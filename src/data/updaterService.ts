@@ -48,6 +48,7 @@ const UPDATER_ERROR_MESSAGES: Record<string, string> = {
   UPDATER_MANIFEST_INVALID: 'GitHub répond, mais Sylloge ne trouve pas de version exploitable dans latest.json. Le manifeste de la release doit être vérifié.',
   UPDATER_REQUEST_SETUP_FAILED: 'La requête de mise à jour n’a pas pu être préparée. Vérifiez la configuration du dépôt.',
   UPDATER_CHECK_FAILED: 'La vérification a échoué. Vérifiez la connexion puis réessayez.',
+  UPDATER_TARGET_MISSING: 'Cette version de Sylloge n’est pas publiée pour votre système. Rien n’a été installé.',
   UPDATER_INSTALL_FAILED: 'Le téléchargement ou l’installation a échoué. Votre version actuelle reste ouverte.',
   UPDATER_UPDATE_EXPIRED: 'Cette mise à jour n’est plus disponible. Recherchez-la de nouveau.',
   UPDATER_UPDATE_CHANGED: 'La release a changé depuis la vérification. Recherchez de nouveau les mises à jour.',
