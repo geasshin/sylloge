@@ -553,7 +553,13 @@ function handle(cmd: string, args: Args): unknown {
     case 'remove_custom_library_atomically': removeCustomLibrary(args.profileId as string, args.libraryId as CustomLibraryId); return null
 
     // Préférences de mise à jour
-    case 'check_for_app_update': return null // aucune mise à jour disponible en recette
+    // `?update=0.6.11` simule une version publiée : l'annonce, « Plus tard » et « Ne plus proposer » s'exercent
+    // sans réseau ni release réelle. Sans le paramètre, aucune mise à jour n'est proposée.
+    case 'check_for_app_update': {
+      const simulated = new URLSearchParams(window.location.search).get('update')
+      return simulated ? { version: simulated, notes: 'Recette : notes de version simulées.' } : null
+    }
+    case 'install_app_update': return null // le redémarrage n'existe pas dans le harnais navigateur
     case 'get_updater_preferences': return updaterPreferences()
     case 'set_updater_automatic_checks_enabled':
       execute('UPDATE updater_preferences SET automatic_checks_enabled = $1, updated_at = $2 WHERE singleton = 1', [args.automaticChecksEnabled, now()])

@@ -25,8 +25,9 @@ import { GameIgdbSearchFlow } from './components/GameIgdbSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
 import { statusTone } from './components/VerdictControls.tsx'
-import { updaterPreferencesService } from './data/updaterPreferences.ts'
-import { tauriUpdaterService, type AvailableUpdate } from './data/updaterService.ts'
+import { type AvailableUpdate } from './data/updaterService.ts'
+import { useAppUpdate } from './data/appUpdate.ts'
+import { UpdateNotice } from './components/UpdateNotice.tsx'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
 import { libraryRepository } from './data/libraryRepository.ts'
@@ -2012,6 +2013,8 @@ function App() {
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [searchAttempt, setSearchAttempt] = useState(0)
   const [backupNotice, setBackupNotice] = useState<BackupNotice | null>(null)
+  /** Vérification automatique, annonce et installation : voir src/data/appUpdate.ts. */
+  const appUpdate = useAppUpdate()
   const [availableUpdate, setAvailableUpdate] = useState<AvailableUpdate | null>(null)
   const [associatingFilm, setAssociatingFilm] = useState<Film | null>(null)
   /** Pop-up d'association directe depuis une fiche Série/Livre/Jeu (parcours des films). */
@@ -2311,28 +2314,6 @@ function App() {
       window.clearTimeout(timeout)
     }
   }, [mangaContext, libraryState, bookSearchAttempt])
-
-  useEffect(() => {
-    let cancelled = false
-
-    void (async () => {
-      try {
-        const preferences = await updaterPreferencesService.get()
-        if (cancelled || !preferences.automaticChecksEnabled) return
-
-        const update = await tauriUpdaterService.check()
-        if (!cancelled && update && preferences.ignoredVersion !== update.version) {
-          setAvailableUpdate(update)
-        }
-      } catch (error) {
-        console.error('La recherche automatique des mises à jour a échoué.', error)
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   useEffect(() => {
     if (libraryState.status !== 'ready') return
@@ -2862,6 +2843,7 @@ function App() {
         }}
         onBackupNotice={setBackupNotice}
         availableUpdate={availableUpdate}
+        lastCheckedAt={appUpdate.lastCheckedAt}
         onUpdateAvailable={setAvailableUpdate}
         onUpdateHandled={() => setAvailableUpdate(null)}
         onProfilesChanged={() => {
@@ -3676,12 +3658,25 @@ function App() {
           </FocusDialog>
         </div>
       )}
-      {backupNotice && (
-        <div className={`backup-notice ${backupNotice.kind}`} role={backupNotice.kind === 'error' ? 'alert' : 'status'} aria-atomic="true">
-          <p>{backupNotice.message}</p>
-          <button type="button" onClick={() => setBackupNotice(null)} aria-label={t('Fermer le message de sauvegarde')}>{t('Fermer')}</button>
-        </div>
-      )}
+      <div className="notice-stack">
+        {appUpdate.update && (
+          <UpdateNotice
+            update={appUpdate.update}
+            installing={appUpdate.installing}
+            ignoring={appUpdate.ignoring}
+            error={appUpdate.error}
+            onInstall={appUpdate.install}
+            onLater={appUpdate.later}
+            onIgnore={appUpdate.ignore}
+          />
+        )}
+        {backupNotice && (
+          <div className={`backup-notice ${backupNotice.kind}`} role={backupNotice.kind === 'error' ? 'alert' : 'status'} aria-atomic="true">
+            <p>{backupNotice.message}</p>
+            <button type="button" onClick={() => setBackupNotice(null)} aria-label={t('Fermer le message de sauvegarde')}>{t('Fermer')}</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

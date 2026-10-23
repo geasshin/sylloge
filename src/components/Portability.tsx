@@ -33,6 +33,7 @@ type PortabilityProps = {
   onImported: (library: FilmLibrary) => void
   onBackupNotice: (notice: BackupNotice) => void
   availableUpdate: AvailableUpdate | null
+  lastCheckedAt: Date | null
   onUpdateAvailable: (update: AvailableUpdate) => void
   onUpdateHandled: () => void
   onProfilesChanged: () => void
@@ -51,6 +52,7 @@ export function Portability({
   onImported,
   onBackupNotice,
   availableUpdate,
+  lastCheckedAt,
   onUpdateAvailable,
   onUpdateHandled,
   onProfilesChanged,
@@ -108,6 +110,7 @@ export function Portability({
             themePreference={themePreference}
             onThemePreferenceChange={onThemePreferenceChange}
             availableUpdate={availableUpdate}
+            lastCheckedAt={lastCheckedAt}
             onUpdateAvailable={onUpdateAvailable}
             onUpdateHandled={onUpdateHandled}
           />

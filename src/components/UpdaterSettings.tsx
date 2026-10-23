@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { t, translateMessage } from '../i18n/core.ts'
+import { formatDate, t, translateMessage } from '../i18n/core.ts'
 import { useLanguage } from '../i18n/react.ts'
 import {
   updaterPreferencesService,
@@ -17,6 +17,7 @@ export const updaterMessageText = (message: string) => translateMessage(message)
 
 type UpdaterSettingsProps = {
   availableUpdate: AvailableUpdate | null
+  lastCheckedAt?: Date | null
   onUpdateAvailable: (update: AvailableUpdate) => void
   onUpdateHandled: () => void
 }
@@ -28,6 +29,7 @@ type UpdaterMessage = {
 
 export function UpdaterSettings({
   availableUpdate,
+  lastCheckedAt = null,
   onUpdateAvailable,
   onUpdateHandled,
 }: UpdaterSettingsProps) {
@@ -190,6 +192,7 @@ export function UpdaterSettings({
               <span className="visually-hidden">{t('Rechercher automatiquement les mises à jour')}</span>
             </label>
           </SettingsRow>
+          <SettingsRow label={t('Dernière vérification')} detail={lastCheckedAt ? formatDate(lastCheckedAt, { dateStyle: 'long', timeStyle: 'short' }) : t('Pas encore vérifié.')} />
           <SettingsRow label={t('Vérifier maintenant')} detail={t('Seules les versions publiées et signées par le projet peuvent être installées.')}>
             <button className="secondary-button" type="button" onClick={() => void checkManually()} disabled={busy}>
               {checking ? t('Vérification…') : t('Rechercher les mises à jour')}

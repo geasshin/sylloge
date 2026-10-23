@@ -208,5 +208,15 @@ const messages: Record<string, string> = {
   "Le jeu enregistré ne peut pas être relu depuis SQLite.": "The saved game cannot be read back from SQLite.",
   "L’œuvre enregistrée ne peut pas être relue depuis SQLite.": "The saved artwork cannot be read back from SQLite.",
   "Le film a bien été créé, mais TMDB n’a pas pu être associé. La fiche reste intacte ; tu peux relancer l’association depuis cette page.": "The film was created, but TMDB could not be linked. The entry is unchanged; linking can be retried from this page.",
+  // Annonce de mise à jour (src/components/UpdateNotice.tsx) et horodatage des réglages.
+  "Mise à jour disponible": "Update available",
+  "Sylloge {version} est prête à être installée.": "Sylloge {version} is ready to install.",
+  "Installer maintenant": "Install now",
+  "Ne plus proposer cette version": "Don't offer this version again",
+  "Notes de version": "Release notes",
+  "Dernière vérification": "Last check",
+  "Pas encore vérifié.": "Not checked yet.",
+  "La version n’a pas été ignorée. Aucune installation n’a démarré.": "The version was not ignored. No installation started.",
+  "Fermer l’annonce de mise à jour": "Dismiss the update notice",
 }
 export default messages

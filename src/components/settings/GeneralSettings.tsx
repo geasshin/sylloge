@@ -17,11 +17,12 @@ type Props = {
   themePreference: ThemePreference
   onThemePreferenceChange: (preference: ThemePreference) => void
   availableUpdate: AvailableUpdate | null
+  lastCheckedAt?: Date | null
   onUpdateAvailable: (update: AvailableUpdate) => void
   onUpdateHandled: () => void
 }
 
-export function GeneralSettings({ themePreference, onThemePreferenceChange, availableUpdate, onUpdateAvailable, onUpdateHandled }: Props) {
+export function GeneralSettings({ themePreference, onThemePreferenceChange, availableUpdate, lastCheckedAt = null, onUpdateAvailable, onUpdateHandled }: Props) {
   useLanguage()
   const [autoplay, setAutoplay] = useHomeAutoplay()
   return (
@@ -57,7 +58,7 @@ export function GeneralSettings({ themePreference, onThemePreferenceChange, avai
       </SettingsGroup>
 
       <SettingsGroup id="updates-title" title={t('Mises à jour')} description={t('Sylloge installe uniquement les versions publiées et signées de l’application.')}>
-        <UpdaterSettings availableUpdate={availableUpdate} onUpdateAvailable={onUpdateAvailable} onUpdateHandled={onUpdateHandled} />
+        <UpdaterSettings availableUpdate={availableUpdate} lastCheckedAt={lastCheckedAt} onUpdateAvailable={onUpdateAvailable} onUpdateHandled={onUpdateHandled} />
       </SettingsGroup>
     </>
   )

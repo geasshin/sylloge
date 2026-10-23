@@ -10,20 +10,23 @@
 
 État mesuré de cette implémentation (23 octobre 2026) : `npm run verify` vert — 131 tests de portabilité et **134 tests i18n** (garde des catalogues, détection, contexte, messages du domaine et du natif, rendu anglais des écrans, relecture `verify`) ; typecheck et build de production verts ; `scripts/qa-language.js` 33 assertions sur 33 dans le navigateur ; recettes françaises inchangées ; site en production 14 assertions sur 14. 1 954 clés en neuf catalogues. Limites assumées : les messages natifs et du domaine ne sont traduits que s’ils figurent au catalogue (sinon ils restent en français), les métadonnées TMDB déjà mises en cache gardent la langue de leur récupération, et les captures du site restent en interface française, annoncées comme telles.
 
-### Proposé : rendre les mises à jour visibles sans ouvrir les réglages
+### Livré localement : annonce de mise à jour sans ouvrir les réglages
 
-**Constat mesuré le 23 octobre 2026.** La vérification automatique existe déjà et fonctionne : `src/main.tsx` la lance à l’ouverture, `automatic_checks_enabled` vaut vrai par défaut, la version ignorée (`ignored_version`) est respectée, et Paramètres › Application propose déjà « Rechercher les mises à jour », Installer / Plus tard / Ignorer, ainsi que les notes de version. Le défaut n’est donc pas la recherche, c’est la restitution : `availableUpdate` n’est rendu que dans `Portability.tsx`, c’est-à-dire dans l’écran des réglages. Une mise à jour disponible reste invisible tant qu’on n’y va pas.
+**Constat d’origine (23 octobre 2026).** La recherche automatique existait déjà et fonctionnait : `src/main.tsx` la lançait à l’ouverture, `automatic_checks_enabled` valait vrai par défaut, la version ignorée était respectée, et Paramètres › Application proposait déjà « Rechercher les mises à jour », Installer / Plus tard / Ignorer et les notes de version. Le défaut était la restitution : `availableUpdate` n’était rendu que dans `Portability.tsx`, donc invisible tant qu’on n’ouvrait pas les réglages.
 
-**Décision proposée, à valider par Aurélien : bandeau discret plutôt que fenêtre modale au lancement.** Le bandeau apparaît une fois la première peinture faite, reste visible sur tous les écrans tant qu’on n’a pas tranché, et propose « Installer maintenant », « Plus tard » et « Ne plus proposer cette version ». La modale est écartée : elle interrompt au pire moment, réclame une décision avant que l’application ne serve à quelque chose, et revient à chaque lancement. Une fenêtre bloquante ne se justifierait que pour une mise à jour obligatoire, ce qui n’est pas le cas ici.
+**Arbitrage d’Aurélien : une annonce discrète à l’ouverture, pas une fenêtre.** Une carte dans un coin, sans voile ni vol de focus, avec installer / plus tard / ne plus proposer cette version, plutôt qu’une modale. Le raisonnement retenu : une modale interrompt au pire moment et revient à chaque lancement ; une carte attend sans gêner, et l’action reste de toute façon disponible dans les réglages.
 
-**Ce qui reste à faire**, une fois l’accord donné :
+**Implémenté le 23 octobre 2026** (`src/components/UpdateNotice.tsx`, `src/data/appUpdate.ts`, `src/styles.css`, harnais `?update=`) :
 
-1. Surface de notification hors réglages : bandeau accessible (rôle `status`, focus non volé), notes de version à la demande, états « téléchargement », « prêt à redémarrer », « échec ».
-2. Cadence : aujourd’hui une seule vérification par lancement (`useEffect` sans dépendance). Revérifier toutes les six heures environ pour une session longue, et réessayer après un échec réseau, sans jamais bloquer l’interface ni afficher d’erreur hors ligne.
-3. Horodatage « dernière vérification » dans les réglages (`updated_at` est déjà stocké) et retour immédiat du bouton manuel.
-4. Recette Windows de l’updater (artefacts NSIS signés) avant de promettre la notification sur les deux plateformes.
+- annonce posée après la première peinture, `role="status"`, sans dialogue, sans attrape-focus, refermable par × (équivalent à « plus tard ») ;
+- trois issues : installer maintenant, plus tard (valable pour la session), ne plus proposer cette version (enregistrée en base, réversible dans les réglages) ;
+- notes de version dépliables, version nommée, erreur d’installation traduite en `role="alert"` ;
+- revérification toutes les six heures, en plus de celle de l’ouverture, pour une session qui reste ouverte ;
+- « Dernière vérification » horodatée dans les réglages ;
+- la règle d’annonce est une fonction pure (`shouldAnnounce`) : recherche active, version trouvée, non ignorée, pas déjà affichée. Sept cas prouvés par test.
+- preuves : `npm run verify` vert (131 portabilité, 134 i18n, 7 annonce), typecheck et build verts, recette navigateur `?update=0.6.11` 14 assertions sur 14 (annonce, traduction, fermeture, version ignorée enregistrée, focus non volé).
 
-**Hors périmètre** : installation silencieuse ou automatique sans action de la personne.
+**Ce qui reste** : la recette Windows de l’updater (artefacts NSIS signés) avant de promettre l’annonce sur les deux plateformes ; l’état « téléchargement en cours avec progression » reste un simple libellé « Installation… ». Hors périmètre, comme décidé : aucune installation silencieuse.
 
 ### Ce qui reste (état vérifié le 23 octobre 2026)
 

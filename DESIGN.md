@@ -49,6 +49,14 @@ Décision du 23 octobre 2026 : français et anglais, voir [docs/I18N.md](docs/I1
 - Dates, nombres, accords et pluriels suivent la langue active ; aucun pluriel n’est construit par suffixe.
 - Les données de la personne ne sont jamais traduites (titres, avis, notes, citations, noms de profils et de vues).
 
+## Annonces en coin
+
+Un message qui n’appelle pas de décision immédiate — sauvegarde, mise à jour disponible — se pose dans la pile `.notice-stack`, en bas à droite : une carte de la surface, bordée, ombre `--shadow-popover`, largeur bornée (380 px pour l’annonce de mise à jour, 460 px pour le message de sauvegarde). Jamais de voile, jamais de fenêtre modale, jamais de vol de focus : la personne continue de travailler, l’annonce attend.
+
+- Une annonce de mise à jour propose trois issues explicites — installer, plus tard, ne plus proposer cette version — et une fermeture immédiate (×) équivalente à « plus tard ». « Plus tard » ne vaut que pour la session ; « ne plus proposer » est enregistré en base et réversible dans Paramètres › Application.
+- Une annonce n’est jamais la seule voie d’accès à son action : la même opération reste disponible dans les réglages.
+- L’état passe par `role="status"` ; un échec par `role="alert"`. Aucune annonce n’interrompt une saisie ni ne déplace le curseur.
+
 ## Accueil
 
 Composition « à la une avec onglets », une seule colonne : onglets, une, rangées et activité partagent les mêmes bords, avec la gouttière commune `64px`.
