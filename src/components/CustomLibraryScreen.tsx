@@ -441,7 +441,7 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
           <dl className="detail-facts">
             {entry.creator && <div><dt>{label(template.creatorLabel)}</dt><dd>{entry.creator}</dd></div>}
             {entry.year !== null && <div><dt>{t('Année')}</dt><dd>{formatNumber(entry.year as number, { useGrouping: false })}</dd></div>}
-            {template.fields.filter((field) => field.key !== template.kindField && entry.details[field.key]).map((field) => (
+            {template.fields.filter((field) => field.key !== template.kindField && field.kind !== 'textarea' && entry.details[field.key]).map((field) => (
               <div key={field.key}><dt>{label(field.label)}</dt><dd>{displayFieldValue(libraryId, field, entry.details[field.key])}</dd></div>
             ))}
             {extraDetails.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}
@@ -452,6 +452,19 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
           {entry.summary && (
             <div className="synopsis-block">
               <p>{entry.summary}</p>
+            </div>
+          )}
+
+          {/* Textes longs (ingrédients, préparation) : affichés tels qu'ils ont été saisis,
+              retours à la ligne et lignes vides compris. */}
+          {template.fields.some((field) => field.kind === 'textarea' && entry.details[field.key]) && (
+            <div className="detail-long-texts">
+              {template.fields.filter((field) => field.kind === 'textarea' && entry.details[field.key]).map((field) => (
+                <section className="detail-long-text" key={field.key} data-field={field.key}>
+                  <h2>{label(field.label)}</h2>
+                  <p>{entry.details[field.key]}</p>
+                </section>
+              ))}
             </div>
           )}
 

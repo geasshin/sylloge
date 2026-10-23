@@ -279,6 +279,7 @@ async fn io_database_snapshot(pool: &sqlx::SqlitePool) -> Vec<(String, Vec<Strin
         "documentaries",
         "shows",
         "board_games",
+        "recipes",
         "book_quotes",
         "manga_quotes",
         "comic_quotes",

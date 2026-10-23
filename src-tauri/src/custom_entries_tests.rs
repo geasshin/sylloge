@@ -120,6 +120,7 @@ fn every_custom_model_preserves_all_fields_statuses_optional_nulls_and_unknown_d
             "documentaries",
             "shows",
             "board_games",
+            "recipes",
         ];
         assert_eq!(
             CUSTOM_LIBRARIES

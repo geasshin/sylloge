@@ -206,6 +206,10 @@ export function BoardGameIcon({ size = 17, filled = false }: NavigationIconProps
   return <NavigationIcon name="boardGame" size={size} filled={filled} />
 }
 
+export function RecipeIcon({ size = 17, filled = false }: NavigationIconProps) {
+  return <NavigationIcon name="recipe" size={size} filled={filled} />
+}
+
 export function PlusIcon({ size = 17, filled = false }: NavigationIconProps) {
   return <NavigationIcon name="plus" size={size} filled={filled} />
 }

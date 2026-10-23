@@ -413,6 +413,7 @@ mod tests {
             include_str!("../migrations/0019_profile_identity_and_first_run.sql"),
             include_str!("../migrations/0020_split_anime_and_mangas.sql"),
             include_str!("../migrations/0021_custom_libraries.sql"),
+            include_str!("../migrations/0022_recipes_library.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -498,9 +499,9 @@ mod tests {
         .unwrap();
     }
 
-    /// Les huit tables des modèles prêts, écrites en dur pour vérifier la liste
+    /// Les neuf tables des modèles prêts, écrites en dur pour vérifier la liste
     /// utilisée par le code de production.
-    const CUSTOM_TABLES: [&str; 8] = [
+    const CUSTOM_TABLES: [&str; 9] = [
         "comics",
         "magazines",
         "audiobooks",
@@ -509,6 +510,7 @@ mod tests {
         "documentaries",
         "shows",
         "board_games",
+        "recipes",
     ];
 
     async fn seed_custom_entries(pool: &sqlx::SqlitePool, id: &str, tables: &[&str]) {
@@ -568,8 +570,8 @@ mod tests {
             );
             let complete = serde_json::to_value(summary).unwrap();
             assert_eq!(
-                complete["customCount"], 8,
-                "les fiches des huit bibliothèques personnalisées sont comptées ensemble : {complete}"
+                complete["customCount"], 9,
+                "les fiches des neuf bibliothèques personnalisées sont comptées ensemble : {complete}"
             );
             assert_eq!(complete["bookCount"], 1);
 
@@ -592,7 +594,7 @@ mod tests {
 
             delete_profile_in(&pool, "supprime")
                 .await
-                .expect("un profil avec ses quinze bibliothèques doit pouvoir être supprimé");
+                .expect("un profil avec ses seize bibliothèques doit pouvoir être supprimé");
 
             for table in [
                 "films", "series", "anime", "books", "mangas", "games", "artworks",
@@ -601,7 +603,7 @@ mod tests {
             .chain(CUSTOM_TABLES.iter())
             .chain(["profile_libraries"].iter())
             {
-                let kept = if *table == "profile_libraries" { 8 } else { 1 };
+                let kept = if *table == "profile_libraries" { 9 } else { 1 };
                 assert_eq!(count(&pool, table, "supprime").await, 0, "{table} supprimé");
                 assert_eq!(
                     count(&pool, table, "conserve").await,
@@ -643,8 +645,8 @@ mod tests {
             assert_eq!(summaries.len(), 1);
             assert_eq!(
                 serde_json::to_value(&summaries[0]).unwrap()["customCount"],
-                8,
-                "le profil conservé garde ses huit fiches personnalisées"
+                9,
+                "le profil conservé garde ses neuf fiches personnalisées"
             );
         });
     }

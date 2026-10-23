@@ -2799,9 +2799,9 @@ pub(crate) struct CustomLibrary {
     pub(crate) quotes: Option<CustomQuotesTable>,
 }
 
-/// Les huit modèles prêts, dans l’ordre de la migration 0021. Les huit tables
-/// partagent les mêmes colonnes ; seule Comics a une table de citations.
-pub(crate) static CUSTOM_LIBRARIES: [CustomLibrary; 8] = [
+/// Les neuf modèles prêts, dans l’ordre des migrations 0021 puis 0022. Les neuf
+/// tables partagent les mêmes colonnes ; seule Comics a une table de citations.
+pub(crate) static CUSTOM_LIBRARIES: [CustomLibrary; 9] = [
     CustomLibrary {
         id: "comics",
         table: "comics",
@@ -2853,6 +2853,12 @@ pub(crate) static CUSTOM_LIBRARIES: [CustomLibrary; 8] = [
         label: "Jeux de société",
         quotes: None,
     },
+    CustomLibrary {
+        id: "recipes",
+        table: "recipes",
+        label: "Recettes de cuisine",
+        quotes: None,
+    },
 ];
 
 /// Somme SQL des fiches personnalisées d’un profil, toutes tables confondues.
@@ -2871,7 +2877,7 @@ pub(crate) fn custom_entry_count_sql(profile: &str) -> String {
         .join(" + ")
 }
 
-/// Statuts stockés, communs aux huit tables (contrainte CHECK de 0021).
+/// Statuts stockés, communs aux neuf tables (contrainte CHECK de 0021 et 0022).
 const CUSTOM_ENTRY_STATUSES: [&str; 4] = ["à découvrir", "en cours", "terminé", "abandonné"];
 
 /// Refus d’un document qui garde des comics dans sa section Livres.
@@ -5874,7 +5880,7 @@ mod tests {
             include_str!("../migrations/0008_create_film_tmdb_cache.sql"),
             include_str!("../migrations/0009_add_selected_poster_url.sql"),
             include_str!("../migrations/0010_create_cultural_media.sql"),
-            // 0011 à 0018 puis 0020 et 0021 : schéma courant des tests de portabilité.
+            // 0011 à 0018 puis 0020 à 0022 : schéma courant des tests de portabilité.
             // 0019 est volontairement omise : sur une base vierge elle supprime
             // le profil technique « default » dont ces fixtures ont besoin.
             include_str!("../migrations/0011_nullable_current_profile.sql"),
@@ -5887,6 +5893,7 @@ mod tests {
             include_str!("../migrations/0018_backfill_media_provider_links.sql"),
             include_str!("../migrations/0020_split_anime_and_mangas.sql"),
             include_str!("../migrations/0021_custom_libraries.sql"),
+            include_str!("../migrations/0022_recipes_library.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)

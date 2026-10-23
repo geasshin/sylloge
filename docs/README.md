@@ -9,6 +9,7 @@
    [Langues de l’interface](I18N.md) : détection, choix, écriture des textes et contrôles.
    [Mises à jour](UPDATER.md) : annonce dans l’application, manifeste `latest.json`, chaîne de release macOS et Windows.
    [Portabilité](PORTABILITE.md) : ce qu’une sauvegarde porte (document v5), ce qui reste sur la machine, restauration.
+   [Couvertures](COUVERTURES.md) : visuels par lien dans toutes les bibliothèques, règle d’affichage des films, défauts corrigés.
 5. [Compte rendu du lot 1](plans/brief-imports-films-series.md) : changements livrés et vérifications factices.
 6. [Contrats de données](CONTRAT_CSV_FILMS_V1.md), [collections CSV](CONTRAT_CSV_COLLECTIONS_V1.md), [conteneurs d’import](CONTRAT_CONTENEURS_IMPORT_V1.md) et [compatibilité Films](CONTRAT_FILMS_V1.md) : références à vérifier avant de modifier les formats.
 

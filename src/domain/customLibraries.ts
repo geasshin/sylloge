@@ -1,8 +1,9 @@
 /**
  * Bibliothèques personnalisées (décision du 22 octobre 2026).
  *
- * Huit modèles prêts qu’un profil ajoute à ses sept bibliothèques de base.
- * Chaque modèle a sa propre table SQLite (migration 0021), de structure
+ * Neuf modèles prêts qu’un profil ajoute à ses sept bibliothèques de base
+ * (huit en migration 0021, les recettes de cuisine en 0022).
+ * Chaque modèle a sa propre table SQLite, de structure
  * commune ; ses champs propres vivent dans `details` (texte → texte). Le
  * catalogue ci-dessous décrit tout ce qui varie d’un modèle à l’autre :
  * libellés, statuts proposés, progression, champs et filtre principal.
@@ -17,11 +18,12 @@ export const CUSTOM_LIBRARY_IDS = [
   'documentaries',
   'shows',
   'board_games',
+  'recipes',
 ] as const
 
 export type CustomLibraryId = (typeof CUSTOM_LIBRARY_IDS)[number]
 
-/** Statuts stockés, communs aux huit tables. */
+/** Statuts stockés, communs aux neuf tables. */
 export const CUSTOM_STATUSES = ['à découvrir', 'en cours', 'terminé', 'abandonné'] as const
 
 export type CustomStatus = (typeof CUSTOM_STATUSES)[number]
@@ -29,12 +31,16 @@ export type CustomStatus = (typeof CUSTOM_STATUSES)[number]
 export type CustomFieldDefinition = {
   key: string
   label: string
-  kind: 'text' | 'select'
+  /**
+   * `textarea` : texte long sur plusieurs lignes (ingrédients, préparation). Il est enregistré
+   * tel que saisi — retours à la ligne et lignes vides compris — et affiché de même.
+   */
+  kind: 'text' | 'select' | 'textarea'
   options?: readonly string[]
   placeholder?: string
 }
 
-export type CustomLibraryGroup = 'Lecture' | 'Écoute' | 'Écran' | 'Scène' | 'Jeu'
+export type CustomLibraryGroup = 'Lecture' | 'Écoute' | 'Écran' | 'Scène' | 'Jeu' | 'Cuisine'
 
 export type CustomLibraryTemplate = {
   id: CustomLibraryId
@@ -292,9 +298,38 @@ export const CUSTOM_LIBRARY_TEMPLATES: Record<CustomLibraryId, CustomLibraryTemp
     coverShape: 'square',
     notePlaceholder: 'Qu’as-tu pensé de ce jeu ?',
   },
+  recipes: {
+    id: 'recipes',
+    label: 'Recettes',
+    longLabel: 'Recettes de cuisine',
+    group: 'Cuisine',
+    description: 'Recettes de cuisine : ingrédients, préparation, temps, photo et notes de réussite.',
+    singular: 'recette',
+    plural: 'recettes',
+    addLabel: 'Ajouter une recette',
+    thisLabel: 'cette recette',
+    // « En cours » n’a pas de sens pour une recette : on l’essaie, on l’adopte ou on l’écarte.
+    statuses: ['à découvrir', 'terminé', 'abandonné'],
+    statusLabels: { 'à découvrir': 'À essayer', 'en cours': 'En cours', terminé: 'Testée', abandonné: 'Écartée' },
+    creatorLabel: 'Source',
+    progress: null,
+    dateLabel: 'Testée le',
+    kindField: 'dish',
+    fields: [
+      { key: 'dish', label: 'Type de plat', kind: 'select', options: ['Entrée', 'Plat', 'Dessert', 'Boisson', 'Accompagnement', 'Sauce', 'Pain et viennoiserie', 'Apéritif', 'Autre'] },
+      { key: 'servings', label: 'Portions', kind: 'text', placeholder: '4 personnes' },
+      { key: 'prepTime', label: 'Préparation', kind: 'text', placeholder: '20 min' },
+      { key: 'cookTime', label: 'Cuisson', kind: 'text', placeholder: '35 min' },
+      { key: 'ingredients', label: 'Ingrédients', kind: 'textarea', placeholder: 'Un ingrédient par ligne' },
+      { key: 'steps', label: 'Étapes', kind: 'textarea', placeholder: 'Une étape par ligne' },
+    ],
+    quotes: false,
+    coverShape: 'square',
+    notePlaceholder: 'Tes ajustements, ce que tu referais autrement ?',
+  },
 }
 
-export const CUSTOM_LIBRARY_GROUPS: readonly CustomLibraryGroup[] = ['Lecture', 'Écoute', 'Écran', 'Scène', 'Jeu']
+export const CUSTOM_LIBRARY_GROUPS: readonly CustomLibraryGroup[] = ['Lecture', 'Écoute', 'Écran', 'Scène', 'Jeu', 'Cuisine']
 
 export function isCustomLibraryId(value: unknown): value is CustomLibraryId {
   return typeof value === 'string' && (CUSTOM_LIBRARY_IDS as readonly string[]).includes(value)

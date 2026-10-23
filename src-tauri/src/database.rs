@@ -130,6 +130,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0021_custom_libraries.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 22,
+            description: "recipes_library",
+            sql: include_str!("../migrations/0022_recipes_library.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 

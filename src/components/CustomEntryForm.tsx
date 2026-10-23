@@ -230,9 +230,17 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                   const fieldId = `${idPrefix}-detail-${field.key}`
                   const value = values.details[field.key] ?? ''
                   return (
-                    <div className="field" key={field.key}>
+                    <div className={field.kind === 'textarea' ? 'field field-long' : 'field'} key={field.key}>
                       <label id={`${fieldId}-label`} htmlFor={fieldId}>{tc(libraryId, field.label)}</label>
-                      {field.kind === 'select' && field.options ? (
+                      {field.kind === 'textarea' ? (
+                        <textarea
+                          id={fieldId}
+                          rows={field.key === 'ingredients' ? 6 : 8}
+                          value={value}
+                          placeholder={field.placeholder ? tc(libraryId, field.placeholder) : undefined}
+                          onChange={(event) => updateDetail(field.key, event.target.value)}
+                        />
+                      ) : field.kind === 'select' && field.options ? (
                         <Select
                           id={fieldId}
                           labelledBy={`${fieldId}-label`}

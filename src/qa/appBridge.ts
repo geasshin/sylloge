@@ -40,7 +40,7 @@ import {
 type Scenario = 'full' | 'empty' | 'onboarding'
 
 /** Tables des bibliothèques personnalisées (migration 0021). */
-const CUSTOM_TABLES = ['comics', 'magazines', 'audiobooks', 'music', 'podcasts', 'documentaries', 'shows', 'board_games'] as const
+const CUSTOM_TABLES = ['comics', 'magazines', 'audiobooks', 'music', 'podcasts', 'documentaries', 'shows', 'board_games', 'recipes'] as const
 type Args = Record<string, unknown>
 type Row = Record<string, unknown>
 

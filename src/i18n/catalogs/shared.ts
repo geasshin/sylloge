@@ -5,6 +5,11 @@ const messages: Record<string, string> = {
   'Lignes {0}': 'Lines {0}',
   // Même mot français, autre sens : seul le contexte les départage (voir tc() dans core.ts).
   'comics\u0004Dessin': 'Artist',
+  'recipes\u0004Entrée': 'Starter',
+  'recipes\u0004Plat': 'Main course',
+  'recipes\u0004Préparation': 'Prep time',
+  'recipes\u0004Cuisson': 'Cooking time',
+  'recipes\u0004Étapes': 'Method',
   'podcasts\u0004Animation': 'Host',
 }
 export default messages

@@ -94,7 +94,7 @@ try {
     assert.equal(JSON.stringify(homeProps), before, 'Rendering never rewrites stored records or French statuses')
   })
 
-  await test('All eight custom-library models have English names, descriptions, non-empty labels and unchanged French domain values', async () => {
+  await test('All nine custom-library models have English names, descriptions, non-empty labels and unchanged French domain values', async () => {
     core?.setLanguage('en')
     const { AddLibraryDialog } = await server.ssrLoadModule('/src/components/AddLibraryDialog.tsx')
     const custom = await server.ssrLoadModule('/src/components/CustomLibraryScreen.tsx')
@@ -102,7 +102,7 @@ try {
     const before = JSON.stringify(CUSTOM_LIBRARY_TEMPLATES)
     const catalogue = render(AddLibraryDialog, { enabled: ['comics'], onClose() {}, async onAdd() {} })
     assert.ok(catalogue.includes('Add a library'), 'The real library catalogue opens in English')
-    const names = ['Comics', 'Magazines', 'Audiobooks', 'Music', 'Podcasts', 'Documentaries and reports', 'Performances', 'Board games']
+    const names = ['Comics', 'Magazines', 'Audiobooks', 'Music', 'Podcasts', 'Documentaries and reports', 'Performances', 'Board games', 'Cooking recipes']
     const descriptions = [
       'Comics, graphic novels and bandes dessinées, series by series.',
       'Journals and magazines, by issue or across subscriptions.',
@@ -112,6 +112,7 @@ try {
       'Documentary films, documentary series and reports.',
       'Theatre, dance, opera, comedy, circus and concerts.',
       'Board, card and party games, one session at a time.',
+      'Cooking recipes: ingredients, method, timings, photo and notes on how they turned out.',
     ]
     for (const [index, id] of CUSTOM_LIBRARY_IDS.entries()) {
       assert.ok(catalogue.includes(`<b>${names[index]}</b>`), `${id} has its English catalogue name`)

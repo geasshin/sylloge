@@ -7,6 +7,7 @@ import {
   MagazineIcon,
   MusicIcon,
   PodcastIcon,
+  RecipeIcon,
   ShowIcon,
 } from './icons.tsx'
 
@@ -29,5 +30,7 @@ export function CustomLibraryIcon({ libraryId, size, filled }: { libraryId: Cust
       return <ShowIcon size={size} filled={filled} />
     case 'board_games':
       return <BoardGameIcon size={size} filled={filled} />
+    case 'recipes':
+      return <RecipeIcon size={size} filled={filled} />
   }
 }

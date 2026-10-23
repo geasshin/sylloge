@@ -39,3 +39,36 @@
 - Pas encore dans ce lot : vues enregistrées, présence sur l’accueil, import et export propres à une bibliothèque personnalisée, recherche de métadonnées en ligne.
 - Un JSON par bibliothèque Livres issu d’un ancien export n’importe pas ses comics : le message renvoie vers la restauration complète.
 - `scripts/qa-book-libraries.js` réécrit sur le modèle réel : une table par bibliothèque (Livres, Mangas, Comics séparés), recherche mémorisée par bibliothèque, vues cloisonnées, création manuelle dans la bonne table, import au périmètre explicite et retour de focus. `scripts/qa-book-libraries-extended.js` est supprimé : son sujet — une seule ligne `books` qui passait de Livre à Manga puis à Comics — n’existe plus. Il est remplacé par `scripts/qa-book-type-move.js`, qui vérifie le déplacement entre bibliothèques dans les deux sens : même identifiant, notes, progression et date de création conservés, citation écrite une seule fois et déplacée avec la fiche, aucune copie résiduelle.
+
+---
+
+## Mise à jour du 23 octobre 2026 : neuvième modèle, Recettes de cuisine
+
+**Implémenté localement, non publié.** Décision d’Aurélien : une base pour stocker ses recettes (ingrédients et préparation), avec une photo.
+
+### Ce qui a changé
+
+| Couche | Fichiers | Contenu |
+|---|---|---|
+| Schéma | `src-tauri/migrations/0022_recipes_library.sql`, `database.rs` | Table `recipes` de même structure que les huit autres. `profile_libraries` est **reconstruite** (SQLite ne modifie pas une contrainte CHECK) : lignes copiées colonne par colonne, ancienne table supprimée en dernier. Ni déclencheur, ni clé étrangère entrante, ni index nommé ne dépendaient d’elle. |
+| Moteur | `portability.rs` (`CUSTOM_LIBRARIES` à neuf entrées) | Import, export, décompte et suppression de profil dérivent de cette liste. |
+| Catalogue | `customLibraries.ts` | Modèle `recipes`, famille « Cuisine », nouveau type de champ `textarea`. Statuts À essayer, Testée, Écartée (pas de « En cours »). |
+| Interface | `CustomEntryForm.tsx`, `CustomLibraryScreen.tsx`, `CustomLibraryIcon.tsx`, `icons.tsx`, `navigationIconPaths.ts`, `styles.css` | Champs longs en zones de texte sur toute la largeur ; fiche avec ingrédients et étapes côte à côte ; pictogramme Phosphor « chef-hat » (même famille et licence que les autres). |
+| Traductions | `catalogs/home.ts`, `entries.ts`, `shared.ts` | Français et anglais ; les mots ambigus (« Plat », « Entrée », « Préparation », « Cuisson », « Étapes ») en contexte `recipes`. |
+
+### Vérifications exécutées
+
+- **Migration** : test Rust sur une base v21 construite par le vrai migrateur (trois lignes de `profile_libraries`, un comic) — lignes identiques après 0022, version 22, recettes acceptées, bibliothèque inconnue et doublon refusés, clé étrangère et cascade conservées, `integrity_check` et `foreign_key_check` propres. Rejeu du fichier octet pour octet avec `sqlite3` sur une base v21 fabriquée avec les migrations 0001 à 0021 : même résultat, saut de ligne `\r\n` d’une recette relu intact. Empreinte du fichier rejoué : `1a200b5c…`.
+- **Import d’un profil avec une recette** : ingrédients et étapes avec `\r\n`, lignes vides, espaces de tête et de fin, tabulation, caractères non latins — chaque colonne relue et comparée.
+- Rust : `cargo test` 162 réussis, `clippy --all-targets -- -D warnings` sans alerte, `rustfmt` sans écart sur les fichiers modifiés.
+- `npm run verify` vert (dont 9 tests du catalogue et des textes longs), `typecheck`, `build`.
+- Navigateur : `scripts/qa-recipes.js` (28 contrôles : catalogue à neuf modèles, création, relecture exacte de chaque ligne, modification, filtres, suppression). Preuve que la recette détecte : retour à la ligne désactivé dans le CSS → échec sur ce contrôle précis, puis rétabli.
+- Rendu examiné en français et en anglais, 1440 × 900 : catalogue, formulaire, fiche. Libellés de faits sur une seule ligne.
+
+### Limites et points non exercés
+
+- **Application native non lancée sur ce lot**, ni migration 0022 rejouée sur une copie de la vraie base : la copie de sécurité de la base avant migration (3 dernières) est faite par l’application, mais cette migration n’a été exercée que sur des bases synthétiques.
+- Une sauvegarde contenant des recettes **n’est pas lisible par une version antérieure** de l’application (bibliothèque inconnue). Le format reste en v5.
+- Ingrédients en texte libre : pas de quantité/unité structurées, donc pas de recalcul des portions ni de liste de courses.
+- Pas de lien cliquable ni de recherche de métadonnées en ligne pour les recettes.
+- Recette navigateur : `qa-custom-libraries.js` attendait « Animation » (le formulaire dit « Animation du podcast » depuis l’interface bilingue) et « v4 » (le document est en v5) ; elle était déjà périmée avant ce lot et est corrigée.

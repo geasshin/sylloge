@@ -19,14 +19,14 @@ async page => {
   const comicsInBooks = await sql("SELECT COUNT(*) AS n FROM books WHERE category = 'comics'")
   assert(Number(comicsInBooks[0].n) === 0, 'Livres ne contient aucun comics')
 
-  // 2. Catalogue : huit modèles, quatre déjà ajoutés et désactivés.
+  // 2. Catalogue : neuf modèles, quatre déjà ajoutés et désactivés.
   await nav().getByRole('button', { name: 'Ajouter une bibliothèque', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Ajouter une bibliothèque' })
   await dialog.waitFor()
-  assert(await dialog.locator('.library-option').count() === 8, 'Catalogue : huit modèles')
+  assert(await dialog.locator('.library-option').count() === 9, 'Catalogue : neuf modèles')
   assert(await dialog.locator('.library-option:disabled').count() === 4, 'Catalogue : quatre bibliothèques déjà ajoutées')
   const groups = await dialog.locator('.library-catalog-group > h3').allInnerTexts()
-  assert(groups.map(text => text.trim().toLowerCase()).join(',') === 'lecture,écoute,écran,scène,jeu', `Familles : ${groups.join(', ')}`)
+  assert(groups.map(text => text.trim().toLowerCase()).join(',') === 'lecture,écoute,écran,scène,jeu,cuisine', `Familles : ${groups.join(', ')}`)
   await dialog.getByRole('button', { name: 'Ajouter Podcasts', exact: true }).click()
   await page.getByRole('heading', { level: 1, name: 'Podcasts' }).waitFor()
   assert(await nav().getByRole('button', { name: 'Podcasts', exact: true }).getAttribute('aria-current') === 'page', 'Podcasts ajouté et ouvert')
@@ -39,7 +39,7 @@ async page => {
   await form.getByRole('radio', { name: 'En cours', exact: true }).click()
   await form.getByLabel('Épisodes écoutés', { exact: true }).fill('12')
   await form.getByLabel('Total', { exact: true }).fill('40')
-  await form.getByLabel('Animation', { exact: true }).fill('Sonia Kronlund')
+  await form.getByLabel('Animation du podcast', { exact: true }).fill('Sonia Kronlund')
   await form.locator('#custom-podcasts-detail-format').click()
   await page.getByRole('option', { name: 'Récit', exact: true }).click()
   await form.getByLabel('Plateforme', { exact: true }).fill('France Culture')
@@ -84,7 +84,7 @@ async page => {
   const [watchmen] = await sql("SELECT details FROM comics WHERE id = 'comics-watchmen'")
   assert(JSON.parse(watchmen.details).series === 'Watchmen' && JSON.parse(watchmen.details).artist === 'Dave Gibbons', 'Comics : champs propres conservés et mis à jour')
 
-  // 6. Sauvegarde JSON v4 : relue par le validateur, puis restaurée dans un profil neuf.
+  // 6. Sauvegarde JSON v5 : relue par le validateur, puis restaurée dans un profil neuf.
   const roundtrip = await page.evaluate(async () => {
     const { libraryRepository } = await import('/src/data/libraryRepository.ts')
     const { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument } = await import('/src/domain/libraryDocument.ts')
@@ -105,7 +105,7 @@ async page => {
     }
   })
   assert(!roundtrip.errors, `Sauvegarde : document valide ${JSON.stringify(roundtrip.errors ?? '')}`)
-  assert(roundtrip.version === 4 && roundtrip.count === 13, `Sauvegarde : v4 et 13 fiches personnalisées (${roundtrip.count})`)
+  assert(roundtrip.version === 5 && roundtrip.count === 13, `Sauvegarde : v5 et 13 fiches personnalisées (${roundtrip.count})`)
   assert(roundtrip.newProfile && JSON.stringify(roundtrip.before) === JSON.stringify(roundtrip.after), 'Restauration : bibliothèques, ordre et fiches identiques')
 
   // 7. Suppression d'une bibliothèque : tout disparaît, retour à l'accueil.

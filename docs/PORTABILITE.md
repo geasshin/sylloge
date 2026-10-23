@@ -10,6 +10,7 @@ Les versions 1 à 4 restent lisibles : un document plus ancien s’importe, sans
 | Profil (nom, avatar), sept bibliothèques de base, bibliothèques personnalisées, notes, avis, notes personnelles, dates, citations | v1 pour les films, v3 pour les sept sections, v4 pour les bibliothèques personnalisées |
 | Vues enregistrées (nom, bibliothèque, filtres et tri) | **v5** |
 | Préférences d’affichage : thème, langue, lecture automatique de l’accueil, barre latérale épinglée | **v5** |
+| Recettes de cuisine (`customLibraries`, identifiant `recipes`) : ingrédients et étapes en textes longs conservés ligne pour ligne, photo en lien | v5, ajoutées le 23 octobre 2026 |
 
 Le brief 0.4.21 gardait les vues locales, hors des copies et des exports. L’objectif
 « portabilité intégrale de l’expérience » l’a renversé le 23 octobre 2026 : une vue
@@ -24,6 +25,8 @@ enregistrée est un travail de la personne, pas un réglage de cette machine.
 | Cache de métadonnées TMDB, affiches téléchargées | Caches : se reconstruisent à la demande. |
 | Version ignorée du vérificateur de mise à jour | Elle vaut pour une version publiée à un instant donné. La recopier masquerait une mise à jour attendue ailleurs. |
 | Taille et position des fenêtres | Sans intérêt d’une machine à l’autre. |
+
+Les couvertures et photos sont des **adresses**, jamais des fichiers : la sauvegarde ne contient aucune image ([COUVERTURES.md](COUVERTURES.md)). Une sauvegarde qui contient des recettes n’est pas lisible par une version de l’application antérieure au 23 octobre 2026 (bibliothèque inconnue) ; le format reste en v5.
 
 Un document v5 écrit par un chemin qui ne collecte rien (export d’une seule collection)
 porte `"experience": { "version": 1, "savedViews": [], "preferences": {} }` : cela se lit

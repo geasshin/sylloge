@@ -10,9 +10,9 @@ use serde_json::{json, Value};
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 
-/// Les huit tables des modèles prêts, écrites en dur : les tests vérifient la
+/// Les neuf tables des modèles prêts, écrites en dur : les tests vérifient la
 /// liste de production au lieu de la recopier.
-const CUSTOM_TABLES: [&str; 8] = [
+const CUSTOM_TABLES: [&str; 9] = [
     "comics",
     "magazines",
     "audiobooks",
@@ -21,6 +21,7 @@ const CUSTOM_TABLES: [&str; 8] = [
     "documentaries",
     "shows",
     "board_games",
+    "recipes",
 ];
 
 fn migrator_up_to(version: i64) -> sqlx::migrate::Migrator {
@@ -308,7 +309,7 @@ fn migration_0021_moves_legacy_comics_with_their_quotes_and_activates_the_librar
 /// Tables comparées avant/après un import refusé : profils, sélection, les
 /// quinze bibliothèques, les trois tables de citations, la liste des
 /// bibliothèques ajoutées et les liens fournisseurs.
-const SNAPSHOT_TABLES: [&str; 22] = [
+const SNAPSHOT_TABLES: [&str; 23] = [
     "profiles",
     "current_profile",
     "films",
@@ -326,6 +327,7 @@ const SNAPSHOT_TABLES: [&str; 22] = [
     "documentaries",
     "shows",
     "board_games",
+    "recipes",
     "book_quotes",
     "manga_quotes",
     "comic_quotes",
@@ -1043,5 +1045,170 @@ fn custom_library_whitelist_matches_the_migration_schema() {
             .is_err(),
             "une bibliothèque inconnue est refusée par le schéma"
         );
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Migration 0022 : Recettes de cuisine (neuvième modèle)
+// ---------------------------------------------------------------------------
+
+/// SQLite ne modifie pas une contrainte CHECK : la migration reconstruit
+/// `profile_libraries`. Les bibliothèques déjà ajoutées doivent en sortir
+/// identiques, colonne par colonne, avec leur position et leur date.
+#[test]
+fn migration_0022_rebuilds_profile_libraries_without_touching_added_libraries() {
+    tauri::async_runtime::block_on(async {
+        let pool = pool_at(21).await;
+        execute_all(
+            &pool,
+            &[
+                "INSERT INTO profiles (id, name, created_at, updated_at) VALUES
+                   ('lecteur', 'Lecteur', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
+                   ('voisin', 'Voisin', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
+                "INSERT INTO profile_libraries (profile_id, library_id, position, added_at) VALUES
+                   ('lecteur', 'comics', 0, '2026-10-20T08:00:00.000Z'),
+                   ('lecteur', 'board_games', 1, '2026-10-21T08:00:00.000Z'),
+                   ('voisin', 'music', 0, '2026-10-22T08:00:00.000Z')",
+                "INSERT INTO comics (id, profile_id, title, details, created_at, updated_at) VALUES
+                   ('comic-controle', 'lecteur', 'Comic de contrôle', '{\"éditeur\":\"Éditions\"}',
+                    '2026-10-20T08:00:00.000Z', '2026-10-20T08:00:00.000Z')",
+            ],
+        )
+        .await;
+        let libraries_before = rows_json(&pool, "profile_libraries", "1").await;
+        let comics_before = rows_json(&pool, "comics", "1").await;
+        assert_eq!(libraries_before.len(), 3);
+        assert!(
+            sqlx::query(
+                "INSERT INTO profile_libraries (profile_id, library_id, position) VALUES ('lecteur', 'recipes', 2)"
+            )
+            .execute(&pool)
+            .await
+            .is_err(),
+            "avant 0022, le schéma ne connaît pas les recettes"
+        );
+
+        migrator_up_to(22)
+            .run(&pool)
+            .await
+            .expect("la migration 0022 s’applique sur une base v21");
+        let version: i64 =
+            sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations WHERE success = 1")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(version, 22);
+
+        assert_eq!(
+            rows_json(&pool, "profile_libraries", "1").await,
+            libraries_before,
+            "les bibliothèques ajoutées gardent profil, identifiant, position et date"
+        );
+        assert_eq!(
+            rows_json(&pool, "comics", "1").await,
+            comics_before,
+            "les fiches des autres bibliothèques ne bougent pas"
+        );
+
+        sqlx::query(
+            "INSERT INTO profile_libraries (profile_id, library_id, position) VALUES ('lecteur', 'recipes', 2)",
+        )
+        .execute(&pool)
+        .await
+        .expect("les recettes sont acceptées après 0022");
+        assert!(
+            sqlx::query(
+                "INSERT INTO profile_libraries (profile_id, library_id, position) VALUES ('lecteur', 'vinyles', 3)"
+            )
+            .execute(&pool)
+            .await
+            .is_err(),
+            "une bibliothèque inconnue reste refusée"
+        );
+        assert!(
+            sqlx::query(
+                "INSERT INTO profile_libraries (profile_id, library_id, position) VALUES ('lecteur', 'recipes', 4)"
+            )
+            .execute(&pool)
+            .await
+            .is_err(),
+            "la clé primaire (profil, bibliothèque) est conservée"
+        );
+        assert!(
+            sqlx::query(
+                "INSERT INTO profile_libraries (profile_id, library_id, position) VALUES ('fantome', 'recipes', 0)"
+            )
+            .execute(&pool)
+            .await
+            .is_err(),
+            "la clé étrangère vers profiles est conservée"
+        );
+
+        sqlx::query("DELETE FROM profiles WHERE id = 'voisin'")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let remaining: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM profile_libraries WHERE profile_id = 'voisin'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            remaining, 0,
+            "la suppression d’un profil emporte encore ses bibliothèques ajoutées"
+        );
+
+        assert_database_is_consistent(&pool).await;
+    });
+}
+
+/// Une recette porte des textes longs : ingrédients et préparation arrivent
+/// en plusieurs lignes, avec retours chariot, lignes vides, espaces de tête et
+/// de fin, tabulations et caractères non latins. Rien ne doit être normalisé.
+#[test]
+fn whole_profile_import_keeps_every_line_of_a_recipe() {
+    tauri::async_runtime::block_on(async {
+        let pool = latest_pool().await;
+        insert_profile(&pool, "vide").await;
+        let mut recipe = custom_entry("vide", "recette-import", "Tarte de contrôle");
+        recipe["status"] = json!("terminé");
+        recipe["details"] = json!({
+            "dish": "Dessert",
+            "servings": "6 personnes",
+            "ingredients": "200 g de farine\r\n100 g de beurre\n\n  3 œufs  \n\t=1 pincée de sel",
+            "steps": "1. Mélanger.\n2. Cuire 35 min à 180 °C.\n\n日本語 — dernier paragraphe  "
+        });
+        recipe
+            .as_object_mut()
+            .unwrap()
+            .remove("quotes")
+            .expect("champ quotes facultatif");
+        let mut document = custom_document("vide");
+        document["customLibraries"] = json!([{
+            "libraryId": "recipes",
+            "position": 0,
+            "addedAt": "2026-10-23T08:00:00.000Z",
+            "entries": [recipe]
+        }]);
+        let payload = payload_from(document.clone());
+
+        write_library_document_import(&pool, &payload, false)
+            .await
+            .expect("import d’un profil avec une bibliothèque Recettes");
+
+        assert_custom_entry_stored(
+            &pool,
+            "recipes",
+            &document["customLibraries"][0]["entries"][0],
+        )
+        .await;
+        let activated: Vec<(String, i64)> =
+            sqlx::query_as("SELECT library_id, position FROM profile_libraries ORDER BY position")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(activated, vec![("recipes".to_string(), 0)]);
+        assert_database_is_consistent(&pool).await;
     });
 }

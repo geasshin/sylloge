@@ -4115,6 +4115,15 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 /* Formulaire : champs propres au modèle sur deux colonnes. */
 .custom-detail-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }
+/* Champ long (ingrédients, préparation) : toute la largeur, sous les champs courts. */
+.custom-detail-fields > .field-long { grid-column: 1 / -1; }
+.custom-detail-fields > .field-long textarea { resize: vertical; min-height: 7rem; line-height: 1.55; }
+
+/* Fiche : textes longs d'une recette, tels qu'ils ont été saisis ; côte à côte quand la largeur le permet. */
+.detail-long-texts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--space-6) var(--space-8); margin-top: var(--space-6); }
+.detail-long-text { min-width: 0; max-width: 66ch; }
+.detail-long-text h2 { margin: 0 0 var(--space-2); font-size: var(--text-sm); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--color-text-muted); }
+.detail-long-text p { margin: 0; color: var(--color-text-secondary); font-size: var(--text-md); line-height: 1.72; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Formulaire en fenêtre : le visuel carré garde ses proportions, centré dans
    la colonne au lieu d’en remplir toute la hauteur. */
 .editor-dialog.dialog-add-flow .form-cover-square .form-poster-frame { display: flex; align-items: center; overflow: visible; box-shadow: none; }
