@@ -139,6 +139,14 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
       assetUploadIndex < manifestUploadIndex && manifestUploadIndex < releasePublishIndex,
     'La release doit être retrouvée ou créée avant les assets, le manifeste ajouté après l’archive et avant la publication',
   )
+  // Le site de téléchargement pointe vers releases/latest/download/<nom fixe> : si l’un de ces
+  // deux fichiers manque, la page cesse de fonctionner sans que personne ne le voie.
+  for (const stable of ['Sylloge-macOS-universal.dmg', 'Sylloge-Windows-setup.exe']) {
+    assert.ok(
+      releaseWorkflow.split(stable).length >= 4,
+      `${stable} doit être copié, attaché à la release puis vérifié avant publication`,
+    )
+  }
   assert.doesNotMatch(
     releaseWorkflow,
     /git push origin "refs\/tags\/\$TAG"/,

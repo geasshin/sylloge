@@ -49,7 +49,13 @@ Une seule release, `.github/workflows/release.yml`, déclenchée par un push sur
 | `prepare` | calcule la prochaine version depuis les tags, vérifie que le proxy TMDB/IGDB répond — une version livrée avec une recherche morte est pire qu’une version retardée |
 | `macos` | construit l’archive universelle, produit `Sylloge.app.tar.gz` + `.sig` et le dmg, vérifie ses artefacts |
 | `windows` | construit l’installeur NSIS, produit `Sylloge_x.y.z_x64-setup.exe` + `.sig`, vérifie ses artefacts |
-| `publish` | assemble `latest.json` pour les trois cibles, l’envoie, **relit ce qui est publié**, vérifie les trois cibles, puis ouvre la release |
+| `publish` | attache les artefacts et **deux copies à nom fixe** (`Sylloge-macOS-universal.dmg`, `Sylloge-Windows-setup.exe`), assemble `latest.json` pour les trois cibles, l’envoie, **relit ce qui est publié**, vérifie les trois cibles et la présence des deux copies, puis ouvre la release |
+
+Les deux copies à nom fixe servent le site de téléchargement : ses boutons visent
+`releases/latest/download/<nom fixe>`, que GitHub redirige vers la dernière release publiée. Le site n’a donc
+rien à mettre à jour à chaque version. Si l’une des copies manque, la release reste en brouillon et le
+workflow échoue : mieux vaut une version retardée qu’un bouton de téléchargement mort. `scripts/verify.mjs`
+refuse un `release.yml` qui ne les copie, ne les attache ou ne les vérifie plus.
 
 Le manifeste est assemblé une seule fois, à partir des deux compilations, avant que la release ne quitte
 l’état de brouillon : aucun client ne peut donc lire un manifeste incomplet. Un build Windows en échec
@@ -97,6 +103,6 @@ Le manifeste, les signatures et la fusion sont vérifiables sans Windows ; l’i
 NSIS par-dessus une version antérieure ne l’est pas. À faire sur une machine Windows : installer une version
 antérieure, attendre l’annonce, installer la nouvelle, vérifier que la base et les profils sont intacts.
 
-Premier passage à contrôler : la publication de la version qui suit la mise en service de `release.yml`.
-Le job `publish` doit afficher `Manifeste valide : x.y.z pour darwin-aarch64, darwin-x86_64,
+Premier passage, contrôlé le 23 octobre 2026 (v0.6.11) : le job `publish` a réussi, `latest.json` publiquement
+servi contient les trois entrées, leurs trois adresses répondent. Pour chaque release suivante, le job `publish` doit afficher `Manifeste valide : x.y.z pour darwin-aarch64, darwin-x86_64,
 windows-x86_64`, et `releases/latest/download/latest.json` doit contenir les trois entrées.

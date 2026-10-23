@@ -297,11 +297,18 @@ jobs:
           fi
           echo "RELEASE_ID=$release_id" >> "$GITHUB_ENV"
 
+      # Deux copies à nom fixe : le site de téléchargement pointe vers
+      # releases/latest/download/<nom>, donc il suit chaque release sans être modifié.
       - name: Attacher les artefacts des deux plateformes
         shell: bash
         run: |
           set -euo pipefail
+          stable="$RUNNER_TEMP/stable"
+          mkdir -p "$stable"
+          cp "$DMG" "$stable/Sylloge-macOS-universal.dmg"
+          cp "$EXE" "$stable/Sylloge-Windows-setup.exe"
           gh release upload "$TAG" "$DMG" "$ARCHIVE" "$ARCHIVE_SIG" "$EXE" "$EXE_SIG" \
+            "$stable/Sylloge-macOS-universal.dmg" "$stable/Sylloge-Windows-setup.exe" \
             --repo "$GITHUB_REPOSITORY" --clobber
 
       # L'archive macOS est universelle : une seule signature sert les deux cibles darwin.
@@ -342,6 +349,13 @@ jobs:
             --pattern latest.json --dir "$verify" --clobber
           node scripts/merge-tauri-latest-json.mjs --check "$verify/latest.json" --version "$VERSION" \
             --require darwin-aarch64 --require darwin-x86_64 --require windows-x86_64
+          assets="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          for stable in Sylloge-macOS-universal.dmg Sylloge-Windows-setup.exe; do
+            if ! grep -qx "$stable" <<< "$assets"; then
+              echo "Le fichier à nom fixe $stable manque : le site de téléchargement serait cassé." >&2
+              exit 1
+            fi
+          done
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             -F draft=false -F target_commitish="$GITHUB_SHA" >/dev/null
           echo "Sylloge $VERSION publiée pour macOS et Windows."
