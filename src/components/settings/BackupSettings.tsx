@@ -160,21 +160,18 @@ export function BackupSettings({ library, onRestored }: Props) {
               label={configured ? (unavailable ? t('Dossier introuvable') : t('Active')) : t('Inactive')}
               detail={configured
                 ? <span className="settings-path" title={settings.backupDirectory}>{settings.backupDirectory}</span>
-                : t('Choisir un dossier : local, iCloud Drive ou Google Drive présent sur ce Mac.')}
+                : t('Choisir de préférence un dossier synchronisé (iCloud Drive, Google Drive…) : les sauvegardes suivent alors sur un autre Mac. Sylloge y crée un dossier « Sylloge ».')}
               tone={unavailable ? 'danger' : undefined}
             >
               <button className={configured ? 'secondary-button' : 'primary-button'} type="button" disabled={working} onClick={() => void chooseDirectory()}>
                 {busy === 'choose' ? t('Choix du dossier…') : configured ? t('Changer de dossier') : t('Choisir un dossier')}
               </button>
             </SettingsRow>
-            <SettingsRow
-              label={t('Rythme')}
-              detail={configured && settings.lastAutomaticSnapshotDay ? t('Dernière copie automatique : {date}', { date: formatBackupDay(settings.lastAutomaticSnapshotDay) }) : t('Aucune copie automatique pour l’instant.')}
-            >
-              <span className="settings-value">{t('Chaque jour, à la première modification')}</span>
-            </SettingsRow>
             <SettingsRow label={t('Conservation')} detail={t('{retention}. Les plus anciennes sont retirées automatiquement ; les fichiers que Sylloge n’a pas créés ne sont jamais touchés.', { retention: translateMessage(BACKUP_RETENTION_SUMMARY) })} />
-            <SettingsRow label={t('Sauvegarder maintenant')} detail={t('Crée une copie immédiatement, en plus de la copie quotidienne.')}>
+            <SettingsRow
+              label={t('Sauvegarder maintenant')}
+              detail={`${t('Crée une copie tout de suite. Une copie automatique est aussi créée chaque jour, à la première modification.')} ${configured && settings.lastAutomaticSnapshotDay ? t('Dernière copie automatique : {date}', { date: formatBackupDay(settings.lastAutomaticSnapshotDay) }) : t('Aucune copie automatique pour l’instant.')}`}
+            >
               <button className="primary-button" type="button" disabled={!configured || unavailable || working} onClick={() => void saveNow()}>
                 {busy === 'save' ? t('Sauvegarde…') : t('Sauvegarder maintenant')}
               </button>
@@ -193,7 +190,7 @@ export function BackupSettings({ library, onRestored }: Props) {
       {notice && <p className={`inline-report settings-report ${notice.kind === 'error' ? 'error' : ''}`} role={notice.kind === 'error' ? 'alert' : 'status'}>{backupNoticeText(notice.message)}</p>}
 
       {configured && (
-        <SettingsGroup id="backup-copies-title" title={t('Copies de ce profil')} description={t('Les copies créées par Sylloge dans le dossier choisi, de la plus récente à la plus ancienne.')}>
+        <SettingsGroup id="backup-copies-title" title={t('Copies de ce profil')} description={t('Les copies créées par Sylloge dans le dossier choisi. Rien à faire ici en temps normal : « Restaurer… » ne sert qu’à revenir à une copie, après un aperçu et le choix de la destination.')}>
           {copies === null ? (
             <SettingsRow label={t('Lecture des copies…')} />
           ) : copies.length === 0 ? (
@@ -206,8 +203,8 @@ export function BackupSettings({ library, onRestored }: Props) {
         </SettingsGroup>
       )}
 
-      <SettingsGroup id="backup-restore-title" title={t('Restaurer ou changer d’ordinateur')} description={t('Le même fichier JSON sert à restaurer un profil et à l’emporter sur un autre Mac.')}>
-        <SettingsRow label={t('Restaurer une sauvegarde')} detail={t('Depuis un fichier, un dossier ou une recherche sur ce Mac. Un aperçu précède toute écriture.')}>
+      <SettingsGroup id="backup-restore-title" title={t('Reprendre ses données ou en garder une copie')} description={t('Pour retrouver un profil sur un autre Mac, ou en garder une copie à part. Le fichier est le même que celui des sauvegardes automatiques.')}>
+        <SettingsRow label={t('Retrouver un profil')} detail={t('Depuis un fichier, un dossier ou une recherche sur ce Mac. Un aperçu précède toute écriture.')}>
           <button className="secondary-button" type="button" disabled={working} onClick={() => setRestore({ initial: null })}>{t('Restaurer une sauvegarde')}</button>
         </SettingsRow>
         <SettingsRow label={t('Exporter une copie')} detail={t('Enregistrer le JSON du profil à l’endroit choisi : clé USB, autre dossier, partage.')}>

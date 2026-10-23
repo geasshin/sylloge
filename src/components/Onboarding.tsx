@@ -7,6 +7,8 @@ import { libraryRepository, type CulturalLibrary } from '../data/libraryReposito
 import { backupService } from '../data/backupService.ts'
 import { collectProfileExperience } from '../data/profileExperienceService.ts'
 import { pickBackupDestination, configureBackupDestination } from '../data/backupDestination.ts'
+import type { ExperienceOutcome } from '../domain/profileExperience.ts'
+import { experienceReportText } from './restoreReport.ts'
 import type { BackupSettings } from '../data/nativePortability.ts'
 import { createLibraryDocument } from '../domain/libraryDocument.ts'
 import { createProfileFromPreparation } from '../domain/onboarding.ts'
@@ -64,6 +66,7 @@ export function Onboarding({ themePreference, onThemePreferenceChange, onProfile
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<CulturalLibrary | null>(null)
   const [completion, setCompletion] = useState<string | null>(null)
+  const [experience, setExperience] = useState<ExperienceOutcome>(null)
   const writing = useRef(false)
   const createdRef = useRef<CulturalLibrary | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -102,6 +105,7 @@ export function Onboarding({ themePreference, onThemePreferenceChange, onProfile
         })
         createdRef.current = library
         setCreated(library)
+        setExperience(libraryRepository.takeExperienceOutcome())
       }
       if (destination) {
         await configureBackupDestination(library.profile.id, destination.backupDirectory)
@@ -125,6 +129,7 @@ export function Onboarding({ themePreference, onThemePreferenceChange, onProfile
         {completion ? <>
           <h2 ref={heading} tabIndex={-1}>{t('Le profil est prêt')}</h2>
           <p className="onboarding-step-intro" role="status">{created && profileReadyLine(created)} {t(completion)}</p>
+          {experienceReportText(experience) && <p className="onboarding-step-intro">{experienceReportText(experience)}</p>}
           <button className="primary-button" type="button" onClick={() => onProfileReady('home')}>{t('Entrer dans Sylloge')}</button>
         </> : <>
           {step === 'profile' && <>
@@ -157,7 +162,7 @@ export function Onboarding({ themePreference, onThemePreferenceChange, onProfile
             <p className="onboarding-step-intro">{created ? t('Les données sont déjà dans le nouveau profil. Réessayer ne les réimporte pas.') : profilePreparationLine(name.trim(), document ? profileWorkCount(document) : 0)}</p>
             {document && <dl className="onboarding-import-summary">{PROFILE_LIBRARIES.map(key => <div key={key}><dt>{t(PROFILE_LIBRARY_LABELS[key])}</dt><dd>{document[key].length}</dd></div>)}{customLibrarySummary(document).map(library => <div key={library.key}><dt>{t(library.label)}</dt><dd>{library.count}</dd></div>)}</dl>}
             <h3>{t('Dossier des futures sauvegardes')}</h3>
-            <p>{t('Un dossier local, iCloud Drive ou Google Drive accessible sur cet ordinateur. Sylloge écrit le JSON ; le service choisi assure sa synchronisation. Ces copies contiennent les notes et citations personnelles.')}</p>
+            <p>{t('De préférence un dossier synchronisé (iCloud Drive, Google Drive…) : les sauvegardes suivent alors sur un autre Mac. Sylloge y crée un dossier « Sylloge » et y écrit ses copies ; le service choisi assure la synchronisation. Ces copies contiennent les notes et citations personnelles.')}</p>
             <button className="secondary-button" type="button" disabled={busy || choosing} onClick={() => void chooseDestination()}>{t(choosing ? 'Vérification du dossier…' : destination ? 'Changer de dossier' : 'Choisir un dossier de sauvegarde')}</button>
             {destination && <p className="onboarding-destination"><b>{t('Destination vérifiée')}</b><span>{destination.backupDirectory}</span><small>{t('Première copie créée après la confirmation finale, puis une copie par jour. Conservation : {retention}.', { retention: translateMessage(BACKUP_RETENTION_SUMMARY) })}</small></p>}
             {!destination && <label className="onboarding-skip-backup"><input type="checkbox" checked={skipBackup} disabled={busy || choosing} onChange={event => setSkipBackup(event.target.checked)} />{t('Continuer sans sauvegarde automatique pour le moment')}</label>}

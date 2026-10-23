@@ -101,6 +101,12 @@ export type ExperienceRestoreReport = {
   preferences: PortablePreferenceKey[]
 }
 
+/**
+ * Ce que la restauration a fait de l'expérience : le bilan, `'failed'` si l'étape a échoué
+ * après l'import des fiches (qui restent restaurées), `null` si rien n'a été tenté.
+ */
+export type ExperienceOutcome = ExperienceRestoreReport | 'failed' | null
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -232,14 +238,4 @@ export async function restoreSavedViews(
     if (!inserted) report.skipped.push(view.name)
   }
   return report
-}
-
-/** Message lisible d'un bilan de restauration, sans jargon de base de données. */
-export function experienceRestoreMessage(report: ExperienceRestoreReport): string {
-  const parts: string[] = []
-  if (report.created > 0) parts.push(`${report.created} vue${report.created > 1 ? 's' : ''} restaurée${report.created > 1 ? 's' : ''}`)
-  if (report.renamed.length > 0) parts.push(`${report.renamed.length} renommée${report.renamed.length > 1 ? 's' : ''} (nom déjà pris)`)
-  if (report.skipped.length > 0) parts.push(`${report.skipped.length} ignorée${report.skipped.length > 1 ? 's' : ''}`)
-  if (report.preferences.length > 0) parts.push(`${report.preferences.length} préférence${report.preferences.length > 1 ? 's' : ''} appliquée${report.preferences.length > 1 ? 's' : ''}`)
-  return parts.join(' · ')
 }

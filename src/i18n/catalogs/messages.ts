@@ -198,6 +198,7 @@ const messages: Record<string, string> = {
   // Library document v1–v4 validation (src/domain/libraryDocument.ts). Field labels
   // interpolated into a few messages stay captured values.
   'Les versions 1 à 5 du document sont prises en charge.': 'Document versions 1 to 5 are supported.',
+  'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.': 'This backup was created by a newer version of Sylloge. Update the app to restore it.',
   'Cette section doit être un tableau.': 'This section must be an array.',
   'Cette bibliothèque doit être un objet.': 'This library must be an object.',
   'Cette bibliothèque personnalisée est inconnue.': 'This custom library is unknown.',

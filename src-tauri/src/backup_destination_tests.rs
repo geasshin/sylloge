@@ -370,4 +370,75 @@ mod backup_destination {
             );
         });
     }
+
+    // Le dossier choisi reçoit un sous-dossier « Sylloge », sauf s'il en porte déjà le nom.
+    #[test]
+    fn a_chosen_folder_gets_a_sylloge_subfolder_unless_it_already_is_one() {
+        let root = IoTemporaryDirectory(temporary_directory("subfolder-parent"));
+        // Le dossier temporaire porte « sylloge » dans son nom : on choisit un dossier neutre dedans.
+        let parent = root.0.join("choisi");
+        fs::create_dir(&parent).unwrap();
+
+        let created = backup_folder_for_selection(&parent).unwrap();
+        assert_eq!(created, parent.join("Sylloge"));
+        assert!(created.is_dir(), "le sous-dossier est créé");
+
+        // Un second choix du même dossier réutilise le sous-dossier sans rien écraser.
+        fs::write(created.join("copie.json"), "{}").unwrap();
+        assert_eq!(backup_folder_for_selection(&parent).unwrap(), created);
+        assert!(created.join("copie.json").exists());
+
+        // Un dossier déjà nommé « Sylloge » ou « … Sylloge » est utilisé tel quel.
+        assert_eq!(backup_folder_for_selection(&created).unwrap(), created);
+        let named = parent.join("Sauvegardes sylloge");
+        fs::create_dir(&named).unwrap();
+        assert_eq!(backup_folder_for_selection(&named).unwrap(), named);
+        assert!(
+            !named.join("Sylloge").exists(),
+            "aucun sous-dossier superflu"
+        );
+    }
+
+    #[test]
+    fn a_file_named_sylloge_is_never_replaced_by_the_subfolder() {
+        let root = IoTemporaryDirectory(temporary_directory("subfolder-file"));
+        let parent = root.0.join("choisi");
+        fs::create_dir(&parent).unwrap();
+        fs::write(parent.join("Sylloge"), "un fichier").unwrap();
+
+        let error = backup_folder_for_selection(&parent).unwrap_err();
+
+        assert!(error.contains("Sylloge"), "{error}");
+        assert_eq!(
+            fs::read_to_string(parent.join("Sylloge")).unwrap(),
+            "un fichier"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_named_sylloge_is_refused() {
+        let root = IoTemporaryDirectory(temporary_directory("subfolder-link"));
+        let parent = root.0.join("choisi");
+        fs::create_dir(&parent).unwrap();
+        let elsewhere = IoTemporaryDirectory(temporary_directory("subfolder-elsewhere"));
+        std::os::unix::fs::symlink(&elsewhere.0, parent.join("Sylloge")).unwrap();
+
+        assert!(backup_folder_for_selection(&parent).is_err());
+        assert_eq!(fs::read_dir(&elsewhere.0).unwrap().count(), 0);
+    }
+
+    // Le sélecteur s'ouvre sur iCloud Drive s'il existe, sinon sur Documents, sinon nulle part.
+    #[test]
+    fn the_picker_opens_on_icloud_drive_then_documents() {
+        let home = IoTemporaryDirectory(temporary_directory("picker-home"));
+        assert_eq!(backup_picker_start(&home.0), None);
+
+        fs::create_dir(home.0.join("Documents")).unwrap();
+        assert_eq!(backup_picker_start(&home.0), Some(home.0.join("Documents")));
+
+        let icloud = home.0.join("Library/Mobile Documents/com~apple~CloudDocs");
+        fs::create_dir_all(&icloud).unwrap();
+        assert_eq!(backup_picker_start(&home.0), Some(icloud));
+    }
 }

@@ -3,6 +3,7 @@ import { formatDate, formatNumber, t, translateMessage } from '../i18n/core.ts'
 import { useLanguage } from '../i18n/react.ts'
 import { pickImportContainer, pickImportJson } from '../data/nativePortability.ts'
 import { findBackupCandidates } from '../data/backupFiles.ts'
+import { experiencePreviewText } from './restoreReport.ts'
 import { catalogBackupFiles, customLibrarySummary, PROFILE_LIBRARIES, PROFILE_LIBRARY_LABELS, profileWorkCount, type PreparedBackup } from '../domain/backupRestore.ts'
 
 type Catalog = ReturnType<typeof catalogBackupFiles>
@@ -34,8 +35,9 @@ export function BackupSummary({ value }: { value: PreparedBackup }) {
       {customLibrarySummary(value.document).map(library => <div key={library.key}><dt>{t(library.label)}</dt><dd>{formatNumber(library.count)}</dd></div>)}
     </dl>
     <p>{works === 1
-      ? t('{count} fiche dans ce profil. Les réglages et vues enregistrées ne font pas partie de ce format. Les autres profils seront conservés.', { count: formatNumber(works) })
-      : t('{count} fiches dans ce profil. Les réglages et vues enregistrées ne font pas partie de ce format. Les autres profils seront conservés.', { count: formatNumber(works) })}</p>
+      ? t('{count} fiche dans ce profil. Les autres profils seront conservés.', { count: formatNumber(works) })
+      : t('{count} fiches dans ce profil. Les autres profils seront conservés.', { count: formatNumber(works) })}</p>
+    <p>{experiencePreviewText(value.document.experience)}</p>
   </section>
 }
 
@@ -102,11 +104,14 @@ export function BackupRestorePicker({ value, onChange, disabled = false, searchO
 
   return <div className="backup-restore-picker">
     <div className="backup-picker-actions">
-      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void search()}>{found ? t('Relancer la recherche') : t('Rechercher sur ce Mac')}</button>
-      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void choose(false)}>{t('Choisir un fichier JSON')}</button>
-      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void choose(true)}>{t('Parcourir un dossier de sauvegardes')}</button>
+      <button className={found ? 'secondary-button' : 'primary-button'} type="button" disabled={busy || disabled} onClick={() => void search()}>{found ? t('Relancer la recherche') : t('Rechercher sur ce Mac')}</button>
     </div>
     <p className="backup-search-note">{t('La recherche lit seulement les fichiers « sylloge-… .json » d’iCloud Drive, Google Drive, Dropbox, OneDrive, Documents, Bureau et Téléchargements. macOS peut demander l’autorisation d’y accéder.')}</p>
+    <div className="backup-picker-manual">
+      <span>{t('Sauvegarde sur une clé USB ou dans un autre dossier ?')}</span>
+      <button className="text-button" type="button" disabled={busy || disabled} onClick={() => void choose(false)}>{t('Choisir un fichier JSON')}</button>
+      <button className="text-button" type="button" disabled={busy || disabled} onClick={() => void choose(true)}>{t('Parcourir un dossier de sauvegardes')}</button>
+    </div>
     {busy && <p role="status">{t('Lecture et vérification des sauvegardes…')}</p>}
     {message && <p role="status">{pickerMessageText(message)}</p>}
     {error && <p className="inline-report error" role="alert">{pickerMessageText(error)}</p>}

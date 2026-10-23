@@ -26,6 +26,7 @@ import { mediaRepository, SqliteMediaRepository } from './mediaRepository.ts'
 import { customLibraryRepository, SqliteCustomLibraryRepository } from './customLibraryRepository.ts'
 import type { CustomLibrary } from '../domain/customLibraries.ts'
 import { restoreProfileExperience } from './profileExperienceService.ts'
+import type { ExperienceOutcome, ExperienceRestoreReport } from '../domain/profileExperience.ts'
 import {
   importLibraryDocumentAtomically,
   importLibraryDocumentIntoEmptyProfile,
@@ -290,12 +291,26 @@ export class SqliteLibraryRepository {
    * restauration des données.
    */
   private async applyExperience(document: SyllogeLibraryDocument, profileId: string): Promise<void> {
+    this.experienceOutcome = null
     if (this.restoreExperience === null) return
     try {
-      await this.restoreExperience(document.experience, profileId)
+      this.experienceOutcome = await this.restoreExperience(document.experience, profileId)
     } catch (error) {
+      this.experienceOutcome = 'failed'
       console.warn('L’expérience du profil n’a pas pu être restaurée.', error)
     }
+  }
+
+  private experienceOutcome: ExperienceOutcome = null
+
+  /**
+   * Bilan de la dernière restauration des vues et préférences, rendu une seule fois : l'écran
+   * qui vient d'importer un document le lit juste après. Le dépôt ne le garde pas au-delà.
+   */
+  takeExperienceOutcome(): ExperienceOutcome {
+    const outcome = this.experienceOutcome
+    this.experienceOutcome = null
+    return outcome
   }
 
   async importLibraryDocumentIntoEmptyProfile(
@@ -323,6 +338,10 @@ export class SqliteLibraryRepository {
       throw new Error('Le rapport SQLite de l’import ne correspond pas au document validé.')
     }
 
+    // Même règle que `importLibraryDocument` : les fiches sont écrites, puis les vues et les
+    // préférences. Sans cette étape, restaurer au premier lancement ou depuis la fenêtre de
+    // restauration perdait silencieusement ce que le document v5 emporte.
+    await this.applyExperience(document, profile.id)
     return this.loadLibrary(profile.id)
   }
 }
@@ -330,7 +349,7 @@ export class SqliteLibraryRepository {
 type ExperienceRestorer = (
   experience: SyllogeLibraryDocument['experience'],
   profileId: string,
-) => Promise<unknown>
+) => Promise<ExperienceRestoreReport>
 
 export const libraryRepository = new SqliteLibraryRepository(
   loadSyllogeDatabase,

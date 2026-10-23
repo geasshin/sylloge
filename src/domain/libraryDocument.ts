@@ -353,7 +353,13 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
   }
 
   if (version === null) {
-    addError(errors, '$.version', 'Les versions 1 à 5 du document sont prises en charge.')
+    addError(
+      errors,
+      '$.version',
+      isNewerDocumentVersion(value.version)
+        ? 'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.'
+        : 'Les versions 1 à 5 du document sont prises en charge.',
+    )
     return { document: null, counts: emptyCounts, errors }
   }
 
@@ -488,6 +494,10 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
 function emptyCollectionCounts(): LibraryCollectionCounts {
   return { films: 0, series: 0, anime: 0, books: 0, mangas: 0, games: 0, artworks: 0, custom: 0 }
 }
+
+/** Un entier au-delà de la version comprise : le document vient d'une application plus récente. */
+const isNewerDocumentVersion = (value: unknown): boolean =>
+  typeof value === 'number' && Number.isInteger(value) && value > SYLLOGE_LIBRARY_VERSION
 
 function libraryDocumentVersion(value: unknown): DocumentVersion | null {
   return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 ? value : null

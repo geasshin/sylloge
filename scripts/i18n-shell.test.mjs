@@ -129,8 +129,10 @@ try {
       const html = render(BackupSettings, { library, onRestored: noop })
       assert.match(html, />Automatic backup<\/h2>/)
       assert.match(html, /Reading setting…/)
-      assert.match(html, /Restore or move to another computer/)
+      assert.match(html, /Take your data elsewhere or keep a copy/)
+      assert.match(html, /Get a profile back/)
       assert.match(html, />Restore a backup<\/button>/)
+      assert.doesNotMatch(html, /Frequency|Every day, at the first change|Restore or move to another computer/)
       assert.match(html, />Export a copy<\/button>/)
       assert.doesNotMatch(html, /Sauvegarde automatique|Restaurer une sauvegarde|Exporter une copie|Écriture/)
       // La conservation compose le résumé du domaine dans une phrase du composant.
@@ -183,7 +185,9 @@ try {
       assert.match(html, /aria-label="Backup contents"/)
       assert.match(html, /profile “Camille 日本語”/)
       assert.match(html, /24 October 2026/)
-      assert.match(html, /5 entries in this profile\. Settings and saved views are not part of this format\. Other profiles will be kept\./)
+      assert.match(html, /5 entries in this profile\. Other profiles will be kept\./)
+      assert.match(html, /It contains no saved views or display preferences\./)
+      assert.doesNotMatch(html, /not part of this format/)
       assert.match(html, />Comics<\/dt>/)
       assert.doesNotMatch(html, /Contenu de la sauvegarde|profil «|fiches dans ce profil|24 octobre/)
     } finally { i18n.setLanguage('fr') }
@@ -191,6 +195,7 @@ try {
     assert.match(html, /aria-label="Contenu de la sauvegarde"/)
     assert.match(html, /profil « Camille 日本語 »/)
     assert.match(html, /5 fiches dans ce profil\./)
+    assert.match(html, /Elle ne contient ni vue enregistrée ni préférence d’affichage\./)
     assert.equal(JSON.stringify(prepared), snapshot, 'La sauvegarde affichée reste intacte')
   })
 

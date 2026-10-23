@@ -1305,23 +1305,81 @@ pub async fn get_backup_settings(
     read_backup_settings(&pool, &profile_id).await
 }
 
+/// Dossier sur lequel s'ouvre le sélecteur : iCloud Drive s'il existe, sinon Documents. Un
+/// dossier synchronisé est ce qu'on veut encourager : les copies suivent alors la personne.
+fn backup_picker_start(home: &Path) -> Option<PathBuf> {
+    [
+        home.join("Library/Mobile Documents/com~apple~CloudDocs"),
+        home.join("Documents"),
+    ]
+    .into_iter()
+    .find(|candidate| is_real_directory(candidate))
+}
+
+fn backup_picker_start_from_environment() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .and_then(|home| backup_picker_start(Path::new(&home)))
+}
+
+/// Dossier réellement utilisé pour un dossier choisi. Sylloge range ses copies dans un dossier
+/// « Sylloge » : celui choisi s'il en porte déjà le nom, sinon un sous-dossier créé pour
+/// l'occasion. Les copies ne se mélangent ainsi jamais aux fichiers de la personne, et il n'y a
+/// plus de dossier à créer à la main. Un fichier ou un lien nommé « Sylloge » est refusé :
+/// Sylloge n'écrit jamais ailleurs que dans un vrai dossier.
+fn backup_folder_for_selection(selected: &Path) -> Result<PathBuf, String> {
+    let already_named = selected
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.to_lowercase().contains("sylloge"));
+    if already_named {
+        return Ok(selected.to_path_buf());
+    }
+    let target = selected.join("Sylloge");
+    match fs::symlink_metadata(&target) {
+        Ok(metadata) if metadata.is_dir() => Ok(target),
+        Ok(_) => Err(
+            "Un fichier ou un lien nommé « Sylloge » existe déjà dans ce dossier. Choisir un autre dossier."
+                .to_string(),
+        ),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(&target).map_err(|error| {
+                format!("Impossible de créer le dossier « Sylloge » dans le dossier choisi : {error}")
+            })?;
+            Ok(target)
+        }
+        Err(error) => Err(format!(
+            "Le dossier « Sylloge » ne peut pas être vérifié dans le dossier choisi : {error}"
+        )),
+    }
+}
+
+fn pick_backup_folder_dialog<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    title: &'static str,
+) -> Result<Option<PathBuf>, String> {
+    let mut dialog = app.dialog().file().set_title(title);
+    if let Some(start) = backup_picker_start_from_environment() {
+        dialog = dialog.set_directory(start);
+    }
+    dialog
+        .blocking_pick_folder()
+        .map(|folder_path| {
+            folder_path
+                .into_path()
+                .map_err(|error| format!("Chemin de dossier illisible : {error}"))
+                .and_then(|path| backup_folder_for_selection(&path))
+        })
+        .transpose()
+}
+
 #[tauri::command]
 pub async fn pick_backup_destination(
     app: AppHandle,
     language: Option<String>,
 ) -> Result<Option<BackupSettings>, String> {
     let labels = native_dialog_labels(language.as_deref());
-    let selected_path = app
-        .dialog()
-        .file()
-        .set_title(labels.backup_destination_title)
-        .blocking_pick_folder()
-        .map(|folder_path| {
-            folder_path
-                .into_path()
-                .map_err(|error| format!("Chemin de dossier illisible : {error}"))
-        })
-        .transpose()?;
+    let selected_path = pick_backup_folder_dialog(&app, labels.backup_destination_title)?;
 
     inspect_backup_destination(selected_path.as_deref())
 }
@@ -1378,17 +1436,10 @@ pub async fn pick_backup_directory(
     language: Option<String>,
 ) -> Result<Option<BackupSettings>, String> {
     let labels = native_dialog_labels(language.as_deref());
-    let Some(folder_path) = app
-        .dialog()
-        .file()
-        .set_title(labels.backup_directory_title)
-        .blocking_pick_folder()
+    let Some(selected_path) = pick_backup_folder_dialog(&app, labels.backup_directory_title)?
     else {
         return Ok(None);
     };
-    let selected_path = folder_path
-        .into_path()
-        .map_err(|error| format!("Chemin de dossier illisible : {error}"))?;
     let _lock = backup_snapshot_lock.0.lock().await;
     let pool = sqlite_pool(&db_instances).await?;
 

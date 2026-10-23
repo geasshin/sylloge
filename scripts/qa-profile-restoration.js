@@ -20,7 +20,7 @@ async page=>{
     }
     return Object.fromEntries(['films','series','anime','books','mangas','games','artworks'].map(key=>[key,library[key].length]))
   })
-  assert(await page.getByRole('heading',{name:'Restaurer ou changer d’ordinateur',exact:true}).count()===1,'Réglages : la restauration du profil entier vit dans Sauvegarde')
+  assert(await page.getByRole('heading',{name:'Reprendre ses données ou en garder une copie',exact:true}).count()===1,'Réglages : la restauration du profil entier vit dans Sauvegarde')
   await page.getByRole('button',{name:'Restaurer une sauvegarde',exact:true}).click()
   await page.getByRole('button',{name:'Choisir un fichier JSON',exact:true}).click()
   assert(await page.evaluate(()=>window.__restoreTest.writes.length===0),'Choisir une sauvegarde dans les réglages n’écrit rien')

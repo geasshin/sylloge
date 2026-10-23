@@ -46,12 +46,36 @@ porte `"experience": { "version": 1, "savedViews": [], "preferences": {} }` : ce
      suivant.
 4. Un échec de cette troisième étape ne remet pas en cause les fiches : il est journalisé
    et n’interrompt pas la restauration.
+5. **Chaque chemin de restauration applique l’expérience** : l’import en profil neuf
+   (`importLibraryDocument`) comme l’import en profil vide (`importLibraryDocumentIntoEmptyProfile`,
+   utilisé par le premier lancement et par la fenêtre « Restaurer »). Ce deuxième chemin
+   l’oubliait dans la v0.6.11 : les vues et préférences d’un document v5 n’étaient pas
+   restaurées par le parcours principal. Corrigé en v0.6.12 ; test de régression dans
+   `scripts/profile-experience.test.mjs`, et recette navigateur `scripts/qa-backup-page.js`.
+
+## Ce que l’écran dit
+
+- **Avant** la restauration, l’aperçu annonce ce que le document emporte (« Elle contient aussi
+  2 vues enregistrées et 2 préférences d’affichage »), ou dit qu’un document v4 ou vide n’en
+  contient pas. L’ancienne phrase « les réglages et vues ne font pas partie de ce format » était
+  devenue fausse avec la v5.
+- **Après** la restauration, une phrase de bilan : vues restaurées, renommées (nom déjà pris),
+  ignorées, préférences appliquées. Rien n’est affiché quand il n’y a rien à dire ; un échec de
+  cette étape est dit sans prétendre que les fiches n’ont pas été restaurées. Le dépôt garde le
+  bilan jusqu’à ce que l’écran le lise (`takeExperienceOutcome`), une seule fois.
+- Une sauvegarde d’une **version plus récente** que celle comprise (entier au-delà de la version
+  courante) est refusée avec « Cette sauvegarde a été créée par une version plus récente de
+  Sylloge. Mettre l’application à jour pour la restaurer. » Une version absurde (0, négative,
+  décimale, texte) garde le message général. Ce message n’existe que dans les versions qui le
+  contiennent : une v0.6.10 ou v0.6.11 affichera encore « Les versions 1 à 4/5 du document sont
+  prises en charge ».
 
 ## Vérifications
 
 - `npm run test:portability` : aller-retour des sept bibliothèques et des champs personnels,
   v1 à v5, et `scripts/profile-experience.test.mjs` pour l’expérience (document v5, document
-  v4 sans experience, préférence abîmée écartée sans perte, conflit de nom).
+  v4 sans experience, préférence abîmée écartée sans perte, conflit de nom, restauration dans
+  un profil vide, texte du bilan et de l’aperçu, version future).
 - `npm run verify` : contrats de données, migrations et sérialisation.
 - Ce qui n’est pas couvert : le parcours de restauration complet dans l’interface native
   (dialogue de fichier macOS ou Windows, écriture réelle du fichier de sauvegarde). Le

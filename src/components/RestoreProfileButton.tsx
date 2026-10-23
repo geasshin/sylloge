@@ -9,6 +9,8 @@ import { createProfileFromPreparation } from '../domain/onboarding.ts'
 import { profileWorkCount, type PreparedBackup } from '../domain/backupRestore.ts'
 import { BackupRestorePicker, BackupSummary } from './BackupRestorePicker.tsx'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
+import type { ExperienceOutcome } from '../domain/profileExperience.ts'
+import { experienceReportText } from './restoreReport.ts'
 
 type DialogProps = {
   profile: Profile
@@ -34,6 +36,7 @@ export function RestoreProfileDialog({ profile, initial = null, onClose }: Dialo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<CulturalLibrary | null>(null)
+  const [outcome, setOutcome] = useState<ExperienceOutcome>(null)
   const writing = useRef(false)
   const close = () => {
     if (writing.current) return
@@ -54,6 +57,7 @@ export function RestoreProfileDialog({ profile, initial = null, onClose }: Dialo
           now: () => new Date().toISOString(),
         })
         setResult(restored)
+        setOutcome(libraryRepository.takeExperienceOutcome())
       } else {
         const current = await libraryRepository.loadLibrary(profile.id)
         if (profileWorkCount(current) > 0) {
@@ -61,6 +65,7 @@ export function RestoreProfileDialog({ profile, initial = null, onClose }: Dialo
           return
         }
         setResult(await libraryRepository.importLibraryDocumentIntoEmptyProfile(profile, selected.document))
+        setOutcome(libraryRepository.takeExperienceOutcome())
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'La restauration a échoué. Aucune restauration partielle n’a été conservée ; vérifier le fichier et réessayer.')
@@ -70,6 +75,7 @@ export function RestoreProfileDialog({ profile, initial = null, onClose }: Dialo
     <div className="assistant-content">
       {result ? <>
         <h3>{t('Profil restauré')}</h3><p role="status">{t('« {name} » · {summary}', { name: result.profile.name, summary: summaryLine(profileWorkCount(result)) })}</p>
+        {experienceReportText(outcome) && <p>{experienceReportText(outcome)}</p>}
         <p>{t('Le dossier des futures sauvegardes se règle dans Paramètres › Sauvegarde, une fois le profil restauré ouvert.')}</p>
         <div className="assistant-actions"><button className="primary-button" type="button" onClick={close}>{t('Ouvrir le profil restauré')}</button></div>
       </> : <>
