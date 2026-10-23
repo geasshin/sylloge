@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { getLanguage } from '../i18n/core.ts'
 import type { SyllogeLibraryDocument } from '../domain/libraryDocument.ts'
 import type { SyllogeExportDocument } from '../domain/libraryTransfer.ts'
 
@@ -119,27 +120,27 @@ export type ImportLibraryDocumentResult = {
 }
 
 export function pickImportJson(): Promise<PickedJsonFile | null> {
-  return invoke('pick_import_json')
+  return invoke('pick_import_json', { language: getLanguage() })
 }
 
 export function pickImportAny(): Promise<PickedAnyImportFile | null> {
-  return invoke('pick_import_any')
+  return invoke('pick_import_any', { language: getLanguage() })
 }
 
 export function pickImportContainer(): Promise<PickedAnyImportFile | null> {
-  return invoke('pick_import_container')
+  return invoke('pick_import_container', { language: getLanguage() })
 }
 
 export function pickImportFilmsCsvOrNotion(): Promise<PickedFilmsImportFile | null> {
-  return invoke('pick_import_films_csv_or_notion')
+  return invoke('pick_import_films_csv_or_notion', { language: getLanguage() })
 }
 
 export function saveExportJson(suggestedName: string, contents: string): Promise<string | null> {
-  return invoke('save_export_json', { suggestedName, contents })
+  return invoke('save_export_json', { suggestedName, contents, language: getLanguage() })
 }
 
 export function saveExportCsv(suggestedName: string, contents: string): Promise<string | null> {
-  return invoke('save_export_csv', { suggestedName, contents })
+  return invoke('save_export_csv', { suggestedName, contents, language: getLanguage() })
 }
 
 export function getBackupSettings(profileId: string): Promise<BackupSettings | null> {
@@ -147,7 +148,7 @@ export function getBackupSettings(profileId: string): Promise<BackupSettings | n
 }
 
 export function pickBackupDirectory(profileId: string): Promise<BackupSettings | null> {
-  return invoke('pick_backup_directory', { profileId })
+  return invoke('pick_backup_directory', { profileId, language: getLanguage() })
 }
 
 export function clearBackupSettings(profileId: string): Promise<void> {

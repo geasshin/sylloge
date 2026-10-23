@@ -6,6 +6,7 @@ import {
 } from '../data/tmdbService.ts'
 import type { Film } from '../domain/film.ts'
 import { Poster } from './Poster.tsx'
+import { formatNumber, getLocale, t, translateMessage } from '../i18n/core.ts'
 
 type TmdbSearchFlowProps = {
   film?: Film | null
@@ -56,7 +57,7 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
 
     setSearchState({ status: 'searching' })
     const timeout = window.setTimeout(() => {
-      searchTmdbFilms(trimmed).then(
+      searchTmdbFilms(trimmed, getLocale()).then(
         (candidates) => {
           if (!cancelled) setSearchState({ status: 'results', candidates })
         },
@@ -86,17 +87,17 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
       {!compact && (
         <header className="page-action-bar">
           <button className="back-button" type="button" onClick={onCancel}>
-            {film ? '← Retour à la fiche' : '← Annuler'}
+            {film ? t('← Retour à la fiche') : t('← Annuler')}
           </button>
         </header>
       )}
 
       <div className="editor-heading">
-        <h1 className="display-title">{film ? 'Modifier l’association' : 'Rechercher un film'}</h1>
+        <h1 className="display-title">{film ? t('Modifier l’association') : t('Rechercher un film')}</h1>
         <p>
           {film
-            ? `Recherchez une autre correspondance TMDB pour « ${film.title} ».`
-            : 'Recherchez un film dans TMDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.'}
+            ? t`Recherchez une autre correspondance TMDB pour « ${film.title} ».`
+            : t('Recherchez un film dans TMDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.')}
         </p>
       </div>
 
@@ -104,22 +105,22 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
         <section className="tmdb-film-context" aria-labelledby="tmdb-film-context-title">
           <Poster title={film.title} src={contextPoster} className="tmdb-film-context-poster" />
           <div className="tmdb-film-context-info">
-            <p className="card-kicker">Fiche actuelle</p>
+            <p className="card-kicker">{t('Fiche actuelle')}</p>
             <h2 id="tmdb-film-context-title">{film.title}</h2>
-            <p>Cette fiche reste le contexte de l’association. Ses données personnelles ne seront pas modifiées ici.</p>
+            <p>{t('Cette fiche reste le contexte de l’association. Ses données personnelles ne seront pas modifiées ici.')}</p>
           </div>
         </section>
       )}
 
       <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
-          <label htmlFor="tmdb-search-query">Titre du film</label>
+          <label htmlFor="tmdb-search-query">{t('Titre du film')}</label>
           <input
             id="tmdb-search-query"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher dans TMDB…"
+            placeholder={t('Rechercher dans TMDB…')}
             autoFocus
             autoCapitalize="none"
             autoCorrect="off"
@@ -127,32 +128,32 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
             aria-busy={searchState.status === 'searching'}
           />
           <p className="field-help">
-            {searchState.status === 'searching' ? 'Recherche dans TMDB…' : 'Les suggestions se mettent à jour pendant la saisie.'}
+            {searchState.status === 'searching' ? t('Recherche dans TMDB…') : t('Les suggestions se mettent à jour pendant la saisie.')}
           </p>
         </div>
         <div className="form-actions">
           {/* Toujours visible, y compris en pop-up (0.6.11) : l'issue manuelle
               ne doit jamais dépendre d'un mode de rendu. */}
           <button className="secondary-button" type="button" onClick={onManual}>
-            {film ? 'Retour à la fiche' : 'Saisir manuellement'}
+            {film ? t('Retour à la fiche') : t('Saisir manuellement')}
           </button>
         </div>
       </form>
 
       {searchState.status === 'error' && (
         <div className="results-state error-state" role="alert">
-          <h2>La recherche a échoué.</h2>
-          <p>{searchState.message}</p>
+          <h2>{t('La recherche a échoué.')}</h2>
+          <p>{translateMessage(searchState.message)}</p>
         </div>
       )}
 
       {pendingCandidateId !== null && (
-        <div className="results-state" role="status">Préparation de la fiche…</div>
+        <div className="results-state" role="status">{t('Préparation de la fiche…')}</div>
       )}
 
       {selectionError !== null && pendingCandidateId === null && (
         <div className="results-state error-state" role="alert">
-          <p>{selectionError}</p>
+          <p>{translateMessage(selectionError)}</p>
         </div>
       )}
 
@@ -160,11 +161,11 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
         <section className="tmdb-search-results" aria-labelledby="tmdb-results-title">
           <h2 id="tmdb-results-title">
             {searchState.candidates.length === 0
-              ? 'Aucun résultat'
-              : `${searchState.candidates.length} ${searchState.candidates.length === 1 ? 'résultat' : 'résultats'}`}
+              ? t('Aucun résultat')
+              : t(searchState.candidates.length === 1 ? '{count} résultat' : '{count} résultats', { count: formatNumber(searchState.candidates.length) })}
           </h2>
           {searchState.candidates.length === 0 ? (
-            <p>Essayez un titre différent ou passez à la saisie manuelle.</p>
+            <p>{t('Essayez un titre différent ou passez à la saisie manuelle.')}</p>
           ) : (
             <div className="tmdb-candidates-grid">
               {searchState.candidates.map((candidate) => (
@@ -209,7 +210,7 @@ export function TmdbSearchFlow({ film = null, pendingCandidateId = null, selecti
   }
 
   return (
-    <main className="main editor-main" aria-label="Recherche TMDB">
+    <main className="main editor-main" aria-label={t('Recherche TMDB')}>
       {body}
     </main>
   )

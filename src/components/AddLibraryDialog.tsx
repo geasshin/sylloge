@@ -6,6 +6,7 @@ import {
   type CustomLibraryId,
 } from '../domain/customLibraries.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { t, tc, translateMessage } from '../i18n/core.ts'
 import { CustomLibraryIcon } from './CustomLibraryIcon.tsx'
 
 type AddLibraryDialogProps = {
@@ -38,8 +39,8 @@ export function AddLibraryDialog({ enabled, onClose, onAdd }: AddLibraryDialogPr
 
   return (
     <AccessibleDialog
-      title="Ajouter une bibliothèque"
-      description="Des bibliothèques prêtes, avec leurs statuts, leur progression et leurs champs. Vous pourrez la supprimer à tout moment."
+      title={t('Ajouter une bibliothèque')}
+      description={t('Des bibliothèques prêtes, avec leurs statuts, leur progression et leurs champs. Vous pourrez la supprimer à tout moment.')}
       closeDisabled={pending !== null}
       onClose={onClose}
       size="lg"
@@ -49,7 +50,7 @@ export function AddLibraryDialog({ enabled, onClose, onAdd }: AddLibraryDialogPr
           const ids = CUSTOM_LIBRARY_IDS.filter((id) => CUSTOM_LIBRARY_TEMPLATES[id].group === group)
           return (
             <section className="library-catalog-group" key={group} aria-labelledby={`library-catalog-${group}`}>
-              <h3 id={`library-catalog-${group}`}>{group}</h3>
+              <h3 id={`library-catalog-${group}`}>{t(group)}</h3>
               <div className="library-catalog-grid">
                 {ids.map((id) => {
                   const template = CUSTOM_LIBRARY_TEMPLATES[id]
@@ -60,16 +61,16 @@ export function AddLibraryDialog({ enabled, onClose, onAdd }: AddLibraryDialogPr
                       type="button"
                       key={id}
                       disabled={added || pending !== null}
-                      aria-label={added ? `${template.longLabel} (déjà ajoutée)` : `Ajouter ${template.longLabel}`}
+                      aria-label={added ? t('{library} (déjà ajoutée)', { library: tc(id, template.longLabel) }) : t('Ajouter {library}', { library: tc(id, template.longLabel) })}
                       onClick={() => void add(id)}
                     >
                       <span className="library-option-icon" aria-hidden="true"><CustomLibraryIcon libraryId={id} size={20} /></span>
                       <span className="library-option-text">
-                        <b>{template.longLabel}</b>
-                        <small>{template.description}</small>
+                        <b>{tc(id, template.longLabel)}</b>
+                        <small>{tc(id, template.description)}</small>
                       </span>
                       <span className="library-option-state" aria-hidden="true">
-                        {added ? 'Ajoutée' : pending === id ? 'Ajout…' : 'Ajouter'}
+                        {t(added ? 'Ajoutée' : pending === id ? 'Ajout…' : 'Ajouter')}
                       </span>
                     </button>
                   )
@@ -78,7 +79,7 @@ export function AddLibraryDialog({ enabled, onClose, onAdd }: AddLibraryDialogPr
             </section>
           )
         })}
-        {error && <p className="validation-errors" role="alert">{error}</p>}
+        {error && <p className="validation-errors" role="alert">{translateMessage(error)}</p>}
       </div>
     </AccessibleDialog>
   )

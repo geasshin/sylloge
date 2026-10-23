@@ -4,6 +4,7 @@ import {
   type OpenLibraryBookCandidate,
 } from '../data/openLibraryService.ts'
 import { Poster } from './Poster.tsx'
+import { formatNumber, t, translateMessage } from '../i18n/core.ts'
 
 type BookOpenLibrarySearchFlowProps = {
   /** Fiche ouverte derrière la pop-up : contexte d'association, titre prérempli. */
@@ -78,17 +79,17 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
       {!compact && (
         <header className="page-action-bar">
           <button className="back-button" type="button" onClick={onCancel}>
-            {existing ? '← Retour à la fiche' : '← Annuler'}
+            {existing ? t('← Retour à la fiche') : t('← Annuler')}
           </button>
         </header>
       )}
 
       <div className="editor-heading">
-        <h1 className="display-title">{existing ? 'Modifier l’association' : `Rechercher un ${mediumLabel}`}</h1>
+        <h1 className="display-title">{existing ? t('Modifier l’association') : t`Rechercher un ${t(mediumLabel)}`}</h1>
         <p>
           {existing
-            ? `Rechercher une autre correspondance Open Library pour « ${existing.title} ».`
-            : `Rechercher un ${mediumLabel} dans Open Library et choisir la bonne correspondance : le formulaire s’ouvre directement prérempli.`}
+            ? t`Rechercher une autre correspondance Open Library pour « ${existing.title} ».`
+            : t`Rechercher un ${t(mediumLabel)} dans Open Library et choisir la bonne correspondance : le formulaire s’ouvre directement prérempli.`}
         </p>
       </div>
 
@@ -96,22 +97,22 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
         <section className="tmdb-film-context" aria-labelledby="book-ol-context-title">
           <Poster label="Couverture" title={existing.title} src={existing.coverUrl} className="tmdb-film-context-poster" />
           <div className="tmdb-film-context-info">
-            <p className="card-kicker">Fiche actuelle</p>
+            <p className="card-kicker">{t('Fiche actuelle')}</p>
             <h2 id="book-ol-context-title">{existing.title}</h2>
-            <p>Cette fiche reste le contexte de l’association. Seuls ses champs éditoriaux seront mis à jour ; tes données personnelles et tes citations ne bougent pas.</p>
+            <p>{t('Cette fiche reste le contexte de l’association. Seuls ses champs éditoriaux seront mis à jour ; tes données personnelles et tes citations ne bougent pas.')}</p>
           </div>
         </section>
       )}
 
       <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
-          <label htmlFor="book-ol-search-query">Titre du {mediumLabel}</label>
+          <label htmlFor="book-ol-search-query">{mediumLabel === 'livre' ? t('Titre du livre') : t('Titre du manga')}</label>
           <input
             id="book-ol-search-query"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher dans Open Library…"
+            placeholder={t('Rechercher dans Open Library…')}
             autoFocus
             autoCapitalize="none"
             autoCorrect="off"
@@ -119,30 +120,30 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
             aria-busy={searchState.status === 'searching'}
           />
           <p className="field-help">
-            {searchState.status === 'searching' ? 'Recherche dans Open Library…' : 'Les suggestions se mettent à jour pendant la saisie.'}
+            {searchState.status === 'searching' ? t('Recherche dans Open Library…') : t('Les suggestions se mettent à jour pendant la saisie.')}
           </p>
         </div>
         <div className="form-actions">
           <button className="secondary-button" type="button" onClick={onManual}>
-            {existing ? 'Retour à la fiche' : 'Saisir manuellement'}
+            {existing ? t('Retour à la fiche') : t('Saisir manuellement')}
           </button>
         </div>
       </form>
 
       {searchState.status === 'error' && (
         <div className="results-state error-state" role="alert">
-          <h2>La recherche a échoué.</h2>
-          <p>{searchState.message}</p>
+          <h2>{t('La recherche a échoué.')}</h2>
+          <p>{translateMessage(searchState.message)}</p>
         </div>
       )}
 
       {pendingCandidateKey !== null && (
-        <div className="results-state" role="status">Préparation de la mise à jour…</div>
+        <div className="results-state" role="status">{t('Préparation de la mise à jour…')}</div>
       )}
 
       {selectionError !== null && pendingCandidateKey === null && (
         <div className="results-state error-state" role="alert">
-          <p>{selectionError}</p>
+          <p>{translateMessage(selectionError)}</p>
         </div>
       )}
 
@@ -150,11 +151,11 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
         <section className="tmdb-search-results" aria-labelledby="book-ol-results-title">
           <h2 id="book-ol-results-title">
             {searchState.candidates.length === 0
-              ? 'Aucun résultat'
-              : `${searchState.candidates.length} ${searchState.candidates.length === 1 ? 'résultat' : 'résultats'}`}
+              ? t('Aucun résultat')
+              : t(searchState.candidates.length === 1 ? '{count} résultat' : '{count} résultats', { count: formatNumber(searchState.candidates.length) })}
           </h2>
           {searchState.candidates.length === 0 ? (
-            <p>Essayez un titre différent ou passez à la saisie manuelle.</p>
+            <p>{t('Essayez un titre différent ou passez à la saisie manuelle.')}</p>
           ) : (
             <div className="tmdb-candidates-grid">
               {searchState.candidates.map((candidate) => (
@@ -191,7 +192,7 @@ export function BookOpenLibrarySearchFlow({ existing = null, pendingCandidateKey
   }
 
   return (
-    <main className="main editor-main" aria-label="Recherche Open Library">
+    <main className="main editor-main" aria-label={t('Recherche Open Library')}>
       {body}
     </main>
   )

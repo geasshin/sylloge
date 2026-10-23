@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { getLocale } from '../i18n/core.ts'
 
 export type TmdbSearchCandidate = {
   tmdbId: number
@@ -39,11 +40,12 @@ export type CachedFilmTmdbPresentation = {
   presentation: TmdbFilmPresentation
 }
 
-export function searchTmdbFilms(query: string, language?: string): Promise<TmdbSearchCandidate[]> {
+/** Sans langue explicite, les métadonnées suivent la langue de l’interface (fr-FR ou en-GB). */
+export function searchTmdbFilms(query: string, language: string = getLocale()): Promise<TmdbSearchCandidate[]> {
   return invoke('search_tmdb_films', { query, language })
 }
 
-export function previewTmdbFilm(tmdbId: number, language?: string): Promise<TmdbFilmPresentation> {
+export function previewTmdbFilm(tmdbId: number, language: string = getLocale()): Promise<TmdbFilmPresentation> {
   return invoke('preview_tmdb_film', { tmdbId, language })
 }
 
@@ -60,25 +62,25 @@ export type TmdbSeriesPresentation = {
   posterUrl: string | null
 }
 
-export function searchTmdbSeries(query: string, language?: string): Promise<TmdbSearchCandidate[]> {
+export function searchTmdbSeries(query: string, language: string = getLocale()): Promise<TmdbSearchCandidate[]> {
   return invoke('search_tmdb_series', { query, language })
 }
 
-export function previewTmdbSeries(tmdbId: number, language?: string): Promise<TmdbSeriesPresentation> {
+export function previewTmdbSeries(tmdbId: number, language: string = getLocale()): Promise<TmdbSeriesPresentation> {
   return invoke('preview_tmdb_series', { tmdbId, language })
 }
 
 export function associateFilmWithTmdb(
   filmId: string,
   tmdbId: number,
-  language?: string,
+  language: string = getLocale(),
 ): Promise<CachedFilmTmdbPresentation> {
   return invoke('associate_film_with_tmdb', { filmId, tmdbId, language })
 }
 
 export function refreshFilmTmdbCache(
   filmId: string,
-  language?: string,
+  language: string = getLocale(),
 ): Promise<CachedFilmTmdbPresentation> {
   return invoke('refresh_film_tmdb_cache', { filmId, language })
 }

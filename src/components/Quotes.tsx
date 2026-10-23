@@ -1,3 +1,4 @@
+import { t, translateMessage, formatNumber } from '../i18n/core.ts'
 import { useEffect, useId, useRef, useState } from 'react'
 import { PlusIcon, TrashIcon } from './icons.tsx'
 
@@ -60,28 +61,28 @@ export function QuotesEditor({ values, onChange, disabled = false, error, autoFo
     <section className="quote-editor" aria-labelledby={`${id}-title`} ref={section}>
       <div className="quote-editor-heading">
         <div>
-          <h2 id={`${id}-title`}>Citations</h2>
-          <p>Les passages à garder, dans leur ordre de lecture.</p>
+          <h2 id={`${id}-title`}>{t("Citations")}</h2>
+          <p>{t("Les passages à garder, dans leur ordre de lecture.")}</p>
         </div>
-        <button ref={addButton} className="secondary-button quote-add" type="button" disabled={disabled} onClick={() => { setFocusIndex(values.length); onChange([...values, '']) }}><PlusIcon />Ajouter une citation</button>
+        <button ref={addButton} className="secondary-button quote-add" type="button" disabled={disabled} onClick={() => { setFocusIndex(values.length); onChange([...values, '']) }}><PlusIcon />{t("Ajouter une citation")}</button>
       </div>
-      {values.length === 0 && <p className="quote-editor-empty">Un passage marquant, une phrase à retrouver… Ajouter une première citation.</p>}
+      {values.length === 0 && <p className="quote-editor-empty">{t("Un passage marquant, une phrase à retrouver… Ajouter une première citation.")}</p>}
       <div className="quote-editor-list">
         {values.map((body, index) => (
           <div className="quote-editor-item" key={index}>
             <div className="quote-editor-toolbar">
-              <label htmlFor={`${id}-${index}`}>Citation {index + 1}</label>
+              <label htmlFor={`${id}-${index}`}>{t('Citation {number}', { number: formatNumber(index + 1) })}</label>
               <div className="quote-editor-actions">
-                <button type="button" className="quote-action quote-move" aria-label={`Déplacer la citation ${index + 1} vers le haut`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><MoveIcon /></button>
-                <button type="button" className="quote-action quote-move" aria-label={`Déplacer la citation ${index + 1} vers le bas`} disabled={disabled || index === values.length - 1} onClick={() => move(index, 1)}><MoveIcon down /></button>
-                <button type="button" className="quote-action quote-remove" aria-label={`Retirer la citation ${index + 1}`} disabled={disabled} onClick={() => remove(index)}><TrashIcon size={16} /></button>
+                <button type="button" className="quote-action quote-move" aria-label={t("Déplacer la citation {number} vers le haut", { number: formatNumber(index + 1) })} disabled={disabled || index === 0} onClick={() => move(index, -1)}><MoveIcon /></button>
+                <button type="button" className="quote-action quote-move" aria-label={t("Déplacer la citation {number} vers le bas", { number: formatNumber(index + 1) })} disabled={disabled || index === values.length - 1} onClick={() => move(index, 1)}><MoveIcon down /></button>
+                <button type="button" className="quote-action quote-remove" aria-label={t("Retirer la citation {number}", { number: formatNumber(index + 1) })} disabled={disabled} onClick={() => remove(index)}><TrashIcon size={16} /></button>
               </div>
             </div>
-            <textarea id={`${id}-${index}`} value={body} rows={3} placeholder="Saisir le passage…" disabled={disabled} onChange={event => onChange(values.map((value, i) => i === index ? event.target.value : value))} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} autoCorrect="off" spellCheck={false} />
+            <textarea id={`${id}-${index}`} value={body} rows={3} placeholder={t("Saisir le passage…")} disabled={disabled} onChange={event => onChange(values.map((value, i) => i === index ? event.target.value : value))} aria-invalid={Boolean(error)} aria-describedby={error ? `${id}-error` : undefined} autoCorrect="off" spellCheck={false} />
           </div>
         ))}
       </div>
-      {error && <p className="field-error" id={`${id}-error`}>{error}</p>}
+      {error && <p className="field-error" id={`${id}-error`}>{translateMessage(error)}</p>}
     </section>
   )
 }
@@ -96,18 +97,18 @@ export function QuotesSection({ quotes, onEdit }: {
     <section className="quotes-section" aria-labelledby={`${id}-title`}>
       <div className="quote-editor-heading">
         <div>
-          <h2 id={`${id}-title`}>Citations</h2>
-          <p>{quotes.length === 0 ? 'Aucune citation' : `${quotes.length} ${quotes.length === 1 ? 'citation personnelle' : 'citations personnelles'}`}</p>
+          <h2 id={`${id}-title`}>{t("Citations")}</h2>
+          <p>{quotes.length === 0 ? t('Aucune citation') : t(quotes.length === 1 ? '{count} citation personnelle' : '{count} citations personnelles', { count: formatNumber(quotes.length) })}</p>
         </div>
         {/* Sur une fiche vide, le bouton annonce une intention d’ajout : le
             formulaire s’ouvre alors sur un passage vide, prêt à la saisie. */}
-        <button className="text-button" type="button" onClick={() => onEdit(quotes.length === 0 ? { addQuote: true } : undefined)}>{quotes.length ? 'Modifier les citations' : 'Ajouter une citation'}</button>
+        <button className="text-button" type="button" onClick={() => onEdit(quotes.length === 0 ? { addQuote: true } : undefined)}>{t(quotes.length ? 'Modifier les citations' : 'Ajouter une citation')}</button>
       </div>
       {quotes.length ? (
         <ol className="quotes-list">
           {quotes.map(quote => <li key={quote.id}><blockquote>{quote.body}</blockquote></li>)}
         </ol>
-      ) : <p className="quote-editor-empty">Les passages conservés dans cette œuvre apparaîtront ici.</p>}
+      ) : <p className="quote-editor-empty">{t("Les passages conservés dans cette œuvre apparaîtront ici.")}</p>}
     </section>
   )
 }

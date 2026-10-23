@@ -16,7 +16,10 @@
  *   full (défaut)  sept bibliothèques remplies
  *   empty          profil ouvert mais bibliothèques vides
  *   onboarding     aucun profil : premier lancement
+ *
+ * Langue, via ?lang= : fr (défaut), en, auto (détection réelle) — voir qaLanguage.ts.
  */
+import './qaLanguage.ts'
 import initSqlJs, { type Database, type SqlValue } from 'sql.js'
 import sqlWasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url'
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks'

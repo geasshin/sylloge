@@ -9,7 +9,7 @@ Ce document est en cours de réécriture pendant le lot d’harmonisation (branc
 - Toute valeur d’espacement, de taille de texte, d’arrondi ou de couleur passe par un jeton commun de `src/styles.css`. Pas de valeur isolée pour corriger un écran.
 - Un même rôle garde la même apparence partout : bouton principal, bouton secondaire, bouton icône, champ, onglet de vue, fenêtre modale, carte d’œuvre.
 - Garder les thèmes clair et sombre lisibles, les contrôles accessibles au clavier et les libellés explicites.
-- Vérifier chaque écran modifié dans `qa-app.html`, en clair et en sombre, à 1440 × 900 et à la plus petite fenêtre desktop prise en charge.
+- Vérifier chaque écran modifié dans `qa-app.html`, en clair et en sombre, en français et en anglais (`?lang=fr`, `?lang=en`), à 1440 × 900 et à la plus petite fenêtre desktop prise en charge.
 
 L’ancien contrat visuel uniforme est conservé dans [les archives](docs/archive/DESIGN-contrat-visuel-2026-08-22.md) comme trace historique.
 
@@ -40,6 +40,14 @@ Ce socle ne recompose ni l’accueil, ni les fiches, ni les onglets de vues. Les
 - Visuels : le crayon de modification appartient au visuel lui-même (`poster-editable`) et reste dans son angle bas droit, en fiche comme dans la fenêtre d’ajout. Les visuels d’Art, de tous formats, s’affichent entiers (`object-fit: contain`) sur `--color-surface-muted` dans la carte 16:10, la fiche 3:4 et l’aperçu d’ajout 2:3 ; affiches et couvertures des autres médiums restent plein cadre.
 
 La recette navigateur utilise uniquement `qa-app.html`, SQLite mémoire et les fixtures. Elle ne remplace pas une validation native macOS ni une vérification exhaustive des parcours métier.
+
+## Langue de l’interface
+
+Décision du 23 octobre 2026 : français et anglais, voir [docs/I18N.md](docs/I18N.md). Le choix est une liste déroulante au gabarit des champs (`mapping-select`), nommée « Langue de l’application » : groupe « Langue » de Paramètres › Général (avant « Apparence »), et premier écran du premier lancement. Elle propose « Français » et « English », chacun écrit dans sa propre langue quelle que soit la langue active.
+
+- Un libellé anglais ne renvoie jamais à la ligne et ne s’abrège pas par une ellipse là où le français tient sur une ligne : barres d’outils, onglets et boutons sont dimensionnés pour la plus longue des deux langues, quitte à raccourcir la traduction.
+- Dates, nombres, accords et pluriels suivent la langue active ; aucun pluriel n’est construit par suffixe.
+- Les données de la personne ne sont jamais traduites (titres, avis, notes, citations, noms de profils et de vues).
 
 ## Accueil
 

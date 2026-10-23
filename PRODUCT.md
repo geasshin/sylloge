@@ -33,7 +33,7 @@ Une médiathèque personnelle locale qui couvre sept bibliothèques, sans compte
 - Vues de bibliothèque : vues intégrées, filtres, tris et vues enregistrées par profil et par médium. Décisions du 18 octobre 2026 : le fonctionnement actuel convient, c’est la présentation qui est brouillonne. Les vues doivent être des choix nettement distincts (pas un simple trait sous l’onglet actif), toutes visibles, sélectionnables et créables ; les actions de droite (filtrer, trier, enregistrer, vues supplémentaires « + ») sont à recomposer en un ensemble clair ; les listes déroulantes des filtres prennent un style propre à Sylloge plutôt que l’apparence système. Ajouter la vue intégrée « Cette année » (terminés depuis le 1er janvier). Pas d’affichage en liste : la grille d’affiches suffit. Le bouton d’association automatique reste tel quel.
 - Composition à reprendre ensuite (18 octobre 2026) : fiches des cinq médiums, ajout et modification d’une œuvre, import et export. Jugées encore trop peu composées.
 - Bibliothèque Art : les vues ne s’affichent pas correctement et le visuel ne peut pas être ajouté à la création (défauts constatés le 16 octobre 2026, correction en cours le 18).
-- Registre d’adresse (18 octobre 2026) : ni « tu » ni « vous » ; tournures neutres partout (infinitif, nominal, impersonnel).
+- Registre d’adresse (18 octobre 2026) : ni « tu » ni « vous » ; tournures neutres partout (infinitif, nominal, impersonnel). L’anglais garde la même sobriété : impératif ou tournure impersonnelle.
 - Barre des bibliothèques (19 octobre 2026) : « Tout associer » remonte avec Importer / Exporter / Ajouter ; recherche un peu plus large, en pilule ; les vues défilent horizontalement à l’intérieur de leur rangée, c’est accepté.
 - Mangas (19 octobre 2026) : Livres et Mangas deviennent deux bibliothèques distinctes dans la barre latérale et un onglet Mangas sur l’accueil. Pas de bibliothèque Comics (Aurélien n’en a aucun). Même table `books`, distinguée par la catégorie existante : aucune migration, formats d’import et d’export inchangés. Les bascules Livre / Manga / Comics disparaissent de la barre des Livres.
 - « Cette année » (19 octobre 2026) : garde la date personnelle existante de chaque médium (pour Livres, Mangas et Séries, la date de lecture ou de visionnage saisie sur la fiche). Pas de date de fin ajoutée pour l’instant.
@@ -42,7 +42,7 @@ Une médiathèque personnelle locale qui couvre sept bibliothèques, sans compte
 ## Brand Commitments
 
 - Nom : Sylloge. Logo et icônes dans `src/assets/` et `src-tauri/icons/`.
-- Interface en français.
+- Interface en français et en anglais (décision du 23 octobre 2026) : langue détectée au premier lancement, choix manuel dans Paramètres › Général, mémorisé sur l’appareil. Le français reste la langue source. Les données de la personne (titres, avis, notes, citations, noms de profils et de vues) ne sont jamais traduites. Voir docs/I18N.md.
 - Direction visuelle unique, accueil compris : monochrome neutre et froid, dérivé de l’anthracite des bibliothèques. Le papier chaud et l’accent violet de l’accueil sont abandonnés. La couleur vient des visuels des œuvres, pas de l’interface (décision du 16 octobre 2026).
 - Titres de pages et de sections en Syne, en capitales (police locale, introduite en 0.6.4 et conservée). Titres d’œuvres et texte courant en police système.
 - Références d’usage citées par Aurélien pour l’accueil : la catégorisation en rangées de Plex et Netflix.

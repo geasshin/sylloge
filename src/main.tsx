@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { createRoot } from 'react-dom/client'
+import { t, tc, translateMessage, getLocale, formatNumber } from './i18n/core.ts'
+import { useLanguage } from './i18n/react.ts'
 import { FloatingSidebarFrame, readSidebarPinned, saveSidebarPinned } from './components/FloatingSidebarFrame.tsx'
 import { AccessibleDialog } from './components/AccessibleDialog.tsx'
 import { FocusDialog } from './components/FocusDialog.tsx'
@@ -268,8 +270,8 @@ function Sidebar({
   return (
     <FloatingSidebarFrame pinned={expanded} settings={settingsOpen}>
       {settingsOpen ? (
-        <nav aria-label="Navigation des paramètres">
-          <p className="nav-label">Paramètres</p>
+        <nav aria-label={t("Navigation des paramètres")}>
+          <p className="nav-label">{t("Paramètres")}</p>
           {SETTINGS_NAVIGATION.map((item) => (
             <button
               className={`nav-item ${settingsSection === item.id ? 'active' : ''}`}
@@ -278,31 +280,31 @@ function Sidebar({
               onClick={() => onSettingsSection(item.id)}
               aria-current={settingsSection === item.id ? 'location' : undefined}
             >
-              {item.label}
+              {t(item.label)}
             </button>
           ))}
         </nav>
       ) : (
-        <nav aria-label="Navigation principale">
+        <nav aria-label={t("Navigation principale")}>
           <button
             className={`nav-item sidebar-home-item ${activeItem === 'home' ? 'active' : ''}`}
             type="button"
             onClick={onHome}
-            aria-label="Accueil"
+            aria-label={t("Accueil")}
             aria-current={activeItem === 'home' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('home', activeItem === 'home')}<span className="nav-item-label">Accueil</span></span>
+            <span className="nav-item-text">{icon('home', activeItem === 'home')}<span className="nav-item-label">{t("Accueil")}</span></span>
             <span className="nav-item-peek" aria-hidden="true">{icon('home', activeItem === 'home')}</span>
           </button>
-          <span className="nav-group" aria-hidden="true"><span>Bibliothèques</span></span>
+          <span className="nav-group" aria-hidden="true"><span>{t("Bibliothèques")}</span></span>
           <button
             className={`nav-item ${activeItem === 'library' ? 'active' : ''}`}
             type="button"
             onClick={onLibrary}
-            aria-label="Films"
+            aria-label={t("Films")}
             aria-current={activeItem === 'library' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('film', activeItem === 'library')}<span className="nav-item-label">Films</span></span>
+            <span className="nav-item-text">{icon('film', activeItem === 'library')}<span className="nav-item-label">{t("Films")}</span></span>
             {count !== null && <span className="nav-count">{count}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('film', activeItem === 'library')}</span>
           </button>
@@ -310,10 +312,10 @@ function Sidebar({
             className={`nav-item ${activeItem === 'series' ? 'active' : ''}`}
             type="button"
             onClick={onSeries}
-            aria-label="Séries"
+            aria-label={t("Séries")}
             aria-current={activeItem === 'series' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('series', activeItem === 'series')}<span className="nav-item-label">Séries</span></span>
+            <span className="nav-item-text">{icon('series', activeItem === 'series')}<span className="nav-item-label">{t("Séries")}</span></span>
             {seriesCount !== null && <span className="nav-count">{seriesCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('series', activeItem === 'series')}</span>
           </button>
@@ -321,10 +323,10 @@ function Sidebar({
             className={`nav-item ${activeItem === 'anime' ? 'active' : ''}`}
             type="button"
             onClick={onAnime}
-            aria-label="Animation japonaise"
+            aria-label={t("Animation japonaise")}
             aria-current={activeItem === 'anime' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('anime', activeItem === 'anime')}<span className="nav-item-label">Animation japonaise</span></span>
+            <span className="nav-item-text">{icon('anime', activeItem === 'anime')}<span className="nav-item-label">{t("Animation japonaise")}</span></span>
             {animeCount !== null && <span className="nav-count">{animeCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('anime', activeItem === 'anime')}</span>
           </button>
@@ -332,10 +334,10 @@ function Sidebar({
             className={`nav-item ${activeItem === 'books' ? 'active' : ''}`}
             type="button"
             onClick={onBooks}
-            aria-label="Livres"
+            aria-label={t("Livres")}
             aria-current={activeItem === 'books' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('book', activeItem === 'books')}<span className="nav-item-label">Livres</span></span>
+            <span className="nav-item-text">{icon('book', activeItem === 'books')}<span className="nav-item-label">{t("Livres")}</span></span>
             {bookCount !== null && <span className="nav-count">{bookCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('book', activeItem === 'books')}</span>
           </button>
@@ -343,10 +345,10 @@ function Sidebar({
             className={`nav-item ${activeItem === 'mangas' ? 'active' : ''}`}
             type="button"
             onClick={onMangas}
-            aria-label="Mangas"
+            aria-label={t("Mangas")}
             aria-current={activeItem === 'mangas' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('manga', activeItem === 'mangas')}<span className="nav-item-label">Mangas</span></span>
+            <span className="nav-item-text">{icon('manga', activeItem === 'mangas')}<span className="nav-item-label">{t("Mangas")}</span></span>
             {mangaCount !== null && <span className="nav-count">{mangaCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('manga', activeItem === 'mangas')}</span>
           </button>
@@ -354,10 +356,10 @@ function Sidebar({
             className={`nav-item ${activeItem === 'games' ? 'active' : ''}`}
             type="button"
             onClick={onGames}
-            aria-label="Jeux"
+            aria-label={t("Jeux")}
             aria-current={activeItem === 'games' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('game', activeItem === 'games')}<span className="nav-item-label">Jeux</span></span>
+            <span className="nav-item-text">{icon('game', activeItem === 'games')}<span className="nav-item-label">{t("Jeux")}</span></span>
             {gameCount !== null && <span className="nav-count">{gameCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('game', activeItem === 'games')}</span>
           </button>
@@ -365,16 +367,16 @@ function Sidebar({
             className={`nav-item ${activeItem === 'artworks' ? 'active' : ''}`}
             type="button"
             onClick={onArtworks}
-            aria-label="Art"
+            aria-label={t("Art")}
             aria-current={activeItem === 'artworks' ? 'page' : undefined}
           >
-            <span className="nav-item-text">{icon('art', activeItem === 'artworks')}<span className="nav-item-label">Art</span></span>
+            <span className="nav-item-text">{icon('art', activeItem === 'artworks')}<span className="nav-item-label">{t("Art")}</span></span>
             {artworkCount !== null && <span className="nav-count">{artworkCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('art', activeItem === 'artworks')}</span>
           </button>
-          <span className="nav-group" aria-hidden="true"><span>{customLibraries.length > 0 ? 'Ajoutées' : 'Ajouter'}</span></span>
+          <span className="nav-group" aria-hidden="true"><span>{customLibraries.length > 0 ? t('Ajoutées') : t('Ajouter')}</span></span>
           {customLibraries.map(({ libraryId, count: entryCount }) => {
-            const label = CUSTOM_LIBRARY_TEMPLATES[libraryId].label
+            const label = t(CUSTOM_LIBRARY_TEMPLATES[libraryId].label)
             const active = activeItem === 'custom' && activeCustomLibrary === libraryId
             return (
               <button
@@ -396,9 +398,9 @@ function Sidebar({
               className="nav-item nav-item-add"
               type="button"
               onClick={onAddLibrary}
-              aria-label="Ajouter une bibliothèque"
+              aria-label={t("Ajouter une bibliothèque")}
             >
-              <span className="nav-item-text"><PlusIcon /><span className="nav-item-label">Ajouter une bibliothèque</span></span>
+              <span className="nav-item-text"><PlusIcon /><span className="nav-item-label">{t("Ajouter une bibliothèque")}</span></span>
               <span className="nav-item-peek" aria-hidden="true"><PlusIcon /></span>
             </button>
           )}
@@ -413,7 +415,7 @@ function Sidebar({
         )}
         {settingsOpen ? (
           <button className="nav-item muted" type="button" onClick={onReturnToLibrary}>
-            {icon('film')} Retour à la bibliothèque
+            {icon('film')} {t('Retour à la bibliothèque')}
           </button>
         ) : (
           <>
@@ -421,19 +423,19 @@ function Sidebar({
               className="sidebar-toggle"
               type="button"
               onClick={onToggleExpanded}
-              aria-label={expanded ? 'Détacher la barre latérale' : 'Garder la barre latérale ouverte'}
+              aria-label={expanded ? t('Détacher la barre latérale') : t('Garder la barre latérale ouverte')}
               aria-pressed={expanded}
             >
-              <span className="nav-item-text"><PinIcon filled={expanded} /><span className="nav-item-label">{expanded ? 'Détacher la barre' : 'Garder ouverte'}</span></span>
+              <span className="nav-item-text"><PinIcon filled={expanded} /><span className="nav-item-label">{expanded ? t('Détacher la barre') : t('Garder ouverte')}</span></span>
               <span className="nav-item-peek" aria-hidden="true"><PinIcon filled={expanded} /></span>
             </button>
             <button
               className="nav-item"
               type="button"
               onClick={onSettings}
-              aria-label="Paramètres"
+              aria-label={t("Paramètres")}
             >
-              <span className="nav-item-text">{icon('settings')}<span className="nav-item-label">Paramètres</span></span>
+              <span className="nav-item-text">{icon('settings')}<span className="nav-item-label">{t("Paramètres")}</span></span>
               <span className="nav-item-peek" aria-hidden="true">{icon('settings')}</span>
             </button>
           </>
@@ -443,18 +445,34 @@ function Sidebar({
   )
 }
 
-/** Sous-titre éditorial d'une bibliothèque : compte réel, coups de cœur quand la note existe. */
+/**
+ * Singulier ou pluriel selon la règle de la langue active : le français range
+ * 0 et 1 au singulier, l'anglais seulement 1. Deux clés explicites, jamais de
+ * suffixe collé au mot.
+ */
+function isSingular(count: number): boolean {
+  return new Intl.PluralRules(getLocale()).select(count) === 'one'
+}
+
+/**
+ * Sous-titre éditorial d'une bibliothèque : compte réel, coups de cœur quand la note existe.
+ * `singular` et `plural` sont les mots français du catalogue ; `context` les
+ * désambiguïse quand le même mot a un autre sens ailleurs (« œuvre » : artwork dans Art).
+ */
 function librarySubtitle(
   items: { isFavorite: boolean }[],
   singular: string,
   plural: string,
+  context?: string,
 ): string {
   const total = items.length
-  const count = total === 1 ? `1 ${singular}` : `${total} ${plural}`
+  const word = total === 1 ? singular : plural
+  const count = t('{count} {medium}', { count: formatNumber(total), medium: context ? tc(context, word) : t(word) })
   const hearts = items.filter((item) => item.isFavorite).length
-  return hearts > 0
-    ? `${count} dont ${hearts} coup${hearts > 1 ? 's' : ''} de cœur`
-    : count
+  if (hearts === 0) return count
+  return hearts === 1
+    ? t('{count} dont {hearts} coup de cœur', { count, hearts: formatNumber(hearts) })
+    : t('{count} dont {hearts} coups de cœur', { count, hearts: formatNumber(hearts) })
 }
 
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
@@ -471,16 +489,16 @@ function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
   }, [film.id, film.posterUrl])
 
   return (
-    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${film.title}`}>
+    <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${film.title}`}>
       <Poster title={film.title} src={displayPosterUrl} />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{film.title}</b>
-          {film.isFavorite && <i aria-label="Favori">♥</i>}
+          {film.isFavorite && <i aria-label={t("Favori")}>♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
         <span className={`status-line tone-${statusTone(film.status)}`}>
-          {FILM_STATUS_LABELS[film.status]}
+          {t(FILM_STATUS_LABELS[film.status])}
         </span>
       </span>
     </button>
@@ -490,9 +508,9 @@ function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
 function LoadingState() {
   return (
     <div className="library-state" role="status" aria-live="polite">
-      <p className="state-kicker">Bibliothèque locale</p>
-      <h2>Chargement des films</h2>
-      <p>Lecture de la collection enregistrée sur cet appareil.</p>
+      <p className="state-kicker">{t("Bibliothèque locale")}</p>
+      <h2>{t("Chargement des films")}</h2>
+      <p>{t("Lecture de la collection enregistrée sur cet appareil.")}</p>
     </div>
   )
 }
@@ -500,10 +518,10 @@ function LoadingState() {
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="library-state error-state" role="alert">
-      <p className="state-kicker">Lecture impossible</p>
-      <h2>La bibliothèque locale ne peut pas être ouverte.</h2>
-      <p>Vérifiez que l’application dispose toujours de son accès SQLite, puis réessayez.</p>
-      <button className="state-action" type="button" onClick={onRetry}>Réessayer</button>
+      <p className="state-kicker">{t("Lecture impossible")}</p>
+      <h2>{t("La bibliothèque locale ne peut pas être ouverte.")}</h2>
+      <p>{t("Vérifiez que l’application dispose toujours de son accès SQLite, puis réessayez.")}</p>
+      <button className="state-action" type="button" onClick={onRetry}>{t("Réessayer")}</button>
     </div>
   )
 }
@@ -511,15 +529,15 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 function EmptyLibrary({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="library-state empty-library">
-      <h2>Votre bibliothèque Films est vide.</h2>
-      <p>Ajoutez un premier film, avec un titre seulement si vous le souhaitez.</p>
-      <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un film</button>
+      <h2>{t("Votre bibliothèque Films est vide.")}</h2>
+      <p>{t("Ajoutez un premier film, avec un titre seulement si vous le souhaitez.")}</p>
+      <button className="primary-button empty-action" type="button" onClick={onCreate}>{t("Ajouter un film")}</button>
     </div>
   )
 }
 
 function compareTitles(first: Film, second: Film): number {
-  return first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }) || first.id.localeCompare(second.id)
+  return first.title.localeCompare(second.title, getLocale(), { sensitivity: 'base' }) || first.id.localeCompare(second.id)
 }
 
 function compareByCreatedAt(first: Film, second: Film): number {
@@ -605,10 +623,10 @@ function FilmsLibrary({
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   return (
-    <main className="main library-main" aria-label={`Bibliothèque Films du profil ${library.profile.name}`}>
+    <main className="main library-main" aria-label={t`Bibliothèque Films du profil ${library.profile.name}`}>
       <header className="library-header">
         <div>
-          <h1 className="display-title">Films</h1>
+          <h1 className="display-title">{t("Films")}</h1>
           <p className="library-subtitle">{librarySubtitle(library.films, 'film', 'films')}</p>
         </div>
         <div className="library-header-actions">
@@ -616,22 +634,22 @@ function FilmsLibrary({
             className="auto-associate-button"
             type="button"
             onClick={() => setAutoAssociateOpen(true)}
-            title="Associer automatiquement les fiches non associées via TMDB"
+            title={t("Associer automatiquement les fiches non associées via TMDB")}
           >
             {icon('wand')}
-            <span>Tout associer</span>
+            <span>{t("Tout associer")}</span>
           </button>
           <LibraryImportButton
             kind="films"
-            buttonLabel="Importer"
-            mediumLabel="film"
+            buttonLabel={t("Importer")}
+            mediumLabel={t("film")}
             profileId={library.profile.id}
             profileName={library.profile.name}
             existing={library.films}
             onDone={onLibraryChanged}
           />
           <LibraryExportFlow kind="films" profileId={library.profile.id} />
-          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un film</button>
+          <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter un film")}</button>
         </div>
       </header>
 
@@ -640,11 +658,11 @@ function FilmsLibrary({
       <div className="library-tools">
         <label className="search">
           {icon('search')}
-          <span className="visually-hidden">Rechercher par titre, titre original ou réalisation</span>
+          <span className="visually-hidden">{t("Rechercher par titre, titre original ou réalisation")}</span>
           <input
             type="search"
             value={context.query}
-            placeholder="Titre, titre original ou réalisation"
+            placeholder={t("Titre, titre original ou réalisation")}
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
             autoCapitalize="none"
             autoCorrect="off"
@@ -674,24 +692,22 @@ function FilmsLibrary({
       ) : (
         <>
           {searchState.status === 'loading' ? (
-            <div className="results-state" role="status">Recherche dans SQLite…</div>
+            <div className="results-state" role="status">{t("Recherche dans SQLite…")}</div>
           ) : searchState.status === 'error' ? (
             <div className="results-state error-state" role="alert">
-              <h2>La recherche locale a échoué.</h2>
-              <p>Vos films restent enregistrés. Réessayez pour relire les résultats depuis SQLite.</p>
-              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+              <h2>{t("La recherche locale a échoué.")}</h2>
+              <p>{t("Vos films restent enregistrés. Réessayez pour relire les résultats depuis SQLite.")}</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>{t("Réessayer")}</button>
             </div>
           ) : searchState.films.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>{isUnfiltered ? `Aucun film dans la vue « ${openingView.name} ».` : 'Aucun film ne correspond.'}</h2>
-              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à tous les films.'}</p>
+              <h2>{isUnfiltered ? t('Aucun film dans la vue « {view} ».', { view: openingView.builtin ? t(openingView.name) : openingView.name }) : t("Aucun film ne correspond.")}</h2>
+              <p>{isUnfiltered ? t("La vue « Tous » affiche toute votre bibliothèque.") : t("Modifiez la recherche ou revenez à tous les films.")}</p>
               <button
                 className="state-action"
                 type="button"
                 onClick={() => onContextChange({ query: '', view: builtinViewById(RATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
-              >
-                Afficher tous les films
-              </button>
+              >{t("Afficher tous les films")}</button>
             </div>
           ) : (
             <div className="film-grid" aria-busy="false">
@@ -710,6 +726,11 @@ function FilmsLibrary({
       />
     </main>
   )
+}
+
+/** Part du travail déjà faite, en pourcentage entier (0 tant que le total est inconnu). */
+function progressPercent({ processed, total }: { processed: number; total: number }): number {
+  return total > 0 ? Math.round((processed / total) * 100) : 0
 }
 
 /** Baguette magique (0.6.6) : confirmation, progression puis résumé. */
@@ -739,7 +760,7 @@ function AutoAssociateDialog({
     cancelRef.current = false
     const result = await autoAssociateFilms(
       films,
-      'fr-FR',
+      getLocale(),
       (processed, total) => setProgress({ processed, total }),
       () => cancelRef.current,
     )
@@ -750,8 +771,8 @@ function AutoAssociateDialog({
 
   return (
     <AccessibleDialog
-      title="Tout associer"
-      description="Recherche automatique des fiches sur TMDB"
+      title={t('Tout associer')}
+      description={t('Recherche automatique des fiches sur TMDB')}
       closeDisabled={phase === 'running'}
       onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
       size="md"
@@ -759,27 +780,31 @@ function AutoAssociateDialog({
       <div className="assistant-content">
         {phase === 'confirm' && (
           <section className="assistant-stage">
-            <h3>Associer toutes les fiches non associées via TMDB ?</h3>
+            <h3>{t('Associer toutes les fiches non associées via TMDB ?')}</h3>
             <p className="films-import-details">
-              {pendingCount} fiche{pendingCount > 1 ? 's ne sont' : ' n’est'} pas encore associée{pendingCount > 1 ? 's' : ''}.
-              Sylloge recherchera chaque titre et gardera la meilleure correspondance (titre et année).
-              Tes notes, avis et statuts ne sont jamais modifiés.
+              {isSingular(pendingCount)
+                ? t('{count} fiche n’est pas encore associée.', { count: formatNumber(pendingCount) })
+                : t('{count} fiches ne sont pas encore associées.', { count: formatNumber(pendingCount) })}{' '}
+              {t('Sylloge recherchera chaque titre et gardera la meilleure correspondance (titre et année).')}{' '}
+              {t('Tes notes, avis et statuts ne sont jamais modifiés.')}
             </p>
             <ImportHint>
-              Les fiches déjà associées ne sont pas retouchées, et tu pourras corriger une association
-              fiche par fiche si le résultat n’est pas le bon.
+              {t('Les fiches déjà associées ne sont pas retouchées, et tu pourras corriger une association fiche par fiche si le résultat n’est pas le bon.')}
             </ImportHint>
             <div className="assistant-actions">
-              <button className="secondary-button" type="button" onClick={onClose}>Non</button>
-              <button className="primary-button" type="button" disabled={pendingCount === 0} onClick={() => void start()}>Oui, lancer</button>
+              <button className="secondary-button" type="button" onClick={onClose}>{t('Non')}</button>
+              <button className="primary-button" type="button" disabled={pendingCount === 0} onClick={() => void start()}>{t('Oui, lancer')}</button>
             </div>
           </section>
         )}
         {phase === 'running' && (
           <section className="assistant-stage">
-            <h3>Association en cours…</h3>
+            <h3>{t('Association en cours…')}</h3>
             <p className="films-import-details">
-              <b>{progress.processed}</b> sur {progress.total} fiches traitées.
+              <b>{formatNumber(progress.processed)}</b>{' '}
+              {isSingular(progress.total)
+                ? t('sur {total} fiche traitée.', { total: formatNumber(progress.total) })
+                : t('sur {total} fiches traitées.', { total: formatNumber(progress.total) })}
             </p>
             <div
               className="auto-associate-progress"
@@ -787,27 +812,31 @@ function AutoAssociateDialog({
               aria-valuemin={0}
               aria-valuemax={progress.total}
               aria-valuenow={progress.processed}
-              aria-label="Progression de l’association"
+              aria-label={t('Progression de l’association')}
             >
-              <div className="auto-associate-progress-fill" style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%` }} />
+              <div className="auto-associate-progress-fill" style={{ width: `${progressPercent(progress)}%` }} />
             </div>
-            <p className="auto-associate-percent">{progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0} %</p>
+            <p className="auto-associate-percent">{formatNumber(progressPercent(progress) / 100, { style: 'percent' })}</p>
             <div className="assistant-actions">
-              <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>Arrêter</button>
+              <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>{t('Arrêter')}</button>
             </div>
           </section>
         )}
         {phase === 'done' && summary !== null && (
           <section className="assistant-stage">
-            <h3>Association terminée</h3>
+            <h3>{t('Association terminée')}</h3>
             <ul className="import-report auto-associate-summary">
-              <li>{summary.associated} fiche{summary.associated > 1 ? 's associée' : ' associée'}{summary.associated > 1 ? 's' : ''}</li>
-              <li>{summary.noMatch} sans correspondance assez sûre</li>
-              {summary.cancelled && <li>Opération arrêtée avant la fin — relance « Tout associer » pour continuer.</li>}
+              <li>
+                {isSingular(summary.associated)
+                  ? t('{count} fiche associée', { count: formatNumber(summary.associated) })
+                  : t('{count} fiches associées', { count: formatNumber(summary.associated) })}
+              </li>
+              <li>{t('{count} sans correspondance assez sûre', { count: formatNumber(summary.noMatch) })}</li>
+              {summary.cancelled && <li>{t('Opération arrêtée avant la fin — relance « {action} » pour continuer.', { action: t('Tout associer') })}</li>}
             </ul>
-            <p className="films-import-details">Chaque fiche reste modifiable individuellement via le bouton Associer.</p>
+            <p className="films-import-details">{t('Chaque fiche reste modifiable individuellement via le bouton Associer.')}</p>
             <div className="assistant-actions assistant-actions-single">
-              <button className="primary-button" type="button" onClick={() => { onClose(); setPhase('confirm'); setSummary(null) }}>Fermer</button>
+              <button className="primary-button" type="button" onClick={() => { onClose(); setPhase('confirm'); setSummary(null) }}>{t('Fermer')}</button>
             </div>
           </section>
         )}
@@ -859,8 +888,8 @@ function AutoAssociateEditsDialog({
 
   return (
     <AccessibleDialog
-      title="Tout associer"
-      description={`Recherche automatique sur ${providerLabel}`}
+      title={t('Tout associer')}
+      description={t('Recherche automatique sur {provider}', { provider: providerLabel })}
       closeDisabled={phase === 'running'}
       onClose={() => { if (phase !== 'running') { onClose(); setPhase('confirm'); setSummary(null) } }}
       size="md"
@@ -870,25 +899,27 @@ function AutoAssociateEditsDialog({
           <section className="assistant-stage">
             <h3>{confirmText}</h3>
             <p className="films-import-details">
-              Sylloge recherchera chaque titre sur {providerLabel} et gardera la meilleure correspondance.
-              Seuls les champs éditoriaux sont mis à jour (visuel, résumé, année, créateur) :
-              tes statuts, notes, coups de cœur et avis restent exactement tels quels.
+              {t('Sylloge recherchera chaque titre sur {provider} et gardera la meilleure correspondance.', { provider: providerLabel })}{' '}
+              {t('Seuls les champs éditoriaux sont mis à jour (visuel, résumé, année, créateur) : tes statuts, notes, coups de cœur et avis restent exactement tels quels.')}
             </p>
             <ImportHint>
-              Les visuels viendront du fournisseur officiel : même format, même rendu, sur toute la bibliothèque.
-              Une fiche sans correspondance sûre reste inchangée.
+              {t('Les visuels viendront du fournisseur officiel : même format, même rendu, sur toute la bibliothèque.')}{' '}
+              {t('Une fiche sans correspondance sûre reste inchangée.')}
             </ImportHint>
             <div className="assistant-actions">
-              <button className="secondary-button" type="button" onClick={onClose}>Non</button>
-              <button className="primary-button" type="button" disabled={pendingCount === 0} onClick={() => void start()}>Oui, lancer</button>
+              <button className="secondary-button" type="button" onClick={onClose}>{t('Non')}</button>
+              <button className="primary-button" type="button" disabled={pendingCount === 0} onClick={() => void start()}>{t('Oui, lancer')}</button>
             </div>
           </section>
         )}
         {phase === 'running' && (
           <section className="assistant-stage">
-            <h3>Association en cours…</h3>
+            <h3>{t('Association en cours…')}</h3>
             <p className="films-import-details">
-              <b>{progress.processed}</b> sur {progress.total} fiches traitées.
+              <b>{formatNumber(progress.processed)}</b>{' '}
+              {isSingular(progress.total)
+                ? t('sur {total} fiche traitée.', { total: formatNumber(progress.total) })
+                : t('sur {total} fiches traitées.', { total: formatNumber(progress.total) })}
             </p>
             <div
               className="auto-associate-progress"
@@ -896,26 +927,34 @@ function AutoAssociateEditsDialog({
               aria-valuemin={0}
               aria-valuemax={progress.total}
               aria-valuenow={progress.processed}
-              aria-label="Progression de l’association"
+              aria-label={t('Progression de l’association')}
             >
-              <div className="auto-associate-progress-fill" style={{ width: `${progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0}%` }} />
+              <div className="auto-associate-progress-fill" style={{ width: `${progressPercent(progress)}%` }} />
             </div>
-            <p className="auto-associate-percent">{progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0} %</p>
+            <p className="auto-associate-percent">{formatNumber(progressPercent(progress) / 100, { style: 'percent' })}</p>
             <div className="assistant-actions">
-              <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>Arrêter</button>
+              <button className="secondary-button" type="button" onClick={() => { cancelRef.current = true }}>{t('Arrêter')}</button>
             </div>
           </section>
         )}
         {phase === 'done' && summary !== null && (
           <section className="assistant-stage">
-            <h3>Association terminée</h3>
+            <h3>{t('Association terminée')}</h3>
             <ul className="import-report auto-associate-summary">
-              <li>{summary.associated} fiche{summary.associated > 1 ? 's enrichie' : ' enrichie'}{summary.associated > 1 ? 's' : ''}</li>
-              <li>{summary.noMatch} sans correspondance assez sûre — inchangée{summary.noMatch > 1 ? 's' : ''}</li>
-              {summary.cancelled && <li>Opération arrêtée avant la fin — relance « Tout associer » pour continuer.</li>}
+              <li>
+                {isSingular(summary.associated)
+                  ? t('{count} fiche enrichie', { count: formatNumber(summary.associated) })
+                  : t('{count} fiches enrichies', { count: formatNumber(summary.associated) })}
+              </li>
+              <li>
+                {isSingular(summary.noMatch)
+                  ? t('{count} sans correspondance assez sûre — inchangée', { count: formatNumber(summary.noMatch) })
+                  : t('{count} sans correspondance assez sûre — inchangées', { count: formatNumber(summary.noMatch) })}
+              </li>
+              {summary.cancelled && <li>{t('Opération arrêtée avant la fin — relance « {action} » pour continuer.', { action: t('Tout associer') })}</li>}
             </ul>
             <div className="assistant-actions assistant-actions-single">
-              <button className="primary-button" type="button" onClick={() => { onClose(); setPhase('confirm'); setSummary(null) }}>Fermer</button>
+              <button className="primary-button" type="button" onClick={() => { onClose(); setPhase('confirm'); setSummary(null) }}>{t('Fermer')}</button>
             </div>
           </section>
         )}
@@ -994,20 +1033,20 @@ const ARTWORK_FILTER_PANEL_CONFIG: LibraryFilterConfig = {
 
 function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) {
   const progress = series.seasonsSeen !== null && series.seasonsTotal !== null
-    ? `${series.seasonsSeen} / ${series.seasonsTotal} saisons`
+    ? t('{seen} / {total} saisons', { seen: formatNumber(series.seasonsSeen), total: formatNumber(series.seasonsTotal) })
     : null
 
   return (
-    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${series.title}`}>
+    <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${series.title}`}>
       <Poster title={series.title} src={series.posterUrl} />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{series.title}</b>
-          {series.isFavorite && <i aria-label="Favori">♥</i>}
+          {series.isFavorite && <i aria-label={t("Favori")}>♥</i>}
         </span>
         {series.showrunner && <small>{series.showrunner}</small>}
         <span className={`status-line tone-${statusTone(series.status)}`}>
-          {SERIES_STATUS_LABELS[series.status]}
+          {t(SERIES_STATUS_LABELS[series.status])}
           {progress ? ` · ${progress}` : ''}
         </span>
       </span>
@@ -1049,9 +1088,12 @@ function SeriesLibrary({
   profileId,
   onLibraryChanged,
 }: SeriesLibraryProps) {
-  const label = library === 'anime' ? 'Animation japonaise' : 'Séries'
-  const singular = library === 'anime' ? 'animation japonaise' : 'série'
-  const plural = library === 'anime' ? 'animations japonaises' : 'séries'
+  const anime = library === 'anime'
+  // Mots français du catalogue ; chaque phrase d'état a sa propre clé complète
+  // (article et accord diffèrent d'une langue à l'autre : jamais de nom collé).
+  const label = anime ? 'Animation japonaise' : 'Séries'
+  const singular = anime ? 'animation japonaise' : 'série'
+  const plural = anime ? 'animations japonaises' : 'séries'
   // L'ordre visible commence par Tous ; la vue d'ouverture reste la watchlist.
   const openingView = defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'series')
   const isUnfiltered = context.query.trim() === '' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
@@ -1069,7 +1111,7 @@ function SeriesLibrary({
       if (isCancelled()) break
       const series = pending[index]
       try {
-        const candidates = await searchTmdbSeries(series.title, 'fr-FR')
+        const candidates = await searchTmdbSeries(series.title, getLocale())
         const scored = candidates
           .map((candidate) => ({
             candidate,
@@ -1077,7 +1119,7 @@ function SeriesLibrary({
           }))
           .sort((a, b) => b.score - a.score)
         if (scored.length > 0 && scored[0].score >= MATCH_THRESHOLD) {
-          const presentation = await previewTmdbSeries(scored[0].candidate.tmdbId, 'fr-FR')
+          const presentation = await previewTmdbSeries(scored[0].candidate.tmdbId, getLocale())
           await mediaRepository.updateSeries(profileId, series.id, seriesWithPresentation(series, presentation), seriesLibraryForCategory(series.category))
           await mediaRepository.setMediaProviderLink({ profileId, medium: seriesLibraryForCategory(series.category), mediaId: series.id, providerName: 'TMDB', providerId: String(presentation.tmdbId) })
           associatedCount += 1
@@ -1094,10 +1136,10 @@ function SeriesLibrary({
   }
 
   return (
-    <main className="main library-main" aria-label={`Bibliothèque ${label} du profil ${profileName}`}>
+    <main className="main library-main" aria-label={t`Bibliothèque ${t(label)} du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <h1 className="display-title">{label}</h1>
+          <h1 className="display-title">{t(label)}</h1>
           <p className="library-subtitle">{librarySubtitle(collection, singular, plural)}</p>
         </div>
         <div className="library-header-actions">
@@ -1105,15 +1147,15 @@ function SeriesLibrary({
             className="auto-associate-button"
             type="button"
             onClick={() => setAutoAssociateOpen(true)}
-            title="Normaliser les visuels et fiches via TMDB"
+            title={t("Normaliser les visuels et fiches via TMDB")}
           >
             {icon('wand')}
-            <span>Tout associer</span>
+            <span>{t("Tout associer")}</span>
           </button>
           <LibraryImportButton
             kind="series"
-            buttonLabel="Importer"
-            mediumLabel={singular}
+            buttonLabel={t("Importer")}
+            mediumLabel={t(singular)}
             seriesLibrary={library}
             profileId={profileId}
             profileName={profileName}
@@ -1121,18 +1163,18 @@ function SeriesLibrary({
             onDone={onLibraryChanged}
           />
           <LibraryExportFlow kind="series" profileId={profileId} seriesLibrary={library} />
-          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une {singular}</button>
+          <button className="primary-button" type="button" onClick={onCreate}>{anime ? t('Ajouter une animation japonaise') : t('Ajouter une série')}</button>
         </div>
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
         <label className="search">
           {icon('search')}
-          <span className="visually-hidden">Rechercher par titre, showrunner ou casting</span>
+          <span className="visually-hidden">{t("Rechercher par titre, showrunner ou casting")}</span>
           <input
             type="search"
             value={context.query}
-            placeholder="Titre, showrunner ou casting"
+            placeholder={t("Titre, showrunner ou casting")}
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
           />
         </label>
@@ -1158,30 +1200,30 @@ function SeriesLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <h2>La bibliothèque {label} est vide.</h2>
-          <p>Ajouter une première {singular}, avec un titre seulement si nécessaire.</p>
-          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une {singular}</button>
+          <h2>{t('La bibliothèque {library} est vide.', { library: t(label) })}</h2>
+          <p>{anime ? t('Ajouter une première animation japonaise, avec un titre seulement si nécessaire.') : t('Ajouter une première {medium}, avec un titre seulement si nécessaire.', { medium: t(singular) })}</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>{anime ? t('Ajouter une animation japonaise') : t('Ajouter une {medium}', { medium: t(singular) })}</button>
         </div>
       ) : (
         <>
           {searchState.status === 'loading' ? (
-            <div className="results-state" role="status">Recherche dans SQLite…</div>
+            <div className="results-state" role="status">{t("Recherche dans SQLite…")}</div>
           ) : searchState.status === 'error' ? (
             <div className="results-state error-state" role="alert">
-              <h2>La recherche locale a échoué.</h2>
-              <p>Les fiches restent enregistrées. Réessayer pour relire les résultats depuis SQLite.</p>
-              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+              <h2>{t("La recherche locale a échoué.")}</h2>
+              <p>{t("Les fiches restent enregistrées. Réessayer pour relire les résultats depuis SQLite.")}</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>{t("Réessayer")}</button>
             </div>
           ) : searchState.series.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>{isUnfiltered ? `Aucune ${singular} dans la vue « ${openingView.name} ».` : `Aucune ${singular} ne correspond.`}</h2>
-              <p>{isUnfiltered ? 'La vue « Tous » affiche toute la bibliothèque.' : 'Modifier la recherche ou revenir à toutes les fiches.'}</p>
+              <h2>{isUnfiltered ? t('Aucune {medium} dans la vue « {view} ».', { medium: t(singular), view: openingView.builtin ? t(openingView.name) : openingView.name }) : t('Aucune {medium} ne correspond.', { medium: t(singular) })}</h2>
+              <p>{isUnfiltered ? t("La vue « Tous » affiche toute la bibliothèque.") : t("Modifier la recherche ou revenir à toutes les fiches.")}</p>
               <button
                 className="state-action"
                 type="button"
                 onClick={() => onContextChange({ query: '', category: seriesLibraryCategories(library), view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
-                Afficher toutes les {plural}
+                {t('Afficher toutes les {medium}', { medium: t(plural) })}
               </button>
             </div>
           ) : (
@@ -1198,7 +1240,7 @@ function SeriesLibrary({
         onClose={() => setAutoAssociateOpen(false)}
         providerLabel="TMDB"
         pendingCount={collection.length}
-        confirmText={`Normaliser toutes les fiches ${label} via TMDB ?`}
+        confirmText={t('Normaliser toutes les fiches {library} via TMDB ?', { library: t(label) })}
         run={runSeriesAssociation}
         onDone={onLibraryChanged}
       />
@@ -1207,24 +1249,24 @@ function SeriesLibrary({
 }
 
 function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
-  const attribution = [BOOK_CATEGORY_LABELS[book.category], book.author, book.year]
+  const attribution = [t(BOOK_CATEGORY_LABELS[book.category]), book.author, book.year]
     .filter((value) => value !== null)
     .join(' · ')
   const progress = book.volumesRead !== null && book.volumesTotal !== null
-    ? `${book.volumesRead} / ${book.volumesTotal} tomes`
+    ? t('{read} / {total} tomes', { read: formatNumber(book.volumesRead), total: formatNumber(book.volumesTotal) })
     : null
 
   return (
-    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${book.title}`}>
+    <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${book.title}`}>
       <Poster title={book.title} src={book.coverUrl} label="Couverture" />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{book.title}</b>
-          {book.isFavorite && <i aria-label="Favori">♥</i>}
+          {book.isFavorite && <i aria-label={t("Favori")}>♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
         <span className={`status-line tone-${statusTone(book.status)}`}>
-          {BOOK_STATUS_LABELS[book.status]}
+          {t(BOOK_STATUS_LABELS[book.status])}
           {progress ? ` · ${progress}` : ''}
         </span>
       </span>
@@ -1238,16 +1280,16 @@ function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
     .join(' · ')
 
   return (
-    <button className="film-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${game.title}`}>
+    <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${game.title}`}>
       <Poster title={game.title} src={game.coverUrl} label="Couverture" />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{game.title}</b>
-          {game.isFavorite && <i aria-label="Favori">♥</i>}
+          {game.isFavorite && <i aria-label={t("Favori")}>♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
         <span className={`status-line tone-${statusTone(game.status)}`}>
-          {GAME_STATUS_LABELS[game.status]}
+          {t(GAME_STATUS_LABELS[game.status])}
         </span>
       </span>
     </button>
@@ -1334,10 +1376,10 @@ function GamesLibrary({
   }
 
   return (
-    <main className="main library-main" aria-label={`Bibliothèque Jeux du profil ${profileName}`}>
+    <main className="main library-main" aria-label={t`Bibliothèque Jeux du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <h1 className="display-title">Jeux</h1>
+          <h1 className="display-title">{t("Jeux")}</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'jeu', 'jeux')}</p>
         </div>
         <div className="library-header-actions">
@@ -1345,33 +1387,33 @@ function GamesLibrary({
             className="auto-associate-button"
             type="button"
             onClick={() => setAutoAssociateOpen(true)}
-            title="Normaliser les couvertures et fiches via IGDB"
+            title={t("Normaliser les couvertures et fiches via IGDB")}
           >
             {icon('wand')}
-            <span>Tout associer</span>
+            <span>{t("Tout associer")}</span>
           </button>
           <LibraryImportButton
             kind="games"
-            buttonLabel="Importer"
-            mediumLabel="jeu"
+            buttonLabel={t("Importer")}
+            mediumLabel={t("jeu")}
             profileId={profileId}
             profileName={profileName}
             existing={collection}
             onDone={onLibraryChanged}
           />
           <LibraryExportFlow kind="games" profileId={profileId} />
-          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un jeu</button>
+          <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter un jeu")}</button>
         </div>
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
         <label className="search">
           {icon('search')}
-          <span className="visually-hidden">Rechercher par titre, studio ou plateforme</span>
+          <span className="visually-hidden">{t("Rechercher par titre, studio ou plateforme")}</span>
           <input
             type="search"
             value={context.query}
-            placeholder="Titre, studio ou plateforme"
+            placeholder={t("Titre, studio ou plateforme")}
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
           />
         </label>
@@ -1400,27 +1442,25 @@ function GamesLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <h2>Votre bibliothèque Jeux est vide.</h2>
-          <p>Ajoutez un premier jeu, avec un titre seulement si vous le souhaitez.</p>
-          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un jeu</button>
+          <h2>{t("Votre bibliothèque Jeux est vide.")}</h2>
+          <p>{t("Ajoutez un premier jeu, avec un titre seulement si vous le souhaitez.")}</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>{t("Ajouter un jeu")}</button>
         </div>
       ) : (
         <>
           {searchState.status === 'loading' ? (
-            <div className="results-state" role="status">Recherche dans SQLite…</div>
+            <div className="results-state" role="status">{t("Recherche dans SQLite…")}</div>
           ) : searchState.status === 'error' ? (
             <div className="results-state error-state" role="alert">
-              <h2>La recherche locale a échoué.</h2>
-              <p>Vos jeux restent enregistrés. Réessayez pour relire les résultats depuis SQLite.</p>
-              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+              <h2>{t("La recherche locale a échoué.")}</h2>
+              <p>{t("Vos jeux restent enregistrés. Réessayez pour relire les résultats depuis SQLite.")}</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>{t("Réessayer")}</button>
             </div>
           ) : searchState.games.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>{isUnfiltered ? `Aucun jeu dans la vue « ${openingView.name} ».` : 'Aucun jeu ne correspond.'}</h2>
-              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à tous les jeux.'}</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
-                Afficher tous les jeux
-              </button>
+              <h2>{isUnfiltered ? t('Aucun jeu dans la vue « {view} ».', { view: openingView.builtin ? t(openingView.name) : openingView.name }) : t("Aucun jeu ne correspond.")}</h2>
+              <p>{isUnfiltered ? t("La vue « Tous » affiche toute votre bibliothèque.") : t("Modifiez la recherche ou revenez à tous les jeux.")}</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>{t("Afficher tous les jeux")}</button>
             </div>
           ) : (
             <div className="film-grid" aria-busy="false">
@@ -1436,7 +1476,7 @@ function GamesLibrary({
         onClose={() => setAutoAssociateOpen(false)}
         providerLabel="IGDB"
         pendingCount={collection.length}
-        confirmText="Normaliser tous les jeux via IGDB ?"
+        confirmText={t("Normaliser tous les jeux via IGDB ?")}
         run={runGamesAssociation}
         onDone={onLibraryChanged}
       />
@@ -1445,21 +1485,21 @@ function GamesLibrary({
 }
 
 function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void }) {
-  const attribution = [ARTWORK_FORM_LABELS[artwork.form], artwork.artist, artwork.year]
+  const attribution = [t(ARTWORK_FORM_LABELS[artwork.form]), artwork.artist, artwork.year]
     .filter((value) => value !== null)
     .join(' · ')
 
   return (
-    <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${artwork.title}`}>
+    <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${artwork.title}`}>
       <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" className="artwork-visual" />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{artwork.title}</b>
-          {artwork.isFavorite && <i aria-label="Favori">♥</i>}
+          {artwork.isFavorite && <i aria-label={t("Favori")}>♥</i>}
         </span>
         {attribution && <small>{attribution}</small>}
         <span className={`status-line tone-${statusTone(artwork.status)}`}>
-          {ARTWORK_STATUS_LABELS[artwork.status]}
+          {t(ARTWORK_STATUS_LABELS[artwork.status])}
         </span>
       </span>
     </button>
@@ -1503,35 +1543,35 @@ function ArtworksLibrary({
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
 
   return (
-    <main className="main library-main artwork-library-main" aria-label={`Bibliothèque Art du profil ${profileName}`}>
+    <main className="main library-main artwork-library-main" aria-label={t`Bibliothèque Art du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <h1 className="display-title">Art</h1>
+          <h1 className="display-title">{t("Art")}</h1>
           <p className="library-subtitle">{librarySubtitle(collection, 'œuvre', 'œuvres')}</p>
         </div>
         <div className="library-header-actions">
           <LibraryImportButton
             kind="artworks"
-            buttonLabel="Importer"
-            mediumLabel="œuvre"
+            buttonLabel={t("Importer")}
+            mediumLabel={t("œuvre")}
             profileId={profileId}
             profileName={profileName}
             existing={collection}
             onDone={onLibraryChanged}
           />
           <LibraryExportFlow kind="artworks" profileId={profileId} />
-          <button className="primary-button" type="button" onClick={onCreate}>Ajouter une œuvre</button>
+          <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter une œuvre")}</button>
         </div>
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
         <label className="search">
           {icon('search')}
-          <span className="visually-hidden">Rechercher par titre, artiste, lieu ou exposition</span>
+          <span className="visually-hidden">{t("Rechercher par titre, artiste, lieu ou exposition")}</span>
           <input
             type="search"
             value={context.query}
-            placeholder="Titre, artiste, lieu ou exposition"
+            placeholder={t("Titre, artiste, lieu ou exposition")}
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
           />
         </label>
@@ -1554,27 +1594,25 @@ function ArtworksLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <h2>Votre bibliothèque Art est vide.</h2>
-          <p>Ajoutez une première œuvre, avec un titre seulement si vous le souhaitez.</p>
-          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter une œuvre</button>
+          <h2>{t("Votre bibliothèque Art est vide.")}</h2>
+          <p>{t("Ajoutez une première œuvre, avec un titre seulement si vous le souhaitez.")}</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>{t("Ajouter une œuvre")}</button>
         </div>
       ) : (
         <>
           {searchState.status === 'loading' ? (
-            <div className="results-state" role="status">Recherche dans SQLite…</div>
+            <div className="results-state" role="status">{t("Recherche dans SQLite…")}</div>
           ) : searchState.status === 'error' ? (
             <div className="results-state error-state" role="alert">
-              <h2>La recherche locale a échoué.</h2>
-              <p>Vos œuvres restent enregistrées. Réessayez pour relire les résultats depuis SQLite.</p>
-              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+              <h2>{t("La recherche locale a échoué.")}</h2>
+              <p>{t("Vos œuvres restent enregistrées. Réessayez pour relire les résultats depuis SQLite.")}</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>{t("Réessayer")}</button>
             </div>
           ) : searchState.artworks.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>{isUnfiltered ? `Aucune œuvre dans la vue « ${openingView.name} ».` : 'Aucune œuvre ne correspond.'}</h2>
-              <p>{isUnfiltered ? 'La vue « Tous » affiche toute votre bibliothèque.' : 'Modifiez la recherche ou revenez à toutes les œuvres.'}</p>
-              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>
-                Afficher toutes les œuvres
-              </button>
+              <h2>{isUnfiltered ? t('Aucune œuvre dans la vue « {view} ».', { view: openingView.builtin ? t(openingView.name) : openingView.name }) : t("Aucune œuvre ne correspond.")}</h2>
+              <p>{isUnfiltered ? t("La vue « Tous » affiche toute votre bibliothèque.") : t("Modifiez la recherche ou revenez à toutes les œuvres.")}</p>
+              <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>{t("Afficher toutes les œuvres")}</button>
             </div>
           ) : (
             <div className="artwork-grid" aria-busy="false">
@@ -1680,10 +1718,10 @@ function BooksLibrary({
   }
 
   return (
-    <main className="main library-main" aria-label={`Bibliothèque ${label} du profil ${profileName}`}>
+    <main className="main library-main" aria-label={t`Bibliothèque ${t(label)} du profil ${profileName}`}>
       <header className="library-header">
         <div>
-          <h1 className="display-title">{label}</h1>
+          <h1 className="display-title">{t(label)}</h1>
           <p className="library-subtitle">{librarySubtitle(collection, singular, plural)}</p>
         </div>
         <div className="library-header-actions">
@@ -1691,14 +1729,14 @@ function BooksLibrary({
             className="auto-associate-button"
             type="button"
             onClick={() => setAutoAssociateOpen(true)}
-            title="Normaliser les couvertures et fiches via Open Library"
+            title={t("Normaliser les couvertures et fiches via Open Library")}
           >
             {icon('wand')}
-            <span>Tout associer</span>
+            <span>{t("Tout associer")}</span>
           </button>
           <LibraryImportButton
             kind="books"
-            buttonLabel="Importer"
+            buttonLabel={t("Importer")}
             mediumLabel={singular}
             bookLibrary={library}
             profileId={profileId}
@@ -1707,18 +1745,18 @@ function BooksLibrary({
             onDone={onLibraryChanged}
           />
           <LibraryExportFlow kind="books" profileId={profileId} bookLibrary={library} />
-          <button className="primary-button" type="button" onClick={onCreate}>Ajouter un {singular}</button>
+          <button className="primary-button" type="button" onClick={onCreate}>{t('Ajouter un {medium}', { medium: t(singular) })}</button>
         </div>
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
       <div className="library-tools">
         <label className="search">
           {icon('search')}
-          <span className="visually-hidden">Rechercher par titre, auteur ou résumé</span>
+          <span className="visually-hidden">{t("Rechercher par titre, auteur ou résumé")}</span>
           <input
             type="search"
             value={context.query}
-            placeholder="Titre, auteur ou résumé"
+            placeholder={t("Titre, auteur ou résumé")}
             onChange={(event) => onContextChange({ ...context, query: event.target.value })}
           />
         </label>
@@ -1744,30 +1782,30 @@ function BooksLibrary({
       </div>
       {collection.length === 0 && isUnfiltered ? (
         <div className="library-state empty-library">
-          <h2>La bibliothèque {label} est vide.</h2>
-          <p>Ajouter un premier {singular}, avec un titre seulement si nécessaire.</p>
-          <button className="primary-button empty-action" type="button" onClick={onCreate}>Ajouter un {singular}</button>
+          <h2>{t('La bibliothèque {library} est vide.', { library: t(label) })}</h2>
+          <p>{t('Ajouter un premier {medium}, avec un titre seulement si nécessaire.', { medium: t(singular) })}</p>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>{t('Ajouter un {medium}', { medium: t(singular) })}</button>
         </div>
       ) : (
         <>
           {searchState.status === 'loading' ? (
-            <div className="results-state" role="status">Recherche dans SQLite…</div>
+            <div className="results-state" role="status">{t("Recherche dans SQLite…")}</div>
           ) : searchState.status === 'error' ? (
             <div className="results-state error-state" role="alert">
-              <h2>La recherche locale a échoué.</h2>
-              <p>Les {plural} restent enregistrés. Réessayer pour relire les résultats depuis SQLite.</p>
-              <button className="state-action" type="button" onClick={onRetrySearch}>Réessayer</button>
+              <h2>{t("La recherche locale a échoué.")}</h2>
+              <p>{t('Les {medium} restent enregistrés. Réessayer pour relire les résultats depuis SQLite.', { medium: t(plural) })}</p>
+              <button className="state-action" type="button" onClick={onRetrySearch}>{t("Réessayer")}</button>
             </div>
           ) : searchState.books.length === 0 ? (
             <div className="results-state empty-results">
-              <h2>{isUnfiltered ? `Aucun ${singular} dans la vue « ${openingView.name} ».` : `Aucun ${singular} ne correspond.`}</h2>
-              <p>{isUnfiltered ? 'La vue « Tous » affiche toute la bibliothèque.' : `Modifier la recherche ou revenir à tous les ${plural}.`}</p>
+              <h2>{isUnfiltered ? t('Aucun {medium} dans la vue « {view} ».', { medium: t(singular), view: openingView.builtin ? t(openingView.name) : openingView.name }) : t('Aucun {medium} ne correspond.', { medium: t(singular) })}</h2>
+              <p>{isUnfiltered ? t("La vue « Tous » affiche toute la bibliothèque.") : t('Modifier la recherche ou revenir à tous les {medium}.', { medium: t(plural) })}</p>
               <button
                 className="state-action"
                 type="button"
                 onClick={() => onContextChange({ query: '', category: [...categories], view: builtinViewById(PROGRESS_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}
               >
-                Afficher tous les {plural}
+                {t('Afficher tous les {medium}', { medium: t(plural) })}
               </button>
             </div>
           ) : (
@@ -1784,7 +1822,7 @@ function BooksLibrary({
         onClose={() => setAutoAssociateOpen(false)}
         providerLabel="Open Library"
         pendingCount={collection.length}
-        confirmText={`Normaliser tous les ${plural} via Open Library ?`}
+        confirmText={t('Normaliser tous les {medium} via Open Library ?', { medium: t(plural) })}
         run={runBooksAssociation}
         onDone={onLibraryChanged}
       />
@@ -1842,27 +1880,27 @@ function returnView(key: ReturnKey): View {
 
 /** Retour d'une fiche Livres ou Mangas : il nomme l'écran d'origine réel. */
 function bookBackLabel(returnTo: ReturnKey): string {
-  return returnTo === 'home' ? 'Retour à l’accueil' : returnTo === 'mangas' ? 'Retour aux mangas' : 'Retour aux livres'
+  return returnTo === 'home' ? t('Retour à l’accueil') : returnTo === 'mangas' ? t('Retour aux mangas') : t('Retour aux livres')
 }
 
 function seriesBackLabel(returnTo: ReturnKey): string {
-  return returnTo === 'home' ? 'Retour à l’accueil' : returnTo === 'anime' ? 'Retour à l’animation japonaise' : 'Retour aux séries'
+  return returnTo === 'home' ? t('Retour à l’accueil') : returnTo === 'anime' ? t('Retour à l’animation japonaise') : t('Retour aux séries')
 }
 
 function sortFilms(films: Film[]): Film[] {
-  return [...films].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+  return [...films].sort((first, second) => first.title.localeCompare(second.title, getLocale(), { sensitivity: 'base' }))
 }
 
 function sortBooks(books: Book[]): Book[] {
-  return [...books].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+  return [...books].sort((first, second) => first.title.localeCompare(second.title, getLocale(), { sensitivity: 'base' }))
 }
 
 function sortGames(games: Game[]): Game[] {
-  return [...games].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+  return [...games].sort((first, second) => first.title.localeCompare(second.title, getLocale(), { sensitivity: 'base' }))
 }
 
 function sortArtworks(artworks: Artwork[]): Artwork[] {
-  return [...artworks].sort((first, second) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' }))
+  return [...artworks].sort((first, second) => first.title.localeCompare(second.title, getLocale(), { sensitivity: 'base' }))
 }
 
 type SqliteFilmDetailProps = {
@@ -1913,16 +1951,16 @@ function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel
       </header>
       {state.status === 'loading' ? (
         <div className="library-state" role="status">
-          <p className="state-kicker">Fiche locale</p>
-          <h2>Chargement du film</h2>
-          <p>Lecture de la fiche enregistrée dans SQLite.</p>
+          <p className="state-kicker">{t('Fiche locale')}</p>
+          <h2>{t('Chargement du film')}</h2>
+          <p>{t('Lecture de la fiche enregistrée dans SQLite.')}</p>
         </div>
       ) : (
         <div className="library-state error-state" role="alert">
-          <p className="state-kicker">Fiche indisponible</p>
-          <h2>Ce film ne peut pas être ouvert.</h2>
-          <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
-          <button className="state-action" type="button" onClick={() => setAttempt((value) => value + 1)}>Réessayer</button>
+          <p className="state-kicker">{t('Fiche indisponible')}</p>
+          <h2>{t('Ce film ne peut pas être ouvert.')}</h2>
+          <p>{t('La fiche est absente ou SQLite n’a pas pu la relire.')}</p>
+          <button className="state-action" type="button" onClick={() => setAttempt((value) => value + 1)}>{t('Réessayer')}</button>
         </div>
       )}
     </main>
@@ -1936,6 +1974,8 @@ type AssociateTarget =
   | { medium: 'jeu'; id: string }
 
 function App() {
+  // Abonne l'arbre entier au changement de langue : aucun remontage, brouillons conservés.
+  useLanguage()
   const { preference: themePreference, setPreference: setThemePreference } = useTheme()
   // Barre latérale : « rail » (icônes seules) ou « étendue » (icônes + libellés).
   const [sidebarExpanded, setSidebarExpanded] = useState(readSidebarPinned)
@@ -2348,7 +2388,7 @@ function App() {
           : []
         // Après une suppression ou un changement de bibliothèque, la carte
         // peut avoir disparu : le repère de navigation reste une cible utile.
-        const label = pending.key === 'home' ? 'Accueil' : pending.key === 'mangas' ? 'Mangas' : 'Livres'
+        const label = t(pending.key === 'home' ? 'Accueil' : pending.key === 'mangas' ? 'Mangas' : 'Livres')
         const fallback = document.querySelector<HTMLElement>(`.sidebar nav button[aria-label="${label}"]`)
         ;(matching[opener?.index ?? 0] ?? fallback)?.focus({ preventScroll: true })
       }
@@ -2672,7 +2712,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">{t('Accueil')}</h1></div>
         </header>
         <LoadingState />
       </main>
@@ -2681,7 +2721,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">{t('Accueil')}</h1></div>
         </header>
         <ErrorState onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
       </main>
@@ -2690,7 +2730,7 @@ function App() {
     content = (
       <main className="main home-main">
         <header className="home-heading">
-          <div><h1 className="display-title">Accueil</h1></div>
+          <div><h1 className="display-title">{t('Accueil')}</h1></div>
         </header>
       </main>
     )
@@ -2731,12 +2771,12 @@ function App() {
         <main className="main detail-page-main">
           <header className="page-action-bar">
             <button className="back-button" type="button" onClick={returnToLibrary}>
-              ← Retour aux films
+              {t('← Retour aux films')}
             </button>
           </header>
           <div className="library-state error-state" role="alert">
-            <h2>Ce film ne peut pas être associé.</h2>
-            <p>La fiche n'est plus présente dans la bibliothèque locale.</p>
+            <h2>{t('Ce film ne peut pas être associé.')}</h2>
+            <p>{t("La fiche n'est plus présente dans la bibliothèque locale.")}</p>
           </div>
         </main>
       )
@@ -2781,7 +2821,7 @@ function App() {
               console.error('Le film a été créé mais son association TMDB a échoué.', error)
               setTmdbNotice({
                 filmId: film.id,
-                message: 'Le film a bien été créé, mais TMDB n’a pas pu être associé. La fiche reste intacte ; tu peux relancer l’association depuis cette page.',
+                message: t('Le film a bien été créé, mais TMDB n’a pas pu être associé. La fiche reste intacte ; tu peux relancer l’association depuis cette page.'),
               })
             }
           }
@@ -2845,7 +2885,7 @@ function App() {
         filmId={view.filmId}
         detailRevision={library.films.find((entry) => entry.id === view.filmId)?.updatedAt ?? ''}
         onBack={() => goBackTo(view.returnTo)}
-        backLabel={view.returnTo === 'home' ? 'Retour à l’accueil' : 'Retour aux films'}
+        backLabel={view.returnTo === 'home' ? t('Retour à l’accueil') : t('Retour aux films')}
         onEdit={() => {
           const film = libraryState.library.films.find((entry) => entry.id === view.filmId)
           if (film) {
@@ -2912,8 +2952,8 @@ function App() {
             </button>
           </header>
           <div className="library-state error-state" role="alert">
-            <h2>Cette série ne peut pas être ouverte.</h2>
-            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+            <h2>{t('Cette série ne peut pas être ouverte.')}</h2>
+            <p>{t('La fiche est absente ou SQLite n’a pas pu la relire.')}</p>
           </div>
         </main>
       )
@@ -2983,8 +3023,8 @@ function App() {
             </button>
           </header>
           <div className="library-state error-state" role="alert">
-            <h2>Ce livre ne peut pas être ouvert.</h2>
-            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+            <h2>{t('Ce livre ne peut pas être ouvert.')}</h2>
+            <p>{t('La fiche est absente ou SQLite n’a pas pu la relire.')}</p>
           </div>
         </main>
       )
@@ -3045,13 +3085,13 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux jeux">
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label={t('Retour aux jeux')}>
               {icon('arrow-left')}
             </button>
           </header>
           <div className="library-state error-state" role="alert">
-            <h2>Ce jeu ne peut pas être ouvert.</h2>
-            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+            <h2>{t('Ce jeu ne peut pas être ouvert.')}</h2>
+            <p>{t('La fiche est absente ou SQLite n’a pas pu la relire.')}</p>
           </div>
         </main>
       )
@@ -3060,7 +3100,7 @@ function App() {
         <GameDetail
           game={game}
           onBack={() => goBackTo(view.returnTo)}
-          backLabel="Retour aux jeux"
+          backLabel={t('Retour aux jeux')}
           onEdit={async () => {
             const game = gameCollection.find((entry) => entry.id === view.gameId)
             if (game) {
@@ -3131,13 +3171,13 @@ function App() {
       content = (
         <main className="main detail-page-main">
           <header className="page-action-bar">
-            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label="Retour aux œuvres d’art">
+            <button className="back-button back-button-icon" type="button" onClick={() => goBackTo(view.returnTo)} aria-label={t('Retour aux œuvres d’art')}>
               {icon('arrow-left')}
             </button>
           </header>
           <div className="library-state error-state" role="alert">
-            <h2>Cette œuvre ne peut pas être ouverte.</h2>
-            <p>La fiche est absente ou SQLite n’a pas pu la relire.</p>
+            <h2>{t('Cette œuvre ne peut pas être ouverte.')}</h2>
+            <p>{t('La fiche est absente ou SQLite n’a pas pu la relire.')}</p>
           </div>
         </main>
       )
@@ -3146,7 +3186,7 @@ function App() {
         <ArtworkDetail
           artwork={artwork}
           onBack={() => goBackTo(view.returnTo)}
-          backLabel="Retour aux œuvres d’art"
+          backLabel={t('Retour aux œuvres d’art')}
           onEdit={() => {
             const artwork = artworkCollection.find((entry) => entry.id === view.artworkId)
             if (artwork) {
@@ -3303,14 +3343,14 @@ function App() {
             role="dialog"
             aria-modal="true"
             aria-label={{
-              film: 'Ajouter un film',
-              série: addFlow.medium === 'série' && addFlow.editSeriesId ? 'Modifier la fiche' : addFlow.medium === 'série' && addFlow.seriesLibrary === 'anime' ? 'Ajouter une animation japonaise' : 'Ajouter une série',
-              livre: addFlow.medium === 'livre' && addFlow.editBookId ? 'Modifier la fiche' : addFlow.medium === 'livre' && addFlow.bookLibrary === 'mangas' ? 'Ajouter un manga' : 'Ajouter un livre',
-              jeu: 'Ajouter un jeu',
-              artwork: 'Ajouter une œuvre',
+              film: t('Ajouter un film'),
+              série: addFlow.medium === 'série' && addFlow.editSeriesId ? t('Modifier la fiche') : addFlow.medium === 'série' && addFlow.seriesLibrary === 'anime' ? t('Ajouter une animation japonaise') : t('Ajouter une série'),
+              livre: addFlow.medium === 'livre' && addFlow.editBookId ? t('Modifier la fiche') : addFlow.medium === 'livre' && addFlow.bookLibrary === 'mangas' ? t('Ajouter un manga') : t('Ajouter un livre'),
+              jeu: t('Ajouter un jeu'),
+              artwork: t('Ajouter une œuvre'),
             }[addFlow.medium]}
           >
-            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAddFlow(null)} aria-label="Fermer">×</button>
+            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAddFlow(null)} aria-label={t('Fermer')}>×</button>
             {addFlow.medium === 'film' && !addFlow.initialValues && (
               <TmdbSearchFlow
                 compact
@@ -3584,9 +3624,9 @@ function App() {
             onClose={() => setAssociateTarget(null)}
             role="dialog"
             aria-modal="true"
-            aria-label="Modifier l’association"
+            aria-label={t('Modifier l’association')}
           >
-            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAssociateTarget(null)} aria-label="Fermer">×</button>
+            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setAssociateTarget(null)} aria-label={t('Fermer')}>×</button>
             {(() => {
               const target = associateTarget
               const series = target.medium === 'série' ? seriesCollection.find((entry) => entry.id === target.id) : undefined
@@ -3639,7 +3679,7 @@ function App() {
       {backupNotice && (
         <div className={`backup-notice ${backupNotice.kind}`} role={backupNotice.kind === 'error' ? 'alert' : 'status'} aria-atomic="true">
           <p>{backupNotice.message}</p>
-          <button type="button" onClick={() => setBackupNotice(null)} aria-label="Fermer le message de sauvegarde">Fermer</button>
+          <button type="button" onClick={() => setBackupNotice(null)} aria-label={t('Fermer le message de sauvegarde')}>{t('Fermer')}</button>
         </div>
       )}
     </div>

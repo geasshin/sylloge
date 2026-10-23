@@ -4,15 +4,11 @@ import {
   ARTWORK_STATUS_LABELS,
   type Artwork,
 } from '../domain/artwork.ts'
+import { t, tc, formatDate, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 import { icon } from '../main.tsx'
-
-function formatCalendarDate(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
-}
 
 type ArtworkDetailProps = {
   artwork: Artwork
@@ -48,15 +44,15 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
         <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={backLabel}>{icon('arrow-left')}</button>
         {/* L'Art n'a aucun fournisseur d'association : pas de baguette ici, règle du domaine. */}
         <div className="detail-actions">
-          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+          <button className="icon-action-button" type="button" onClick={onEdit} title={t("Modifier la fiche")}>
             {icon('pencil')}
-            <span>Modifier</span>
+            <span>{t("Modifier")}</span>
           </button>
           <button
             className="icon-action-button icon-action-danger"
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            title="Supprimer cette œuvre"
+            title={t("Supprimer cette œuvre")}
           >
             {icon('trash')}
           </button>
@@ -73,13 +69,13 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
           </div>
           {artwork.isFavorite && (
             <div className="detail-rate">
-              <span className="heart-display on" aria-label="Coup de cœur">♥</span>
+              <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>
             </div>
           )}
         </div>
 
         <div className="detail-body">
-          <p className="eyebrow">{ARTWORK_FORM_LABELS[artwork.form]}</p>
+          <p className="eyebrow">{t(ARTWORK_FORM_LABELS[artwork.form])}</p>
           <h1 className="display-title">{artwork.title}</h1>
           {(artwork.artist || artwork.year !== null) && (
             <p className="detail-factline">
@@ -89,19 +85,19 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
 
           <dl className="detail-facts">
             {artwork.artist && (
-              <div><dt>Artiste</dt><dd>{artwork.artist}</dd></div>
+              <div><dt>{t("Artiste")}</dt><dd>{artwork.artist}</dd></div>
             )}
             {artwork.year !== null && (
-              <div><dt>Année</dt><dd>{artwork.year}</dd></div>
+              <div><dt>{t("Année")}</dt><dd>{artwork.year}</dd></div>
             )}
             {artwork.location && (
-              <div><dt>Lieu</dt><dd>{artwork.location}</dd></div>
+              <div><dt>{t("Lieu")}</dt><dd>{artwork.location}</dd></div>
             )}
             {artwork.exhibition && (
-              <div><dt>Exposition</dt><dd>{artwork.exhibition}</dd></div>
+              <div><dt>{t("Exposition")}</dt><dd>{artwork.exhibition}</dd></div>
             )}
             {artwork.discoveredAt && (
-              <div><dt>Découverte</dt><dd>{formatCalendarDate(artwork.discoveredAt)}</dd></div>
+              <div><dt>{tc('artworks', "Date de découverte")}</dt><dd>{formatDate(artwork.discoveredAt, { dateStyle: 'long' })}</dd></div>
             )}
             {/* Champs personnalisés nom → valeur (0.6.12). */}
             {artwork.customFields.map((field, index) => (
@@ -113,10 +109,10 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
             {artwork.personalNote ? (
               <>
                 <blockquote className="review-personal">{artwork.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier</button>
+                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
               </>
             ) : (
-              <p className="mine-empty">Ton avis s’écrira ici.</p>
+              <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
             )}
           </section>
         </div>
@@ -125,13 +121,13 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
       {confirmingDelete && (
         <div className="confirm-backdrop">
           <div className="delete-confirmation" role="alertdialog" aria-labelledby="artwork-delete-title" aria-describedby="artwork-delete-description">
-            <h2 id="artwork-delete-title">Supprimer définitivement cette œuvre ?</h2>
-            <p id="artwork-delete-description">« {artwork.title} » sera retirée de la collection sans possibilité de restauration.</p>
-            {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
+            <h2 id="artwork-delete-title">{t("Supprimer définitivement cette œuvre ?")}</h2>
+            <p id="artwork-delete-description">{t('« {title} » sera retirée de la collection sans possibilité de restauration.', { title: artwork.title })}</p>
+            {deleteError && <p className="field-error" role="alert">{translateMessage(deleteError)}</p>}
             <div>
-              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Annuler</button>
+              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>{t("Annuler")}</button>
               <button className="danger-button" type="button" onClick={deleteArtwork} disabled={deleting}>
-                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+                {deleting ? t('Suppression…') : t("Supprimer définitivement")}
               </button>
             </div>
           </div>

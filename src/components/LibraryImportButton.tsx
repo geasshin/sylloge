@@ -1,3 +1,4 @@
+import { formatNumber, t, translateMessage } from '../i18n/core.ts'
 import { useRef, useState } from 'react'
 import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
@@ -64,13 +65,61 @@ import { previewThirdPartyImport, recognizeThirdPartyImport, type ThirdPartyImpo
 
 type ImportStep = 'third-party-preview' | 'choose-file' | 'container-source' | 'external-preview' | 'json-preview' | 'mode' | 'duplicates' | 'confirm' | 'working' | 'done'
 
+/** Genre français seulement : il choisit la forme du message, jamais une donnée. */
 const IMPORT_MEDIUM_GRAMMAR = {
-  films: { pluralLabel: 'films', gender: 'masculine' },
-  series: { pluralLabel: 'séries', gender: 'feminine' },
-  books: { pluralLabel: 'livres', gender: 'masculine' },
-  games: { pluralLabel: 'jeux', gender: 'masculine' },
-  artworks: { pluralLabel: 'œuvres', gender: 'feminine' },
+  films: { gender: 'masculine' },
+  series: { gender: 'feminine' },
+  books: { gender: 'masculine' },
+  games: { gender: 'masculine' },
+  artworks: { gender: 'feminine' },
 } as const
+
+/** Pluriel du libellé de bibliothèque : deux formes sources, choisies par le compte. */
+const LIBRARY_PLURALS: Record<string, string> = {
+  Films: 'films',
+  Séries: 'séries',
+  'Animation japonaise': 'animations japonaises',
+  Livres: 'livres',
+  Mangas: 'mangas',
+  Jeux: 'jeux',
+  Art: 'œuvres',
+}
+
+/** Champs laissés vides au bilan : clés françaises traduites au rendu. */
+const EMPTY_FIELD_LABELS: Record<string, string> = {
+  note: 'note',
+  avis: 'avis',
+  visuel: 'visuel',
+  couverture: 'couverture',
+  affiche: 'affiche',
+}
+
+/** Formes verbales du bilan d'import, une clé explicite par nombre. */
+const IMPORT_RESULT_WORDS = {
+  films: { added: ['{count} film ajouté', '{count} films ajoutés'], updated: ['{count} mis à jour', '{count} mis à jour'], removed: ['{count} remplacé', '{count} remplacés'] },
+  series: { added: ['{count} série ajoutée', '{count} séries ajoutées'], updated: ['{count} mise à jour', '{count} mises à jour'], removed: ['{count} remplacée', '{count} remplacées'] },
+  books: { added: ['{count} livre ajouté', '{count} livres ajoutés'], updated: ['{count} mis à jour', '{count} mis à jour'], removed: ['{count} remplacé', '{count} remplacés'] },
+  games: { added: ['{count} jeu ajouté', '{count} jeux ajoutés'], updated: ['{count} mis à jour', '{count} mis à jour'], removed: ['{count} remplacé', '{count} remplacés'] },
+  artworks: { added: ['{count} œuvre ajoutée', '{count} œuvres ajoutées'], updated: ['{count} mise à jour', '{count} mises à jour'], removed: ['{count} remplacée', '{count} remplacées'] },
+} as const
+
+type ImportKind = keyof typeof IMPORT_RESULT_WORDS
+
+/** Bilan d'écriture : trois propositions assemblées, jamais un pluriel fabriqué. */
+export function importReportText(kind: ImportKind, result: { inserted: number; updated: number; removed: number }): string {
+  const words = IMPORT_RESULT_WORDS[kind]
+  const parts = [t(result.inserted === 1 ? words.added[0] : words.added[1], { count: formatNumber(result.inserted) })]
+  parts.push(t(result.updated === 1 ? words.updated[0] : words.updated[1], { count: formatNumber(result.updated) }))
+  if (result.removed > 0) parts.push(t(result.removed === 1 ? words.removed[0] : words.removed[1], { count: formatNumber(result.removed) }))
+  return `${parts.join(', ')}.`
+}
+
+/** Une erreur d'import est soit un message du domaine, soit une copie du composant. */
+type ImportError = { kind: 'domain'; message: string } | { kind: 'copy'; source: string }
+
+function importErrorText(error: ImportError): string {
+  return error.kind === 'domain' ? translateMessage(error.message) : t(error.source)
+}
 
 type BaseProps = {
   buttonLabel: string
@@ -124,10 +173,11 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
   const [choosingFile, setChoosingFile] = useState(false)
   const [thirdParty, setThirdParty] = useState<{ source: PickedAnyImportFile; preview: ThirdPartyImportPreview } | null>(null)
   const targetLibrary = props.kind === 'series' ? props.seriesLibrary ?? 'series' : props.kind === 'books' ? props.bookLibrary ?? 'books' : props.kind
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ImportError | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [importedCount, setImportedCount] = useState(0)
-  const [report, setReport] = useState<string | null>(null)
+  /** Bilan d'écriture gardé sous forme de nombres : traduit au rendu. */
+  const [report, setReport] = useState<{ kind: ImportKind; result: { inserted: number; updated: number; removed: number } } | null>(null)
   /** Résumé final (0.6.4) : champs laissés vides et lignes ignorées, par œuvre. */
   const [finalSummary, setFinalSummary] = useState<{ skippedLines: string[]; emptyFields: Array<{ title: string; fields: string[] }> }>({ skippedLines: [], emptyFields: [] })
   const [externalFilmSource, setExternalFilmSource] = useState<PickedFilmsImportFile | null>(null)
@@ -223,7 +273,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
             ? parseGamesCollectionJson(contents)
             : parseArtworksCollectionJson(contents)
     if (parsed.items === null) {
-      setError(parsed.error)
+      setError({ kind: 'domain', message: parsed.error })
       return
     }
     if (props.kind === 'films') setFilmsImported(parsed.items as Film[])
@@ -293,7 +343,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       return
     }
     if (picked.kind !== 'csv') {
-      setError('Ce conteneur ne contient aucun CSV directement importable dans cette bibliothèque.')
+      setError({ kind: 'copy', source: 'Ce conteneur ne contient aucun CSV directement importable dans cette bibliothèque.' })
       return
     }
     const contents = picked.csvCandidates[0]?.contents
@@ -309,13 +359,13 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
     try {
       const picked = await pick()
       if (!picked) {
-        setError('Sélection annulée. Aucune donnée n’a été écrite.')
+        setError({ kind: 'copy', source: 'Sélection annulée. Aucune donnée n’a été écrite.' })
         return
       }
       preparePicked(picked)
     } catch (cause) {
       console.error('Impossible de lire le fichier d’import.', cause)
-      setError('Le fichier choisi n’a pas pu être lu. Aucune donnée n’a été écrite.')
+      setError({ kind: 'copy', source: 'Le fichier choisi n’a pas pu être lu. Aucune donnée n’a été écrite.' })
     } finally {
       setChoosingFile(false)
     }
@@ -459,29 +509,29 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       if (props.kind === 'films') {
         const prepared = prepareFilmsImport(mode, props.existing, imported as Film[])
         const result = await writeFilmsImport(props.profileId, prepared, resolutions)
-        setReport(`${result.inserted} film${result.inserted > 1 ? 's' : ''} ajouté${result.inserted > 1 ? 's' : ''}, ${result.updated} mis à jour${result.removed > 0 ? `, ${result.removed} remplacé${result.removed > 1 ? 's' : ''}` : ''}.`)
+        setReport({ kind: 'films', result })
       } else if (props.kind === 'series') {
         const prepared = prepareSeriesImport(mode, props.existing, imported as Series[])
         const result = await writeSeriesImport(props.profileId, prepared, resolutions, undefined, undefined, props.kind === 'series' ? props.seriesLibrary ?? 'series' : 'series')
-        setReport(`${result.inserted} série${result.inserted > 1 ? 's' : ''} ajoutée${result.inserted > 1 ? 's' : ''}, ${result.updated} mise${result.updated > 1 ? 's' : ''} à jour${result.removed > 0 ? `, ${result.removed} remplacée${result.removed > 1 ? 's' : ''}` : ''}.`)
+        setReport({ kind: 'series', result })
       } else if (props.kind === 'books') {
         const prepared = prepareBooksImport(mode, props.existing, imported as Book[])
         const result = await writeBooksImport(props.profileId, prepared, resolutions, undefined, undefined, props.kind === 'books' ? props.bookLibrary ?? 'books' : 'books')
-        setReport(`${result.inserted} livre${result.inserted > 1 ? 's' : ''} ajouté${result.inserted > 1 ? 's' : ''}, ${result.updated} mis à jour${result.removed > 0 ? `, ${result.removed} remplacé${result.removed > 1 ? 's' : ''}` : ''}.`)
+        setReport({ kind: 'books', result })
       } else if (props.kind === 'games') {
         const prepared = prepareGamesImport(mode, props.existing, imported as Game[])
         const result = await writeGamesImport(props.profileId, prepared, resolutions)
-        setReport(`${result.inserted} jeu${result.inserted > 1 ? 'x' : ''} ajouté${result.inserted > 1 ? 's' : ''}, ${result.updated} mis à jour${result.removed > 0 ? `, ${result.removed} remplacé${result.removed > 1 ? 's' : ''}` : ''}.`)
+        setReport({ kind: 'games', result })
       } else {
         const prepared = prepareArtworksImport(mode, props.existing, imported as Artwork[])
         const result = await writeArtworksImport(props.profileId, prepared, resolutions)
-        setReport(`${result.inserted} œuvre${result.inserted > 1 ? 's' : ''} ajoutée${result.inserted > 1 ? 's' : ''}, ${result.updated} mise${result.updated > 1 ? 's' : ''} à jour${result.removed > 0 ? `, ${result.removed} remplacée${result.removed > 1 ? 's' : ''}` : ''}.`)
+        setReport({ kind: 'artworks', result })
       }
       refreshOnClose.current = true
       setStep('done')
     } catch (cause) {
       console.error('L’import dans le profil courant a échoué.', cause)
-      setError('L’import a échoué. La transaction a été annulée ; la bibliothèque est inchangée.')
+      setError({ kind: 'copy', source: 'L’import a échoué. La transaction a été annulée ; la bibliothèque est inchangée.' })
       setStep('mode')
     } finally {
       writingRef.current = false
@@ -495,8 +545,10 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
       </button>
       {open && (
         <AccessibleDialog
-          title={`Importer · ${libraryLabel}`}
-          description={props.onPrepared ? `Préparer ${libraryLabel} pour « ${props.profileName} ». Aucune écriture avant la création finale du profil.` : `Profil « ${props.profileName} » · ${libraryLabel}. Aucune écriture avant confirmation.`}
+          title={t('Importer · {library}', { library: t(libraryLabel) })}
+          description={props.onPrepared
+            ? t('Préparer {library} pour « {profile} ». Aucune écriture avant la création finale du profil.', { library: t(libraryLabel), profile: props.profileName })
+            : t('Profil « {profile} » · {library}. Aucune écriture avant confirmation.', { profile: props.profileName, library: t(libraryLabel) })}
           onClose={close}
           closeDisabled={step === 'working' || choosingFile}
         >
@@ -531,29 +583,11 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
             />
           )}
           {step === 'container-source' && containerSource !== null && (
-            <div className="assistant-content">
-              <section className="assistant-stage">
-                <h3>Choisir les données à prévisualiser</h3>
-                <p>{containerSource.containerCandidates.length} candidat{containerSource.containerCandidates.length > 1 ? 's ont été détectés' : ' a été détecté'} dans <b>{containerSource.name}</b>. Le choix n’écrit encore aucune donnée.</p>
-                <div className="assistant-choice-grid">
-                  {containerSource.containerCandidates.map((candidate) => (
-                    <button
-                      className="transfer-choice"
-                      key={candidate.id}
-                      type="button"
-                      onClick={() => prepareContainerCandidate(containerSource, candidate)}
-                    >
-                      <span className="card-kicker">{candidate.kind.toUpperCase()}</span>
-                      <b>{candidate.name}</b>
-                      <small>Prévisualiser et valider avant import</small>
-                    </button>
-                  ))}
-                </div>
-                <div className="assistant-actions">
-                  <button className="secondary-button" type="button" onClick={() => { setContainerSource(null); setFileName(null); setStep('choose-file') }}>Choisir une autre source</button>
-                </div>
-              </section>
-            </div>
+            <ContainerSourcePanel
+              source={containerSource}
+              onPick={(candidate) => prepareContainerCandidate(containerSource, candidate)}
+              onChooseAnother={() => { setContainerSource(null); setFileName(null); setStep('choose-file') }}
+            />
           )}
           {step === 'external-preview' && props.kind === 'films' && externalFilmSource !== null && (
             <FilmCsvImportFlow
@@ -600,7 +634,7 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
           {step === 'mode' && (
             <ImportModeChoice
               mediumLabel={props.mediumLabel}
-              mediumPluralLabel={libraryLabel.toLocaleLowerCase('fr')}
+              mediumPluralLabel={LIBRARY_PLURALS[libraryLabel] ?? libraryLabel}
               mediumGender={IMPORT_MEDIUM_GRAMMAR[props.kind].gender}
               importedCount={importedCount}
               existingCount={props.existing.length}
@@ -669,80 +703,38 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
             />
           )}
           {step === 'confirm' && pendingImport && (
-            <div className="assistant-content">
-              <section className="import-final-review" aria-labelledby="import-final-title">
-                <h3 id="import-final-title">Confirmer l’import</h3>
-                <dl className="assistant-source-summary">
-                  <div><dt>Destination</dt><dd>{libraryLabel} · {props.profileName}</dd></div>
-                  <div><dt>Fichier</dt><dd>{fileName}</dd></div>
-                  <div><dt>Fiches analysées</dt><dd>{pendingImport.imported.length}</dd></div>
-                  <div><dt>Ajouts</dt><dd>{pendingImport.additions}</dd></div>
-                  <div><dt>Mises à jour</dt><dd>{pendingImport.updates}</dd></div>
-                  <div><dt>Suppressions</dt><dd>{pendingImport.removals}</dd></div>
-                  <div><dt>Mode</dt><dd>{pendingImport.mode === 'replace' ? 'Remplacer cette bibliothèque' : 'Fusionner avec l’existant'}</dd></div>
-                </dl>
-                <p>Les autres bibliothèques et les autres profils restent inchangés. L’écriture est réalisée en une transaction.</p>
-                {pendingImport.mode === 'replace' ? (
-                  <label className="import-replace-consent">
-                    <input type="checkbox" checked={replaceAcknowledged} onChange={event => setReplaceAcknowledged(event.target.checked)} />
-                    <span>Remplacer les {props.existing.length} fiches de {libraryLabel} par celles du fichier. Les fiches actuelles, leurs avis et leurs citations seront retirés. Conserver un export JSON avant cette opération.</span>
-                  </label>
-                ) : <p className="import-contextual-hint">Les nouveautés seront ajoutées. Pour les doublons, les choix de conservation précédents seront appliqués ; les informations personnelles existantes restent prioritaires par défaut.</p>}
-                <div className="assistant-actions">
-                  <button className="secondary-button" type="button" onClick={() => setStep('mode')}>Retour</button>
-                  <button className={pendingImport.mode === 'replace' ? 'primary-button danger' : 'primary-button'} type="button"
-                    disabled={pendingImport.mode === 'replace' && !replaceAcknowledged}
-                    onClick={() => void confirmImport(pendingImport.mode, pendingImport.resolutions, pendingImport.imported)}>
-                    {pendingImport.mode === 'replace' ? 'Confirmer le remplacement' : 'Importer les fiches'}
-                  </button>
-                </div>
-              </section>
-            </div>
+            <ImportConfirmPanel
+              libraryLabel={libraryLabel}
+              profileName={props.profileName}
+              fileName={fileName}
+              importedCount={pendingImport.imported.length}
+              additions={pendingImport.additions}
+              updates={pendingImport.updates}
+              removals={pendingImport.removals}
+              mode={pendingImport.mode}
+              existingCount={props.existing.length}
+              replaceAcknowledged={replaceAcknowledged}
+              onAcknowledge={setReplaceAcknowledged}
+              onBack={() => setStep('mode')}
+              onConfirm={() => void confirmImport(pendingImport.mode, pendingImport.resolutions, pendingImport.imported)}
+            />
           )}
           {step === 'working' && (
             <div className="assistant-content">
-              <p className="assistant-introduction">Import en cours…</p>
+              <p className="assistant-introduction">{t("Import en cours…")}</p>
             </div>
           )}
           {step === 'done' && (
-            <div className="assistant-content">
-              <div className="import-report" role="status">
-                <h3>Import terminé</h3>
-                <ul>
-                  {fileName && <li>Fichier lu : {fileName}</li>}
-                  {report && <li>{report}</li>}
-                  {finalSummary.skippedLines.length > 0 && (
-                    <li>
-                      {finalSummary.skippedLines.length} ligne{finalSummary.skippedLines.length > 1 ? 's ignorées' : ' ignorée'} — sans titre, non créée{finalSummary.skippedLines.length > 1 ? 's' : ''} ({finalSummary.skippedLines.join(', ')})
-                    </li>
-                  )}
-                  <li>Profil courant conservé</li>
-                  {thirdParty && <li>{thirdParty.preview.service === 'letterboxd' ? 'Letterboxd' : 'Goodreads'} : {thirdParty.preview.warnings.length} avertissements présentés avant import ; le fichier original est à conserver pour les colonnes exclues.</li>}
-                </ul>
-                {finalSummary.emptyFields.length > 0 && (
-                  <details className="final-summary-fields" open={finalSummary.emptyFields.length <= 12}>
-                    <summary>
-                      Champs laissés vides sur {finalSummary.emptyFields.length} fiche{finalSummary.emptyFields.length > 1 ? 's' : ''} — à compléter ultérieurement
-                    </summary>
-                    <ul className="final-summary-list">
-                      {finalSummary.emptyFields.map((entry) => (
-                        <li key={entry.title}>
-                          <b>{entry.title}</b> — {entry.fields.join(', ')}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-                {finalSummary.emptyFields.length === 0 && finalSummary.skippedLines.length === 0 && (
-                  <p className="import-hint">Toutes les données reconnues ont été importées.</p>
-                )}
-              </div>
-              <div className="assistant-actions assistant-actions-single">
-                <button className="primary-button" type="button" onClick={close}>Fermer</button>
-              </div>
-            </div>
+            <ImportDonePanel
+              fileName={fileName}
+              report={report}
+              finalSummary={finalSummary}
+              thirdPartyService={thirdParty === null ? null : thirdParty.preview.service}
+              thirdPartyWarningCount={thirdParty?.preview.warnings.length ?? 0}
+              onClose={close}
+            />
           )}
-          {error && <p className="inline-report error" role="alert">{error}</p>}
+          {error && <ImportErrorAlert error={error} />}
         </AccessibleDialog>
       )}
     </>
@@ -764,15 +756,15 @@ function JsonImportPreview({ mediumLabel, fileName, items, onChooseAnother, onCo
   return (
     <div className="assistant-content import-json-review-content">
       <section className="assistant-stage import-json-review" aria-labelledby="import-json-review-title">
-        <h3 id="import-json-review-title">Aperçu de {mediumLabel}</h3>
+        <h3 id="import-json-review-title">{t('Aperçu de {medium}', { medium: t(mediumLabel) })}</h3>
         <dl className="assistant-source-summary">
-          <div><dt>Fichier sélectionné</dt><dd title={fileName ?? undefined}>{fileName ?? 'Nom du fichier inconnu'}</dd></div>
-          <div><dt>Fiches reconnues</dt><dd>{items.length}</dd></div>
+          <div><dt>{t("Fichier sélectionné")}</dt><dd title={fileName ?? undefined}>{fileName ?? t('Nom du fichier inconnu')}</dd></div>
+          <div><dt>{t("Fiches reconnues")}</dt><dd>{formatNumber(items.length)}</dd></div>
         </dl>
-        <p className="import-json-review-label">Titres détectés</p>
+        <p className="import-json-review-label">{t("Titres détectés")}</p>
         <ol
           className="import-title-preview"
-          aria-label={`Titres détectés · ${mediumLabel}`}
+          aria-label={t('Titres détectés · {medium}', { medium: t(mediumLabel) })}
         >
           {items.slice(0, 5).map((item, index) => (
             <li key={index + ':' + item.title}>{item.title}</li>
@@ -780,17 +772,203 @@ function JsonImportPreview({ mediumLabel, fileName, items, onChooseAnother, onCo
         </ol>
         {remainingCount > 0 && (
           <p className="import-title-preview-note">
-            Les 5 premiers titres sont affichés. {remainingCount === 1 ? 'Une autre fiche n’est pas listée.' : `${remainingCount} autres fiches ne sont pas listées.`}
+            {t(remainingCount === 1
+              ? 'Les 5 premiers titres sont affichés. Une autre fiche n’est pas listée.'
+              : 'Les 5 premiers titres sont affichés. {count} autres fiches ne sont pas listées.', { count: formatNumber(remainingCount) })}
           </p>
         )}
         <p className="import-contextual-hint">
-          Rien n’est encore écrit. Continuer pour comparer les fiches ou remplacer cette bibliothèque.
+          {t("Rien n’est encore écrit. Continuer pour comparer les fiches ou remplacer cette bibliothèque.")}
         </p>
         <div className="assistant-actions">
-          <button className="secondary-button" type="button" onClick={onChooseAnother}>Choisir un autre fichier</button>
-          <button className="primary-button" type="button" onClick={onContinue}>Continuer</button>
+          <button className="secondary-button" type="button" onClick={onChooseAnother}>{t("Choisir un autre fichier")}</button>
+          <button className="primary-button" type="button" onClick={onContinue}>{t("Continuer")}</button>
         </div>
       </section>
     </div>
   )
+}
+
+/** Étape « plusieurs tables dans le conteneur » : choix pur, aucune écriture. */
+function ContainerSourcePanel({
+  source,
+  onPick,
+  onChooseAnother,
+}: {
+  source: Extract<PickedAnyImportFile, { kind: 'container' }>
+  onPick: (candidate: ImportContainerCandidate) => void
+  onChooseAnother: () => void
+}) {
+  const count = source.containerCandidates.length
+  return (
+    <div className="assistant-content">
+      <section className="assistant-stage">
+        <h3>{t("Choisir les données à prévisualiser")}</h3>
+        <p>
+          {t(count === 1 ? '{count} candidat a été détecté dans' : '{count} candidats ont été détectés dans', { count: formatNumber(count) })}{' '}
+          <b>{source.name}</b>
+          {t('. Le choix n’écrit encore aucune donnée.')}
+        </p>
+        <div className="assistant-choice-grid">
+          {source.containerCandidates.map((candidate) => (
+            <button
+              className="transfer-choice"
+              key={candidate.id}
+              type="button"
+              onClick={() => onPick(candidate)}
+            >
+              <span className="card-kicker">{candidate.kind.toUpperCase()}</span>
+              <b>{candidate.name}</b>
+              <small>{t("Prévisualiser et valider avant import")}</small>
+            </button>
+          ))}
+        </div>
+        <div className="assistant-actions">
+          <button className="secondary-button" type="button" onClick={onChooseAnother}>{t("Choisir une autre source")}</button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+/** Récapitulatif final avant écriture : les nombres viennent du plan de fusion. */
+function ImportConfirmPanel({
+  libraryLabel,
+  profileName,
+  fileName,
+  importedCount,
+  additions,
+  updates,
+  removals,
+  mode,
+  existingCount,
+  replaceAcknowledged,
+  onAcknowledge,
+  onBack,
+  onConfirm,
+}: {
+  libraryLabel: string
+  profileName: string
+  fileName: string | null
+  importedCount: number
+  additions: number
+  updates: number
+  removals: number
+  mode: ImportMode
+  existingCount: number
+  replaceAcknowledged: boolean
+  onAcknowledge: (acknowledged: boolean) => void
+  onBack: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div className="assistant-content">
+      <section className="import-final-review" aria-labelledby="import-final-title">
+        <h3 id="import-final-title">{t("Confirmer l’import")}</h3>
+        <dl className="assistant-source-summary">
+          <div><dt>{t("Destination")}</dt><dd>{t(libraryLabel)} · {profileName}</dd></div>
+          <div><dt>{t("Fichier")}</dt><dd>{fileName}</dd></div>
+          <div><dt>{t("Fiches analysées")}</dt><dd>{formatNumber(importedCount)}</dd></div>
+          <div><dt>{t("Ajouts")}</dt><dd>{formatNumber(additions)}</dd></div>
+          <div><dt>{t("Mises à jour")}</dt><dd>{formatNumber(updates)}</dd></div>
+          <div><dt>{t("Suppressions")}</dt><dd>{formatNumber(removals)}</dd></div>
+          <div><dt>{t("Mode")}</dt><dd>{t(mode === 'replace' ? 'Remplacer cette bibliothèque' : 'Fusionner avec l’existant')}</dd></div>
+        </dl>
+        <p>{t("Les autres bibliothèques et les autres profils restent inchangés. L’écriture est réalisée en une transaction.")}</p>
+        {mode === 'replace' ? (
+          <label className="import-replace-consent">
+            <input type="checkbox" checked={replaceAcknowledged} onChange={event => onAcknowledge(event.target.checked)} />
+            <span>{t(existingCount === 1
+              ? 'Remplacer la fiche de {library} par celle du fichier. La fiche actuelle, ses avis et ses citations seront retirés. Conserver un export JSON avant cette opération.'
+              : 'Remplacer les {count} fiches de {library} par celles du fichier. Les fiches actuelles, leurs avis et leurs citations seront retirés. Conserver un export JSON avant cette opération.', { count: formatNumber(existingCount), library: t(libraryLabel) })}</span>
+          </label>
+        ) : <p className="import-contextual-hint">{t("Les nouveautés seront ajoutées. Pour les doublons, les choix de conservation précédents seront appliqués ; les informations personnelles existantes restent prioritaires par défaut.")}</p>}
+        <div className="assistant-actions">
+          <button className="secondary-button" type="button" onClick={onBack}>{t("Retour")}</button>
+          <button className={mode === 'replace' ? 'primary-button danger' : 'primary-button'} type="button"
+            disabled={mode === 'replace' && !replaceAcknowledged}
+            onClick={onConfirm}>
+            {t(mode === 'replace' ? 'Confirmer le remplacement' : 'Importer les fiches')}
+          </button>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+type ImportFinalSummary = { skippedLines: string[]; emptyFields: Array<{ title: string; fields: string[] }> }
+
+/** Bilan de fin d'import : les rapports du domaine y arrivent déjà interpolés. */
+function ImportDonePanel({
+  fileName,
+  report,
+  finalSummary,
+  thirdPartyService,
+  thirdPartyWarningCount,
+  onClose,
+}: {
+  fileName: string | null
+  report: { kind: ImportKind; result: { inserted: number; updated: number; removed: number } } | null
+  finalSummary: ImportFinalSummary
+  thirdPartyService: 'letterboxd' | 'goodreads' | null
+  thirdPartyWarningCount: number
+  onClose: () => void
+}) {
+  const skippedCount = finalSummary.skippedLines.length
+  const emptyCount = finalSummary.emptyFields.length
+  return (
+    <div className="assistant-content">
+      <div className="import-report" role="status">
+        <h3>{t("Import terminé")}</h3>
+        <ul>
+          {fileName && <li>{t('Fichier lu : {file}', { file: fileName })}</li>}
+          {report && <li>{importReportText(report.kind, report.result)}</li>}
+          {skippedCount > 0 && (
+            <li>
+              {t(skippedCount === 1
+                ? '{count} ligne ignorée — sans titre, non créée ({lines})'
+                : '{count} lignes ignorées — sans titre, non créées ({lines})', {
+                count: formatNumber(skippedCount),
+                lines: finalSummary.skippedLines.map(translateMessage).join(', '),
+              })}
+            </li>
+          )}
+          <li>{t("Profil courant conservé")}</li>
+          {thirdPartyService !== null && <li>{t(thirdPartyWarningCount === 1
+            ? '{service} : {count} avertissement présenté avant import ; le fichier original est à conserver pour les colonnes exclues.'
+            : '{service} : {count} avertissements présentés avant import ; le fichier original est à conserver pour les colonnes exclues.', {
+            service: thirdPartyService === 'letterboxd' ? 'Letterboxd' : 'Goodreads',
+            count: formatNumber(thirdPartyWarningCount),
+          })}</li>}
+        </ul>
+        {emptyCount > 0 && (
+          <details className="final-summary-fields" open={emptyCount <= 12}>
+            <summary>
+              {t(emptyCount === 1
+                ? 'Champs laissés vides sur {count} fiche — à compléter ultérieurement'
+                : 'Champs laissés vides sur {count} fiches — à compléter ultérieurement', { count: formatNumber(emptyCount) })}
+            </summary>
+            <ul className="final-summary-list">
+              {finalSummary.emptyFields.map((entry) => (
+                <li key={entry.title}>
+                  <b>{entry.title}</b> — {entry.fields.map((field) => t(EMPTY_FIELD_LABELS[field] ?? field)).join(', ')}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {emptyCount === 0 && skippedCount === 0 && (
+          <p className="import-hint">{t("Toutes les données reconnues ont été importées.")}</p>
+        )}
+      </div>
+      <div className="assistant-actions assistant-actions-single">
+        <button className="primary-button" type="button" onClick={onClose}>{t("Fermer")}</button>
+      </div>
+    </div>
+  )
+}
+
+/** Erreur d'étape : copie du composant ou message du domaine, traduits au rendu. */
+function ImportErrorAlert({ error }: { error: ImportError }) {
+  return <p className="inline-report error" role="alert">{importErrorText(error)}</p>
 }

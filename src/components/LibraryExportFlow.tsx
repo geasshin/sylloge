@@ -1,3 +1,4 @@
+import { formatNumber, t } from '../i18n/core.ts'
 import { useState } from 'react'
 import { libraryRepository } from '../data/libraryRepository.ts'
 import { saveExportCsv, saveExportJson } from '../data/nativePortability.ts'
@@ -14,6 +15,7 @@ import { AccessibleDialog } from './AccessibleDialog.tsx'
 
 export type LibraryExportMedium = CsvCollectionMedium
 
+/** Noms français de bibliothèque : traduits au rendu, jamais stockés. */
 const MEDIUM_LABELS: Record<LibraryExportMedium, string> = {
   films: 'Films',
   series: 'Séries',
@@ -24,13 +26,56 @@ const MEDIUM_LABELS: Record<LibraryExportMedium, string> = {
   artworks: 'Art',
 }
 
+/** Deux clés explicites par médium : le français ne fabrique aucun pluriel. */
+const MEDIUM_NOUNS: Record<LibraryExportMedium, readonly [string, string]> = {
+  films: ['film', 'films'],
+  series: ['série', 'séries'],
+  anime: ['animation japonaise', 'animations japonaises'],
+  books: ['livre', 'livres'],
+  mangas: ['manga', 'mangas'],
+  games: ['jeu', 'jeux'],
+  artworks: ['œuvre', 'œuvres'],
+}
+
 type ExportFormat = 'json' | 'csv'
+type ExportScope = 'collection' | 'profile'
 
 type LibraryExportFlowProps = {
   kind: LibraryExportMedium
   profileId: string
   bookLibrary?: BookLibraryKey
   seriesLibrary?: SeriesLibraryKey
+}
+
+/** Message du bilan : une description traduite au rendu, jamais une phrase figée. */
+export type ExportMessage =
+  | { kind: 'saved-json'; file: string; count: number; scope: ExportScope; medium: LibraryExportMedium }
+  | { kind: 'saved-csv'; file: string; count: number; medium: LibraryExportMedium }
+  | { kind: 'cancelled'; format: ExportFormat }
+  | { kind: 'failed' }
+
+export function exportMessageText(message: ExportMessage): string {
+  if (message.kind === 'saved-json') {
+    const scope = message.scope === 'profile' ? t('tout le profil') : t(MEDIUM_LABELS[message.medium])
+    return t(message.count === 1
+      ? 'Export JSON enregistré dans « {file} » · {count} fiche · {scope}.'
+      : 'Export JSON enregistré dans « {file} » · {count} fiches · {scope}.', {
+      file: message.file,
+      count: formatNumber(message.count),
+      scope,
+    })
+  }
+  if (message.kind === 'saved-csv') {
+    return t('Export CSV enregistré dans « {file} » avec {count} {medium}.', {
+      file: message.file,
+      count: formatNumber(message.count),
+      medium: t(message.count === 1 ? MEDIUM_NOUNS[message.medium][0] : MEDIUM_NOUNS[message.medium][1]),
+    })
+  }
+  if (message.kind === 'cancelled') {
+    return t(message.format === 'json' ? 'Export annulé. Aucun fichier n’a été écrit.' : 'Export CSV annulé. Aucun fichier n’a été écrit.')
+  }
+  return t('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
 }
 
 function collectionOnly(library: CulturalLibrary, kind: LibraryExportMedium): CulturalLibrary {
@@ -56,6 +101,34 @@ function exportMedium(kind: LibraryExportMedium, bookLibrary?: BookLibraryKey, s
   return kind
 }
 
+function countExported(library: CulturalLibrary, medium: LibraryExportMedium, scope: ExportScope): number {
+  if (scope === 'collection') return library[medium].length
+  return library.films.length + library.series.length + library.anime.length + library.books.length
+    + library.mangas.length + library.games.length + library.artworks.length
+}
+
+/**
+ * Nom de fichier et contenu du contrat d'export : calculés ici une seule fois,
+ * identiques dans toutes les langues (aucun libellé traduit n'y entre).
+ */
+export function planLibraryExport(
+  format: ExportFormat,
+  scope: ExportScope,
+  medium: LibraryExportMedium,
+  library: CulturalLibrary,
+  exportedAt: string = new Date().toISOString(),
+): { suggestedName: string; contents: string } {
+  if (format === 'json') {
+    const document = createLibraryDocument(scope === 'profile' ? library : collectionOnly(library, medium), exportedAt)
+    const suggestedName = scope === 'profile'
+      ? libraryExportFileName(document.exportedAt)
+      : libraryExportFileName(document.exportedAt).replace('sylloge-sauvegarde-', `sylloge-${medium}-`)
+    return { suggestedName, contents: serializeLibraryDocument(document) }
+  }
+  const exported = createCollectionCsvExport(library, medium, exportedAt)
+  return { suggestedName: exported.fileName, contents: exported.contents }
+}
+
 /**
  * Export unitaire d'une bibliothèque (jalon 0.4.29) : un seul bouton
  * « Exporter » ouvre un dialogue qui liste les formats proposés — JSON
@@ -64,9 +137,9 @@ function exportMedium(kind: LibraryExportMedium, bookLibrary?: BookLibraryKey, s
  */
 export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary }: LibraryExportFlowProps) {
   const [open, setOpen] = useState(false)
-  const [scope, setScope] = useState<'collection' | 'profile'>('collection')
+  const [scope, setScope] = useState<ExportScope>('collection')
   const [saving, setSaving] = useState<ExportFormat | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
+  const [message, setMessage] = useState<ExportMessage | null>(null)
   const medium = exportMedium(kind, bookLibrary, seriesLibrary)
   const mediumLabel = MEDIUM_LABELS[medium]
 
@@ -76,30 +149,19 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
     setMessage(null)
     try {
       const loaded = await libraryRepository.loadLibrary(profileId)
-      if (format === 'json') {
-        const document = createLibraryDocument(scope === 'profile' ? loaded : collectionOnly(loaded, medium))
-        const suggestedName = scope === 'profile' ? libraryExportFileName(document.exportedAt) : libraryExportFileName(document.exportedAt).replace('sylloge-sauvegarde-', `sylloge-${medium}-`)
-        const savedName = await saveExportJson(suggestedName, serializeLibraryDocument(document))
-        const count = scope === 'profile'
-          ? loaded.films.length + loaded.series.length + loaded.anime.length + loaded.books.length + loaded.mangas.length + loaded.games.length + loaded.artworks.length
-          : loaded[medium].length
-        setMessage(savedName ? `Export JSON enregistré dans « ${savedName} » · ${count} fiches · ${scope === 'profile' ? 'tout le profil' : mediumLabel}.` : 'Export annulé. Aucun fichier n’a été écrit.')
-      } else {
-        const exported = createCollectionCsvExport(loaded, medium)
-        const savedName = await saveExportCsv(exported.fileName, exported.contents)
-        const countLabel = medium === 'anime'
-          ? exported.count === 1 ? 'animation japonaise' : 'animations japonaises'
-          : medium === 'mangas'
-            ? exported.count === 1 ? 'manga' : 'mangas'
-            : exported.count === 1 ? exported.mediumLabel : `${exported.mediumLabel}s`
-        setMessage(savedName
-          ? `Export CSV enregistré dans « ${savedName} » avec ${exported.count} ${countLabel}.`
-          : 'Export CSV annulé. Aucun fichier n’a été écrit.')
-      }
+      const plan = planLibraryExport(format, scope, medium, loaded)
+      const savedName = format === 'json'
+        ? await saveExportJson(plan.suggestedName, plan.contents)
+        : await saveExportCsv(plan.suggestedName, plan.contents)
       // Le bilan reste lisible dans la fenêtre, y compris en cas d’annulation.
+      setMessage(savedName
+        ? format === 'json'
+          ? { kind: 'saved-json', file: savedName, count: countExported(loaded, medium, scope), scope, medium }
+          : { kind: 'saved-csv', file: savedName, count: countExported(loaded, medium, 'collection'), medium }
+        : { kind: 'cancelled', format })
     } catch (error) {
       console.error(`Impossible d’exporter ${mediumLabel}.`, error)
-      setMessage('L’export a échoué. La bibliothèque locale n’a pas été modifiée.')
+      setMessage({ kind: 'failed' })
     } finally {
       setSaving(null)
     }
@@ -108,49 +170,80 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
   return (
     <span className="transfer-action">
       <button className="secondary-button" type="button" onClick={() => { setScope('collection'); setMessage(null); setOpen(true) }}>
-        Exporter
+        {t("Exporter")}
       </button>
-      {message && !open && <span className="transfer-action-message" role="status">{message}</span>}
+      {message && !open && <span className="transfer-action-message" role="status">{exportMessageText(message)}</span>}
       {open && (
         <AccessibleDialog
-          title={scope === 'profile' ? 'Exporter tout le profil' : `Exporter ${mediumLabel}`}
-          description="Choisir le format du fichier. La bibliothèque locale n’est pas modifiée."
+          title={scope === 'profile' ? t('Exporter tout le profil') : t('Exporter {medium}', { medium: t(mediumLabel) })}
+          description={t("Choisir le format du fichier. La bibliothèque locale n’est pas modifiée.")}
           closeDisabled={saving !== null}
           onClose={() => setOpen(false)}
           size="md"
         >
-          <div className="assistant-content export-review">
-          <fieldset className="transfer-scope">
-            <legend>Contenu à exporter</legend>
-            <label><input type="radio" name="export-scope" checked={scope === 'collection'} disabled={saving !== null} onChange={() => setScope('collection')} />{mediumLabel} uniquement</label>
-            <label><input type="radio" name="export-scope" checked={scope === 'profile'} disabled={saving !== null} onChange={() => setScope('profile')} />Tout le profil · toutes ses bibliothèques</label>
-          </fieldset>
-          <p className="import-contextual-hint">JSON pour conserver une copie réimportable ; CSV pour travailler dans un tableur. Aucun envoi en ligne, aucune modification des fiches.</p>
-          <div className="export-format-options">
-            <button
-              className="export-format-option"
-              type="button"
-              disabled={saving !== null}
-              onClick={() => void runExport('json')}
-            >
-              <b>{saving === 'json' ? 'Export en cours…' : 'JSON Sylloge'}</b>
-              <small>Copie réimportable des données personnelles : notes, avis, dates, favoris, progression et citations. Les caches fournisseurs et les réglages de l’application sont exclus.</small>
-            </button>
-            {scope === 'collection' && <button
-              className="export-format-option"
-              type="button"
-              disabled={saving !== null}
-              onClick={() => void runExport('csv')}
-            >
-              <b>{saving === 'csv' ? 'Export en cours…' : 'CSV'}</b>
-              <small>Colonnes UTF-8 pour un tableur. Les citations restent des cellules JSON ; les champs libres d’Art et les identifiants de citations ne sont pas inclus. Privilégier JSON pour une copie fidèle.</small>
-            </button>}
-          </div>
-          {message && <p className="inline-report" role="status">{message}</p>}
-          <div className="assistant-actions"><button className="secondary-button" type="button" disabled={saving !== null} onClick={() => setOpen(false)}>Fermer</button></div>
-          </div>
+          <ExportDialogContent
+            mediumLabel={mediumLabel}
+            scope={scope}
+            saving={saving}
+            message={message === null ? null : exportMessageText(message)}
+            onScope={setScope}
+            onExport={(format) => void runExport(format)}
+            onClose={() => setOpen(false)}
+          />
         </AccessibleDialog>
       )}
     </span>
+  )
+}
+
+/** Contenu du dialogue, isolé du portail pour être rendu et testé seul. */
+export function ExportDialogContent({
+  mediumLabel,
+  scope,
+  saving,
+  message,
+  onScope,
+  onExport,
+  onClose,
+}: {
+  mediumLabel: string
+  scope: ExportScope
+  saving: ExportFormat | null
+  message: string | null
+  onScope: (scope: ExportScope) => void
+  onExport: (format: ExportFormat) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="assistant-content export-review">
+      <fieldset className="transfer-scope">
+        <legend>{t("Contenu à exporter")}</legend>
+        <label><input type="radio" name="export-scope" checked={scope === 'collection'} disabled={saving !== null} onChange={() => onScope('collection')} />{t('{medium} uniquement', { medium: t(mediumLabel) })}</label>
+        <label><input type="radio" name="export-scope" checked={scope === 'profile'} disabled={saving !== null} onChange={() => onScope('profile')} />{t("Tout le profil · toutes ses bibliothèques")}</label>
+      </fieldset>
+      <p className="import-contextual-hint">{t("JSON pour conserver une copie réimportable ; CSV pour travailler dans un tableur. Aucun envoi en ligne, aucune modification des fiches.")}</p>
+      <div className="export-format-options">
+        <button
+          className="export-format-option"
+          type="button"
+          disabled={saving !== null}
+          onClick={() => onExport('json')}
+        >
+          <b>{saving === 'json' ? t('Export en cours…') : 'JSON Sylloge'}</b>
+          <small>{t("Copie réimportable des données personnelles : notes, avis, dates, favoris, progression et citations. Les caches fournisseurs et les réglages de l’application sont exclus.")}</small>
+        </button>
+        {scope === 'collection' && <button
+          className="export-format-option"
+          type="button"
+          disabled={saving !== null}
+          onClick={() => onExport('csv')}
+        >
+          <b>{saving === 'csv' ? t('Export en cours…') : 'CSV'}</b>
+          <small>{t("Colonnes UTF-8 pour un tableur. Les citations restent des cellules JSON ; les champs libres d’Art et les identifiants de citations ne sont pas inclus. Privilégier JSON pour une copie fidèle.")}</small>
+        </button>}
+      </div>
+      {message && <p className="inline-report" role="status">{message}</p>}
+      <div className="assistant-actions"><button className="secondary-button" type="button" disabled={saving !== null} onClick={onClose}>{t("Fermer")}</button></div>
+    </div>
   )
 }

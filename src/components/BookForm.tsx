@@ -1,3 +1,4 @@
+import { t, translateMessage } from '../i18n/core.ts'
 import { useState, type FormEvent } from 'react'
 import {
   BOOK_CATEGORIES,
@@ -37,9 +38,9 @@ function previewableCoverUrl(value: string): string | null {
 function volumesSummary(read: string, total: string): string | null {
   const readCount = read.trim()
   const totalCount = total.trim()
-  if (readCount && totalCount) return `${readCount} sur ${totalCount} tomes`
-  if (readCount) return `${readCount} tome${Number(readCount) > 1 ? 's' : ''} lu${Number(readCount) > 1 ? 's' : ''}`
-  if (totalCount) return `${totalCount} tome${Number(totalCount) > 1 ? 's' : ''} au total`
+  if (readCount && totalCount) return t('{read} sur {total} tomes', { read: readCount, total: totalCount })
+  if (readCount) return t(Number(readCount) > 1 ? '{count} tomes lus' : '{count} tome lu', { count: readCount })
+  if (totalCount) return t(Number(totalCount) > 1 ? '{count} tomes au total' : '{count} tome au total', { count: totalCount })
   return null
 }
 
@@ -72,12 +73,12 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
   const today = localToday()
   // Une fiche liée à Open Library conserve une présentation éditoriale en lecture.
   const assisted = providerLink !== null
-  const previewTitle = values.title.trim() || 'Titre à renseigner'
+  const previewTitle = values.title.trim() || t("Titre à renseigner")
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const hasVolumes = values.category === 'manga'
     || values.volumesRead.trim() !== '' || values.volumesTotal.trim() !== ''
   const progressVisible = hasVolumes && (values.status === 'en cours' || values.status === 'abandonné' || values.status === 'lu')
-  const noun = values.category === 'manga' ? 'manga' : 'livre'
+  const manga = values.category === 'manga'
   // Une correction de type conserve l'avancement et ses champs éditables.
   const retainedProgress = values.category === 'livre' ? volumesSummary(values.volumesRead, values.volumesTotal) : null
   const ratingValue = values.rating === '' ? null : Number(values.rating)
@@ -149,7 +150,7 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{book ? 'Modifier la fiche' : `Ajouter un ${noun}`}</h1>
+      <h1 className="display-title">{book ? t("Modifier la fiche") : t(manga ? 'Ajouter un manga' : 'Ajouter un livre')}</h1>
     </div>
   )
 
@@ -177,26 +178,26 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
-              aria-label={values.category === 'manga' ? 'Titre du manga' : 'Titre du livre'}
+              aria-label={t(manga ? 'Titre du manga' : 'Titre du livre')}
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'book-title-error' : undefined}
               autoFocus={!assisted && !initialQuoteDraft}
             />
-            {errors.title && <p className="field-error" id="book-title-error">{errors.title}</p>}
+            {errors.title && <p className="field-error" id="book-title-error">{translateMessage(errors.title)}</p>}
           </div>
 
           {(book || !creationCategory) && <div className="field category-segmented">
-            <span className="field-label">Type</span>
+            <span className="field-label">{t("Type")}</span>
             <StatusSegmented
               statuses={BOOK_CATEGORIES}
               labels={BOOK_CATEGORY_LABELS}
               value={values.category}
               onChange={(next) => update('category', next as BookFormValues['category'])}
-              ariaLabel="Type de livre"
+              ariaLabel={t("Type de livre")}
             />
-            {errors.category && <p className="field-error" id="book-category-error">{errors.category}</p>}
+            {errors.category && <p className="field-error" id="book-category-error">{translateMessage(errors.category)}</p>}
             {retainedProgress && (
-              <p className="field-help">L’avancement « {retainedProgress} » est conservé après le changement de type. Ses compteurs restent modifiables ci-dessous.</p>
+              <p className="field-help">{t('L’avancement « {progress} » est conservé après le changement de type. Ses compteurs restent modifiables ci-dessous.', { progress: retainedProgress })}</p>
             )}
           </div>}
 
@@ -218,54 +219,54 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
                     type="date"
                     value={values.startedAt || today}
                     onChange={(event) => update('startedAt', event.target.value)}
-                    aria-label="Début de la lecture"
+                    aria-label={t("Début de la lecture")}
                     aria-invalid={Boolean(errors.startedAt)}
                   />
                 </div>
               )}
             </div>
-            {errors.status && <p className="field-error">{errors.status}</p>}
-            {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
+            {errors.status && <p className="field-error">{translateMessage(errors.status)}</p>}
+            {verdictVisible && errors.startedAt && <p className="field-error">{translateMessage(errors.startedAt)}</p>}
 
             {verdictVisible && progressVisible && (
               <fieldset className="progress-fields verdict-progress">
-                <legend>Avancement</legend>
+                <legend>{t("Avancement")}</legend>
                 <div className="form-row">
                   <Stepper
                     id="volumesRead"
-                    label="Tomes lus"
+                    label={t("Tomes lus")}
                     value={values.volumesRead}
                     onChange={(value) => update('volumesRead', value)}
                     max={values.volumesTotal.trim() === '' ? null : Number(values.volumesTotal)}
-                    error={errors.volumesRead}
+                    error={errors.volumesRead ? translateMessage(errors.volumesRead) : undefined}
                     describedBy={errors.volumesRead ? 'volumesRead-error' : undefined}
                   />
                   <Stepper
                     id="volumesTotal"
-                    label="Tomes au total"
+                    label={t("Tomes au total")}
                     value={values.volumesTotal}
                     onChange={(value) => update('volumesTotal', value)}
-                    error={errors.volumesTotal}
+                    error={errors.volumesTotal ? translateMessage(errors.volumesTotal) : undefined}
                     describedBy={errors.volumesTotal ? 'volumesTotal-error' : undefined}
                   />
                 </div>
                 {values.status === 'lu' && (
-                  <p className="field-help">Œuvre à jour : si un nouveau tome paraît, augmentez le total et elle repassera en cours.</p>
+                  <p className="field-help">{t("Œuvre à jour : si un nouveau tome paraît, augmentez le total et elle repassera en cours.")}</p>
                 )}
               </fieldset>
             )}
           </div>
 
           {providerLink && (
-            <section className="provider-information-card" aria-label={`Informations sur le ${noun} fournies par Open Library`}>
+            <section className="provider-information-card" aria-label={t(manga ? 'Informations sur le manga fournies par Open Library' : 'Informations sur le livre fournies par Open Library')}>
               <div className="provider-information-heading">
-                <strong>Informations sur le {noun}</strong>
-                <small>Données : {providerLink.providerName}</small>
+                <strong>{t(manga ? 'Informations sur le manga' : 'Informations sur le livre')}</strong>
+                <small>{t('Données : {provider}', { provider: providerLink.providerName })}</small>
               </div>
               <dl className="provider-information-list">
-                {values.author.trim() && <div><dt>Auteur ou autrice</dt><dd>{values.author}</dd></div>}
-                {values.year.trim() && <div><dt>Parution</dt><dd>{values.year}</dd></div>}
-                {values.summary.trim() && <div className="provider-information-summary"><dt>Résumé</dt><dd>{values.summary}</dd></div>}
+                {values.author.trim() && <div><dt>{t("Auteur ou autrice")}</dt><dd>{values.author}</dd></div>}
+                {values.year.trim() && <div><dt>{t("Parution")}</dt><dd>{values.year}</dd></div>}
+                {values.summary.trim() && <div className="provider-information-summary"><dt>{t("Résumé")}</dt><dd>{values.summary}</dd></div>}
               </dl>
             </section>
           )}
@@ -275,9 +276,9 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
               <textarea
                 id="book-personalNote"
                 name="personalNote"
-                aria-label="Critique personnelle"
+                aria-label={t("Critique personnelle")}
                 rows={5}
-                placeholder="Qu’as-tu pensé de ce livre ?"
+                placeholder={t("Qu’as-tu pensé de ce livre ?")}
                 value={values.personalNote}
                 onChange={(event) => update('personalNote', event.target.value)}
                 autoCorrect="off"
@@ -298,11 +299,11 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
           {!assisted && (
             <div className="secondary-fields editorial-open">
               <div className="field">
-                <label htmlFor="book-author">Auteur ou autrice</label>
+                <label htmlFor="book-author">{t("Auteur ou autrice")}</label>
                 <input id="book-author" value={values.author} onChange={(event) => update('author', event.target.value)} />
               </div>
               <div className="field">
-                <label htmlFor="book-year">Année de parution</label>
+                <label htmlFor="book-year">{t("Année de parution")}</label>
                 <input
                   id="book-year"
                   inputMode="numeric"
@@ -311,10 +312,10 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
                   aria-invalid={Boolean(errors.year)}
                   aria-describedby={errors.year ? 'book-year-error' : undefined}
                 />
-                {errors.year && <p className="field-error" id="book-year-error">{errors.year}</p>}
+                {errors.year && <p className="field-error" id="book-year-error">{translateMessage(errors.year)}</p>}
               </div>
               <div className="field">
-                <label htmlFor="book-summary">Résumé</label>
+                <label htmlFor="book-summary">{t("Résumé")}</label>
                 <textarea
                   id="book-summary"
                   rows={3}
@@ -327,13 +328,13 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
             </div>
           )}
 
-          {saveError && <p className="form-error" role="alert">{saveError}</p>}
+          {saveError && <p className="form-error" role="alert">{translateMessage(saveError)}</p>}
         </div>
 
         <footer className="form-actions form-actions-docked">
-          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>{t("Annuler")}</button>
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : book ? 'Enregistrer les modifications' : `Ajouter le ${noun}`}
+            {saving ? t("Enregistrement…") : book ? t("Enregistrer les modifications") : t(manga ? 'Ajouter le manga' : 'Ajouter le livre')}
           </button>
         </footer>
       </div>
@@ -355,7 +356,7 @@ export function BookForm({ book, creationCategory, initialValues, providerLink =
   return (
     <main className="main editor-main">
       <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+        <button className="back-button" type="button" onClick={onCancel}>{t("← Annuler")}</button>
       </header>
       {heading}
       {form}

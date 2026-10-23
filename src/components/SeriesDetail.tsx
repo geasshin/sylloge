@@ -1,18 +1,13 @@
 import { useState } from 'react'
 import {
-  SERIES_CATEGORY_LABELS,
   SERIES_STATUS_LABELS,
   type Series,
 } from '../domain/series.ts'
+import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 import { icon } from '../main.tsx'
-
-function formatCalendarDate(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
-}
 
 type SeriesDetailProps = {
   series: Series
@@ -34,8 +29,8 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
 
   const progress = series.seasonsSeen !== null
     ? series.seasonsTotal !== null
-      ? `${series.seasonsSeen} saison${series.seasonsSeen > 1 ? 's' : ''} sur ${series.seasonsTotal}`
-      : `${series.seasonsSeen} saison${series.seasonsSeen > 1 ? 's' : ''} vue${series.seasonsSeen > 1 ? 's' : ''}`
+      ? t(series.seasonsSeen === 1 ? '{count} saison sur {total}' : '{count} saisons sur {total}', { count: series.seasonsSeen, total: series.seasonsTotal })
+      : t(series.seasonsSeen === 1 ? '{count} saison vue' : '{count} saisons vues', { count: series.seasonsSeen })
     : null
 
   const deleteSeries = async () => {
@@ -55,21 +50,21 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
       <header className="page-action-bar detail-action-bar">
         <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={backLabel}>{icon('arrow-left')}</button>
         <div className="detail-actions">
-          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+          <button className="icon-action-button" type="button" onClick={onEdit} title={t("Modifier la fiche")}>
             {icon('pencil')}
-            <span>Modifier</span>
+            <span>{t("Modifier")}</span>
           </button>
           {onAssociate && (
-            <button className="icon-action-button" type="button" onClick={onAssociate} title="Associer à TMDB (recherche assistée)">
+            <button className="icon-action-button" type="button" onClick={onAssociate} title={t("Associer à TMDB (recherche assistée)")}>
               {icon('wand')}
-              <span>Associer</span>
+              <span>{t("Associer")}</span>
             </button>
           )}
           <button
             className="icon-action-button icon-action-danger"
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            title="Supprimer cette série"
+            title={t("Supprimer cette série")}
           >
             {icon('trash')}
           </button>
@@ -88,7 +83,7 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
             <div className="detail-rate">
               {series.rating !== null && (
                 <>
-                  <span className="stars-display" aria-label={`Note ${series.rating} sur 5`}>
+                  <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(series.rating) })}>
                     {[1, 2, 3, 4, 5].map((star) => {
                       const fill = Math.max(0, Math.min(1, series.rating! - star + 1))
                       return (
@@ -99,20 +94,20 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
                       )
                     })}
                   </span>
-                  <span className="rate-value">{series.rating.toLocaleString('fr-FR')}/5</span>
+                  <span className="rate-value">{formatNumber(series.rating)}/5</span>
                 </>
               )}
-              {series.isFavorite && <span className="heart-display on" aria-label="Coup de cœur">♥</span>}
+              {series.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
             </div>
           )}
         </div>
 
         <div className="detail-body">
-          <p className="eyebrow">{SERIES_CATEGORY_LABELS[series.category]}</p>
+          <p className="eyebrow">{t(series.category === 'animation' ? "Animation japonaise" : "Série télé")}</p>
           <h1 className="display-title">{series.title}</h1>
           {(series.showrunner || progress || series.startedAt) && (
             <p className="detail-factline">
-              {[series.showrunner, progress, series.startedAt ? `débutée le ${formatCalendarDate(series.startedAt)}` : null]
+              {[series.showrunner, progress, series.startedAt ? t('débutée le {date}', { date: formatDate(series.startedAt, { dateStyle: 'long' }) }) : null]
                 .filter(Boolean)
                 .join(' · ')}
             </p>
@@ -120,16 +115,16 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
 
           <dl className="detail-facts">
             {series.showrunner && (
-              <div><dt>Showrunner</dt><dd>{series.showrunner}</dd></div>
+              <div><dt>{t("Showrunner")}</dt><dd>{series.showrunner}</dd></div>
             )}
             {series.casting && (
-              <div><dt>Casting</dt><dd>{series.casting}</dd></div>
+              <div><dt>{t("Casting")}</dt><dd>{series.casting}</dd></div>
             )}
             {progress && (
-              <div><dt>Avancement</dt><dd>{progress}</dd></div>
+              <div><dt>{t("Avancement")}</dt><dd>{progress}</dd></div>
             )}
             {series.startedAt && (
-              <div><dt>Début du visionnage</dt><dd>{formatCalendarDate(series.startedAt)}</dd></div>
+              <div><dt>{t("Début du visionnage")}</dt><dd>{formatDate(series.startedAt, { dateStyle: 'long' })}</dd></div>
             )}
           </dl>
 
@@ -143,10 +138,10 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
             {series.personalNote ? (
               <>
                 <blockquote className="review-personal">{series.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier</button>
+                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
               </>
             ) : (
-              <p className="mine-empty">Ton avis s’écrira ici.</p>
+              <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
             )}
           </section>
         </div>
@@ -155,13 +150,13 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
       {confirmingDelete && (
         <div className="confirm-backdrop">
           <div className="delete-confirmation" role="alertdialog" aria-labelledby="series-delete-title" aria-describedby="series-delete-description">
-            <h2 id="series-delete-title">Supprimer définitivement cette série ?</h2>
-            <p id="series-delete-description">« {series.title} » sera retirée de la collection sans possibilité de restauration.</p>
-            {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
+            <h2 id="series-delete-title">{t("Supprimer définitivement cette série ?")}</h2>
+            <p id="series-delete-description">{t('« {title} » sera retirée de la collection sans possibilité de restauration.', { title: series.title })}</p>
+            {deleteError && <p className="field-error" role="alert">{translateMessage(deleteError)}</p>}
             <div>
-              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Annuler</button>
+              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>{t("Annuler")}</button>
               <button className="danger-button" type="button" onClick={deleteSeries} disabled={deleting}>
-                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+                {deleting ? t('Suppression…') : t("Supprimer définitivement")}
               </button>
             </div>
           </div>

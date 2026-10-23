@@ -1,4 +1,5 @@
 import { StrictMode, useMemo, useState } from 'react'
+import './qaLanguage.ts'
 import { createRoot } from 'react-dom/client'
 import { Home } from '../components/AtriumHome.tsx'
 import { MobileAppShell } from '../components/MobileAppShell.tsx'

@@ -1,3 +1,4 @@
+import { t, tc, translateMessage } from '../i18n/core.ts'
 import { useState, type FormEvent } from 'react'
 import {
   SERIES_CATEGORIES,
@@ -57,7 +58,7 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
   const today = localToday()
   // Une fiche liée à TMDB conserve une présentation éditoriale en lecture.
   const assisted = providerLink !== null
-  const previewTitle = values.title.trim() || 'Titre à renseigner'
+  const previewTitle = values.title.trim() || t("Titre à renseigner")
   const previewUrl = previewablePosterUrl(values.posterUrl)
   const animation = values.category === 'animation'
   const progressVisible = values.status === 'en cours' || values.status === 'abandonnée' || values.status === 'vue'
@@ -125,7 +126,7 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{series ? 'Modifier la fiche' : animation ? 'Ajouter une animation japonaise' : 'Ajouter une série'}</h1>
+      <h1 className="display-title">{series ? t("Modifier la fiche") : animation ? t("Ajouter une animation japonaise") : t("Ajouter une série")}</h1>
     </div>
   )
 
@@ -153,24 +154,24 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
-              aria-label={animation ? 'Titre de l’animation japonaise' : 'Titre de la série'}
+              aria-label={animation ? t("Titre de l’animation japonaise") : tc('series', "Titre de la série")}
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'series-title-error' : undefined}
               autoFocus={!assisted}
             />
-            {errors.title && <p className="field-error" id="series-title-error">{errors.title}</p>}
+            {errors.title && <p className="field-error" id="series-title-error">{translateMessage(errors.title)}</p>}
           </div>
 
           {(series || !creationCategory) && <div className="field category-segmented">
-            <span className="field-label">Type</span>
+            <span className="field-label">{t("Type")}</span>
             <StatusSegmented
               statuses={SERIES_CATEGORIES}
               labels={CATEGORY_LABELS}
               value={values.category}
               onChange={(next) => update('category', next as SeriesFormValues['category'])}
-              ariaLabel="Type de série"
+              ariaLabel={t("Type de série")}
             />
-            {errors.category && <p className="field-error" id="series-category-error">{errors.category}</p>}
+            {errors.category && <p className="field-error" id="series-category-error">{translateMessage(errors.category)}</p>}
           </div>}
 
           {/* Le verdict personnel */}
@@ -191,26 +192,26 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
                     type="date"
                     value={values.startedAt || today}
                     onChange={(event) => update('startedAt', event.target.value)}
-                    aria-label="Début du visionnage"
+                    aria-label={t("Début du visionnage")}
                     aria-invalid={Boolean(errors.startedAt)}
                   />
                 </div>
               )}
             </div>
-            {errors.status && <p className="field-error">{errors.status}</p>}
-            {verdictVisible && errors.startedAt && <p className="field-error">{errors.startedAt}</p>}
+            {errors.status && <p className="field-error">{translateMessage(errors.status)}</p>}
+            {verdictVisible && errors.startedAt && <p className="field-error">{translateMessage(errors.startedAt)}</p>}
           </div>
 
           {providerLink && (
-            <section className="provider-information-card" aria-label="Informations sur la série fournies par TMDB">
+            <section className="provider-information-card" aria-label={t("Informations sur la série fournies par TMDB")}>
               <div className="provider-information-heading">
-                <strong>Informations sur la série</strong>
-                <small>Données : {providerLink.providerName}</small>
+                <strong>{t("Informations sur la série")}</strong>
+                <small>{t('Données : {provider}', { provider: providerLink.providerName })}</small>
               </div>
               <dl className="provider-information-list">
-                {values.showrunner.trim() && <div><dt>Showrunner</dt><dd>{values.showrunner}</dd></div>}
-                {values.casting.trim() && <div><dt>Casting</dt><dd>{values.casting}</dd></div>}
-                {values.summary.trim() && <div className="provider-information-summary"><dt>Résumé</dt><dd>{values.summary}</dd></div>}
+                {values.showrunner.trim() && <div><dt>{t("Showrunner")}</dt><dd>{values.showrunner}</dd></div>}
+                {values.casting.trim() && <div><dt>{t("Casting")}</dt><dd>{values.casting}</dd></div>}
+                {values.summary.trim() && <div className="provider-information-summary"><dt>{t("Résumé")}</dt><dd>{values.summary}</dd></div>}
               </dl>
             </section>
           )}
@@ -221,23 +222,23 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
               <div className="form-row">
                 <Stepper
                   id="seasonsSeen"
-                  label="Saisons vues"
+                  label={t("Saisons vues")}
                   value={values.seasonsSeen}
                   onChange={(value) => update('seasonsSeen', value)}
                   max={values.seasonsTotal.trim() === '' ? null : Number(values.seasonsTotal)}
-                  error={errors.seasonsSeen}
+                  error={errors.seasonsSeen ? translateMessage(errors.seasonsSeen) : undefined}
                   describedBy={errors.seasonsSeen ? 'seasonsSeen-error' : undefined}
                 />
                 <Stepper
                   id="seasonsTotal"
-                  label="Saisons au total"
+                  label={t("Saisons au total")}
                   value={values.seasonsTotal}
                   readOnly
-                  hint={assisted ? 'fourni par TMDB' : undefined}
+                  hint={assisted ? t("fourni par TMDB") : undefined}
                 />
               </div>
               {values.status === 'vue' && (
-                <p className="field-help">Série à jour : si une nouvelle saison sort, la série repassera en cours.</p>
+                <p className="field-help">{t("Série à jour : si une nouvelle saison sort, la série repassera en cours.")}</p>
               )}
             </fieldset>
           )}
@@ -248,9 +249,9 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
               <textarea
                 id="series-personalNote"
                 name="personalNote"
-                aria-label="Critique personnelle"
+                aria-label={t("Critique personnelle")}
                 rows={5}
-                placeholder={animation ? 'Avis sur cette animation japonaise…' : 'Qu’as-tu pensé de cette série ?'}
+                placeholder={t(animation ? 'Avis sur cette animation japonaise…' : 'Qu’as-tu pensé de cette série ?')}
                 value={values.personalNote}
                 onChange={(event) => update('personalNote', event.target.value)}
                 autoCorrect="off"
@@ -264,11 +265,11 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
           {!assisted && (
             <div className="secondary-fields editorial-open">
               <div className="field">
-                <label htmlFor="series-showrunner">Showrunner</label>
+                <label htmlFor="series-showrunner">{t("Showrunner")}</label>
                 <input id="series-showrunner" value={values.showrunner} onChange={(event) => update('showrunner', event.target.value)} />
               </div>
               <div className="field">
-                <label htmlFor="series-casting">Casting</label>
+                <label htmlFor="series-casting">{t("Casting")}</label>
                 <textarea
                   id="series-casting"
                   rows={2}
@@ -279,7 +280,7 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
                 />
               </div>
               <div className="field">
-                <label htmlFor="series-summary">Résumé</label>
+                <label htmlFor="series-summary">{t("Résumé")}</label>
                 <textarea
                   id="series-summary"
                   rows={3}
@@ -292,13 +293,13 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
             </div>
           )}
 
-          {saveError && <p className="form-error" role="alert">{saveError}</p>}
+          {saveError && <p className="form-error" role="alert">{translateMessage(saveError)}</p>}
         </div>
 
         <footer className="form-actions form-actions-docked">
-          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>{t("Annuler")}</button>
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : series ? 'Enregistrer les modifications' : animation ? 'Ajouter l’animation japonaise' : 'Ajouter la série'}
+            {saving ? t("Enregistrement…") : series ? t("Enregistrer les modifications") : animation ? t("Ajouter l’animation japonaise") : t("Ajouter la série")}
           </button>
         </footer>
       </div>
@@ -320,7 +321,7 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
   return (
     <main className="main editor-main">
       <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+        <button className="back-button" type="button" onClick={onCancel}>{t("← Annuler")}</button>
       </header>
       {heading}
       {form}

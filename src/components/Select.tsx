@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { getLocale } from '../i18n/core.ts'
 
 /**
  * Liste déroulante au style Sylloge (18 octobre 2026), à la place du menu
@@ -53,7 +54,7 @@ const ANCHOR_GAP = 4
 const PAGE_STEP = 8
 
 function comparable(text: string): string {
-  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr')
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase(getLocale())
 }
 
 export function Select({

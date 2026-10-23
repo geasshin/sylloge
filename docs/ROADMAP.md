@@ -2,6 +2,24 @@
 
 **État au 16 octobre 2026.** Cette feuille de route remplace les anciens trains et versions décrits dans les archives. Aucun numéro de version n’est attribué aux prochains lots : chaque push sur `main` publie automatiquement une release corrective.
 
+## Actualisation du 23 octobre 2026
+
+**Les lots du 22 octobre sont dans `main`.** Imports guidés, onboarding et sauvegardes, bibliothèques personnalisées et citations ont été livrés par `93d1348`, corrigés par `03a1945` et `240e7ed`, puis tagués `v0.6.10`. Les mentions « implémenté localement, non publié » des sections qui suivent et de [PLAN_VERS_1.0.md](PLAN_VERS_1.0.md) datent du 22 octobre et ne décrivent plus l’état du dépôt.
+
+**Interface bilingue : décidée par Aurélien le 23 octobre 2026, implémentée localement, non committée.** Français et anglais dans l’application et sur le site : langue détectée au premier lancement (première langue prise en charge de `navigator.languages`, anglais à défaut), choix dans Paramètres › Général et sur le premier écran, mémorisé sur l’appareil, changement sans rechargement. Le français reste la langue source. Fonctionnement, contrôles et limites : [I18N.md](I18N.md).
+
+État mesuré de cette implémentation (23 octobre 2026) : `npm run verify` vert — 131 tests de portabilité et **134 tests i18n** (garde des catalogues, détection, contexte, messages du domaine et du natif, rendu anglais des écrans, relecture `verify`) ; typecheck et build de production verts ; `scripts/qa-language.js` 33 assertions sur 33 dans le navigateur ; recettes françaises inchangées. 1 954 clés en neuf catalogues. Limites assumées : les messages natifs et du domaine ne sont traduits que s’ils figurent au catalogue (sinon ils restent en français), les métadonnées TMDB déjà mises en cache gardent la langue de leur récupération, et les captures du site restent en interface française, annoncées comme telles.
+
+### Ce qui reste (état vérifié le 23 octobre 2026)
+
+- **À exercer avant de dire « validé »** : les sélecteurs de fichiers et de dossiers macOS réels et un parcours complet import, export, restauration sur profil synthétique ; la compatibilité iCloud Drive et Google Drive effective. Voir [PLAN_VERS_1.0.md](PLAN_VERS_1.0.md) (bloc 3.3) et [QA_IMPORT_EXPORT.md](QA_IMPORT_EXPORT.md).
+- **Objectif futur confirmé** : portabilité intégrale de l’expérience, dans un JSON documenté (vues enregistrées, préférences pertinentes, historique réellement stocké). Le JSON actuel porte les fiches, les bibliothèques et leurs champs, pas toute l’installation.
+- **Proposé, à arbitrer** (PLAN_VERS_1.0.md, bloc 5) : performance sur 5 000 fiches, accessibilité clavier et contrastes, export de diagnostic, recette Windows complète, mise à jour automatique du site à chaque release (le site affiche 0.6.8, l’application est en 0.6.10), tests dans le workflow de publication (les deux workflows contrôlent le proxy mais n’exécutent ni `npm run verify` ni `cargo test`).
+- **Hors premier lot des bibliothèques personnalisées, non planifié** : vues enregistrées, accueil, import et export unitaires, recherche de métadonnées.
+- **Plus tard, hors périmètre actif** : service payant multi-appareil.
+- **Écart à arbitrer** : AGENTS.md et ce document décrivent une cible macOS seule et aucun chantier Windows, alors que le README, le workflow `windows-release.yml` et le site proposent un installateur Windows.
+- **Déjà fait, à ne pas rouvrir** : proxy de clés, contrôle du proxy dans les workflows de release, copie de la base avant migration, notes de version affichées avant l’installation, mention TMDB dans l’application.
+
 ## Actualisation du 22 octobre 2026
 
 Le bloc d’ouverture publique (MIT, updater sans jeton, proxy serveur) est livré. Le **bloc 2 import/export est implémenté et vérifié localement**, avec guides tiers, confirmations, portée explicite des exports et protections de fichiers ; aucun push ni nouvelle publication dans ce lot. Les limites de formats, le corpus synthétique et les essais natifs restant à exercer figurent dans [QA_IMPORT_EXPORT.md](QA_IMPORT_EXPORT.md). Le périmètre courant des prochains blocs est détaillé dans [PLAN_VERS_1.0.md](PLAN_VERS_1.0.md) ; les sections datées du 16 octobre ci-dessous décrivent l’état antérieur.

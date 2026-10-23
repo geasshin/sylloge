@@ -1,3 +1,4 @@
+import { t, translateMessage } from '../i18n/core.ts'
 import { useState, type FormEvent } from 'react'
 import {
   GAME_STATUSES,
@@ -48,7 +49,7 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
   const today = localToday()
   // Une fiche liée à IGDB conserve une présentation éditoriale en lecture.
   const assisted = providerLink !== null
-  const previewTitle = values.title.trim() || 'Titre à renseigner'
+  const previewTitle = values.title.trim() || t("Titre à renseigner")
   const previewUrl = previewableCoverUrl(values.coverUrl)
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   // « À jouer » : pas encore de verdict, on masque note, cœur, date et avis.
@@ -99,7 +100,7 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{game ? 'Modifier la fiche' : 'Ajouter un jeu'}</h1>
+      <h1 className="display-title">{game ? t("Modifier la fiche") : t("Ajouter un jeu")}</h1>
     </div>
   )
 
@@ -127,12 +128,12 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
               name="title"
               value={values.title}
               onChange={(event) => update('title', event.target.value)}
-              aria-label="Titre du jeu"
+              aria-label={t("Titre du jeu")}
               aria-invalid={Boolean(errors.title)}
               aria-describedby={errors.title ? 'game-title-error' : undefined}
               autoFocus={!assisted}
             />
-            {errors.title && <p className="field-error" id="game-title-error">{errors.title}</p>}
+            {errors.title && <p className="field-error" id="game-title-error">{translateMessage(errors.title)}</p>}
           </div>
 
           {/* Le verdict personnel */}
@@ -153,34 +154,34 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
                     type="date"
                     value={values.playedAt || today}
                     onChange={(event) => update('playedAt', event.target.value)}
-                    aria-label="Date de jeu"
+                    aria-label={t("Date de jeu")}
                     aria-invalid={Boolean(errors.playedAt)}
                   />
                 </div>
               )}
             </div>
-            {errors.status && <p className="field-error">{errors.status}</p>}
-            {verdictVisible && errors.playedAt && <p className="field-error">{errors.playedAt}</p>}
+            {errors.status && <p className="field-error">{translateMessage(errors.status)}</p>}
+            {verdictVisible && errors.playedAt && <p className="field-error">{translateMessage(errors.playedAt)}</p>}
           </div>
 
           {providerLink && (
-            <section className="provider-information-card" aria-label="Informations sur le jeu fournies par IGDB">
+            <section className="provider-information-card" aria-label={t("Informations sur le jeu fournies par IGDB")}>
               <div className="provider-information-heading">
-                <strong>Informations sur le jeu</strong>
-                <small>Données : {providerLink.providerName}</small>
+                <strong>{t("Informations sur le jeu")}</strong>
+                <small>{t('Données : {provider}', { provider: providerLink.providerName })}</small>
               </div>
               <dl className="provider-information-list">
-                {values.developer.trim() && <div><dt>Studio</dt><dd>{values.developer}</dd></div>}
-                {values.year.trim() && <div><dt>Sortie</dt><dd>{values.year}</dd></div>}
+                {values.developer.trim() && <div><dt>{t("Studio")}</dt><dd>{values.developer}</dd></div>}
+                {values.year.trim() && <div><dt>{t("Sortie")}</dt><dd>{values.year}</dd></div>}
                 <div className="provider-information-platform">
-                  <dt><label htmlFor="game-platform-linked">Plateforme</label></dt>
+                  <dt><label htmlFor="game-platform-linked">{t("Plateforme")}</label></dt>
                   <dd>
                     <input
                       id="game-platform-linked"
                       list="game-platform-suggestions"
                       value={values.platform}
                       onChange={(event) => update('platform', event.target.value)}
-                      placeholder="À préciser"
+                      placeholder={t("À préciser")}
                     />
                   </dd>
                 </div>
@@ -196,9 +197,9 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
               <textarea
                 id="game-personalNote"
                 name="personalNote"
-                aria-label="Critique personnelle"
+                aria-label={t("Critique personnelle")}
                 rows={5}
-                placeholder="Qu’as-tu pensé de ce jeu ?"
+                placeholder={t("Qu’as-tu pensé de ce jeu ?")}
                 value={values.personalNote}
                 onChange={(event) => update('personalNote', event.target.value)}
                 autoCorrect="off"
@@ -211,11 +212,11 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
           {!assisted && (
             <div className="secondary-fields editorial-open">
               <div className="field">
-                <label htmlFor="game-developer">Studio ou développeur</label>
+                <label htmlFor="game-developer">{t("Studio ou développeur")}</label>
                 <input id="game-developer" value={values.developer} onChange={(event) => update('developer', event.target.value)} />
               </div>
               <div className="field">
-                <label htmlFor="game-platform">Plateforme</label>
+                <label htmlFor="game-platform">{t("Plateforme")}</label>
                 <input
                   id="game-platform"
                   list="game-platform-suggestions"
@@ -226,10 +227,10 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
                 <datalist id="game-platform-suggestions">
                   {platformSuggestions.map((platform) => <option value={platform} key={platform} />)}
                 </datalist>
-                <p className="field-help" id="game-platform-help">Choisissez une suggestion ou saisissez librement une autre plateforme.</p>
+                <p className="field-help" id="game-platform-help">{t("Choisissez une suggestion ou saisissez librement une autre plateforme.")}</p>
               </div>
               <div className="field">
-                <label htmlFor="game-year">Année de sortie</label>
+                <label htmlFor="game-year">{t("Année de sortie")}</label>
                 <input
                   id="game-year"
                   inputMode="numeric"
@@ -238,18 +239,18 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
                   aria-invalid={Boolean(errors.year)}
                   aria-describedby={errors.year ? 'game-year-error' : undefined}
                 />
-                {errors.year && <p className="field-error" id="game-year-error">{errors.year}</p>}
+                {errors.year && <p className="field-error" id="game-year-error">{translateMessage(errors.year)}</p>}
               </div>
             </div>
           )}
 
-          {saveError && <p className="form-error" role="alert">{saveError}</p>}
+          {saveError && <p className="form-error" role="alert">{translateMessage(saveError)}</p>}
         </div>
 
         <footer className="form-actions form-actions-docked">
-          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>{t("Annuler")}</button>
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : game ? 'Enregistrer les modifications' : 'Ajouter le jeu'}
+            {saving ? t("Enregistrement…") : game ? t("Enregistrer les modifications") : t("Ajouter le jeu")}
           </button>
         </footer>
       </div>
@@ -271,7 +272,7 @@ export function GameForm({ game, initialValues, providerLink = null, platformSug
   return (
     <main className="main editor-main">
       <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+        <button className="back-button" type="button" onClick={onCancel}>{t("← Annuler")}</button>
       </header>
       {heading}
       {form}

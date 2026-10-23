@@ -1,3 +1,4 @@
+import { t, formatNumber } from '../i18n/core.ts'
 import type { ReactNode } from 'react'
 
 type StatusLabels = { readonly [key: string]: string }
@@ -21,7 +22,7 @@ export function statusTone(status: string): StatusTone {
 export function StatusBadge({ status, labels }: { status: string; labels: StatusLabels }) {
   return (
     <span className={`status-badge tone-${statusTone(status)}`} role="status">
-      {labels[status]}
+      {t(labels[status])}
     </span>
   )
 }
@@ -41,7 +42,7 @@ export function StatusSegmented({
   ariaLabel?: string
 }) {
   return (
-    <div className="seg-group seg-group-form" role="radiogroup" aria-label={ariaLabel}>
+    <div className="seg-group seg-group-form" role="radiogroup" aria-label={t(ariaLabel)}>
       {statuses.map((status) => (
         <button
           key={status}
@@ -51,7 +52,7 @@ export function StatusSegmented({
           className={`seg-pill-btn ${value === status ? 'on' : ''}`}
           onClick={() => onChange(status)}
         >
-          {labels[status]}
+          {t(labels[status])}
         </button>
       ))}
     </div>
@@ -83,11 +84,11 @@ export function StarRating({
       className="rate-input"
       role="slider"
       tabIndex={0}
-      aria-label={label}
+      aria-label={t(label)}
       aria-valuemin={0}
       aria-valuemax={5}
       aria-valuenow={value ?? 0}
-      aria-valuetext={value !== null ? `${value.toLocaleString('fr-FR')} sur 5` : 'Aucune note'}
+      aria-valuetext={value !== null ? t('{rating} sur 5', { rating: formatNumber(value) }) : t('Aucune note')}
       onKeyDown={(event) => {
         if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
           event.preventDefault()
@@ -111,14 +112,14 @@ export function StarRating({
             key={star}
             className={`star-slot ${fill > 0 ? 'filled' : ''}`}
             onClick={(event) => handleClick(event, star)}
-            title={`${star - 0.5} ou ${star}`}
+            title={t('{half} ou {whole}', { half: formatNumber(star - 0.5), whole: formatNumber(star) })}
           >
             <span className="star-glyph" aria-hidden="true">★</span>
             <span className="star-fill" aria-hidden="true" style={{ width: `${fill * 100}%` }}>★</span>
           </span>
         )
       })}
-      <span className="rate-value">{value !== null ? `${value.toLocaleString('fr-FR')}/5` : 'Aucune note'}</span>
+      <span className="rate-value">{value !== null ? `${formatNumber(value)}/5` : t('Aucune note')}</span>
     </div>
   )
 }
@@ -139,7 +140,7 @@ export function FavoriteHeart({
         type="button"
         className={`heart-input ${checked ? 'on' : ''}`}
         aria-pressed={checked}
-        aria-label="Coup de cœur"
+        aria-label={t("Coup de cœur")}
         onClick={() => onChange(!checked)}
       >
         ♥

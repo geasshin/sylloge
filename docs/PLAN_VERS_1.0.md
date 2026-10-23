@@ -33,7 +33,9 @@ Aucun jeton, aucune limite d'API. Le code du jeton a été retiré : module nati
 
 Bénéfice annexe : les minutes GitHub Actions sont gratuites sur un dépôt public, runner macOS compris.
 
-### 1.4 Vérifier que les clés fonctionnent pour un inconnu
+### 1.4 Vérifier que les clés fonctionnent pour un inconnu — **fait**, vérifié le 23 octobre 2026
+
+Présent dans `macos-release.yml` et `windows-release.yml` : `/api/health`, une recherche TMDB et une recherche IGDB bloquent la publication.
 
 Dans le workflow de release, avant publication : un appel à `/api/health` du proxy, puis une recherche TMDB et une recherche IGDB sur un titre connu. Le build ne publie pas si l'une des trois échoue. Cela protège d'un proxy hors ligne ou d'une clé révoquée dans Vercel, sans ouvrir la bibliothèque de personne. Depuis que les clés vivent dans Vercel, ce test ne dépend plus d'un secret du dépôt.
 
@@ -127,7 +129,7 @@ Les exports Sylloge JSON/CSV restent réimportables selon leurs contrats. Le JSO
 
 ## Ordre proposé
 
-1. Ouvrir le projet : dépôt public, licence et README faits ; reste le test des clés en CI. **Sans la mise à jour sans jeton — faite —, chaque nouvelle version devait être réinstallée à la main.**
+1. Ouvrir le projet : dépôt public, licence, README et contrôle du proxy dans les workflows de release faits (vérifié le 23 octobre 2026). **Sans la mise à jour sans jeton — faite —, chaque nouvelle version devait être réinstallée à la main.**
 2. Imports guidés : tutoriels et reconnaissance, parce que c'est ce qui fait basculer un utilisateur.
 3. Premier lancement et réglages.
 4. Bibliothèques personnalisées, quand le socle est stable.
@@ -136,7 +138,7 @@ Les exports Sylloge JSON/CSV restent réimportables selon leurs contrats. Le JSO
 ## Ce qu'il manque encore dans la liste initiale
 
 - **Mise à jour du site à chaque release** : aujourd'hui manuelle, donc oubliable.
-- **Sauvegarde avant migration** : une migration ratée est la seule façon de perdre une bibliothèque.
+- **Sauvegarde avant migration** : fait (`src-tauri/src/migration_backup.rs`, branchée avant le greffon SQL). Une migration ratée était la seule façon de perdre une bibliothèque.
 - **Retour d'erreur utile** : un signalement « ça ne marche pas » sans capture ne donne rien d'exploitable.
-- **Notes de version visibles** avant d'installer.
+- **Notes de version visibles** avant d'installer : fait (`UpdaterSettings.tsx`).
 - **Test sur une bibliothèque volumineuse** : les performances se dégradent sans qu'on le voie avec dix fiches.

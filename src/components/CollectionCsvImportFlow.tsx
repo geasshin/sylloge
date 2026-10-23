@@ -1,3 +1,4 @@
+import { formatNumber, t, tc, translateMessage } from '../i18n/core.ts'
 import { useMemo, useState } from 'react'
 import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
@@ -29,28 +30,33 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
   const mediumLabel = { series: 'Séries', anime: 'Animation japonaise', books: 'Livres', mangas: 'Mangas', games: 'Jeux', artworks: 'Art' }[kind]
   const groups = collectionCsvFieldGroups(kind)
 
+  /** « Début de visionnage » est aussi un critère de vue : ici, un champ importé. */
+  const fieldLabel = (source: string) => (
+    source === 'Début de visionnage' || source === 'Début de lecture' ? tc('import', source) : t(source)
+  )
+
   return (
     <div className="assistant-content">
-      <ol className="assistant-steps" aria-label="Étapes de l’import CSV">
+      <ol className="assistant-steps" aria-label={t("Étapes de l’import CSV")}>
         {['Colonnes', 'Aperçu'].map((label, index) => {
           const current = step === 'mapping' ? 1 : 2
-          return <li className={index + 1 === current ? 'active' : index + 1 < current ? 'complete' : ''} key={label}>{label}</li>
+          return <li className={index + 1 === current ? 'active' : index + 1 < current ? 'complete' : ''} key={label}>{t(label)}</li>
         })}
       </ol>
       <div className="assistant-toolbar">
-        <button className="secondary-button" type="button" onClick={onChooseAnother}>Choisir un autre fichier</button>
+        <button className="secondary-button" type="button" onClick={onChooseAnother}>{t("Choisir un autre fichier")}</button>
       </div>
 
       {step === 'mapping' && (
         <section className="assistant-stage">
-          <h3>Faire correspondre les colonnes</h3>
+          <h3>{t("Faire correspondre les colonnes")}</h3>
           {groups.map((group) => {
             const isSecondary = group.id === 'editorial'
             return (
               <details className="mapping-group" key={group.id} open={!isSecondary}>
                 <summary>
-                  <span className="mapping-group-label">{group.label}</span>
-                  <small>{group.summary}</small>
+                  <span className="mapping-group-label">{t(group.label)}</span>
+                  <small>{t(group.summary)}</small>
                 </summary>
                 <div className="mapping-rows">
                   {group.fields.map((fieldDefinition) => {
@@ -58,11 +64,11 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
                     return (
                       <div className="mapping-row" key={fieldDefinition.key}>
                         <div className="mapping-field-name">
-                          <b>{fieldDefinition.label}</b>
-                          {fieldDefinition.key === 'title' && <small>Obligatoire</small>}
+                          <b>{fieldLabel(fieldDefinition.label)}</b>
+                          {fieldDefinition.key === 'title' && <small>{t("Obligatoire")}</small>}
                         </div>
                         <label className="visually-hidden" htmlFor={`mapping-${fieldDefinition.key}`}>
-                          Colonne du fichier pour {fieldDefinition.label}
+                          {t("Colonne du fichier pour {field}", { field: fieldLabel(fieldDefinition.label) })}
                         </label>
                         <select
                           id={`mapping-${fieldDefinition.key}`}
@@ -74,7 +80,7 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
                             event.target.value || null,
                           ))}
                         >
-                          <option value="">Ne pas importer</option>
+                          <option value="">{t("Ne pas importer")}</option>
                           {session.table.headers.map((header) => (
                             <option key={header} value={header}>
                               {header}
@@ -89,7 +95,7 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
             )
           })}
           <div className="assistant-actions">
-            <button className="primary-button" type="button" onClick={() => setStep('preview')}>Vérifier l’aperçu</button>
+            <button className="primary-button" type="button" onClick={() => setStep('preview')}>{t("Vérifier l’aperçu")}</button>
           </div>
         </section>
       )}
@@ -128,38 +134,36 @@ function CollectionCsvPreviewPanel({
   return (
     <section className={`import-preview ${valid ? 'valid' : 'invalid'}`}>
       <div className="import-preview-heading">
-        <div><p className="card-kicker">Aperçu avant écriture</p><h3>Import {mediumLabel}</h3></div>
-        <span>{valid ? `${itemCount} fiche${itemCount > 1 ? 's prêtes' : ' prête'}` : 'Import bloqué'}</span>
+        <div><p className="card-kicker">{t("Aperçu avant écriture")}</p><h3>{t("Import {medium}", { medium: t(mediumLabel) })}</h3></div>
+        <span>{valid ? t(itemCount === 1 ? '{count} fiche prête' : '{count} fiches prêtes', { count: formatNumber(itemCount) }) : t('Import bloqué')}</span>
       </div>
       <dl className="transfer-summary compact films-import-summary">
-        <div><dt>Format</dt><dd>{preview.sourceKind === 'sylloge-csv-v1' ? 'CSV Sylloge v1' : 'CSV avec correspondances'}</dd></div>
-        <div><dt>Lignes lues</dt><dd>{preview.totalItemCount}</dd></div>
-        <div><dt>Fiches prêtes</dt><dd>{preview.validItemCount}</dd></div>
-        <div><dt>Blocages</dt><dd>{blockingErrors.length}</dd></div>
+        <div><dt>{t("Format")}</dt><dd>{t(preview.sourceKind === 'sylloge-csv-v1' ? 'CSV Sylloge v1' : 'CSV avec correspondances')}</dd></div>
+        <div><dt>{t("Lignes lues")}</dt><dd>{formatNumber(preview.totalItemCount)}</dd></div>
+        <div><dt>{t("Fiches prêtes")}</dt><dd>{formatNumber(preview.validItemCount)}</dd></div>
+        <div><dt>{t("Blocages")}</dt><dd>{formatNumber(blockingErrors.length)}</dd></div>
       </dl>
-      {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>Colonnes non importées :</b> {preview.ignoredColumns.join(', ')}. Les métadonnées éditoriales restent récupérables via la recherche assistée.</p>}
+      {preview.ignoredColumns.length > 0 && <p className="films-import-details"><b>{t("Colonnes non importées :")}</b> {preview.ignoredColumns.join(', ')}{t('. Les métadonnées éditoriales restent récupérables via la recherche assistée.')}</p>}
       {infos.length > 0 && (
         <details className="import-warnings" open={blockingErrors.length === 0}>
-          <summary>{infos.length} champ{infos.length > 1 ? 's' : ''} laissé{infos.length > 1 ? 's' : ''} vide{infos.length > 1 ? 's' : ''} — valeur non reconnue dans le fichier</summary>
-          <ol>{infos.map((info, index) => <li key={`${info.path}-${index}`}><code>{info.path.replace('.info', '')}</code> {info.message}</li>)}</ol>
-          <p>Ces fiches seront importées sans ces champs, qui restent modifiables dans leur fiche.</p>
+          <summary>{t(infos.length === 1 ? '{count} champ laissé vide — valeur non reconnue dans le fichier' : '{count} champs laissés vides — valeur non reconnue dans le fichier', { count: formatNumber(infos.length) })}</summary>
+          <ol>{infos.map((info, index) => <li key={`${info.path}-${index}`}><code>{info.path.replace('.info', '')}</code> {translateMessage(info.message)}</li>)}</ol>
+          <p>{t("Ces fiches seront importées sans ces champs, qui restent modifiables dans leur fiche.")}</p>
         </details>
       )}
       {valid && (
-        <p className="import-contextual-hint">
-          L’étape suivante permet de comparer les doublons ou de remplacer cette bibliothèque. Une confirmation finale précède toute écriture.
-        </p>
+        <p className="import-contextual-hint">{t("L’étape suivante permet de comparer les doublons ou de remplacer cette bibliothèque. Une confirmation finale précède toute écriture.")}</p>
       )}
       {!valid ? (
         <div className="validation-errors" role="alert">
-          <p>Aucune donnée n’a été écrite. Corriger les correspondances ou le fichier avant de réessayer.</p>
-          {preview.items === null && blockingErrors.length === 0 && <p>Ce fichier ne contient aucune fiche importable.</p>}
-          {blockingErrors.length > 0 && <ol>{blockingErrors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {error.message}</li>)}</ol>}
+          <p>{t("Aucune donnée n’a été écrite. Corriger les correspondances ou le fichier avant de réessayer.")}</p>
+          {preview.items === null && blockingErrors.length === 0 && <p>{t("Ce fichier ne contient aucune fiche importable.")}</p>}
+          {blockingErrors.length > 0 && <ol>{blockingErrors.map((error, index) => <li key={`${error.path}-${index}`}><code>{error.path}</code> {translateMessage(error.message)}</li>)}</ol>}
         </div>
-      ) : <div className="import-confirmation"><p>{itemCount} fiche{itemCount > 1 ? 's sont prêtes' : ' est prête'} à être comparée{itemCount > 1 ? 's' : ''} à la collection du profil courant. Aucune donnée n’a encore été écrite.</p></div>}
+      ) : <div className="import-confirmation"><p>{t(itemCount === 1 ? '{count} fiche est prête à être comparée à la collection du profil courant. Aucune donnée n’a encore été écrite.' : '{count} fiches sont prêtes à être comparées à la collection du profil courant. Aucune donnée n’a encore été écrite.', { count: formatNumber(itemCount) })}</p></div>}
       <div className="assistant-actions">
-        {preview.sourceKind !== 'sylloge-csv-v1' && <button className="secondary-button" type="button" onClick={onBack}>Modifier</button>}
-        <button className="primary-button" type="button" disabled={!valid} onClick={onContinue}>Continuer</button>
+        {preview.sourceKind !== 'sylloge-csv-v1' && <button className="secondary-button" type="button" onClick={onBack}>{t("Modifier")}</button>}
+        <button className="primary-button" type="button" disabled={!valid} onClick={onContinue}>{t("Continuer")}</button>
       </div>
     </section>
   )

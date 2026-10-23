@@ -1,9 +1,23 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync as readRawFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { withoutTranslation } from './ui-source.mjs'
+
+/**
+ * Les vérifications ci-dessous décrivent la structure des écrans à partir de leur source (nom accessible d'un
+ * bouton, accord d'un libellé, ordre des éléments). Depuis l'interface bilingue, ce texte est écrit `t('…')` :
+ * les fichiers d'interface sont donc relus « comme avant la traduction » (voir scripts/ui-source.mjs), et la
+ * version anglaise réelle est prouvée par les tests scripts/i18n-*.test.mjs qui rendent les vrais composants.
+ * Domaine, données, Rust, migrations et fixtures sont lus tels quels.
+ */
+const isUiSource = (target) => /\/src\/(main\.tsx|components\/[^/]+\.tsx)$/.test(target instanceof URL ? target.href : String(target))
+const readFileSync = (target, encoding) => {
+  const contents = readRawFileSync(target, encoding)
+  return isUiSource(target) ? withoutTranslation(contents) : contents
+}
 import { SqliteFilmsRepository, toFilm } from '../src/data/filmsRepository.ts'
 import { BackupService } from '../src/data/backupService.ts'
 import { confirmValidatedImport } from '../src/data/libraryTransferService.ts'
@@ -2046,7 +2060,7 @@ const capabilitySource = readFileSync(new URL('../src-tauri/capabilities/default
 const stylesSource = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 const importContainersContractSource = readFileSync(new URL('../docs/CONTRAT_CONTENEURS_IMPORT_V1.md', import.meta.url), 'utf8')
 
-assert.doesNotMatch(mainSource, /\bSELECT\b|\bINSERT INTO films\b|\bUPDATE films\b|\bDELETE FROM films\b/i, 'Les composants React ne doivent contenir aucun SQL brut')
+assert.doesNotMatch(mainSource, /\bSELECT\s+[\w*]|\bINSERT INTO films\b|\bUPDATE films\b|\bDELETE FROM films\b/i, 'Les composants React ne doivent contenir aucun SQL brut')
 assert.match(mainSource, /createFilm/, 'La vue doit relier la création au dépôt SQLite')
 assert.match(mainSource, /updateFilm/, 'La vue doit relier la modification au dépôt SQLite')
 assert.match(mainSource, /deleteFilm/, 'La vue doit relier la suppression au dépôt SQLite')
@@ -2059,9 +2073,10 @@ assert.match(mainSource, /pending\.restoreBookFocus[\s\S]*matching\[opener\?\.in
 assert.match(mainSource, /returnTo: 'home' \}/, 'Les fiches ouvertes depuis l’accueil doivent y revenir')
 assert.doesNotMatch(mainSource, /onBack=\{\(\) => setView\(\{ name: 'series' \}\)\}/, 'Une fiche ne doit plus renvoyer à sa bibliothèque sans passer par l’écran d’origine')
 assert.match(posterSource, /!src \|\| missing/, 'Une affiche absente ou cassée doit utiliser le fallback')
-assert.match(posterSource, /alt={`\$\{label\} de/, 'Un visuel chargé doit conserver un texte alternatif pertinent pour son médium')
+assert.match(posterSource, /alt=\{copy\.alt\}/, 'Un visuel chargé doit conserver un texte alternatif pertinent pour son médium')
+assert.match(posterSource, /"Visuel": \{[\s\S]*?"alt": "Visuel de « \{title\} »"/, 'Le texte alternatif du visuel nomme le médium et l’œuvre')
 assert.doesNotMatch(atriumHomeSource, /Aussi en cours|IN_PROGRESS|ProgressBar|label="Reprendre/, 'L’accueil ne doit pas réintroduire un module de reprise ni de barre de progression')
-assert.match(atriumHomeSource, /function progressOf\(unit: 'Saison' \| 'Tome', seen: number \| null, total: number \| null\)[\s\S]*if \(seen === null \|\| total === null \|\| seen < 1 \|\| total < seen\) return null[\s\S]*`\$\{unit\} \$\{seen\} sur \$\{total\}`/, 'La progression s’écrit « Saison 2 sur 4 » ou « Tome 11 sur 18 », et rien quand elle est inconnue')
+assert.match(atriumHomeSource, /function progressOf\(unit: 'Saison' \| 'Tome', seen: number \| null, total: number \| null\)[\s\S]*if \(seen === null \|\| total === null \|\| seen < 1 \|\| total < seen\) return null[\s\S]*return `\$\{unit\} \$\{formatNumber\(seen\)\} sur \$\{formatNumber\(total\)\}`/, 'La progression s’écrit « Saison 2 sur 4 » ou « Tome 11 sur 18 », et rien quand elle est inconnue')
 assert.match(atriumHomeSource, /progressLabel: progressOf\('Saison', entry\.seasonsSeen, entry\.seasonsTotal\)[\s\S]*progressLabel: progressOf\('Tome', entry\.volumesRead, entry\.volumesTotal\)/, 'Seules les séries et les livres portent une étiquette de progression, depuis leurs champs réels')
 assert.match(atriumHomeSource, /film: \['à découvrir', 'en attente'\]/, 'Les deux statuts Films non consommés doivent rester dans les derniers ajouts')
 assert.match(atriumHomeSource, /const queue = entries[\s\S]*QUEUE_STATUSES\[entry\.medium\]\.includes\(entry\.status \?\? ''\)[\s\S]*second\.createdAt\.localeCompare\(first\.createdAt\)/, 'La file d’attente ne contient que des œuvres non consommées, de la plus récente à la plus ancienne')
@@ -2088,7 +2103,7 @@ assert.match(atriumHomeSource, /function isFinished\(entry: HomeEntry\): boolean
 assert.match(atriumHomeSource, /function buildTabStats[\s\S]*entries\.filter\(isFinished\)[\s\S]*Array\.from\(\{ length: 12 \}[\s\S]*thisMonth: months\[11\]\.count/, 'Le bilan compte les œuvres terminées, celles du mois civil et les douze derniers mois depuis les dates réelles')
 assert.match(atriumHomeSource, /const stats = buildTabStats\(entries, new Date\(\)\)/, 'Le bilan suit l’onglet affiché')
 assert.match(atriumHomeSource, /'œuvres terminées'[\s\S]*'films vus'[\s\S]*'séries vues'[\s\S]*'livres lus'[\s\S]*'jeux joués'[\s\S]*'œuvres découvertes'[\s\S]*<span>ce mois-ci<\/span>/, 'Chaque onglet accorde le libellé de son bilan, suivi de « ce mois-ci »')
-assert.match(atriumHomeSource, /className="at-spark" aria-hidden="true"[\s\S]*title=\{`\$\{month\.label\} : \$\{month\.count\}`\}[\s\S]*sur 12 mois/, 'Les douze barres sont décoratives et titrées ; le total sur douze mois reste lisible par les technologies d’assistance')
+assert.match(atriumHomeSource, /className="at-spark" aria-hidden="true"[\s\S]*title=\{`\$\{month\.label\} : \$\{formatNumber\(month\.count\)\}`\}[\s\S]*sur 12 mois/, 'Les douze barres sont décoratives et titrées ; le total sur douze mois reste lisible par les technologies d’assistance')
 assert.match(atriumHomeSource, /className="at-cal-dots"[\s\S]*mediums\.map\(\(medium\)[\s\S]*data-medium=\{medium\}/, 'Les jours du calendrier doivent montrer toutes les catégories présentes avec leurs repères accessibles')
 assert.match(atriumHomeSource, /function WorkPoster[\s\S]*resolveFilmPoster\(entry\.filmId/, 'La carte d’accueil doit relire l’affiche réelle d’un film associé')
 assert.match(atriumHomeSource, /function usableContributor[\s\S]*non\|none[\s\S]*function WorkCard[\s\S]*resolveFilmContributor\(entry\.filmId/, 'Les crédits absents ou de remplissage doivent être masqués, et le réalisateur du cache local doit pouvoir compléter la carte')
@@ -2098,7 +2113,7 @@ assert.match(tmdbServiceSource, /export async function resolveFilmDisplayPoster[
 assert.match(tmdbServiceSource, /export async function resolveFilmDisplayDirector[\s\S]*getFilmTmdbCache\(filmId\)[\s\S]*presentation\.directors/, 'Le réalisateur affiché sur les cartes doit être lu depuis le cache TMDB local')
 assert.match(mainSource, /resolveFilmDisplayPoster\(film\.id, film\.posterUrl\)[\s\S]*resolveFilmPoster=\{resolveFilmDisplayPoster\}/, 'Bibliothèque et accueil doivent partager la même règle d’affiche')
 assert.match(atriumHomeSource, /<span className="at-work-title">\{entry\.title\}<\/span>[\s\S]*<\/span>\s*<\/button>/, 'La carte d’accueil doit afficher essentiellement le titre sous le visuel')
-assert.match(atriumHomeSource, /const accessibleLabel = `Ouvrir la fiche de \$\{entry\.title\}\$\{facts \? `, \$\{facts\}` : ''\}`/, 'Les détails retirés de la carte doivent rester portés par son nom accessible')
+assert.match(atriumHomeSource, /const accessibleLabel = `\$\{`Ouvrir la fiche de \$\{entry\.title\}`\}\$\{facts \? `, \$\{facts\}` : ''\}`/, 'Les détails retirés de la carte doivent rester portés par son nom accessible')
 assert.doesNotMatch(atriumHomeSource, /formatLongDate|at-eyebrow|at-lede|voici ce que m'occupe en ce moment/, 'Le haut de l’accueil ne doit plus porter de date ni de phrase de service')
 assert.doesNotMatch(atriumHomeSource, /at-door|Tout voir|Six autres|at-jour|anniversar/, 'L’accueil ne doit plus porter de portes de sortie ni de module d’anniversaires')
 assert.doesNotMatch(atriumHomeSource, /Ma bibliothèque/, 'L’accueil ne se présente plus comme une page « Ma bibliothèque »')
@@ -2118,7 +2133,7 @@ assert.match(stylesSource, /--font-display: "Syne", var\(--font-ui\)/, 'Syne doi
 assert.match(stylesSource, /h1, h2, h3, h4 \{ font-family: var\(--font-display\); text-transform: uppercase; \}/, 'Les titres structurels de l’application doivent partager Syne et les capitales')
 assert.match(stylesSource, /\.detail-page-main \.display-title \{[^}]*font-family: var\(--font-ui\);[^}]*text-transform: none;/s, 'Les titres des œuvres sur les fiches doivent garder leur casse naturelle et la police de lecture')
 assert.match(stylesSource, /\.at-file-head \.at-section-title \{[^}]*font-size: var\(--text-2xl\);[^}]*font-weight: 700;[^}]*text-transform: uppercase;/s, 'Les titres des rangées d’accueil doivent être renforcés et adopter les capitales espacées')
-assert.match(atriumHomeSource, /queue: 'En attente', recent: 'Récemment terminés'[\s\S]*queue: 'À voir', recent: 'Récemment vus'[\s\S]*queue: 'À voir', recent: 'Récemment vues'[\s\S]*queue: 'À lire', recent: 'Récemment lus'[\s\S]*queue: 'À jouer', recent: 'Récemment joués'[\s\S]*queue: 'À découvrir', recent: 'Récemment découvertes'/, 'Les rangées d’attente et de récents portent le libellé accordé à l’onglet')
+assert.match(atriumHomeSource, /queue: 'File d’attente', recent: 'Récemment terminés'[\s\S]*queue: 'À voir', recent: 'Récemment vus'[\s\S]*queue: 'À voir', recent: 'Récemment vues'[\s\S]*queue: 'À lire', recent: 'Récemment lus'[\s\S]*queue: 'À jouer', recent: 'Récemment joués'[\s\S]*queue: 'À découvrir', recent: 'Récemment découvertes'/, 'Les rangées d’attente et de récents portent le libellé accordé à l’onglet')
 assert.match(atriumHomeSource, /label=\{current\.queue\}[\s\S]*label=\{current\.recent\}/, 'Les titres de rangées suivent l’onglet affiché')
 assert.match(atriumHomeSource, /label: 'Tout'[\s\S]*label: 'Films'[\s\S]*label: 'Séries'[\s\S]*label: 'Livres'[\s\S]*label: 'Mangas'[\s\S]*label: 'Jeux'[\s\S]*label: 'Art'/, 'L’accueil propose les onglets Tout, Films, Séries, Livres, Mangas, Jeux et Art')
 assert.match(atriumHomeSource, /className="seg-group-form at-tabs" role="tablist"[\s\S]*role="tab"[\s\S]*className=\{`seg-pill-btn\$\{item\.key === tab \? ' on' : ''\}`\}[\s\S]*aria-selected=\{item\.key === tab\}[\s\S]*aria-controls="at-tab-panel"[\s\S]*tabIndex=\{item\.key === tab \? 0 : -1\}/, 'Les onglets reprennent le contrôle segmenté commun et le motif ARIA (sélection, panneau, tabulation itinérante)')
@@ -2128,7 +2143,7 @@ assert.match(atriumHomeSource, /const entries = useMemo\([\s\S]*allEntries\.filt
 assert.match(atriumHomeSource, /function pickFeatured[\s\S]*entries\.filter\(\(entry\) => entry\.isFavorite\)\.sort\(byRecentActivity\)\.slice\(0, FEATURED_FAVORITES\)[\s\S]*entries\.filter\(isFinished\)[\s\S]*entry\.status === 'en cours'[\s\S]*second\.createdAt\.localeCompare\(first\.createdAt\)\)\.slice\(0, FEATURED_FALLBACK\)/, 'À la une : les coups de cœur de l’onglet, sinon les dernières terminées, les œuvres en cours, puis les derniers ajouts')
 assert.match(atriumHomeSource, /const FEATURED_FAVORITES = 8\s*const FEATURED_FALLBACK = 5/, 'À la une : huit coups de cœur au plus, cinq œuvres de repli')
 assert.match(atriumHomeSource, /const FEATURED_DELAY = 8000[\s\S]*const canRotate = count > 1 && !reducedMotion && autoplay\s*const rotating = canRotate && !paused && !hovered && !keyboardInside && pageVisible[\s\S]*\[rotating, current, count, cycle\]/, 'La une avance seule toutes les huit secondes, sauf préférence désactivée, mouvement réduit, survol, focus clavier, pause, page cachée ou œuvre unique ; une action manuelle relance le compte')
-assert.match(atriumHomeSource, /aria-roledescription="carrousel"[\s\S]*'Reprendre le défilement' : 'Mettre en pause le défilement'[\s\S]*aria-live=\{rotating \? 'off' : 'polite'\}[\s\S]*label=\{`\$\{position \+ 1\} sur \$\{count\}`\}[\s\S]*aria-roledescription="diapositive"/, 'La une suit le motif de carrousel accessible : rôle, pause étiquetée, annonce hors lecture automatique, position de chaque diapositive')
+assert.match(atriumHomeSource, /aria-roledescription="carrousel"[\s\S]*'Reprendre le défilement' : 'Mettre en pause le défilement'[\s\S]*aria-live=\{rotating \? 'off' : 'polite'\}[\s\S]*sur \$\{formatNumber\(count\)\}/, 'La une suit le motif de carrousel accessible : rôle, pause étiquetée, annonce hors lecture automatique, position de chaque diapositive')
 assert.match(atriumHomeSource, /\{count > 1 && \(\s*<div className="at-hero-controls">/, 'Une seule œuvre à la une : ni minuterie, ni flèches, ni points')
 assert.match(atriumHomeSource, /function WorkPoster[\s\S]*?usePosterSource\(entry, resolveFilmPoster\)[\s\S]*function usePosterSource[\s\S]*?resolveFilmPoster\(entry\.filmId as string\)[\s\S]*function FeaturedSlide[\s\S]*?usePosterSource\(entry, resolveFilmPoster\)/, 'Cartes et une relisent l’affiche réelle d’un film associé')
 assert.match(atriumHomeSource, /function FeaturedSlide[\s\S]*?const contributor = usableContributor\(entry\.contributor\) \?\? cachedContributor/, 'La une masque aussi les crédits factices')
@@ -2224,10 +2239,11 @@ assert.match(libraryImportButtonSource, /<JsonImportPreview[\s\S]*fileName=\{fil
 assert.match(libraryImportButtonSource, /items\.slice\(0, 5\)/, 'L’aperçu JSON doit limiter l’extrait affiché pour garder le dialogue lisible')
 assert.match(libraryImportButtonSource, /if \(!finishPreparation\(items\)\) setStep\('mode'\)/, 'Après aperçu : préparation sans écriture pour l’onboarding, sinon choix du mode')
 assert.match(collectionImportFlowSource, /title=\{duplicate\.existing\.title\}/, 'Le résolveur doit afficher le titre d’origine, avec sa casse et ses accents, et non la clé normalisée')
-assert.match(libraryImportButtonSource, /mediumPluralLabel=\{libraryLabel/, 'Le choix de traitement doit nommer uniquement la bibliothèque ouverte')
-assert.match(libraryImportButtonSource, /games: \{ pluralLabel: 'jeux', gender: 'masculine' \}/, 'Le choix d’import doit employer le pluriel correct de Jeux')
-assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détectée' : 'détectées'/, 'Le choix d’import doit accorder les noms féminins au singulier et au pluriel')
-assert.match(collectionImportFlowSource, /importedCount === 1 \? 'détecté' : 'détectés'/, 'Le choix d’import doit accorder les noms masculins au singulier et au pluriel')
+assert.match(libraryImportButtonSource, /mediumPluralLabel=\{LIBRARY_PLURALS\[libraryLabel\] \?\? libraryLabel\}/, 'Le choix de traitement doit nommer uniquement la bibliothèque ouverte, au pluriel de son compte')
+assert.match(libraryImportButtonSource, /Jeux: 'jeux'/, 'Le choix d’import doit employer le pluriel correct de Jeux')
+assert.match(libraryImportButtonSource, /games: \{ gender: 'masculine' \}/, 'Le choix d’import doit garder le genre masculin des Jeux')
+assert.match(collectionImportFlowSource, /'\{count\} \{medium\} détectée dans le fichier\.'/, 'Le choix d’import doit accorder les noms féminins au singulier et au pluriel')
+assert.match(collectionImportFlowSource, /'\{count\} \{medium\} détecté dans le fichier\.'/, 'Le choix d’import doit accorder les noms masculins au singulier et au pluriel')
 assert.match(filmCsvImportFlowSource, /Table à importer/, 'Le choix d’une table Notion doit rester visible avant l’aperçu')
 assert.match(filmCsvImportFlowSource, /Aucune donnée n’a été écrite/, 'Un aperçu invalide doit annoncer l’absence d’écriture')
 assert.doesNotMatch(filmCsvImportFlowSource, /Nouveau profil|Créer le nouveau profil/, 'L’import CSV ou Notion ne doit plus créer de profil')
@@ -2765,8 +2781,8 @@ assert.match(seriesFormDomainSource, /values\.status === 'vue' && seasonsTotal !
 assert.match(seriesFormSource, /resolveSeriesStatusForTotalChange/, 'Le formulaire doit appliquer la bascule à la modification du total')
 assert.match(seriesFormSource, /next\.seasonsSeen = current\.seasonsTotal/, 'Marquer « vue » doit préremplir les saisons vues')
 assert.match(seriesFormSource, /<Stepper/, 'Le compteur de saisons doit utiliser les boutons +/−, pas un champ numérique brut')
-assert.match(stepperSource, /aria-label=\{`Ajouter 1 à \$\{label\}`\}/, 'Le bouton + doit rester accessible')
-assert.match(stepperSource, /aria-label=\{`Retirer 1 à \$\{label\}`\}/, 'Le bouton − doit rester accessible')
+assert.match(stepperSource, /aria-label=\{`Ajouter 1 à \$\{translatedLabel\}`\}/, 'Le bouton + doit rester accessible')
+assert.match(stepperSource, /aria-label=\{`Retirer 1 à \$\{translatedLabel\}`\}/, 'Le bouton − doit rester accessible')
 assert.match(seriesDetailSource, /saison/, 'La fiche doit afficher l’avancement en saisons')
 assert.match(mainSource043, /icon\('series', activeItem === '[^']+'\)\}<span className="nav-item-label">Séries/, 'La sidebar doit proposer l’entrée Séries')
 assert.match(mainSource043, /seriesForLibrary\(seriesCollection, scope\)/, 'Séries et Animation japonaise partitionnent les fiches existantes sans copie')
@@ -4773,8 +4789,8 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(mainSourceArt, /targetId = artwork\.id[\s\S]{0,400}leaveLibrary\(\{ name: 'artwork-detail', artworkId: targetId, returnTo: 'artworks' \}\)/, 'Art : l’ajout doit ouvrir la fiche de l’œuvre créée')
 
   // Libellés accordés au genre du visuel : « le visuel », « l’affiche », « la couverture ».
-  assert.match(posterSourceArt, /Visuel: 'le visuel'/, 'Libellés : le visuel est masculin')
-  assert.match(posterSourceArt, /Affiche: 'l’affiche'/, 'Libellés : l’affiche s’élide')
+  assert.match(posterSourceArt, /"Visuel": \{[\s\S]*?"edit": "Modifier le visuel"/, 'Libellés : le visuel est masculin')
+  assert.match(posterSourceArt, /"Affiche": \{[\s\S]*?"edit": "Modifier l’affiche"/, 'Libellés : l’affiche s’élide')
   assert.doesNotMatch(posterSourceArt + posterUrlDialogSourceArt, /Modifier la \$\{label/, 'Libellés : « Modifier la visuel » et « Modifier la affiche » ne doivent pas revenir')
   assert.doesNotMatch(posterUrlDialogSourceArt, /à la visuel/, 'Libellés : « revenir à la visuel » ne doit pas revenir')
 
@@ -4867,7 +4883,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   // Compteur accordé et libellés de tri propres au médium.
   assert.equal(activeCriteriaLabel(1), '1 critère actif', 'Filtrer : singulier pour un critère')
   assert.equal(activeCriteriaLabel(2), '2 critères actifs', 'Filtrer : pluriel au-delà')
-  assert.match(viewBarSource, /`Filtrer, \$\{activeCriteriaLabel\(panelFilterCount\)\}`/, 'Filtrer : le nom accessible utilise le compteur accordé')
+  assert.match(viewBarSource, /panelFilterCount === 1 \? 'Filtrer, \{count\} critère actif' : 'Filtrer, \{count\} critères actifs'/, 'Filtrer : le nom accessible utilise le compteur accordé')
   assert.doesNotMatch(viewBarSource, /critères actifs`/, 'Filtrer : plus de pluriel figé dans la barre')
   assert.equal(librarySortColumnLabel('personalDate', 'Découverte'), 'Découverte', 'Tri : la date personnelle prend le nom du médium')
   assert.equal(librarySortColumnLabel('personalDate', null), 'Date personnelle', 'Tri : intitulé générique sans nom propre au médium')

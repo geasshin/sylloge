@@ -1,3 +1,4 @@
+import { t, translateMessage, formatDate } from '../i18n/core.ts'
 import { useEffect, useState, type FormEvent } from 'react'
 import { FILM_STATUS_LABELS, type FilmStatus } from '../domain/film.ts'
 import {
@@ -29,12 +30,12 @@ function formatFilmReleaseDate(value: string | null): string | null {
   if (!value) return null
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : null
   if (!date || Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat('fr-FR', {
+  return formatDate(date, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
-  }).format(date)
+  })
 }
 
 /** Statuts proposés à la création : les trois qui ont du sens pour un film. */
@@ -112,7 +113,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
 
   // « À découvrir » : pas encore de verdict, on masque note, cœur, date et avis.
   const verdictVisible = values.status !== 'à découvrir'
-  const previewTitle = values.title.trim() || 'Titre à renseigner'
+  const previewTitle = values.title.trim() || t("Titre à renseigner")
   // 0.6.16 : en édition, l'affiche enrichie TMDB est montrée même si la
   // colonne locale est vide — on voit ce que la fiche a vraiment.
   const previewUrl = previewablePosterUrl(values.posterUrl)
@@ -179,7 +180,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
   // « Film / Ajouter un film » empilé ne fait que doubler l'information.
   const heading = compactHeading || embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{film ? 'Modifier la fiche' : 'Ajouter un film'}</h1>
+      <h1 className="display-title">{film ? t("Modifier la fiche") : t("Ajouter un film")}</h1>
     </div>
   )
 
@@ -217,12 +218,12 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
             name="title"
             value={values.title}
             onChange={(event) => update('title', event.target.value)}
-            aria-label="Titre du film"
+            aria-label={t("Titre du film")}
             aria-invalid={Boolean(errors.title)}
             aria-describedby={errors.title ? 'title-error' : undefined}
             autoFocus={!assisted}
           />
-          {errors.title && <p className="field-error" id="title-error">{errors.title}</p>}
+          {errors.title && <p className="field-error" id="title-error">{translateMessage(errors.title)}</p>}
         </div>
 
         {/* Statut et date occupent une seule ligne stable. Le verdict visuel
@@ -244,29 +245,29 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
                   type="date"
                   value={values.watchedAt || today}
                   onChange={(event) => update('watchedAt', event.target.value)}
-                  aria-label="Date de visionnage"
+                  aria-label={t("Date de visionnage")}
                   aria-invalid={Boolean(errors.watchedAt)}
                 />
               </div>
             )}
           </div>
-          {errors.status && <p className="field-error">{errors.status}</p>}
-          {verdictVisible && errors.watchedAt && <p className="field-error">{errors.watchedAt}</p>}
+          {errors.status && <p className="field-error">{translateMessage(errors.status)}</p>}
+          {verdictVisible && errors.watchedAt && <p className="field-error">{translateMessage(errors.watchedAt)}</p>}
         </div>
 
         {hasProviderFacts && (
-          <section className="film-provider-facts" aria-label="Informations du film">
+          <section className="film-provider-facts" aria-label={t("Informations du film")}>
             <header>
-              <span>Informations du film</span>
+              <span>{t("Informations du film")}</span>
               <small>TMDB</small>
             </header>
             <dl>
-              {providerRelease && <div><dt>Sortie</dt><dd>{providerRelease}</dd></div>}
-              {providerRuntime && <div><dt>Durée</dt><dd>{providerRuntime}</dd></div>}
-              {providerDirectors && <div><dt>Réalisation</dt><dd>{providerDirectors}</dd></div>}
-              {providerCast && <div><dt>Avec</dt><dd>{providerCast}</dd></div>}
+              {providerRelease && <div><dt>{t("Sortie")}</dt><dd>{providerRelease}</dd></div>}
+              {providerRuntime && <div><dt>{t("Durée")}</dt><dd>{providerRuntime}</dd></div>}
+              {providerDirectors && <div><dt>{t("Réalisation")}</dt><dd>{providerDirectors}</dd></div>}
+              {providerCast && <div><dt>{t("Avec")}</dt><dd>{providerCast}</dd></div>}
               {providerOriginalTitle && providerOriginalTitle !== values.title.trim() && (
-                <div><dt>Titre original</dt><dd>{providerOriginalTitle}</dd></div>
+                <div><dt>{t("Titre original")}</dt><dd>{providerOriginalTitle}</dd></div>
               )}
             </dl>
           </section>
@@ -279,9 +280,9 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
             <textarea
               id="personalNote"
               name="personalNote"
-              aria-label="Critique personnelle"
+              aria-label={t("Critique personnelle")}
               rows={5}
-              placeholder="Qu’as-tu pensé de ce film ?"
+              placeholder={t("Qu’as-tu pensé de ce film ?")}
               value={values.personalNote}
               onChange={(event) => update('personalNote', event.target.value)}
               autoCorrect="off"
@@ -290,13 +291,13 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
           </div>
         )}
 
-        {saveError && <p className="form-error" role="alert">{saveError}</p>}
+        {saveError && <p className="form-error" role="alert">{translateMessage(saveError)}</p>}
         </div>
 
         <footer className="form-actions form-actions-docked">
-          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>{t("Annuler")}</button>
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : film ? 'Enregistrer les modifications' : 'Ajouter le film'}
+            {saving ? t("Enregistrement…") : film ? t("Enregistrer les modifications") : t("Ajouter le film")}
           </button>
         </footer>
       </div>
@@ -321,8 +322,8 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
     return (
       <>
         <div className="dialog-backdrop-blur" role="presentation" onClick={(event) => { if (event.target === event.currentTarget && !saving) onCancel() }}>
-          <FocusDialog className="editor-dialog" onClose={onCancel} closeDisabled={saving} aria-label={film ? 'Modifier la fiche' : 'Ajouter un film'}>
-            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={onCancel} disabled={saving} aria-label="Fermer">×</button>
+          <FocusDialog className="editor-dialog" onClose={onCancel} closeDisabled={saving} aria-label={film ? t("Modifier la fiche") : t("Ajouter un film")}>
+            <button className="poster-dialog-close editor-dialog-close" type="button" onClick={onCancel} disabled={saving} aria-label={t("Fermer")}>×</button>
             {heading}
             {form}
           </FocusDialog>
@@ -346,7 +347,7 @@ export function FilmForm({ film, initialValues, provenance = null, tmdbPresentat
   return (
     <main className="main editor-main">
       <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+        <button className="back-button" type="button" onClick={onCancel}>{t("← Annuler")}</button>
       </header>
       {heading}
       {form}

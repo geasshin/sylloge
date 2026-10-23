@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { t, translateMessage } from '../i18n/core.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
-import { posterLabelAfterA, posterLabelWithArticle, type PosterLabel } from './Poster.tsx'
+import { posterResetHint, posterEditTitle, type PosterLabel } from './Poster.tsx'
 
 /**
  * Dialogue de modification du visuel d'une fiche par URL.
@@ -55,15 +56,15 @@ export function PosterUrlDialog({
 
   return (
     <AccessibleDialog
-      title={`Modifier ${posterLabelWithArticle(label)}`}
-      description={`Coller l’adresse d’une image pour « ${title} ».`}
+      title={posterEditTitle(label)}
+      description={t('Coller l’adresse d’une image pour « {title} ».', { title })}
       closeDisabled={saving}
       onClose={onClose}
       size="md"
     >
       <div className="assistant-content poster-url-dialog">
         <label className="field">
-          <span>Adresse de l’image</span>
+          <span>{t("Adresse de l’image")}</span>
           <input
             type="url"
             value={value}
@@ -72,11 +73,11 @@ export function PosterUrlDialog({
             autoFocus
           />
         </label>
-        <p className="import-hint">Le lien d’une image trouvée sur le web suffit. Laisser vide pour revenir {posterLabelAfterA(label)} par défaut.</p>
-        {error && <p className="validation-errors" role="alert">{error}</p>}
+        <p className="import-hint">{posterResetHint(label)}</p>
+        {error && <p className="validation-errors" role="alert">{translateMessage(error)}</p>}
         <div className="assistant-actions assistant-actions-single">
           <button className="primary-button" type="button" disabled={saving} onClick={() => void submit()}>
-            {saving ? 'Enregistrement…' : 'Enregistrer'}
+            {saving ? t("Enregistrement…") : t("Enregistrer")}
           </button>
         </div>
       </div>

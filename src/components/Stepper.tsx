@@ -1,3 +1,5 @@
+import { formatNumber, t, translateMessage } from '../i18n/core.ts'
+
 type StepperProps = {
   id: string
   label: string
@@ -19,6 +21,7 @@ type StepperProps = {
  * champ numérique brut.
  */
 export function Stepper({ id, label, value, onChange, min = 0, max = null, error, describedBy, readOnly = false, hint }: StepperProps) {
+  const translatedLabel = t(label)
   const numericValue = value.trim() === '' ? null : Number(value)
   const current = numericValue !== null && Number.isFinite(numericValue) ? numericValue : null
   const canDecrease = current !== null && current > min
@@ -35,10 +38,10 @@ export function Stepper({ id, label, value, onChange, min = 0, max = null, error
   if (readOnly) {
     return (
       <div className="field stepper-field">
-        <span className="stepper-readonly-label">{label}</span>
+        <span className="stepper-readonly-label">{translatedLabel}</span>
         <p className="stepper-readonly-value">
-          {current !== null ? current : '—'}
-          {hint && <small>{hint}</small>}
+          {current !== null ? formatNumber(current) : '—'}
+          {hint && <small>{t(hint)}</small>}
         </p>
       </div>
     )
@@ -46,14 +49,14 @@ export function Stepper({ id, label, value, onChange, min = 0, max = null, error
 
   return (
     <div className="field stepper-field">
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>{translatedLabel}</label>
       <div className="stepper">
         <button
           type="button"
           className="stepper-button"
           onClick={() => step(-1)}
           disabled={!canDecrease}
-          aria-label={`Retirer 1 à ${label}`}
+          aria-label={t`Retirer 1 à ${translatedLabel}`}
         >
           −
         </button>
@@ -72,12 +75,12 @@ export function Stepper({ id, label, value, onChange, min = 0, max = null, error
           className="stepper-button"
           onClick={() => step(1)}
           disabled={!canIncrease}
-          aria-label={`Ajouter 1 à ${label}`}
+          aria-label={t`Ajouter 1 à ${translatedLabel}`}
         >
           +
         </button>
       </div>
-      {error && <p className="field-error" id={`${id}-error`}>{error}</p>}
+      {error && <p className="field-error" id={`${id}-error`}>{translateMessage(error)}</p>}
     </div>
   )
 }

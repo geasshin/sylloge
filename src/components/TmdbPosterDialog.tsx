@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { t } from '../i18n/core.ts'
 import { useDialogFocus } from './FocusDialog.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 
@@ -49,13 +50,13 @@ export function TmdbPosterDialog({
           onClick={(event) => event.stopPropagation()}
         >
           <header className="poster-dialog-header">
-            <h2 id="poster-dialog-title">Choisir une affiche</h2>
+            <h2 id="poster-dialog-title">{t('Choisir une affiche')}</h2>
             <button
               className="poster-dialog-close"
               type="button"
               onClick={onClose}
               disabled={saving}
-              aria-label="Fermer"
+              aria-label={t("Fermer")}
             >
               ×
             </button>
@@ -63,18 +64,18 @@ export function TmdbPosterDialog({
 
           <p className="poster-dialog-film">{title}</p>
 
-          <div className="poster-dialog-grid" role="group" aria-label="Affiches disponibles">
+          <div className="poster-dialog-grid" role="group" aria-label={t("Affiches disponibles")}>
             {/* Tuile « Ajouter une affiche » : toujours en tête de liste */}
             <button
               className="poster-dialog-item poster-dialog-add"
               type="button"
               onClick={() => setAddOpen(true)}
               disabled={saving}
-              aria-label="Ajouter une affiche depuis une URL"
-              title="Ajouter une affiche depuis une URL"
+              aria-label={t("Ajouter une affiche depuis une URL")}
+              title={t("Ajouter une affiche depuis une URL")}
             >
               <span aria-hidden="true" className="poster-dialog-add-plus">+</span>
-              <small>Ajouter</small>
+              <small>{t("Ajouter")}</small>
             </button>
             {posters.map((url) => (
               <button
@@ -84,7 +85,7 @@ export function TmdbPosterDialog({
                 onClick={() => onSelect(url)}
                 disabled={saving}
                 aria-pressed={currentUrl === url}
-                aria-label={currentUrl === url ? 'Affiche actuellement choisie' : 'Choisir cette affiche'}
+                aria-label={currentUrl === url ? t('Affiche actuellement choisie') : t('Choisir cette affiche')}
               >
                 <img src={url} alt="" loading="lazy" />
                 {currentUrl === url && <span className="poster-dialog-check" aria-hidden="true">✓</span>}
@@ -94,7 +95,7 @@ export function TmdbPosterDialog({
 
           <footer className="poster-dialog-footer">
             <p className="poster-dialog-attribution">
-              Affiches fournies par{' '}
+              {t("Affiches fournies par")}{' '}
               <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>.
             </p>
             <div className="poster-dialog-actions">
@@ -104,9 +105,9 @@ export function TmdbPosterDialog({
                   type="button"
                   onClick={() => { setCustomUrl(null); onSelect(null) }}
                   disabled={saving}
-                  title="Revenir à l'affiche principale du fournisseur"
+                  title={t("Revenir à l'affiche principale du fournisseur")}
                 >
-                  Affiche par défaut
+                  {t("Affiche par défaut")}
                 </button>
               )}
               {/* Valider applique la sélection courante puis ferme */}
@@ -116,7 +117,7 @@ export function TmdbPosterDialog({
                 disabled={saving || currentUrl === null}
                 onClick={() => { if (customUrl) onSelect(customUrl); onClose() }}
               >
-                {saving ? 'Enregistrement…' : 'Valider'}
+                {saving ? t("Enregistrement…") : t("Valider")}
               </button>
             </div>
           </footer>

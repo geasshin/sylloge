@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { formatNumber, t } from '../../i18n/core.ts'
+import { useLanguage } from '../../i18n/react.ts'
 import type { FilmLibrary } from '../../data/filmsRepository.ts'
 import { libraryRepository, type CulturalLibrary } from '../../data/libraryRepository.ts'
 import { LibraryExportFlow } from '../LibraryExportFlow.tsx'
@@ -11,12 +13,14 @@ type Props = {
   onOpenBackups?: () => void
 }
 
-const fiches = (count: number) => `${count} ${count === 1 ? 'fiche' : 'fiches'}`
-
 export function TransferSettings({ library, onLibraryChanged, onOpenBackups }: Props) {
+  useLanguage()
   const [full, setFull] = useState<CulturalLibrary | null>(null)
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
+  const fiches = (count: number) => count === 1
+    ? t('{count} fiche', { count: formatNumber(count) })
+    : t('{count} fiches', { count: formatNumber(count) })
 
   useEffect(() => {
     let cancelled = false
@@ -40,50 +44,50 @@ export function TransferSettings({ library, onLibraryChanged, onOpenBackups }: P
     <>
       <SettingsGroup
         id="transfer-title"
-        title="Par bibliothèque"
-        description="Importer depuis Letterboxd, Goodreads, Notion, un tableur ou un JSON Sylloge ; exporter en JSON ou CSV. Chaque import montre un aperçu et demande une confirmation."
+        title={t('Par bibliothèque')}
+        description={t('Importer depuis Letterboxd, Goodreads, Notion, un tableur ou un JSON Sylloge ; exporter en JSON ou CSV. Chaque import montre un aperçu et demande une confirmation.')}
       >
         {failed ? (
-          <SettingsRow label="Bibliothèques illisibles" detail="Les bibliothèques n’ont pas pu être lues. Revenir plus tard sur cette page." tone="danger" />
+          <SettingsRow label={t('Bibliothèques illisibles')} detail={t('Les bibliothèques n’ont pas pu être lues. Revenir plus tard sur cette page.')} tone="danger" />
         ) : full === null ? (
-          <SettingsRow label="Lecture des bibliothèques…" />
+          <SettingsRow label={t('Lecture des bibliothèques…')} />
         ) : (
           <>
-            <SettingsRow label="Films" detail={`${fiches(full.films.length)} · Letterboxd, Notion, tableur, JSON`}>
-              <LibraryImportButton kind="films" buttonLabel="Importer" mediumLabel="film" profileId={full.profile.id} profileName={full.profile.name} existing={full.films} onDone={changed} />
+            <SettingsRow label={t('Films')} detail={`${fiches(full.films.length)} · ${t('Letterboxd, Notion, tableur, JSON')}`}>
+              <LibraryImportButton kind="films" buttonLabel={t('Importer')} mediumLabel="film" profileId={full.profile.id} profileName={full.profile.name} existing={full.films} onDone={changed} />
               <LibraryExportFlow kind="films" profileId={full.profile.id} />
             </SettingsRow>
-            <SettingsRow label="Séries" detail={`${fiches(full.series.length)} · Notion, tableur, JSON`}>
-              <LibraryImportButton kind="series" buttonLabel="Importer" mediumLabel="série" profileId={full.profile.id} profileName={full.profile.name} existing={full.series} onDone={changed} />
+            <SettingsRow label={t('Séries')} detail={`${fiches(full.series.length)} · ${t('Notion, tableur, JSON')}`}>
+              <LibraryImportButton kind="series" buttonLabel={t('Importer')} mediumLabel="série" profileId={full.profile.id} profileName={full.profile.name} existing={full.series} onDone={changed} />
               <LibraryExportFlow kind="series" profileId={full.profile.id} />
             </SettingsRow>
-            <SettingsRow label="Animation japonaise" detail={`${fiches(full.anime.length)} · Notion, tableur, JSON`}>
-              <LibraryImportButton kind="series" seriesLibrary="anime" buttonLabel="Importer" mediumLabel="animation japonaise" profileId={full.profile.id} profileName={full.profile.name} existing={full.anime} onDone={changed} />
+            <SettingsRow label={t('Animation japonaise')} detail={`${fiches(full.anime.length)} · ${t('Notion, tableur, JSON')}`}>
+              <LibraryImportButton kind="series" seriesLibrary="anime" buttonLabel={t('Importer')} mediumLabel="animation japonaise" profileId={full.profile.id} profileName={full.profile.name} existing={full.anime} onDone={changed} />
               <LibraryExportFlow kind="anime" profileId={full.profile.id} />
             </SettingsRow>
-            <SettingsRow label="Livres" detail={`${fiches(full.books.length)} · Goodreads, Notion, tableur, JSON · citations comprises`}>
-              <LibraryImportButton kind="books" buttonLabel="Importer" mediumLabel="livre" profileId={full.profile.id} profileName={full.profile.name} existing={full.books} onDone={changed} />
+            <SettingsRow label={t('Livres')} detail={`${fiches(full.books.length)} · ${t('Goodreads, Notion, tableur, JSON · citations comprises')}`}>
+              <LibraryImportButton kind="books" buttonLabel={t('Importer')} mediumLabel="livre" profileId={full.profile.id} profileName={full.profile.name} existing={full.books} onDone={changed} />
               <LibraryExportFlow kind="books" profileId={full.profile.id} />
             </SettingsRow>
-            <SettingsRow label="Mangas" detail={`${fiches(full.mangas.length)} · Notion, tableur, JSON · citations comprises`}>
-              <LibraryImportButton kind="books" bookLibrary="mangas" buttonLabel="Importer" mediumLabel="manga" profileId={full.profile.id} profileName={full.profile.name} existing={full.mangas} onDone={changed} />
+            <SettingsRow label={t('Mangas')} detail={`${fiches(full.mangas.length)} · ${t('Notion, tableur, JSON · citations comprises')}`}>
+              <LibraryImportButton kind="books" bookLibrary="mangas" buttonLabel={t('Importer')} mediumLabel="manga" profileId={full.profile.id} profileName={full.profile.name} existing={full.mangas} onDone={changed} />
               <LibraryExportFlow kind="mangas" profileId={full.profile.id} />
             </SettingsRow>
-            <SettingsRow label="Jeux" detail={`${fiches(full.games.length)} · Notion, tableur, JSON`}>
-              <LibraryImportButton kind="games" buttonLabel="Importer" mediumLabel="jeu" profileId={full.profile.id} profileName={full.profile.name} existing={full.games} onDone={changed} />
+            <SettingsRow label={t('Jeux')} detail={`${fiches(full.games.length)} · ${t('Notion, tableur, JSON')}`}>
+              <LibraryImportButton kind="games" buttonLabel={t('Importer')} mediumLabel="jeu" profileId={full.profile.id} profileName={full.profile.name} existing={full.games} onDone={changed} />
               <LibraryExportFlow kind="games" profileId={full.profile.id} />
             </SettingsRow>
-            <SettingsRow label="Art" detail={`${fiches(full.artworks.length)} · Notion, tableur, JSON · sans note chiffrée`}>
-              <LibraryImportButton kind="artworks" buttonLabel="Importer" mediumLabel="œuvre" profileId={full.profile.id} profileName={full.profile.name} existing={full.artworks} onDone={changed} />
+            <SettingsRow label={t('Art')} detail={`${fiches(full.artworks.length)} · ${t('Notion, tableur, JSON · sans note chiffrée')}`}>
+              <LibraryImportButton kind="artworks" buttonLabel={t('Importer')} mediumLabel="œuvre" profileId={full.profile.id} profileName={full.profile.name} existing={full.artworks} onDone={changed} />
               <LibraryExportFlow kind="artworks" profileId={full.profile.id} />
             </SettingsRow>
           </>
         )}
       </SettingsGroup>
 
-      <SettingsGroup id="transfer-profile-title" title="Tout le profil" description="Pour sauvegarder, restaurer ou changer d’ordinateur, un seul fichier JSON réunit toutes les bibliothèques du profil.">
-        <SettingsRow label="Sauvegarde et restauration" detail="Sauvegarde automatique, copies du profil, restauration et export d’une copie.">
-          {onOpenBackups && <button className="secondary-button" type="button" onClick={onOpenBackups}>Ouvrir Sauvegarde</button>}
+      <SettingsGroup id="transfer-profile-title" title={t('Tout le profil')} description={t('Pour sauvegarder, restaurer ou changer d’ordinateur, un seul fichier JSON réunit toutes les bibliothèques du profil.')}>
+        <SettingsRow label={t('Sauvegarde et restauration')} detail={t('Sauvegarde automatique, copies du profil, restauration et export d’une copie.')}>
+          {onOpenBackups && <button className="secondary-button" type="button" onClick={onOpenBackups}>{t('Ouvrir Sauvegarde')}</button>}
         </SettingsRow>
       </SettingsGroup>
     </>

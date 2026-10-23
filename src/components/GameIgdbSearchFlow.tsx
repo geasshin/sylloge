@@ -4,6 +4,7 @@ import {
   type IgdbGameCandidate,
 } from '../data/igdbService.ts'
 import { Poster } from './Poster.tsx'
+import { formatNumber, t, translateMessage } from '../i18n/core.ts'
 
 type GameIgdbSearchFlowProps = {
   /** Fiche ouverte derrière la pop-up : contexte d'association, titre prérempli. */
@@ -78,17 +79,17 @@ export function GameIgdbSearchFlow({ existing = null, pendingCandidateId = null,
       {!compact && (
         <header className="page-action-bar">
           <button className="back-button" type="button" onClick={onCancel}>
-            {existing ? '← Retour à la fiche' : '← Annuler'}
+            {existing ? t('← Retour à la fiche') : t('← Annuler')}
           </button>
         </header>
       )}
 
       <div className="editor-heading">
-        <h1 className="display-title">{existing ? 'Modifier l’association' : 'Rechercher un jeu'}</h1>
+        <h1 className="display-title">{existing ? t('Modifier l’association') : t('Rechercher un jeu')}</h1>
         <p>
           {existing
-            ? `Recherchez une autre correspondance IGDB pour « ${existing.title} ».`
-            : 'Recherchez un jeu dans IGDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.'}
+            ? t`Recherchez une autre correspondance IGDB pour « ${existing.title} ».`
+            : t('Recherchez un jeu dans IGDB et choisissez la bonne correspondance : le formulaire s’ouvre directement prérempli.')}
         </p>
       </div>
 
@@ -96,22 +97,22 @@ export function GameIgdbSearchFlow({ existing = null, pendingCandidateId = null,
         <section className="tmdb-film-context" aria-labelledby="game-igdb-context-title">
           <Poster label="Couverture" title={existing.title} src={existing.coverUrl} className="tmdb-film-context-poster" />
           <div className="tmdb-film-context-info">
-            <p className="card-kicker">Fiche actuelle</p>
+            <p className="card-kicker">{t('Fiche actuelle')}</p>
             <h2 id="game-igdb-context-title">{existing.title}</h2>
-            <p>Cette fiche reste le contexte de l’association. Seuls ses champs éditoriaux seront mis à jour ; tes données personnelles ne bougent pas.</p>
+            <p>{t('Cette fiche reste le contexte de l’association. Seuls ses champs éditoriaux seront mis à jour ; tes données personnelles ne bougent pas.')}</p>
           </div>
         </section>
       )}
 
       <form className="tmdb-search-form" onSubmit={(event) => event.preventDefault()}>
         <div className="field">
-          <label htmlFor="game-igdb-search-query">Titre du jeu</label>
+          <label htmlFor="game-igdb-search-query">{t('Titre du jeu')}</label>
           <input
             id="game-igdb-search-query"
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher dans IGDB…"
+            placeholder={t('Rechercher dans IGDB…')}
             autoFocus
             autoCapitalize="none"
             autoCorrect="off"
@@ -119,30 +120,30 @@ export function GameIgdbSearchFlow({ existing = null, pendingCandidateId = null,
             aria-busy={searchState.status === 'searching'}
           />
           <p className="field-help">
-            {searchState.status === 'searching' ? 'Recherche dans IGDB…' : 'Les suggestions se mettent à jour pendant la saisie.'}
+            {searchState.status === 'searching' ? t('Recherche dans IGDB…') : t('Les suggestions se mettent à jour pendant la saisie.')}
           </p>
         </div>
         <div className="form-actions">
           <button className="secondary-button" type="button" onClick={onManual}>
-            {existing ? 'Retour à la fiche' : 'Saisir manuellement'}
+            {existing ? t('Retour à la fiche') : t('Saisir manuellement')}
           </button>
         </div>
       </form>
 
       {searchState.status === 'error' && (
         <div className="results-state error-state" role="alert">
-          <h2>La recherche a échoué.</h2>
-          <p>{searchState.message}</p>
+          <h2>{t('La recherche a échoué.')}</h2>
+          <p>{translateMessage(searchState.message)}</p>
         </div>
       )}
 
       {pendingCandidateId !== null && (
-        <div className="results-state" role="status">Préparation de la mise à jour…</div>
+        <div className="results-state" role="status">{t('Préparation de la mise à jour…')}</div>
       )}
 
       {selectionError !== null && pendingCandidateId === null && (
         <div className="results-state error-state" role="alert">
-          <p>{selectionError}</p>
+          <p>{translateMessage(selectionError)}</p>
         </div>
       )}
 
@@ -150,11 +151,11 @@ export function GameIgdbSearchFlow({ existing = null, pendingCandidateId = null,
         <section className="tmdb-search-results" aria-labelledby="game-igdb-results-title">
           <h2 id="game-igdb-results-title">
             {searchState.candidates.length === 0
-              ? 'Aucun résultat'
-              : `${searchState.candidates.length} ${searchState.candidates.length === 1 ? 'résultat' : 'résultats'}`}
+              ? t('Aucun résultat')
+              : t(searchState.candidates.length === 1 ? '{count} résultat' : '{count} résultats', { count: formatNumber(searchState.candidates.length) })}
           </h2>
           {searchState.candidates.length === 0 ? (
-            <p>Essayez un titre différent ou passez à la saisie manuelle.</p>
+            <p>{t('Essayez un titre différent ou passez à la saisie manuelle.')}</p>
           ) : (
             <div className="tmdb-candidates-grid">
               {searchState.candidates.map((candidate) => (
@@ -181,7 +182,7 @@ export function GameIgdbSearchFlow({ existing = null, pendingCandidateId = null,
             </div>
           )}
           <p className="provider-attribution">
-            Données : <a href="https://www.igdb.com" target="_blank" rel="noreferrer">IGDB</a> (opéré par Twitch)
+            {t('Données :')} <a href="https://www.igdb.com" target="_blank" rel="noreferrer">IGDB</a> {t('(opéré par Twitch)')}
           </p>
         </section>
       )}
@@ -193,7 +194,7 @@ export function GameIgdbSearchFlow({ existing = null, pendingCandidateId = null,
   }
 
   return (
-    <main className="main editor-main" aria-label="Recherche IGDB">
+    <main className="main editor-main" aria-label={t('Recherche IGDB')}>
       {body}
     </main>
   )

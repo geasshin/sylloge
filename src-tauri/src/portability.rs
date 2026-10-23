@@ -36,6 +36,57 @@ const MAX_ZIP_UNCOMPRESSED_BYTES: u128 = 32 * 1024 * 1024;
 const MAX_ZIP_ENTRY_BYTES: u64 = 4 * 1024 * 1024;
 static SNAPSHOT_NONCE: AtomicU64 = AtomicU64::new(0);
 
+struct NativeDialogLabels {
+    import_any_title: &'static str,
+    import_any_filter: &'static str,
+    import_container_title: &'static str,
+    import_json_title: &'static str,
+    json_filter: &'static str,
+    import_films_title: &'static str,
+    import_films_filter: &'static str,
+    export_title: &'static str,
+    csv_filter: &'static str,
+    backup_destination_title: &'static str,
+    backup_directory_title: &'static str,
+}
+
+// Only application-owned copy is localized; native controls follow the OS.
+// Old callers (no language) and unsupported values keep the French default.
+fn native_dialog_labels(language: Option<&str>) -> NativeDialogLabels {
+    let text = |french: &'static str, english: &'static str| {
+        if language == Some("en") {
+            english
+        } else {
+            french
+        }
+    };
+    NativeDialogLabels {
+        import_any_title: text("Choisir un fichier à importer", "Choose a file to import"),
+        import_any_filter: text(
+            "Import Sylloge (JSON, CSV, ZIP)",
+            "Sylloge import (JSON, CSV, ZIP)",
+        ),
+        import_container_title: text("Choisir un dossier à analyser", "Choose a folder to scan"),
+        import_json_title: text("Choisir un export Sylloge", "Choose a Sylloge export"),
+        json_filter: text("Export JSON Sylloge", "Sylloge JSON export"),
+        import_films_title: text(
+            "Choisir un CSV Films ou un ZIP compatible",
+            "Choose a Films CSV or a compatible ZIP",
+        ),
+        import_films_filter: text("CSV ou ZIP compatible", "Compatible CSV or ZIP"),
+        export_title: text("Exporter le profil Sylloge", "Export the Sylloge profile"),
+        csv_filter: text("Export CSV Sylloge", "Sylloge CSV export"),
+        backup_destination_title: text(
+            "Choisir le dossier des futures sauvegardes Sylloge",
+            "Choose the folder for future Sylloge backups",
+        ),
+        backup_directory_title: text(
+            "Choisir le dossier de sauvegarde Sylloge",
+            "Choose the Sylloge backup folder",
+        ),
+    }
+}
+
 pub struct BackupSnapshotLock(Mutex<()>);
 
 impl Default for BackupSnapshotLock {
@@ -471,12 +522,16 @@ pub struct PickedAnyImportFile {
 /// Sélecteur d'import unifié : accepte JSON, CSV et ZIP, puis détecte le type
 /// afin que l'interface réutilise le pipeline d’import approprié.
 #[tauri::command]
-pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFile>, String> {
+pub async fn pick_import_any(
+    app: AppHandle,
+    language: Option<String>,
+) -> Result<Option<PickedAnyImportFile>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter("Import Sylloge (JSON, CSV, ZIP)", &["json", "csv", "zip"])
-        .set_title("Choisir un fichier à importer")
+        .add_filter(labels.import_any_filter, &["json", "csv", "zip"])
+        .set_title(labels.import_any_title)
         .blocking_pick_file()
     else {
         return Ok(None);
@@ -530,11 +585,15 @@ pub async fn pick_import_any(app: AppHandle) -> Result<Option<PickedAnyImportFil
 }
 
 #[tauri::command]
-pub async fn pick_import_container(app: AppHandle) -> Result<Option<PickedAnyImportFile>, String> {
+pub async fn pick_import_container(
+    app: AppHandle,
+    language: Option<String>,
+) -> Result<Option<PickedAnyImportFile>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     let Some(folder_path) = app
         .dialog()
         .file()
-        .set_title("Choisir un dossier à analyser")
+        .set_title(labels.import_container_title)
         .blocking_pick_folder()
     else {
         return Ok(None);
@@ -547,12 +606,16 @@ pub async fn pick_import_container(app: AppHandle) -> Result<Option<PickedAnyImp
 }
 
 #[tauri::command]
-pub async fn pick_import_json(app: AppHandle) -> Result<Option<PickedJsonFile>, String> {
+pub async fn pick_import_json(
+    app: AppHandle,
+    language: Option<String>,
+) -> Result<Option<PickedJsonFile>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter("Export JSON Sylloge", &["json"])
-        .set_title("Choisir un export Sylloge")
+        .add_filter(labels.json_filter, &["json"])
+        .set_title(labels.import_json_title)
         .blocking_pick_file()
     else {
         return Ok(None);
@@ -574,12 +637,14 @@ pub async fn pick_import_json(app: AppHandle) -> Result<Option<PickedJsonFile>, 
 #[tauri::command]
 pub async fn pick_import_films_csv_or_notion(
     app: AppHandle,
+    language: Option<String>,
 ) -> Result<Option<PickedFilmsImportFile>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter("CSV ou ZIP compatible", &["csv", "zip"])
-        .set_title("Choisir un CSV Films ou un ZIP compatible")
+        .add_filter(labels.import_films_filter, &["csv", "zip"])
+        .set_title(labels.import_films_title)
         .blocking_pick_file()
     else {
         return Ok(None);
@@ -1120,12 +1185,15 @@ pub async fn save_export_json(
     app: AppHandle,
     suggested_name: String,
     contents: String,
+    language: Option<String>,
 ) -> Result<Option<String>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     save_export_file(
         &app,
         &suggested_name,
         &contents,
-        "Export JSON Sylloge",
+        labels.json_filter,
+        labels.export_title,
         &["json"],
         "sylloge-films.json",
     )
@@ -1136,12 +1204,15 @@ pub async fn save_export_csv(
     app: AppHandle,
     suggested_name: String,
     contents: String,
+    language: Option<String>,
 ) -> Result<Option<String>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     save_export_file(
         &app,
         &suggested_name,
         &contents,
-        "Export CSV Sylloge",
+        labels.csv_filter,
+        labels.export_title,
         &["csv"],
         "sylloge-films.csv",
     )
@@ -1152,6 +1223,7 @@ fn save_export_file(
     suggested_name: &str,
     contents: &str,
     filter_name: &str,
+    title: &str,
     extensions: &[&str],
     fallback_name: &str,
 ) -> Result<Option<String>, String> {
@@ -1161,7 +1233,7 @@ fn save_export_file(
         .file()
         .add_filter(filter_name, extensions)
         .set_file_name(&safe_name)
-        .set_title("Exporter le profil Sylloge")
+        .set_title(title)
         .blocking_save_file()
     else {
         return Ok(None);
@@ -1234,11 +1306,15 @@ pub async fn get_backup_settings(
 }
 
 #[tauri::command]
-pub async fn pick_backup_destination(app: AppHandle) -> Result<Option<BackupSettings>, String> {
+pub async fn pick_backup_destination(
+    app: AppHandle,
+    language: Option<String>,
+) -> Result<Option<BackupSettings>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     let selected_path = app
         .dialog()
         .file()
-        .set_title("Choisir le dossier des futures sauvegardes Sylloge")
+        .set_title(labels.backup_destination_title)
         .blocking_pick_folder()
         .map(|folder_path| {
             folder_path
@@ -1299,11 +1375,13 @@ pub async fn pick_backup_directory(
     db_instances: State<'_, DbInstances>,
     backup_snapshot_lock: State<'_, BackupSnapshotLock>,
     profile_id: String,
+    language: Option<String>,
 ) -> Result<Option<BackupSettings>, String> {
+    let labels = native_dialog_labels(language.as_deref());
     let Some(folder_path) = app
         .dialog()
         .file()
-        .set_title("Choisir le dossier de sauvegarde Sylloge")
+        .set_title(labels.backup_directory_title)
         .blocking_pick_folder()
     else {
         return Ok(None);
@@ -4626,6 +4704,10 @@ async fn upsert_artwork(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "localization_tests.rs"]
+mod localization_tests;
 
 #[cfg(test)]
 #[path = "custom_libraries_tests.rs"]

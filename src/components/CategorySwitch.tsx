@@ -1,5 +1,6 @@
 import { SERIES_CATEGORIES } from '../domain/series.ts'
 import { BOOK_CATEGORIES } from '../domain/book.ts'
+import { t } from '../i18n/core.ts'
 
 /**
  * Interrupteur de catégories (0.6.8) : un seul bloc segmenté, plusieurs
@@ -34,7 +35,7 @@ export function CategorySwitch({
   }
 
   return (
-    <div className="category-switch" role="group" aria-label="Catégories affichées">
+    <div className="category-switch" role="group" aria-label={t('Catégories affichées')}>
       {categories.map((category) => {
         const pressed = effective.includes(category)
         return (
@@ -43,7 +44,7 @@ export function CategorySwitch({
             type="button"
             className={`category-switch-segment ${pressed ? 'active' : ''}`}
             aria-pressed={pressed}
-            title={pressed ? `Masquer ${labels[category] ?? category}` : `Afficher ${labels[category] ?? category}`}
+            title={pressed ? t`Masquer ${labels[category] ?? category}` : t`Afficher ${labels[category] ?? category}`}
             onClick={() => toggle(category)}
           >
             <span className={`category-switch-check ${pressed ? 'on' : ''}`} aria-hidden="true">✓</span>
@@ -65,7 +66,7 @@ export function SeriesCategorySwitch({ selected, onSelectionChange }: {
       categories={[...SERIES_CATEGORIES]}
       value={selected}
       onChange={onSelectionChange}
-      labels={{ 'série télé': 'Série', animation: 'Animation' }}
+      labels={{ 'série télé': t('Série'), animation: t('Animation') }}
     />
   )
 }
@@ -80,7 +81,7 @@ export function BookCategorySwitch({ selected, onSelectionChange }: {
       categories={[...BOOK_CATEGORIES]}
       value={selected}
       onChange={onSelectionChange}
-      labels={{ livre: 'Livre', manga: 'Manga' }}
+      labels={{ livre: t('Livre'), manga: t('Manga') }}
     />
   )
 }

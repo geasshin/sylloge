@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { t, translateMessage } from '../i18n/core.ts'
+import { useLanguage } from '../i18n/react.ts'
 import {
   updaterPreferencesService,
   type UpdaterPreferences,
@@ -9,6 +11,9 @@ import {
   type AvailableUpdate,
 } from '../data/updaterService.ts'
 import { SettingsRow } from './settings/SettingsLayout.tsx'
+
+/** Les comptes rendus viennent du composant, du service ou du natif : traduits à l’affichage. */
+export const updaterMessageText = (message: string) => translateMessage(message)
 
 type UpdaterSettingsProps = {
   availableUpdate: AvailableUpdate | null
@@ -26,6 +31,7 @@ export function UpdaterSettings({
   onUpdateAvailable,
   onUpdateHandled,
 }: UpdaterSettingsProps) {
+  useLanguage()
   const [preferences, setPreferences] = useState<UpdaterPreferences | null>(null)
   const [loadingPreferences, setLoadingPreferences] = useState(true)
   const [checking, setChecking] = useState(false)
@@ -169,10 +175,10 @@ export function UpdaterSettings({
   return (
     <>
       {loadingPreferences ? (
-        <SettingsRow label="Lecture des préférences de mise à jour…" />
+        <SettingsRow label={t('Lecture des préférences de mise à jour…')} />
       ) : preferences ? (
         <>
-          <SettingsRow label="Rechercher automatiquement" detail="À l’ouverture de Sylloge, vérifier si une nouvelle version signée est publiée.">
+          <SettingsRow label={t('Rechercher automatiquement')} detail={t('À l’ouverture de Sylloge, vérifier si une nouvelle version signée est publiée.')}>
             <label className="settings-switch">
               <input
                 type="checkbox"
@@ -181,40 +187,40 @@ export function UpdaterSettings({
                 onChange={(event) => void changeAutomaticChecks(event.target.checked)}
                 disabled={savingAutomaticChecks || checking || installing}
               />
-              <span className="visually-hidden">Rechercher automatiquement les mises à jour</span>
+              <span className="visually-hidden">{t('Rechercher automatiquement les mises à jour')}</span>
             </label>
           </SettingsRow>
-          <SettingsRow label="Vérifier maintenant" detail="Seules les versions publiées et signées par le projet peuvent être installées.">
+          <SettingsRow label={t('Vérifier maintenant')} detail={t('Seules les versions publiées et signées par le projet peuvent être installées.')}>
             <button className="secondary-button" type="button" onClick={() => void checkManually()} disabled={busy}>
-              {checking ? 'Vérification…' : 'Rechercher les mises à jour'}
+              {checking ? t('Vérification…') : t('Rechercher les mises à jour')}
             </button>
           </SettingsRow>
           {preferences.ignoredVersion && (
-            <SettingsRow label={`Version ${preferences.ignoredVersion} ignorée`} detail="Elle ne sera plus proposée tant qu’elle reste ignorée.">
+            <SettingsRow label={t('Version {version} ignorée', { version: preferences.ignoredVersion })} detail={t('Elle ne sera plus proposée tant qu’elle reste ignorée.')}>
               <button className="secondary-button" type="button" onClick={() => void restoreIgnoredVersion()} disabled={busy}>
-                {savingIgnoredVersion ? 'Rétablissement…' : 'Rétablir'}
+                {savingIgnoredVersion ? t('Rétablissement…') : t('Rétablir')}
               </button>
             </SettingsRow>
           )}
           {availableUpdate && (
-            <SettingsRow label={`Version ${availableUpdate.version} disponible`} detail={availableUpdate.notes || 'Nouvelle version signée.'}>
+            <SettingsRow label={t('Version {version} disponible', { version: availableUpdate.version })} detail={availableUpdate.notes || t('Nouvelle version signée.')}>
               <button className="primary-button" type="button" onClick={() => void installAvailableUpdate()} disabled={installing || savingIgnoredVersion}>
-                {installing ? 'Installation…' : 'Installer'}
+                {installing ? t('Installation…') : t('Installer')}
               </button>
-              <button className="secondary-button" type="button" onClick={deferAvailableUpdate} disabled={installing || savingIgnoredVersion}>Plus tard</button>
+              <button className="secondary-button" type="button" onClick={deferAvailableUpdate} disabled={installing || savingIgnoredVersion}>{t('Plus tard')}</button>
               <button className="secondary-button" type="button" onClick={() => void ignoreAvailableVersion()} disabled={installing || savingIgnoredVersion}>
-                {savingIgnoredVersion ? 'Enregistrement…' : 'Ignorer'}
+                {savingIgnoredVersion ? t('Enregistrement…') : t('Ignorer')}
               </button>
             </SettingsRow>
           )}
         </>
       ) : (
-        <SettingsRow label="Préférences de mise à jour indisponibles" tone="danger" />
+        <SettingsRow label={t('Préférences de mise à jour indisponibles')} tone="danger" />
       )}
       {message && (
         <div className="settings-row">
           <p className={`inline-report settings-inline ${message.kind === 'error' ? 'error' : ''}`} role={message.kind === 'error' ? 'alert' : 'status'}>
-            {message.text}
+            {updaterMessageText(message.text)}
           </p>
         </div>
       )}

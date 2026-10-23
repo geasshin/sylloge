@@ -2,6 +2,8 @@
 
 Sylloge est une application de bibliothèque culturelle personnelle, conçue pour un usage local sur macOS et Windows. Sept bibliothèques : Films, Séries, Animation japonaise, Livres, Mangas, Jeux et Art. Une seule base `sylloge.db`, une table par bibliothèque. Aucune bibliothèque n’emprunte la table d’une autre.
 
+L’interface existe en français et en anglais : la langue est détectée au premier lancement, puis se choisit dans Paramètres › Général et reste mémorisée sur l’appareil. Les titres, avis, notes et citations ne sont jamais traduits. Fonctionnement et contrôles : [docs/I18N.md](docs/I18N.md).
+
 ## État du projet
 
 Chaque push sur `main` publie une version corrective ; le numéro des manifestes source reste `0.6.0`, la CI applique le numéro au moment de construire. La dernière version publiée est visible sur la page des releases. Le projet est gratuit et open source sous licence MIT.

@@ -7,7 +7,8 @@ Avant un changement qui touche au produit, consulter :
 1. docs/ROADMAP.md pour le périmètre confirmé et le prochain lot ;
 2. docs/WORKFLOW.md pour les pratiques de travail ;
 3. DESIGN.md pour la base visuelle ;
-4. README.md et les contrats de données concernés.
+4. docs/I18N.md pour les langues de l’interface ;
+5. README.md et les contrats de données concernés.
 
 Les documents sous docs/archive et les anciens plans sous docs/plans sont historiques. Ils ne créent pas de tâche active ni de règle actuelle.
 
@@ -18,6 +19,7 @@ Les documents sous docs/archive et les anciens plans sous docs/plans sont histor
 - Bibliothèques personnalisées (22 octobre 2026) : modèles prêts qu’un profil ajoute par le « + » de la barre latérale. Huit modèles, une table chacun (`comics`, `magazines`, `audiobooks`, `music`, `podcasts`, `documentaries`, `shows`, `board_games`), liste par profil dans `profile_libraries`. Le catalogue est dans `src/domain/customLibraries.ts`. Les comics ont leur bibliothèque : Livres n’a plus de catégorie Comics.
 - Une seule direction visuelle pour toute l’application, accueil compris : monochrome neutre et froid (décision du 16 octobre 2026). Les écrans peuvent être recomposés quand l’usage le justifie ; les fonctions, les données et les sept bibliothèques sont préservées. DESIGN.md décrit le système en vigueur.
 - Cible desktop macOS uniquement. La présentation mobile n’est plus maintenue comme cible.
+- Interface en français et en anglais (décision du 23 octobre 2026) : langue détectée au premier lancement, choix dans Paramètres › Général. Tout texte visible passe par `t()`, `tc()` ou `translateMessage()` avec son entrée anglaise ; les données de la personne (titres, avis, notes, citations, noms de profils et de vues) et les valeurs stockées ne se traduisent jamais. Règles et contrôles : docs/I18N.md ; `npm run test:i18n` doit rester vert.
 - Ne pas élargir le périmètre vers de nouveaux médias ou modèles, comptes, synchronisation, cloud ou distribution publique sans décision explicite.
 
 ## Données et sécurité

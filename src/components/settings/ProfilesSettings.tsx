@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { formatNumber, t, translateMessage } from '../../i18n/core.ts'
+import { useLanguage } from '../../i18n/react.ts'
 import type { FilmLibrary } from '../../data/filmsRepository.ts'
 import { profilesRepository, type ProfileSummary } from '../../data/profilesRepository.ts'
 import { AccessibleDialog } from '../AccessibleDialog.tsx'
@@ -8,14 +10,14 @@ import { SettingsGroup, SettingsRow } from './SettingsLayout.tsx'
 const MAX_PROFILES = 5
 
 const COUNT_LABELS: Array<[keyof ProfileSummary, string, string]> = [
-  ['filmCount', 'film', 'films'],
-  ['seriesCount', 'série', 'séries'],
-  ['animeCount', 'animé', 'animés'],
-  ['bookCount', 'livre', 'livres'],
-  ['mangaCount', 'manga', 'mangas'],
-  ['gameCount', 'jeu', 'jeux'],
-  ['artworkCount', 'œuvre d’art', 'œuvres d’art'],
-  ['customCount', 'fiche personnalisée', 'fiches personnalisées'],
+  ['filmCount', '{count} film', '{count} films'],
+  ['seriesCount', '{count} série', '{count} séries'],
+  ['animeCount', '{count} animé', '{count} animés'],
+  ['bookCount', '{count} livre', '{count} livres'],
+  ['mangaCount', '{count} manga', '{count} mangas'],
+  ['gameCount', '{count} jeu', '{count} jeux'],
+  ['artworkCount', '{count} œuvre d’art', '{count} œuvres d’art'],
+  ['customCount', '{count} fiche personnalisée', '{count} fiches personnalisées'],
 ]
 
 export function profileTotalWorks(profile: ProfileSummary): number {
@@ -25,9 +27,9 @@ export function profileTotalWorks(profile: ProfileSummary): number {
 export function profileWorksSummary(profile: ProfileSummary): string {
   const parts = COUNT_LABELS.flatMap(([key, singular, plural]) => {
     const value = Number(profile[key] ?? 0)
-    return value > 0 ? [`${value} ${value === 1 ? singular : plural}`] : []
+    return value > 0 ? [t(value === 1 ? singular : plural, { count: formatNumber(value) })] : []
   })
-  return parts.length > 0 ? parts.join(' · ') : 'Bibliothèque vide'
+  return parts.length > 0 ? parts.join(' · ') : t('Bibliothèque vide')
 }
 
 type Props = {
@@ -39,6 +41,7 @@ type Props = {
 }
 
 export function ProfilesSettings({ library, profiles, onSwitchProfile, onProfilesChanged, onProfileDeleted }: Props) {
+  useLanguage()
   const [creating, setCreating] = useState(false)
   const [newProfileName, setNewProfileName] = useState('')
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -129,9 +132,9 @@ export function ProfilesSettings({ library, profiles, onSwitchProfile, onProfile
     <>
       <SettingsGroup
         id="profiles-title"
-        title="Profils sur ce Mac"
-        description="Chaque profil a ses propres bibliothèques, vues et sauvegardes. Un seul est ouvert à la fois."
-        aside={<span className="settings-count">{profiles.length} sur {MAX_PROFILES}</span>}
+        title={t('Profils sur ce Mac')}
+        description={t('Chaque profil a ses propres bibliothèques, vues et sauvegardes. Un seul est ouvert à la fois.')}
+        aside={<span className="settings-count">{t('{count} sur {max}', { count: formatNumber(profiles.length), max: formatNumber(MAX_PROFILES) })}</span>}
       >
         {sorted.map((profile) => {
           const active = profile.id === library.profile.id
@@ -140,11 +143,11 @@ export function ProfilesSettings({ library, profiles, onSwitchProfile, onProfile
               <div className="settings-row" key={profile.id}>
                 <form className="profile-rename-form" onSubmit={(event) => { event.preventDefault(); void submitRename(profile.id) }}>
                   <label>
-                    <span className="visually-hidden">Nouveau nom du profil</span>
+                    <span className="visually-hidden">{t('Nouveau nom du profil')}</span>
                     <input type="text" value={renameValue} onChange={(event) => setRenameValue(event.target.value)} maxLength={60} autoFocus />
                   </label>
-                  <button className="primary-button" type="submit" disabled={busy || !renameValue.trim()}>Renommer</button>
-                  <button className="secondary-button" type="button" disabled={busy} onClick={() => setRenamingId(null)}>Annuler</button>
+                  <button className="primary-button" type="submit" disabled={busy || !renameValue.trim()}>{t('Renommer')}</button>
+                  <button className="secondary-button" type="button" disabled={busy} onClick={() => setRenamingId(null)}>{t('Annuler')}</button>
                 </form>
               </div>
             )
@@ -153,17 +156,17 @@ export function ProfilesSettings({ library, profiles, onSwitchProfile, onProfile
             <SettingsRow
               key={profile.id}
               leading={<ProfileAvatar name={profile.name} avatarDataUrl={profile.avatarDataUrl} className="small" />}
-              label={<>{profile.name}{active && <span className="settings-tag">Ouvert</span>}</>}
+              label={<>{profile.name}{active && <span className="settings-tag">{t('Ouvert')}</span>}</>}
               detail={profileWorksSummary(profile)}
             >
               {!active && (
                 <button className="secondary-button" type="button" disabled={busy || switchingProfileId !== null} onClick={() => void switchProfile(profile.id)}>
-                  {switchingProfileId === profile.id ? 'Ouverture…' : 'Ouvrir'}
+                  {t(switchingProfileId === profile.id ? 'Ouverture…' : 'Ouvrir')}
                 </button>
               )}
-              <button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditingAvatarProfile(profile); setAvatarDraft(profile.avatarDataUrl); setAvatarError(null) }}>Photo</button>
-              <button className="secondary-button" type="button" disabled={busy} onClick={() => { setRenamingId(profile.id); setRenameValue(profile.name) }}>Renommer</button>
-              <button className="secondary-button danger" type="button" disabled={busy} onClick={() => setDeletingProfile(profile)}>Supprimer</button>
+              <button className="secondary-button" type="button" disabled={busy} onClick={() => { setEditingAvatarProfile(profile); setAvatarDraft(profile.avatarDataUrl); setAvatarError(null) }}>{t('Photo')}</button>
+              <button className="secondary-button" type="button" disabled={busy} onClick={() => { setRenamingId(profile.id); setRenameValue(profile.name) }}>{t('Renommer')}</button>
+              <button className="secondary-button danger" type="button" disabled={busy} onClick={() => setDeletingProfile(profile)}>{t('Supprimer')}</button>
             </SettingsRow>
           )
         })}
@@ -171,41 +174,41 @@ export function ProfilesSettings({ library, profiles, onSwitchProfile, onProfile
           <div className="settings-row">
             <form className="profile-create-form" onSubmit={(event) => { event.preventDefault(); void submitCreate() }}>
               <label>
-                <span className="visually-hidden">Nom du nouveau profil</span>
-                <input type="text" value={newProfileName} onChange={(event) => setNewProfileName(event.target.value)} placeholder="Nom du profil" maxLength={60} autoFocus />
+                <span className="visually-hidden">{t('Nom du nouveau profil')}</span>
+                <input type="text" value={newProfileName} onChange={(event) => setNewProfileName(event.target.value)} placeholder={t('Nom du profil')} maxLength={60} autoFocus />
               </label>
-              <button className="primary-button" type="submit" disabled={busy || !newProfileName.trim()}>Créer le profil</button>
-              <button className="secondary-button" type="button" disabled={busy} onClick={() => { setCreating(false); setNewProfileName('') }}>Annuler</button>
+              <button className="primary-button" type="submit" disabled={busy || !newProfileName.trim()}>{t('Créer le profil')}</button>
+              <button className="secondary-button" type="button" disabled={busy} onClick={() => { setCreating(false); setNewProfileName('') }}>{t('Annuler')}</button>
             </form>
           </div>
         ) : (
           <SettingsRow
-            label="Nouveau profil"
-            detail={atProfileLimit ? `Le nombre maximal de ${MAX_PROFILES} profils est atteint. Supprimer un profil pour en créer un autre.` : 'Un profil vide, sans toucher aux autres.'}
+            label={t('Nouveau profil')}
+            detail={atProfileLimit ? t('Le nombre maximal de {max} profils est atteint. Supprimer un profil pour en créer un autre.', { max: formatNumber(MAX_PROFILES) }) : t('Un profil vide, sans toucher aux autres.')}
           >
-            <button className="secondary-button" type="button" disabled={busy || atProfileLimit} onClick={() => setCreating(true)}>Créer un profil</button>
+            <button className="secondary-button" type="button" disabled={busy || atProfileLimit} onClick={() => setCreating(true)}>{t('Créer un profil')}</button>
           </SettingsRow>
         )}
       </SettingsGroup>
 
-      {error && <p className="inline-report error settings-report" role="alert">{error}</p>}
+      {error && <p className="inline-report error settings-report" role="alert">{translateMessage(error)}</p>}
 
       {editingAvatarProfile && (
         <AccessibleDialog
-          title={`Photo du profil « ${editingAvatarProfile.name} »`}
-          description="La photo est recadrée au carré et enregistrée uniquement sur cet appareil."
+          title={t('Photo du profil « {name} »', { name: editingAvatarProfile.name })}
+          description={t('La photo est recadrée au carré et enregistrée uniquement sur cet appareil.')}
           onClose={() => setEditingAvatarProfile(null)}
           closeDisabled={busy}
           size="md"
         >
           <div className="assistant-content">
             <section className="assistant-stage profile-avatar-dialog">
-              <p>JPEG, PNG ou WebP. Sylloge prépare une copie légère de 256 px et ne modifie pas le fichier original.</p>
+              <p>{t('JPEG, PNG ou WebP. Sylloge prépare une copie légère de 256 px et ne modifie pas le fichier original.')}</p>
               <ProfileAvatarPicker name={editingAvatarProfile.name} avatarDataUrl={avatarDraft} disabled={busy} onChange={setAvatarDraft} onError={setAvatarError} />
-              {avatarError && <p className="inline-report error" role="alert">{avatarError}</p>}
+              {avatarError && <p className="inline-report error" role="alert">{translateMessage(avatarError)}</p>}
               <div className="assistant-actions">
-                <button className="secondary-button" type="button" disabled={busy} onClick={() => setEditingAvatarProfile(null)}>Annuler</button>
-                <button className="primary-button" type="button" disabled={busy} onClick={() => void submitAvatar()}>{busy ? 'Enregistrement…' : 'Enregistrer la photo'}</button>
+                <button className="secondary-button" type="button" disabled={busy} onClick={() => setEditingAvatarProfile(null)}>{t('Annuler')}</button>
+                <button className="primary-button" type="button" disabled={busy} onClick={() => void submitAvatar()}>{t(busy ? 'Enregistrement…' : 'Enregistrer la photo')}</button>
               </div>
             </section>
           </div>
@@ -214,25 +217,25 @@ export function ProfilesSettings({ library, profiles, onSwitchProfile, onProfile
 
       {deletingProfile && (
         <AccessibleDialog
-          title={`Supprimer le profil « ${deletingProfile.name} »`}
-          description="Cette suppression est définitive."
+          title={t('Supprimer le profil « {name} »', { name: deletingProfile.name })}
+          description={t('Cette suppression est définitive.')}
           onClose={() => setDeletingProfile(null)}
           closeDisabled={busy}
           size="sm"
         >
           <div className="assistant-content">
             <section className="assistant-stage">
-              <h3>Supprimer définitivement ce profil ?</h3>
+              <h3>{t('Supprimer définitivement ce profil ?')}</h3>
               <p>
                 {profileTotalWorks(deletingProfile) > 0
-                  ? `Ce profil contient ${profileWorksSummary(deletingProfile)}. Toutes ces fiches seront définitivement supprimées, ainsi que ses vues enregistrées. Les fichiers de sauvegarde déjà écrits restent dans leur dossier.`
-                  : 'Ce profil ne contient aucune fiche.'}
-                {deletingProfile.id === library.profile.id && <> Ce profil est actuellement ouvert : après suppression, Sylloge retournera à l’écran de premier lancement.</>}
+                  ? t('Ce profil contient {summary}. Toutes ces fiches seront définitivement supprimées, ainsi que ses vues enregistrées. Les fichiers de sauvegarde déjà écrits restent dans leur dossier.', { summary: profileWorksSummary(deletingProfile) })
+                  : t('Ce profil ne contient aucune fiche.')}
+                {deletingProfile.id === library.profile.id && <> {t('Ce profil est actuellement ouvert : après suppression, Sylloge retournera à l’écran de premier lancement.')}</>}
               </p>
-              {error && <p className="inline-report error" role="alert">{error}</p>}
+              {error && <p className="inline-report error" role="alert">{translateMessage(error)}</p>}
               <div className="assistant-actions">
-                <button className="secondary-button" type="button" disabled={busy} onClick={() => setDeletingProfile(null)}>Annuler</button>
-                <button className="primary-button danger" type="button" disabled={busy} onClick={() => void confirmDelete()}>{busy ? 'Suppression…' : 'Supprimer définitivement'}</button>
+                <button className="secondary-button" type="button" disabled={busy} onClick={() => setDeletingProfile(null)}>{t('Annuler')}</button>
+                <button className="primary-button danger" type="button" disabled={busy} onClick={() => void confirmDelete()}>{t(busy ? 'Suppression…' : 'Supprimer définitivement')}</button>
               </div>
             </section>
           </div>

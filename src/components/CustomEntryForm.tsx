@@ -1,3 +1,4 @@
+import { t, tc, translateMessage } from '../i18n/core.ts'
 import { useState, type FormEvent } from 'react'
 import {
   CUSTOM_LIBRARY_TEMPLATES,
@@ -53,7 +54,7 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const coverLabel = customCoverLabel(libraryId)
-  const previewTitle = values.title.trim() || 'Titre à renseigner'
+  const previewTitle = values.title.trim() || t("Titre à renseigner")
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   const started = values.status !== 'à découvrir'
   const progressVisible = template.progress !== null && started
@@ -127,13 +128,13 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                 name="title"
                 value={values.title}
                 onChange={(event) => update('title', event.target.value)}
-                aria-label="Titre"
-                placeholder="Titre"
+                aria-label={t("Titre")}
+                placeholder={t("Titre")}
                 aria-invalid={Boolean(errors.title)}
                 aria-describedby={errors.title ? `${idPrefix}-title-error` : undefined}
                 autoFocus={!initialQuoteDraft}
               />
-              {errors.title && <p className="field-error" id={`${idPrefix}-title-error`}>{errors.title}</p>}
+              {errors.title && <p className="field-error" id={`${idPrefix}-title-error`}>{translateMessage(errors.title)}</p>}
             </div>
 
             <div className="verdict-block medium-status-block">
@@ -152,20 +153,20 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                       type="date"
                       value={values.finishedAt}
                       onChange={(event) => update('finishedAt', event.target.value)}
-                      aria-label={template.dateLabel}
-                      title={template.dateLabel}
+                      aria-label={tc(libraryId, template.dateLabel)}
+                      title={tc(libraryId, template.dateLabel)}
                       aria-invalid={Boolean(errors.finishedAt)}
                     />
                   </div>
                 )}
               </div>
-              {errors.finishedAt && <p className="field-error">{errors.finishedAt}</p>}
+              {errors.finishedAt && <p className="field-error">{translateMessage(errors.finishedAt)}</p>}
             </div>
 
             {progressVisible && template.progress && (
               <div className="form-row form-row-halves custom-progress">
                 <div className="field">
-                  <label htmlFor={`${idPrefix}-progressCurrent`}>{template.progress.label}</label>
+                  <label htmlFor={`${idPrefix}-progressCurrent`}>{tc(libraryId, template.progress.label)}</label>
                   <input
                     id={`${idPrefix}-progressCurrent`}
                     inputMode="numeric"
@@ -173,11 +174,11 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                     onChange={(event) => update('progressCurrent', event.target.value)}
                     aria-invalid={Boolean(errors.progressCurrent)}
                   />
-                  {errors.progressCurrent && <p className="field-error">{errors.progressCurrent}</p>}
+                  {errors.progressCurrent && <p className="field-error">{translateMessage(errors.progressCurrent)}</p>}
                 </div>
                 {template.progress.hasTotal && (
                   <div className="field">
-                    <label htmlFor={`${idPrefix}-progressTotal`}>Total</label>
+                    <label htmlFor={`${idPrefix}-progressTotal`}>{t("Total")}</label>
                     <input
                       id={`${idPrefix}-progressTotal`}
                       inputMode="numeric"
@@ -185,7 +186,7 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                       onChange={(event) => update('progressTotal', event.target.value)}
                       aria-invalid={Boolean(errors.progressTotal)}
                     />
-                    {errors.progressTotal && <p className="field-error">{errors.progressTotal}</p>}
+                    {errors.progressTotal && <p className="field-error">{translateMessage(errors.progressTotal)}</p>}
                   </div>
                 )}
               </div>
@@ -195,9 +196,9 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
               <div className="review-write review-inline">
                 <textarea
                   id={`${idPrefix}-personalNote`}
-                  aria-label="Avis personnel"
+                  aria-label={t("Avis personnel")}
                   rows={5}
-                  placeholder={template.notePlaceholder}
+                  placeholder={tc(libraryId, template.notePlaceholder)}
                   value={values.personalNote}
                   onChange={(event) => update('personalNote', event.target.value)}
                   autoCorrect="off"
@@ -209,11 +210,11 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
             <div className="secondary-fields editorial-open">
               <div className="form-row">
                 <div className="field">
-                  <label htmlFor={`${idPrefix}-creator`}>{template.creatorLabel}</label>
+                  <label htmlFor={`${idPrefix}-creator`}>{tc(libraryId, libraryId === 'podcasts' ? 'Animation du podcast' : template.creatorLabel)}</label>
                   <input id={`${idPrefix}-creator`} value={values.creator} onChange={(event) => update('creator', event.target.value)} />
                 </div>
                 <div className="field field-year">
-                  <label htmlFor={`${idPrefix}-year`}>Année</label>
+                  <label htmlFor={`${idPrefix}-year`}>{t("Année")}</label>
                   <input
                     id={`${idPrefix}-year`}
                     inputMode="numeric"
@@ -221,7 +222,7 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                     onChange={(event) => update('year', event.target.value)}
                     aria-invalid={Boolean(errors.year)}
                   />
-                  {errors.year && <p className="field-error">{errors.year}</p>}
+                  {errors.year && <p className="field-error">{translateMessage(errors.year)}</p>}
                 </div>
               </div>
               <div className="custom-detail-fields">
@@ -230,44 +231,44 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                   const value = values.details[field.key] ?? ''
                   return (
                     <div className="field" key={field.key}>
-                      <label id={`${fieldId}-label`} htmlFor={fieldId}>{field.label}</label>
+                      <label id={`${fieldId}-label`} htmlFor={fieldId}>{tc(libraryId, field.label)}</label>
                       {field.kind === 'select' && field.options ? (
                         <Select
                           id={fieldId}
                           labelledBy={`${fieldId}-label`}
                           value={value}
-                          placeholder="À préciser"
+                          placeholder={t("À préciser")}
                           options={[
-                            { value: '', label: 'À préciser' },
-                            ...field.options.map((option) => ({ value: option, label: option })),
+                            { value: '', label: t('À préciser') },
+                            ...field.options.map((option) => ({ value: option, label: tc(libraryId, option) })),
                             // Une valeur importée hors catalogue reste sélectionnée.
                             ...(value && !field.options.includes(value) ? [{ value, label: value }] : []),
                           ]}
                           onChange={(next) => updateDetail(field.key, next)}
                         />
                       ) : (
-                        <input id={fieldId} value={value} placeholder={field.placeholder} onChange={(event) => updateDetail(field.key, event.target.value)} />
+                        <input id={fieldId} value={value} placeholder={field.placeholder ? tc(libraryId, field.placeholder) : undefined} onChange={(event) => updateDetail(field.key, event.target.value)} />
                       )}
                     </div>
                   )
                 })}
               </div>
               <div className="field">
-                <label htmlFor={`${idPrefix}-summary`}>Résumé</label>
+                <label htmlFor={`${idPrefix}-summary`}>{t("Résumé")}</label>
                 <textarea id={`${idPrefix}-summary`} rows={3} value={values.summary} onChange={(event) => update('summary', event.target.value)} />
               </div>
             </div>
 
             {template.quotes && <QuotesEditor values={values.quotes} onChange={quotes => update('quotes', quotes)} disabled={saving} autoFocusLast={initialQuoteDraft} />}
 
-            {errors.coverUrl && <p className="form-error" role="alert">{errors.coverUrl}</p>}
-            {saveError && <p className="form-error" role="alert">{saveError}</p>}
+            {errors.coverUrl && <p className="form-error" role="alert">{translateMessage(errors.coverUrl)}</p>}
+            {saveError && <p className="form-error" role="alert">{translateMessage(saveError)}</p>}
           </div>
 
           <footer className="form-actions form-actions-docked">
-            <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+            <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>{t("Annuler")}</button>
             <button className="primary-button" type="submit" disabled={saving}>
-              {saving ? 'Enregistrement…' : entry ? 'Enregistrer les modifications' : template.addLabel}
+              {saving ? t("Enregistrement…") : entry ? t("Enregistrer les modifications") : tc(libraryId, template.addLabel)}
             </button>
           </footer>
         </div>

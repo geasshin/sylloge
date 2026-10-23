@@ -1,3 +1,4 @@
+import { formatNumber, t } from '../i18n/core.ts'
 import { useRef, useState, type ReactNode } from 'react'
 import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
@@ -48,30 +49,28 @@ type ModeChoiceProps = {
 
 export function ImportModeChoice({ mediumLabel, mediumPluralLabel, mediumGender, importedCount, existingCount, onChoose, onCancel }: ModeChoiceProps) {
   const detectedWord = mediumGender === 'feminine'
-    ? importedCount === 1 ? 'détectée' : 'détectées'
-    : importedCount === 1 ? 'détecté' : 'détectés'
+    ? importedCount === 1 ? '{count} {medium} détectée dans le fichier.' : '{count} {medium} détectées dans le fichier.'
+    : importedCount === 1 ? '{count} {medium} détecté dans le fichier.' : '{count} {medium} détectés dans le fichier.'
 
   return (
     <div className="assistant-content">
       <p className="assistant-introduction">
-        {importedCount} {importedCount === 1 ? mediumLabel : mediumPluralLabel} {detectedWord} dans le fichier.
-        La bibliothèque actuelle en contient {existingCount}. Choisir comment les réunir.
+        {t(detectedWord, { count: formatNumber(importedCount), medium: t(importedCount === 1 ? mediumLabel : mediumPluralLabel) })}{' '}
+        {t('La bibliothèque actuelle en contient {count}. Choisir comment les réunir.', { count: formatNumber(existingCount) })}
       </p>
       <div className="assistant-choice-grid">
         <button className="transfer-choice" type="button" onClick={() => onChoose('merge')}>
-          <b>Fusionner</b>
-          <small>Ajouter les nouveautés, comparer les doublons et préserver par défaut les notes, avis, dates et favoris déjà présents. Recommandé pour compléter la bibliothèque.</small>
+          <b>{t("Fusionner")}</b>
+          <small>{t("Ajouter les nouveautés, comparer les doublons et préserver par défaut les notes, avis, dates et favoris déjà présents. Recommandé pour compléter la bibliothèque.")}</small>
         </button>
         <button className="transfer-choice" type="button" onClick={() => onChoose('replace')}>
-          <b>Remplacer</b>
-          <small>Retirer les fiches de cette bibliothèque et les remplacer par celles du fichier. Une confirmation supplémentaire sera demandée.</small>
+          <b>{t("Remplacer")}</b>
+          <small>{t("Retirer les fiches de cette bibliothèque et les remplacer par celles du fichier. Une confirmation supplémentaire sera demandée.")}</small>
         </button>
       </div>
-      <p className="import-contextual-hint">
-        Aucune écriture à cette étape. Les doublons seront comparés avant le résumé final.
-      </p>
+      <p className="import-contextual-hint">{t("Aucune écriture à cette étape. Les doublons seront comparés avant le résumé final.")}</p>
       <div className="assistant-actions">
-        <button className="secondary-button" type="button" onClick={onCancel}>Annuler</button>
+        <button className="secondary-button" type="button" onClick={onCancel}>{t("Annuler")}</button>
       </div>
     </div>
   )
@@ -90,14 +89,14 @@ function DuplicateItem<F extends { title: string }>({ title, existing, imported,
   return (
     <div className="duplicate-item">
       <p className="duplicate-title"><b>{title}</b></p>
-      <div className="duplicate-choices" role="group" aria-label={`Choisir la fiche à conserver pour ${title}`}>
+      <div className="duplicate-choices" role="group" aria-label={t("Choisir la fiche à conserver pour {title}", { title })}>
         <button
           className={`duplicate-choice ${resolution === 'keep-existing' ? 'selected' : ''}`}
           type="button"
           onClick={() => onResolve('keep-existing')}
           aria-pressed={resolution === 'keep-existing'}
         >
-          <b>Fiche actuelle</b>
+          <b>{t("Fiche actuelle")}</b>
           {renderSummary(existing, 'existing')}
           {'personalNote' in existing && typeof existing.personalNote === 'string' && <small className="duplicate-personal-note">{existing.personalNote}</small>}
         </button>
@@ -107,14 +106,12 @@ function DuplicateItem<F extends { title: string }>({ title, existing, imported,
           onClick={() => onResolve('keep-imported')}
           aria-pressed={resolution === 'keep-imported'}
         >
-          <b>Fiche importée</b>
+          <b>{t("Fiche importée")}</b>
           {renderSummary(imported, 'imported')}
           {'personalNote' in imported && typeof imported.personalNote === 'string' && <small className="duplicate-personal-note">{imported.personalNote}</small>}
         </button>
       </div>
-      <button className="secondary-button duplicate-keep-both" type="button" aria-pressed={resolution === 'keep-both'} onClick={() => onResolve('keep-both')}>
-        Conserver les deux fiches
-      </button>
+      <button className="secondary-button duplicate-keep-both" type="button" aria-pressed={resolution === 'keep-both'} onClick={() => onResolve('keep-both')}>{t("Conserver les deux fiches")}</button>
     </div>
   )
 }
@@ -155,9 +152,9 @@ export function DuplicatesResolver<F extends { title: string }, D extends { norm
 
   const actions = (
     <div className="duplicates-actions">
-      <button className="secondary-button" type="button" onClick={onBack} disabled={confirming}>Retour</button>
+      <button className="secondary-button" type="button" onClick={onBack} disabled={confirming}>{t("Retour")}</button>
       <button className="primary-button" type="button" onClick={confirm} disabled={confirming}>
-        {confirming ? 'Validation…' : 'Valider ces choix'}
+        {t(confirming ? 'Validation…' : 'Valider ces choix')}
       </button>
     </div>
   )
@@ -165,27 +162,27 @@ export function DuplicatesResolver<F extends { title: string }, D extends { norm
   return (
     <div className="assistant-content">
       <p className="assistant-introduction">
-        {duplicates.length} {duplicates.length === 1 ? 'rapprochement proposé' : 'rapprochements proposés'} au titre normalisé.
-        Un même titre peut désigner deux œuvres différentes : comparer les dates et les auteurs, puis conserver une fiche ou les deux. Les informations personnelles existantes sont prioritaires par défaut.
+        {t(duplicates.length === 1 ? '{count} rapprochement proposé au titre normalisé.' : '{count} rapprochements proposés au titre normalisé.', { count: formatNumber(duplicates.length) })}{' '}
+        {t('Un même titre peut désigner deux œuvres différentes : comparer les dates et les auteurs, puis conserver une fiche ou les deux. Les informations personnelles existantes sont prioritaires par défaut.')}
       </p>
       <div className="duplicates-header">
         <div className="duplicates-summary" role="status" aria-live="polite">
-          <span><b>{duplicates.length}</b> total</span>
-          <span><b>{visibleDuplicates.length}</b> visible{visibleDuplicates.length > 1 ? 's' : ''}</span>
-          <span><b>{modifiedResolutionCount}</b> décision{modifiedResolutionCount > 1 ? 's' : ''} modifiée{modifiedResolutionCount > 1 ? 's' : ''}</span>
+          <span><b>{duplicates.length}</b>{t("total")}</span>
+          <span><b>{formatNumber(visibleDuplicates.length)}</b> {t(visibleDuplicates.length > 1 ? "visibles" : "visible")}</span>
+          <span><b>{formatNumber(modifiedResolutionCount)}</b> {t(modifiedResolutionCount === 1 ? "décision modifiée" : "décisions modifiées")}</span>
         </div>
         <div className="duplicates-search-row">
           <label className="duplicates-search">
-            <span className="visually-hidden">Rechercher un doublon par titre</span>
+            <span className="visually-hidden">{t("Rechercher un doublon par titre")}</span>
             <input
               type="search"
               value={search}
-              placeholder="Rechercher un titre"
+              placeholder={t("Rechercher un titre")}
               spellCheck={false}
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
-          <button className="secondary-button" type="button" onClick={clearSearch} disabled={!search}>Effacer</button>
+          <button className="secondary-button" type="button" onClick={clearSearch} disabled={!search}>{t("Effacer")}</button>
         </div>
         {actions}
       </div>
@@ -201,7 +198,7 @@ export function DuplicatesResolver<F extends { title: string }, D extends { norm
             renderSummary={renderSummary}
           />
         )) : (
-          <p className="duplicates-empty" role="status">Aucun doublon ne correspond à cette recherche.</p>
+          <p className="duplicates-empty" role="status">{t("Aucun doublon ne correspond à cette recherche.")}</p>
         )}
       </div>
       {actions}
@@ -213,73 +210,73 @@ export function DuplicatesResolver<F extends { title: string }, D extends { norm
 
 export function filmSummary(film: Film, origin: 'existing' | 'imported'): ReactNode {
   void origin
-  const details = [film.director, film.year, film.status].filter((value) => value !== null && value !== '').join(' · ')
+  const details = [film.director, film.year, t(film.status)].filter((value) => value !== null && value !== '').join(' · ')
   return (
     <span className="duplicate-summary">
       <b>{film.title}</b>
       {details && <small>{details}</small>}
-      {film.rating !== null && <small>Note : {film.rating}/5{film.isFavorite ? ' · favori' : ''}</small>}
+      {film.rating !== null && <small>{t('Note : {rating}/5', { rating: formatNumber(film.rating) })}{film.isFavorite ? t(' · favori') : ''}</small>}
     </span>
   )
 }
 
 export function seriesSummary(series: Series, origin: 'existing' | 'imported'): ReactNode {
   void origin
-  const details = [series.showrunner, series.status].filter((value) => value !== null && value !== '').join(' · ')
+  const details = [series.showrunner, t(series.status)].filter((value) => value !== null && value !== '').join(' · ')
   const seasons = series.seasonsSeen !== null && series.seasonsTotal !== null
-    ? `${series.seasonsSeen}/${series.seasonsTotal} saisons`
+    ? t('{seen}/{total} saisons', { seen: formatNumber(series.seasonsSeen), total: formatNumber(series.seasonsTotal) })
     : null
   return (
     <span className="duplicate-summary">
       <b>{series.title}</b>
       {details && <small>{details}</small>}
       {seasons && <small>{seasons}</small>}
-      {series.rating !== null && <small>Note : {series.rating}/5{series.isFavorite ? ' · favori' : ''}</small>}
+      {series.rating !== null && <small>{t('Note : {rating}/5', { rating: formatNumber(series.rating) })}{series.isFavorite ? t(' · favori') : ''}</small>}
     </span>
   )
 }
 
 export function bookSummary(book: Book, origin: 'existing' | 'imported'): ReactNode {
   void origin
-  const details = [book.author, book.year, book.status].filter((value) => value !== null && value !== '').join(' · ')
+  const details = [book.author, book.year, t(book.status)].filter((value) => value !== null && value !== '').join(' · ')
   const volumes = book.volumesRead !== null && book.volumesTotal !== null
-    ? `${book.volumesRead}/${book.volumesTotal} tomes`
+    ? t('{read}/{total} tomes', { read: formatNumber(book.volumesRead), total: formatNumber(book.volumesTotal) })
     : null
   return (
     <span className="duplicate-summary">
       <b>{book.title}</b>
       {details && <small>{details}</small>}
       {volumes && <small>{volumes}</small>}
-      {book.rating !== null && <small>Note : {book.rating}/5{book.isFavorite ? ' · favori' : ''}</small>}
-      {book.quotes.length > 0 && <small>{book.quotes.length} citation{book.quotes.length > 1 ? 's' : ''}</small>}
+      {book.rating !== null && <small>{t('Note : {rating}/5', { rating: formatNumber(book.rating) })}{book.isFavorite ? t(' · favori') : ''}</small>}
+      {book.quotes.length > 0 && <small>{t(book.quotes.length === 1 ? '{count} citation' : '{count} citations', { count: formatNumber(book.quotes.length) })}</small>}
     </span>
   )
 }
 
 export function gameSummary(game: Game, origin: 'existing' | 'imported'): ReactNode {
   void origin
-  const details = [game.developer, game.platform, game.year, game.status]
+  const details = [game.developer, game.platform, game.year, t(game.status)]
     .filter((value) => value !== null && value !== '')
     .join(' · ')
   return (
     <span className="duplicate-summary">
       <b>{game.title}</b>
       {details && <small>{details}</small>}
-      {game.rating !== null && <small>Note : {game.rating}/5{game.isFavorite ? ' · favori' : ''}</small>}
+      {game.rating !== null && <small>{t('Note : {rating}/5', { rating: formatNumber(game.rating) })}{game.isFavorite ? t(' · favori') : ''}</small>}
     </span>
   )
 }
 
 export function artworkSummary(artwork: Artwork, origin: 'existing' | 'imported'): ReactNode {
   void origin
-  const details = [artwork.artist, artwork.form, artwork.location, artwork.status]
+  const details = [artwork.artist, artwork.form, artwork.location, t(artwork.status)]
     .filter((value) => value !== null && value !== '')
     .join(' · ')
   return (
     <span className="duplicate-summary">
       <b>{artwork.title}</b>
       {details && <small>{details}</small>}
-      {artwork.isFavorite && <small>Favori</small>}
+      {artwork.isFavorite && <small>{t("Favori")}</small>}
     </span>
   )
 }

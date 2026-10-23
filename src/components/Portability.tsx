@@ -1,3 +1,5 @@
+import { t } from '../i18n/core.ts'
+import { useLanguage } from '../i18n/react.ts'
 import type { BackupNotice } from '../data/backupService.ts'
 import type { FilmLibrary } from '../data/filmsRepository.ts'
 import type { ProfileSummary } from '../data/profilesRepository.ts'
@@ -56,6 +58,7 @@ export function Portability({
   onLibraryChanged,
   onSectionChange,
 }: PortabilityProps) {
+  useLanguage()
   const page = SETTINGS_SECTIONS.find((entry) => entry.id === section) ?? SETTINGS_SECTIONS[0]
   const activeProfile = profiles.find((profile) => profile.id === library.profile.id)
 
@@ -63,13 +66,13 @@ export function Portability({
     <main className="main portability-main">
       <header className="settings-hero">
         <div className="settings-hero-copy">
-          <h1 className="display-title">{page.label}</h1>
-          <p>{page.description}</p>
+          <h1 className="display-title">{t(page.label)}</h1>
+          <p>{t(page.description)}</p>
         </div>
         {page.profileScoped && (
-          <div className="settings-active-profile" aria-label="Profil concerné">
+          <div className="settings-active-profile" aria-label={t('Profil concerné')}>
             <ProfileAvatar name={library.profile.name} avatarDataUrl={activeProfile?.avatarDataUrl ?? null} className="settings-avatar" />
-            <span><small>Profil</small><b>{library.profile.name}</b></span>
+            <span><small>{t('Profil')}</small><b>{library.profile.name}</b></span>
           </div>
         )}
       </header>

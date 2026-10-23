@@ -6,15 +6,11 @@ import {
   setFilmTmdbPoster,
   type CachedFilmTmdbPresentation,
 } from '../data/tmdbService.ts'
+import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 import { icon } from '../main.tsx'
-
-function formatWatchedDate(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
-}
 
 type FilmDetailProps = {
   film: Film
@@ -114,29 +110,29 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
       <header className="page-action-bar detail-action-bar">
         <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={backLabel}>{icon('arrow-left')}</button>
         <div className="detail-actions">
-          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+          <button className="icon-action-button" type="button" onClick={onEdit} title={t("Modifier la fiche")}>
             {icon('pencil')}
-            <span>Modifier</span>
+            <span>{t("Modifier")}</span>
           </button>
           {tmdbCache ? (
             // 0.6.11 : plus de « Rafraîchir » — un film associé expose
             // Dissocier ; le bouton baguette reste l'entrée d'association.
-            <button className="icon-action-button" type="button" onClick={() => void handleRemoveAssociation()} disabled={removingAssociation} title="Dissocier TMDB">
-              {removingAssociation ? 'Dissociation…' : null}
+            <button className="icon-action-button" type="button" onClick={() => void handleRemoveAssociation()} disabled={removingAssociation} title={t("Dissocier TMDB")}>
+              {removingAssociation ? t('Dissociation…') : null}
               {!removingAssociation && icon('unlink')}
-              <span>Dissocier</span>
+              <span>{t("Dissocier")}</span>
             </button>
           ) : (
-            <button className="icon-action-button" type="button" onClick={onAssociateTmdb} title="Associer à TMDB (recherche assistée)">
+            <button className="icon-action-button" type="button" onClick={onAssociateTmdb} title={t("Associer à TMDB (recherche assistée)")}>
               {icon('wand')}
-              <span>Associer</span>
+              <span>{t("Associer")}</span>
             </button>
           )}
           <button
             className="icon-action-button icon-action-danger"
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            title="Supprimer ce film"
+            title={t("Supprimer ce film")}
           >
             {icon('trash')}
           </button>
@@ -153,7 +149,7 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
                 className="poster-edit-button"
                 type="button"
                 onClick={() => setShowPosterGallery(true)}
-                aria-label="Choisir une autre affiche"
+                aria-label={t("Choisir une autre affiche")}
               >
                 ✎
               </button>
@@ -166,7 +162,7 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             <div className="detail-rate">
               {film.rating !== null && (
                 <>
-                  <span className="stars-display" aria-label={`Note ${film.rating} sur 5`}>
+                  <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(film.rating) })}>
                     {[1, 2, 3, 4, 5].map((star) => {
                       const fill = Math.max(0, Math.min(1, film.rating! - star + 1))
                       return (
@@ -177,10 +173,10 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
                       )
                     })}
                   </span>
-                  <span className="rate-value">{film.rating.toLocaleString('fr-FR')}/5</span>
+                  <span className="rate-value">{formatNumber(film.rating)}/5</span>
                 </>
               )}
-              {film.isFavorite && <span className="heart-display on" aria-label="Coup de cœur">♥</span>}
+              {film.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
             </div>
           )}
         </div>
@@ -210,21 +206,21 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
 
           <dl className="detail-facts">
             {displayDirector && (
-              <div><dt>Réalisation</dt><dd>{displayDirector}</dd></div>
+              <div><dt>{t("Réalisation")}</dt><dd>{displayDirector}</dd></div>
             )}
             {displayCast && (
-              <div><dt>Distribution</dt><dd>{displayCast}</dd></div>
+              <div><dt>{t("Distribution")}</dt><dd>{displayCast}</dd></div>
             )}
             {displayYear && (
-              <div><dt>Sortie</dt><dd>{displayYear}</dd></div>
+              <div><dt>{t("Sortie")}</dt><dd>{displayYear}</dd></div>
             )}
             {displayRuntime && (
-              <div><dt>Durée</dt><dd>{displayRuntime}</dd></div>
+              <div><dt>{t("Durée")}</dt><dd>{displayRuntime}</dd></div>
             )}
           </dl>
 
           {tmdbNotice && <p className="inline-report error" role="alert">{tmdbNotice}</p>}
-          {tmdbLoading && <p className="detail-loading" role="status">Lecture de l’association…</p>}
+          {tmdbLoading && <p className="detail-loading" role="status">{t("Lecture de l’association…")}</p>}
 
           {!tmdbLoading && synopsis && (
             <div className="synopsis-block">
@@ -236,18 +232,18 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             <p className="detail-attribution-line">
               {tmdbCache ? (
                 <>
-                  Présentation enrichie par{' '}
+                  {t("Présentation enrichie par")}{' '}
                   <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>
                   {/* 0.6.11 : plus de « Rafraîchir », la gestion passe
                       exclusivement par Associer/Dissocier. */}
                   <button className="link-subtle" type="button" onClick={handleRemoveAssociation} disabled={removingAssociation}>
-                    {removingAssociation ? 'Dissociation…' : 'Dissocier'}
+                    {removingAssociation ? t('Dissociation…') : t("Dissocier")}
                   </button>
                 </>
               ) : (
                 <>
-                  Aucune métadonnée TMDB associée
-                  <button className="link-subtle" type="button" onClick={onAssociateTmdb}>Associer</button>
+                  {t("Aucune métadonnée TMDB associée")}
+                  <button className="link-subtle" type="button" onClick={onAssociateTmdb}>{t("Associer")}</button>
                 </>
               )}
             </p>
@@ -257,16 +253,16 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             {film.watchedAt && (
               <p className="mine-date">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                Vu le <b>{formatWatchedDate(film.watchedAt)}</b>
+                {t("Vu le")} <b>{formatDate(film.watchedAt, { dateStyle: 'long' })}</b>
               </p>
             )}
             {film.personalNote ? (
               <>
                 <blockquote className="review-personal">{film.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier</button>
+                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
               </>
             ) : (
-              <p className="mine-empty">Ta critique s’écrira ici après visionnage.</p>
+              <p className="mine-empty">{t("Ta critique s’écrira ici après visionnage.")}</p>
             )}
           </section>
         </div>
@@ -275,13 +271,13 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
       {confirmingDelete && (
         <div className="confirm-backdrop">
           <div className="delete-confirmation" role="alertdialog" aria-labelledby="delete-title" aria-describedby="delete-description">
-            <h2 id="delete-title">Supprimer définitivement ce film ?</h2>
-            <p id="delete-description">« {film.title} » sera retiré de la collection sans possibilité de restauration.</p>
-            {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
+            <h2 id="delete-title">{t("Supprimer définitivement ce film ?")}</h2>
+            <p id="delete-description">{t('« {title} » sera retiré de la collection sans possibilité de restauration.', { title: film.title })}</p>
+            {deleteError && <p className="field-error" role="alert">{translateMessage(deleteError)}</p>}
             <div>
-              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Annuler</button>
+              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>{t("Annuler")}</button>
               <button className="danger-button" type="button" onClick={deleteFilm} disabled={deleting}>
-                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+                {deleting ? t('Suppression…') : t("Supprimer définitivement")}
               </button>
             </div>
           </div>

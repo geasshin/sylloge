@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatDate, formatNumber, t, translateMessage } from '../i18n/core.ts'
+import { useLanguage } from '../i18n/react.ts'
 import { pickImportContainer, pickImportJson } from '../data/nativePortability.ts'
 import { findBackupCandidates } from '../data/backupFiles.ts'
 import { catalogBackupFiles, customLibrarySummary, PROFILE_LIBRARIES, PROFILE_LIBRARY_LABELS, profileWorkCount, type PreparedBackup } from '../domain/backupRestore.ts'
@@ -12,21 +14,34 @@ type Props = {
   searchOnMount?: boolean
 }
 
-const formatDate = (iso: string) => new Date(iso).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })
+/** Nom du profil et compte de fiches : fragments réutilisés sur chaque ligne de copie. */
+const profileLabel = (name: string) => t('profil « {name} »', { name })
+/** Messages du sélecteur et diagnostics de lecture : traduits au seul point d’affichage. */
+export const pickerMessageText = (message: string) => translateMessage(message)
+
+const dateLabel = (iso: string) => formatDate(iso, { dateStyle: 'long', timeStyle: 'short' })
+const worksLabel = (count: number) => count === 1
+  ? t('{count} fiche', { count: formatNumber(count) })
+  : t('{count} fiches', { count: formatNumber(count) })
 
 export function BackupSummary({ value }: { value: PreparedBackup }) {
-  return <section className="backup-preview" aria-label="Contenu de la sauvegarde">
-    <p><b>{value.fileName}</b> · profil « {value.document.profile.name} » · {formatDate(value.document.exportedAt)}{value.location ? ` · ${value.location}` : ''}</p>
+  useLanguage()
+  const works = profileWorkCount(value.document)
+  return <section className="backup-preview" aria-label={t('Contenu de la sauvegarde')}>
+    <p><b>{value.fileName}</b> · {profileLabel(value.document.profile.name)} · {dateLabel(value.document.exportedAt)}{value.location ? ` · ${value.location}` : ''}</p>
     <dl className="onboarding-import-summary">
-      {PROFILE_LIBRARIES.map(library => <div key={library}><dt>{PROFILE_LIBRARY_LABELS[library]}</dt><dd>{value.document[library].length}</dd></div>)}
-      {customLibrarySummary(value.document).map(library => <div key={library.key}><dt>{library.label}</dt><dd>{library.count}</dd></div>)}
+      {PROFILE_LIBRARIES.map(library => <div key={library}><dt>{t(PROFILE_LIBRARY_LABELS[library])}</dt><dd>{formatNumber(value.document[library].length)}</dd></div>)}
+      {customLibrarySummary(value.document).map(library => <div key={library.key}><dt>{t(library.label)}</dt><dd>{formatNumber(library.count)}</dd></div>)}
     </dl>
-    <p>{profileWorkCount(value.document)} fiches dans ce profil. Les réglages et vues enregistrées ne font pas partie de ce format. Les autres profils seront conservés.</p>
+    <p>{works === 1
+      ? t('{count} fiche dans ce profil. Les réglages et vues enregistrées ne font pas partie de ce format. Les autres profils seront conservés.', { count: formatNumber(works) })
+      : t('{count} fiches dans ce profil. Les réglages et vues enregistrées ne font pas partie de ce format. Les autres profils seront conservés.', { count: formatNumber(works) })}</p>
   </section>
 }
 
 /** Shared by first run and settings. Only reads and prepares a JSON document. */
 export function BackupRestorePicker({ value, onChange, disabled = false, searchOnMount = false }: Props) {
+  useLanguage()
   const [busy, setBusy] = useState(false)
   const reading = useRef(false)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
@@ -87,42 +102,42 @@ export function BackupRestorePicker({ value, onChange, disabled = false, searchO
 
   return <div className="backup-restore-picker">
     <div className="backup-picker-actions">
-      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void search()}>{found ? 'Relancer la recherche' : 'Rechercher sur ce Mac'}</button>
-      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void choose(false)}>Choisir un fichier JSON</button>
-      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void choose(true)}>Parcourir un dossier de sauvegardes</button>
+      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void search()}>{found ? t('Relancer la recherche') : t('Rechercher sur ce Mac')}</button>
+      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void choose(false)}>{t('Choisir un fichier JSON')}</button>
+      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void choose(true)}>{t('Parcourir un dossier de sauvegardes')}</button>
     </div>
-    <p className="backup-search-note">La recherche lit seulement les fichiers « sylloge-… .json » d’iCloud Drive, Google Drive, Dropbox, OneDrive, Documents, Bureau et Téléchargements. macOS peut demander l’autorisation d’y accéder.</p>
-    {busy && <p role="status">Lecture et vérification des sauvegardes…</p>}
-    {message && <p role="status">{message}</p>}
-    {error && <p className="inline-report error" role="alert">{error}</p>}
-    {found && found.unreadable.length > 0 && <p className="inline-report" role="status">Accès non autorisé : {found.unreadable.join(', ')}. Si la sauvegarde s’y trouve, la choisir manuellement.</p>}
-    {newest && <section className="backup-found" aria-label="Sauvegarde la plus récente trouvée">
+    <p className="backup-search-note">{t('La recherche lit seulement les fichiers « sylloge-… .json » d’iCloud Drive, Google Drive, Dropbox, OneDrive, Documents, Bureau et Téléchargements. macOS peut demander l’autorisation d’y accéder.')}</p>
+    {busy && <p role="status">{t('Lecture et vérification des sauvegardes…')}</p>}
+    {message && <p role="status">{pickerMessageText(message)}</p>}
+    {error && <p className="inline-report error" role="alert">{pickerMessageText(error)}</p>}
+    {found && found.unreadable.length > 0 && <p className="inline-report" role="status">{t('Accès non autorisé : {locations}. Si la sauvegarde s’y trouve, la choisir manuellement.', { locations: found.unreadable.join(', ') })}</p>}
+    {newest && <section className="backup-found" aria-label={t('Sauvegarde la plus récente trouvée')}>
       <div className="backup-found-copy">
-        <b>Sauvegarde la plus récente trouvée</b>
-        <span>{formatDate(newest.document.exportedAt)} · profil « {newest.document.profile.name} » · {profileWorkCount(newest.document)} fiches</span>
+        <b>{t('Sauvegarde la plus récente trouvée')}</b>
+        <span>{dateLabel(newest.document.exportedAt)} · {profileLabel(newest.document.profile.name)} · {worksLabel(profileWorkCount(newest.document))}</span>
         <small>{newest.location ? `${newest.location} · ` : ''}{newest.fileName}</small>
       </div>
-      <button className={value === newest ? 'secondary-button' : 'primary-button'} type="button" disabled={busy || disabled || value === newest} onClick={() => onChange(newest)}>{value === newest ? 'Sélectionnée' : 'Utiliser cette sauvegarde'}</button>
+      <button className={value === newest ? 'secondary-button' : 'primary-button'} type="button" disabled={busy || disabled || value === newest} onClick={() => onChange(newest)}>{value === newest ? t('Sélectionnée') : t('Utiliser cette sauvegarde')}</button>
     </section>}
-    {newest && <p className="backup-search-note">Une copie plus récente ailleurs, par exemple sur une clé USB ? La choisir avec « Choisir un fichier JSON ».</p>}
+    {newest && <p className="backup-search-note">{t('Une copie plus récente ailleurs, par exemple sur une clé USB ? La choisir avec « Choisir un fichier JSON ».')}</p>}
     {others.length > 0 && <details className="import-guide-limits">
-      <summary>Autres sauvegardes trouvées · {others.length}</summary>
+      <summary>{t('Autres sauvegardes trouvées · {count}', { count: formatNumber(others.length) })}</summary>
       <fieldset className="backup-catalog" disabled={disabled || busy}>
-        <legend className="visually-hidden">Autres sauvegardes trouvées</legend>
+        <legend className="visually-hidden">{t('Autres sauvegardes trouvées')}</legend>
         {others.map((entry, index) => <label key={index}>
           <input type="radio" name="backup-found" checked={value === entry} onChange={() => onChange(entry)} />
-          <span><b>{formatDate(entry.document.exportedAt)}</b><small>{entry.document.profile.name} · {profileWorkCount(entry.document)} fiches · {entry.location ? `${entry.location} · ` : ''}{entry.fileName}</small></span>
+          <span><b>{dateLabel(entry.document.exportedAt)}</b><small>{entry.document.profile.name} · {worksLabel(profileWorkCount(entry.document))} · {entry.location ? `${entry.location} · ` : ''}{entry.fileName}</small></span>
         </label>)}
       </fieldset>
     </details>}
     {catalog && catalog.valid.length > 0 && <fieldset className="backup-catalog" disabled={disabled || busy}>
-      <legend>Copies valides · {catalog.valid.length}</legend>
+      <legend>{t('Copies valides · {count}', { count: formatNumber(catalog.valid.length) })}</legend>
       {catalog.valid.map((entry, index) => <label key={index}>
         <input type="radio" name="backup-candidate" checked={value === entry} onChange={() => onChange(entry)} />
-        <span><b>{entry.fileName}</b><small>{formatDate(entry.document.exportedAt)} · {entry.document.profile.name} · {profileWorkCount(entry.document)} fiches</small></span>
+        <span><b>{entry.fileName}</b><small>{dateLabel(entry.document.exportedAt)} · {entry.document.profile.name} · {worksLabel(profileWorkCount(entry.document))}</small></span>
       </label>)}
     </fieldset>}
-    {catalog && catalog.invalid.length > 0 && <details className="import-guide-limits"><summary>Fichiers JSON non restaurables · {catalog.invalid.length}</summary><ul>{catalog.invalid.map((entry, index) => <li key={index}>{entry.fileName} — {entry.message}</li>)}</ul></details>}
+    {catalog && catalog.invalid.length > 0 && <details className="import-guide-limits"><summary>{t('Fichiers JSON non restaurables · {count}', { count: formatNumber(catalog.invalid.length) })}</summary><ul>{catalog.invalid.map((entry, index) => <li key={index}>{entry.fileName} — {pickerMessageText(entry.message)}</li>)}</ul></details>}
     {value && <BackupSummary value={value} />}
   </div>
 }

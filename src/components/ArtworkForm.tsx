@@ -1,3 +1,4 @@
+import { t, tc, translateMessage } from '../i18n/core.ts'
 import { useState, type FormEvent } from 'react'
 import {
   ARTWORK_FORMS,
@@ -43,7 +44,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localToday()
-  const previewTitle = values.title.trim() || 'Titre à renseigner'
+  const previewTitle = values.title.trim() || t("Titre à renseigner")
   const previewUrl = previewableImageUrl(values.imageUrl)
 
   // Crayon commun sur le visuel (0.6.11) : remplace l'ancien bouton inline.
@@ -99,8 +100,8 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{artwork ? 'Modifier la fiche' : 'Ajouter une œuvre'}</h1>
-      <p>Seul le titre est obligatoire.</p>
+      <h1 className="display-title">{artwork ? t("Modifier la fiche") : t("Ajouter une œuvre")}</h1>
+      <p>{t("Seul le titre est obligatoire.")}</p>
     </div>
   )
 
@@ -120,18 +121,18 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               type="date"
               value={values.discoveredAt || today}
               onChange={(event) => update('discoveredAt', event.target.value)}
-              aria-label="Date de découverte"
+              aria-label={tc('artworks', "Date de découverte")}
               aria-invalid={Boolean(errors.discoveredAt)}
             />
           </div>
-          {errors.discoveredAt && <p className="field-error">{errors.discoveredAt}</p>}
+          {errors.discoveredAt && <p className="field-error">{translateMessage(errors.discoveredAt)}</p>}
         </div>
       </div>
 
       <div className="form-body">
         <div className="form-body-scroll">
           <div className="field field-title">
-            <label htmlFor="artwork-title">Titre <span aria-hidden="true">*</span></label>
+            <label htmlFor="artwork-title">{t('Titre')} <span aria-hidden="true">*</span></label>
             <input
               id="artwork-title"
               name="title"
@@ -141,7 +142,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               aria-describedby={errors.title ? 'artwork-title-error' : undefined}
               autoFocus
             />
-            {errors.title && <p className="field-error" id="artwork-title-error">{errors.title}</p>}
+            {errors.title && <p className="field-error" id="artwork-title-error">{translateMessage(errors.title)}</p>}
           </div>
 
           {/* L’Art conserve sa composition éditoriale propre : catégorie,
@@ -151,9 +152,9 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
             <textarea
               id="artwork-personalNote"
               name="personalNote"
-              aria-label="Ressenti personnel"
+              aria-label={t("Ressenti personnel")}
               rows={5}
-              placeholder="Qu’as-tu ressenti face à cette œuvre ?"
+              placeholder={t("Qu’as-tu ressenti face à cette œuvre ?")}
               value={values.personalNote}
               onChange={(event) => update('personalNote', event.target.value)}
               autoCorrect="off"
@@ -166,7 +167,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
           <div className="secondary-fields editorial-open">
             <div className="form-row">
               <div className="field">
-                <label htmlFor="artwork-form">Catégorie</label>
+                <label htmlFor="artwork-form">{t("Catégorie")}</label>
                 <select
                   id="artwork-form"
                   name="form"
@@ -176,13 +177,13 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
                   aria-describedby={errors.form ? 'artwork-form-error' : undefined}
                 >
                   {ARTWORK_FORMS.map((form) => (
-                    <option value={form} key={form}>{ARTWORK_FORM_LABELS[form]}</option>
+                    <option value={form} key={form}>{t(ARTWORK_FORM_LABELS[form])}</option>
                   ))}
                 </select>
-                {errors.form && <p className="field-error" id="artwork-form-error">{errors.form}</p>}
+                {errors.form && <p className="field-error" id="artwork-form-error">{translateMessage(errors.form)}</p>}
               </div>
               <div className="field field-year">
-                <label htmlFor="artwork-year">Année</label>
+                <label htmlFor="artwork-year">{t("Année")}</label>
                 <input
                   id="artwork-year"
                   inputMode="numeric"
@@ -191,20 +192,20 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
                   aria-invalid={Boolean(errors.year)}
                   aria-describedby={errors.year ? 'artwork-year-error' : undefined}
                 />
-                {errors.year && <p className="field-error" id="artwork-year-error">{errors.year}</p>}
+                {errors.year && <p className="field-error" id="artwork-year-error">{translateMessage(errors.year)}</p>}
               </div>
             </div>
             <div className="field">
-              <label htmlFor="artwork-artist">Artiste</label>
+              <label htmlFor="artwork-artist">{t("Artiste")}</label>
               <input id="artwork-artist" value={values.artist} onChange={(event) => update('artist', event.target.value)} />
             </div>
             <div className="form-row form-row-halves">
               <div className="field">
-                <label htmlFor="artwork-location">Lieu</label>
+                <label htmlFor="artwork-location">{t("Lieu")}</label>
                 <input id="artwork-location" value={values.location} onChange={(event) => update('location', event.target.value)} />
               </div>
               <div className="field">
-                <label htmlFor="artwork-exhibition">Exposition</label>
+                <label htmlFor="artwork-exhibition">{t("Exposition")}</label>
                 <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
               </div>
             </div>
@@ -218,22 +219,22 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
                 <input
                   value={field.name}
                   onChange={(event) => updateCustomField(index, 'name', event.target.value)}
-                  placeholder="Nom du champ"
-                  aria-label={`Nom du champ personnalisé ${index + 1}`}
+                  placeholder={t("Nom du champ")}
+                  aria-label={t("Nom du champ personnalisé {number}", { number: index + 1 })}
                 />
                 <span className="custom-field-arrow" aria-hidden="true">→</span>
                 <input
                   value={field.value}
                   onChange={(event) => updateCustomField(index, 'value', event.target.value)}
-                  placeholder="Valeur"
-                  aria-label={`Valeur du champ personnalisé ${index + 1}`}
+                  placeholder={t("Valeur")}
+                  aria-label={t("Valeur du champ personnalisé {number}", { number: index + 1 })}
                 />
                 <button
                   type="button"
                   className="custom-field-remove"
                   onClick={() => removeCustomField(index)}
-                  aria-label={`Supprimer le champ personnalisé ${index + 1}`}
-                  title="Supprimer ce champ"
+                  aria-label={t("Supprimer le champ personnalisé {number}", { number: index + 1 })}
+                  title={t("Supprimer ce champ")}
                 >×</button>
               </div>
             ))}
@@ -242,17 +243,17 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               className="link-accent custom-fields-add"
               onClick={() => setValues((current) => ({ ...current, customFields: [...current.customFields, { name: '', value: '' }] }))}
             >
-              Ajouter un champ personnalisé
+              {t('Ajouter un champ personnalisé')}
             </button>
           </div>
 
-          {saveError && <p className="form-error" role="alert">{saveError}</p>}
+          {saveError && <p className="form-error" role="alert">{translateMessage(saveError)}</p>}
         </div>
 
         <footer className="form-actions form-actions-docked">
-          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>Annuler</button>
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={saving}>{t("Annuler")}</button>
           <button className="primary-button" type="submit" disabled={saving}>
-            {saving ? 'Enregistrement…' : artwork ? 'Enregistrer les modifications' : 'Ajouter l’œuvre'}
+            {saving ? t("Enregistrement…") : artwork ? t("Enregistrer les modifications") : t("Ajouter l’œuvre")}
           </button>
         </footer>
       </div>
@@ -274,7 +275,7 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
   return (
     <main className="main editor-main">
       <header className="page-action-bar">
-        <button className="back-button" type="button" onClick={onCancel}>← Annuler</button>
+        <button className="back-button" type="button" onClick={onCancel}>{t("← Annuler")}</button>
       </header>
       {heading}
       {form}

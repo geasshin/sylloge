@@ -3,15 +3,11 @@ import {
   GAME_STATUS_LABELS,
   type Game,
 } from '../domain/game.ts'
+import { t, tc, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
 import { icon } from '../main.tsx'
-
-function formatCalendarDate(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
-}
 
 type GameDetailProps = {
   game: Game
@@ -48,21 +44,21 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
       <header className="page-action-bar detail-action-bar">
         <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={backLabel}>{icon('arrow-left')}</button>
         <div className="detail-actions">
-          <button className="icon-action-button" type="button" onClick={onEdit} title="Modifier la fiche">
+          <button className="icon-action-button" type="button" onClick={onEdit} title={t("Modifier la fiche")}>
             {icon('pencil')}
-            <span>Modifier</span>
+            <span>{t("Modifier")}</span>
           </button>
           {onAssociate && (
-            <button className="icon-action-button" type="button" onClick={onAssociate} title="Associer à IGDB (recherche assistée)">
+            <button className="icon-action-button" type="button" onClick={onAssociate} title={t("Associer à IGDB (recherche assistée)")}>
               {icon('wand')}
-              <span>Associer</span>
+              <span>{t("Associer")}</span>
             </button>
           )}
           <button
             className="icon-action-button icon-action-danger"
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            title="Supprimer ce jeu"
+            title={t("Supprimer ce jeu")}
           >
             {icon('trash')}
           </button>
@@ -81,7 +77,7 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
             <div className="detail-rate">
               {game.rating !== null && (
                 <>
-                  <span className="stars-display" aria-label={`Note ${game.rating} sur 5`}>
+                  <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(game.rating) })}>
                     {[1, 2, 3, 4, 5].map((star) => {
                       const fill = Math.max(0, Math.min(1, game.rating! - star + 1))
                       return (
@@ -92,10 +88,10 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
                       )
                     })}
                   </span>
-                  <span className="rate-value">{game.rating.toLocaleString('fr-FR')}/5</span>
+                  <span className="rate-value">{formatNumber(game.rating)}/5</span>
                 </>
               )}
-              {game.isFavorite && <span className="heart-display on" aria-label="Coup de cœur">♥</span>}
+              {game.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
             </div>
           )}
         </div>
@@ -110,16 +106,16 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
 
           <dl className="detail-facts">
             {game.developer && (
-              <div><dt>Développeur</dt><dd>{game.developer}</dd></div>
+              <div><dt>{t("Développeur")}</dt><dd>{game.developer}</dd></div>
             )}
             {game.platform && (
-              <div><dt>Plateforme</dt><dd>{game.platform}</dd></div>
+              <div><dt>{t("Plateforme")}</dt><dd>{game.platform}</dd></div>
             )}
             {game.year !== null && (
-              <div><dt>Sortie</dt><dd>{game.year}</dd></div>
+              <div><dt>{t("Sortie")}</dt><dd>{game.year}</dd></div>
             )}
             {game.playedAt && (
-              <div><dt>Partie</dt><dd>{formatCalendarDate(game.playedAt)}</dd></div>
+              <div><dt>{tc('games', "Partie")}</dt><dd>{formatDate(game.playedAt, { dateStyle: 'long' })}</dd></div>
             )}
           </dl>
 
@@ -127,10 +123,10 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
             {game.personalNote ? (
               <>
                 <blockquote className="review-personal">{game.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>Modifier</button>
+                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
               </>
             ) : (
-              <p className="mine-empty">Ton avis s’écrira ici.</p>
+              <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
             )}
           </section>
         </div>
@@ -139,13 +135,13 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
       {confirmingDelete && (
         <div className="confirm-backdrop">
           <div className="delete-confirmation" role="alertdialog" aria-labelledby="game-delete-title" aria-describedby="game-delete-description">
-            <h2 id="game-delete-title">Supprimer définitivement ce jeu ?</h2>
-            <p id="game-delete-description">« {game.title} » sera retiré de la collection sans possibilité de restauration.</p>
-            {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
+            <h2 id="game-delete-title">{t("Supprimer définitivement ce jeu ?")}</h2>
+            <p id="game-delete-description">{t('« {title} » sera retiré de la collection sans possibilité de restauration.', { title: game.title })}</p>
+            {deleteError && <p className="field-error" role="alert">{translateMessage(deleteError)}</p>}
             <div>
-              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Annuler</button>
+              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>{t("Annuler")}</button>
               <button className="danger-button" type="button" onClick={deleteGame} disabled={deleting}>
-                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+                {deleting ? t('Suppression…') : t("Supprimer définitivement")}
               </button>
             </div>
           </div>

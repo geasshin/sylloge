@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { Poster } from './Poster.tsx'
+import { formatDate, formatNumber, getLocale, t } from '../i18n/core.ts'
 import { useHomeAutoplay } from '../domain/preferences.ts'
 import type { FilmLibrary } from '../data/filmsRepository.ts'
 import type { Film } from '../domain/film.ts'
@@ -149,7 +150,7 @@ function isFinished(entry: HomeEntry): boolean {
 /** « Saison 2 sur 4 » : rien tant que la progression ou le total est inconnu. */
 function progressOf(unit: 'Saison' | 'Tome', seen: number | null, total: number | null): string | null {
   if (seen === null || total === null || seen < 1 || total < seen) return null
-  return `${unit} ${seen} sur ${total}`
+  return t('{unit} {seen} sur {total}', { unit: t(unit), seen: formatNumber(seen), total: formatNumber(total) })
 }
 
 // ————————————————————————————————————————————————————————————————
@@ -178,7 +179,7 @@ const HOME_TABS: readonly HomeTab[] = [
   {
     key: 'tout', slug: 'tout', label: 'Tout',
     finished: ['œuvre terminée', 'œuvres terminées'], none: 'Aucune œuvre terminée',
-    queue: 'En attente', recent: 'Récemment terminés',
+    queue: 'File d’attente', recent: 'Récemment terminés',
     empty: 'Aucune œuvre pour le moment : celles des sept bibliothèques apparaîtront ici.',
   },
   {
@@ -283,7 +284,7 @@ function buildTabStats(entries: HomeEntry[], now: Date): TabStats {
   const months = Array.from({ length: 12 }, (_, index): TabMonth => {
     const date = new Date(now.getFullYear(), now.getMonth() - 11 + index, 1)
     const key = formatCalendarDate(date).slice(0, 7)
-    return { key, label: monthShort.format(date), count: perMonth.get(key) ?? 0, current: index === 11 }
+    return { key, label: formatDate(date, { month: 'short', year: 'numeric' }), count: perMonth.get(key) ?? 0, current: index === 11 }
   })
   return {
     finished: finished.length,
@@ -327,11 +328,10 @@ function pickFeatured(entries: HomeEntry[]): HomeEntry[] {
   return [...entries].sort((first, second) => second.createdAt.localeCompare(first.createdAt)).slice(0, FEATURED_FALLBACK)
 }
 
-/** Dates et libellés : jamais de date UTC, jamais de compteur inventé. */
-const dateFull = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' })
-const dateDayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long' })
-const monthLong = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' })
-const monthShort = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric' })
+// Les formats et traductions sont calculés au rendu pour suivre la langue.
+function finishedLabel(count: number, labels: readonly [string, string]): string {
+  return t(labels[new Intl.PluralRules(getLocale()).select(count) === 'one' ? 0 : 1])
+}
 
 /** Date locale d'une date personnelle, sans passage par UTC. */
 function parseLocalDay(value: string): Date {
@@ -345,26 +345,26 @@ function relativeDayLabel(value: string): string {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const days = Math.round((today.getTime() - date.getTime()) / 86_400_000)
-  if (days <= 0) return "aujourd'hui"
-  if (days === 1) return 'hier'
-  if (days < 7) return `il y a ${days} jours`
-  if (days < 14) return 'il y a une semaine'
-  if (days < 45) return `il y a ${Math.round(days / 7)} semaines`
-  if (date.getFullYear() === today.getFullYear()) return `le ${dateDayMonth.format(date)}`
-  return `le ${dateFull.format(date)}`
+  if (days <= 0) return t("aujourd'hui")
+  if (days === 1) return t('hier')
+  if (days < 7) return t('il y a {count} jours', { count: formatNumber(days) })
+  if (days < 14) return t('il y a une semaine')
+  if (days < 45) return t('il y a {count} semaines', { count: formatNumber(Math.round(days / 7)) })
+  if (date.getFullYear() === today.getFullYear()) return t('le {date}', { date: formatDate(date, { day: 'numeric', month: 'long' }) })
+  return t('le {date}', { date: formatDate(date, { dateStyle: 'long' }) })
 }
 
 /** Jour lisible d'une clé « AAAA-MM-JJ » (libellé accessible du calendrier). */
 function dayLabel(value: string): string {
-  return dateFull.format(parseLocalDay(value))
+  return formatDate(parseLocalDay(value), { dateStyle: 'long' })
 }
 
 /** Statut et date de la une : « Vu hier », « En cours · Saison 1 sur 2 »… */
 function featuredStatus(entry: HomeEntry): string {
   const when = entry.recentAt ? relativeDayLabel(entry.recentAt) : null
-  if (isFinished(entry)) return when ? `${FINISHED_VERBS[entry.medium]} ${when}` : FINISHED_VERBS[entry.medium]
-  if (entry.status === 'en cours') return entry.progressLabel ? `En cours · ${entry.progressLabel}` : 'En cours'
-  const status = entry.status ? `${entry.status.charAt(0).toLocaleUpperCase('fr-FR')}${entry.status.slice(1)}` : ''
+  if (isFinished(entry)) return when ? `${t(FINISHED_VERBS[entry.medium])} ${when}` : t(FINISHED_VERBS[entry.medium])
+  if (entry.status === 'en cours') return entry.progressLabel ? t('En cours · {progress}', { progress: entry.progressLabel }) : t('En cours')
+  const status = entry.status ? t(`${entry.status.charAt(0).toLocaleUpperCase('fr-FR')}${entry.status.slice(1)}`) : ''
   return status && when ? `${status} ${when}` : status
 }
 
@@ -446,7 +446,7 @@ function RefreshIcon() {
 /** Note /5 en étoiles, avec remplissage partiel (aucune note pour l'Art). */
 function Stars({ value }: { value: number }) {
   return (
-    <span className="at-stars" role="img" aria-label={`${value.toLocaleString('fr-FR')} sur 5`}>
+    <span className="at-stars" role="img" aria-label={t('{rating} sur 5', { rating: formatNumber(value) })}>
       {[1, 2, 3, 4, 5].map((star) => {
         const fill = Math.max(0, Math.min(1, value - star + 1))
         return (
@@ -494,13 +494,13 @@ function WorkCard({
 }) {
   const cachedContributor = useCachedContributor(entry, showContributor, resolveFilmContributor)
 
-  const medium = MEDIUM_CARD_LABELS[entry.medium]
-  const rating = showRating && entry.rating !== null ? `Noté ${entry.rating} sur 5` : null
-  const favorite = entry.isFavorite ? 'Coup de cœur' : null
+  const medium = t(MEDIUM_CARD_LABELS[entry.medium])
+  const rating = showRating && entry.rating !== null ? t('Noté {rating} sur 5', { rating: formatNumber(entry.rating) }) : null
+  const favorite = entry.isFavorite ? t('Coup de cœur') : null
   const contributor = showContributor ? usableContributor(entry.contributor) ?? cachedContributor : null
-  const contributorFact = contributor ? `${CONTRIBUTOR_LABELS[entry.medium]} ${contributor}` : null
+  const contributorFact = contributor ? `${t(CONTRIBUTOR_LABELS[entry.medium])} ${contributor}` : null
   const facts = [medium, contributorFact, meta ?? null, rating, favorite].filter((value): value is string => value !== null).join(' · ')
-  const accessibleLabel = `Ouvrir la fiche de ${entry.title}${facts ? `, ${facts}` : ''}`
+  const accessibleLabel = `${t('Ouvrir la fiche de {title}', { title: entry.title })}${facts ? `, ${facts}` : ''}`
 
   return (
     <button type="button" className="at-work" data-medium={entry.medium} onClick={entry.onOpen} aria-label={accessibleLabel}>
@@ -651,14 +651,14 @@ function FeaturedCarousel({
   return (
     <section
       className="at-hero"
-      aria-roledescription="carrousel"
+      aria-roledescription={t('carrousel')}
       aria-labelledby="at-hero-titre"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={onFocus}
       onBlur={onBlur}
     >
-      <h2 className="visually-hidden" id="at-hero-titre">À la une</h2>
+      <h2 className="visually-hidden" id="at-hero-titre">{t('À la une')}</h2>
       {count > 1 && (
         <div className="at-hero-controls">
           {canRotate && (
@@ -666,16 +666,16 @@ function FeaturedCarousel({
               type="button"
               className="at-hero-btn"
               onClick={() => setPaused((value) => !value)}
-              aria-label={paused ? 'Reprendre le défilement' : 'Mettre en pause le défilement'}
-              title={paused ? 'Reprendre le défilement' : 'Mettre en pause le défilement'}
+              aria-label={t(paused ? 'Reprendre le défilement' : 'Mettre en pause le défilement')}
+              title={t(paused ? 'Reprendre le défilement' : 'Mettre en pause le défilement')}
             >
               {paused ? <PlayIcon /> : <PauseIcon />}
             </button>
           )}
-          <button type="button" className="at-hero-btn" onClick={() => show(current - 1)} aria-label="Œuvre précédente" title="Œuvre précédente">
+          <button type="button" className="at-hero-btn" onClick={() => show(current - 1)} aria-label={t('Œuvre précédente')} title={t('Œuvre précédente')}>
             <ChevronLeft />
           </button>
-          <button type="button" className="at-hero-btn" onClick={() => show(current + 1)} aria-label="Œuvre suivante" title="Œuvre suivante">
+          <button type="button" className="at-hero-btn" onClick={() => show(current + 1)} aria-label={t('Œuvre suivante')} title={t('Œuvre suivante')}>
             <ChevronRight />
           </button>
           {/* Les points servent au pointeur ; au clavier, les flèches suffisent
@@ -687,7 +687,7 @@ function FeaturedCarousel({
                 type="button"
                 className="at-hero-dot"
                 tabIndex={-1}
-                aria-label={`Afficher ${entry.title} (${position + 1} sur ${count})`}
+                aria-label={t('Afficher {title} ({position} sur {count})', { title: entry.title, position: formatNumber(position + 1), count: formatNumber(count) })}
                 aria-current={position === current ? 'true' : undefined}
                 onClick={() => show(position)}
               />
@@ -701,7 +701,7 @@ function FeaturedCarousel({
             key={entry.key}
             entry={entry}
             active={position === current}
-            label={`${position + 1} sur ${count}`}
+            label={t('{position} sur {count}', { position: formatNumber(position + 1), count: formatNumber(count) })}
             resolveFilmPoster={resolveFilmPoster}
             resolveFilmContributor={resolveFilmContributor}
           />
@@ -733,7 +733,7 @@ function FeaturedSlide({
   useEffect(() => { setBackdropMissing(false) }, [src])
   const cachedContributor = useCachedContributor(entry, true, resolveFilmContributor)
   const contributor = usableContributor(entry.contributor) ?? cachedContributor
-  const facts = [MEDIUM_CARD_LABELS[entry.medium], entry.year !== null ? String(entry.year) : null, contributor]
+  const facts = [t(MEDIUM_CARD_LABELS[entry.medium]), entry.year !== null ? formatNumber(entry.year, { useGrouping: false }) : null, contributor]
     .filter((value): value is string => value !== null)
     .join(' · ')
   const note = entry.personalNote?.trim()
@@ -742,7 +742,7 @@ function FeaturedSlide({
     <div
       className={`at-slide${active ? ' is-active' : ''}`}
       role="group"
-      aria-roledescription="diapositive"
+      aria-roledescription={t('diapositive')}
       aria-label={label}
       aria-hidden={active ? undefined : true}
       inert={!active}
@@ -765,8 +765,8 @@ function FeaturedSlide({
           </p>
           {note && <p className="at-slide-note">{`« ${note} »`}</p>}
           <div className="at-slide-actions">
-            <button type="button" className="primary-button" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}`}>
-              Ouvrir la fiche
+            <button type="button" className="primary-button" onClick={entry.onOpen} aria-label={t('Ouvrir la fiche de {title}', { title: entry.title })}>
+              {t('Ouvrir la fiche')}
             </button>
           </div>
         </div>
@@ -777,24 +777,23 @@ function FeaturedSlide({
 
 /** Bilan de l'onglet : deux compteurs et douze mois en barres, sur une ligne. */
 function TabStatistics({ tab, stats }: { tab: HomeTab; stats: TabStats }) {
-  const [singular, plural] = tab.finished
-  const noun = (count: number) => (count > 1 ? plural : singular)
+  const noun = (count: number) => finishedLabel(count, tab.finished)
   const peak = Math.max(1, ...stats.months.map((month) => month.count))
 
   return (
-    <div className="at-stats" role="group" aria-label={`Bilan de l’onglet ${tab.label}`}>
-      <p className="at-stat"><b>{stats.finished}</b> <span>{noun(stats.finished)}</span></p>
+    <div className="at-stats" role="group" aria-label={t('Bilan de l’onglet {tab}', { tab: t(tab.label) })}>
+      <p className="at-stat"><b>{formatNumber(stats.finished)}</b> <span>{noun(stats.finished)}</span></p>
       <span className="at-stats-rule" aria-hidden="true" />
-      <p className="at-stat"><b>{stats.thisMonth}</b> <span>ce mois-ci</span></p>
+      <p className="at-stat"><b>{formatNumber(stats.thisMonth)}</b> <span>{t('ce mois-ci')}</span></p>
       <span className="at-stats-rule" aria-hidden="true" />
       <div className="at-spark" aria-hidden="true">
         {stats.months.map((month) => (
-          <span key={month.key} className={`at-spark-col${month.current ? ' is-current' : ''}`} title={`${month.label} : ${month.count}`}>
+          <span key={month.key} className={`at-spark-col${month.current ? ' is-current' : ''}`} title={t('{month} : {count}', { month: month.label, count: formatNumber(month.count) })}>
             <i style={{ height: `${Math.round((month.count / peak) * 100)}%` }} />
           </span>
         ))}
       </div>
-      <span className="visually-hidden">{`${stats.lastTwelveMonths} ${noun(stats.lastTwelveMonths)} sur 12 mois`}</span>
+      <span className="visually-hidden">{t('{count} {finished} sur 12 mois', { count: formatNumber(stats.lastTwelveMonths), finished: noun(stats.lastTwelveMonths) })}</span>
     </div>
   )
 }
@@ -869,10 +868,10 @@ function FileRow({
             {action}
             {overflow && (
               <>
-                <button type="button" className="at-row-btn" onClick={() => step(-1)} disabled={atStart} aria-label={`Faire défiler ${label} vers la gauche`}>
+                <button type="button" className="at-row-btn" onClick={() => step(-1)} disabled={atStart} aria-label={t('Faire défiler {label} vers la gauche', { label })}>
                   <ChevronLeft />
                 </button>
-                <button type="button" className="at-row-btn" onClick={() => step(1)} disabled={atEnd} aria-label={`Faire défiler ${label} vers la droite`}>
+                <button type="button" className="at-row-btn" onClick={() => step(1)} disabled={atEnd} aria-label={t('Faire défiler {label} vers la droite', { label })}>
                   <ChevronRight />
                 </button>
               </>
@@ -886,7 +885,7 @@ function FileRow({
         ref={laneRef}
         tabIndex={0}
         role="group"
-        aria-label={`${label}, ${entries.length} œuvre${entries.length > 1 ? 's' : ''}, utilisez les flèches gauche et droite pour faire défiler`}
+        aria-label={t('{label}, {count} {works}, utilisez les flèches gauche et droite pour faire défiler', { label, count: formatNumber(entries.length), works: finishedLabel(entries.length, ['œuvre', 'œuvres']) })}
       >
         {entries.map(renderCard)}
       </div>
@@ -911,19 +910,18 @@ function ActivityCalendar({ activityMap, journal }: { activityMap: Map<string, H
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const canGoForward = monthOffset < 0
   const todayKey = formatCalendarDate(today)
-  const monthName = monthLong.format(cursor)
+  const monthName = formatDate(cursor, { month: 'long', year: 'numeric' })
   const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}-`
   const monthEntries = Array.from(activityMap.entries())
     .filter(([key]) => key.startsWith(monthPrefix))
     .sort(([first], [second]) => second.localeCompare(first))
     .flatMap(([key, list]) => list.map((entry) => ({ key, entry })))
-  const [singular, plural] = journal.finished
 
   return (
     <div className="at-activity-body">
       <div className="at-calendar">
         <header className="at-cal-nav">
-          <button type="button" className="at-cal-button" onClick={() => setMonthOffset((value) => value - 1)} aria-label="Mois précédent">
+          <button type="button" className="at-cal-button" onClick={() => setMonthOffset((value) => value - 1)} aria-label={t('Mois précédent')}>
             ‹
           </button>
           <h3>{monthName}</h3>
@@ -932,14 +930,14 @@ function ActivityCalendar({ activityMap, journal }: { activityMap: Map<string, H
             className="at-cal-button"
             onClick={() => setMonthOffset((value) => Math.min(0, value + 1))}
             disabled={!canGoForward}
-            aria-label="Mois suivant"
+            aria-label={t('Mois suivant')}
           >
             ›
           </button>
         </header>
         <div className="at-cal-weekdays" aria-hidden="true">
-          {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((label, index) => (
-            <span key={`${label}-${index}`}>{label}</span>
+          {Array.from({ length: 7 }, (_, index) => (
+            <span key={index}>{formatDate(new Date(2024, 0, 1 + index), { weekday: 'narrow' })}</span>
           ))}
         </div>
         <ol className="at-cal-days">
@@ -957,7 +955,7 @@ function ActivityCalendar({ activityMap, journal }: { activityMap: Map<string, H
                 className={`at-cal-day${mediums.length > 0 ? ' on' : ''}${key === todayKey ? ' today' : ''}`}
                 tabIndex={dayEntries.length > 0 ? 0 : undefined}
               >
-                <time dateTime={key}>{day}</time>
+                <time dateTime={key}>{formatNumber(day)}</time>
                 {mediums.length > 0 && (
                   <span className="at-cal-dots" aria-hidden="true">
                     {mediums.map((medium) => (
@@ -967,7 +965,7 @@ function ActivityCalendar({ activityMap, journal }: { activityMap: Map<string, H
                 )}
                 {dayEntries.length > 0 && (
                   <span className="visually-hidden">
-                    {`${dayLabel(key)} : ${dayEntries.map((entry) => `${MEDIUM_CARD_LABELS[entry.medium]} « ${entry.title} »`).join(', ')}`}
+                    {`${dayLabel(key)} : ${dayEntries.map((entry) => `${t(MEDIUM_CARD_LABELS[entry.medium])} « ${entry.title} »`).join(', ')}`}
                   </span>
                 )}
                 {/* Repère visuel au survol : la liste réelle des œuvres du jour. */}
@@ -989,18 +987,18 @@ function ActivityCalendar({ activityMap, journal }: { activityMap: Map<string, H
       <div className="at-month">
         <p className="at-month-summary">
           {monthEntries.length > 0
-            ? `${monthEntries.length} ${monthEntries.length > 1 ? plural : singular} en ${monthName}`
-            : `${journal.none} en ${monthName}.`}
+            ? t('{count} {finished} en {month}', { count: formatNumber(monthEntries.length), finished: finishedLabel(monthEntries.length, journal.finished), month: monthName })
+            : t('{none} en {month}.', { none: t(journal.none), month: monthName })}
         </p>
         {monthEntries.length > 0 && (
           <ol className="at-month-list">
             {monthEntries.map(({ key, entry }) => (
               <li className="at-month-item" key={`${key}-${entry.key}`}>
-                <time dateTime={key}>{Number(key.slice(8, 10))}</time>
-                <button type="button" className="at-month-link" onClick={entry.onOpen} aria-label={`Ouvrir la fiche de ${entry.title}, ${dayLabel(key)}`}>
+                <time dateTime={key}>{formatNumber(Number(key.slice(8, 10)))}</time>
+                <button type="button" className="at-month-link" onClick={entry.onOpen} aria-label={t('Ouvrir la fiche de {title}, {date}', { title: entry.title, date: dayLabel(key) })}>
                   {entry.title}
                 </button>
-                {journal.showMedium && <span className="at-month-medium">{MEDIUM_CARD_LABELS[entry.medium]}</span>}
+                {journal.showMedium && <span className="at-month-medium">{t(MEDIUM_CARD_LABELS[entry.medium])}</span>}
               </li>
             ))}
           </ol>
@@ -1228,11 +1226,11 @@ function HomeDashboard({
   const cardProps = { showMedium: isAll, resolveFilmPoster, resolveFilmContributor }
 
   return (
-    <main ref={scrollRef} className="main home-main atrium-home" aria-label="Accueil">
+    <main ref={scrollRef} className="main home-main atrium-home" aria-label={t('Accueil')}>
       <div className="at-inner">
-        <h1 className="visually-hidden">Accueil</h1>
+        <h1 className="visually-hidden">{t('Accueil')}</h1>
         <div className="at-topbar">
-          <div className="seg-group-form at-tabs" role="tablist" aria-label="Bibliothèques de l’accueil" onKeyDown={onTabKeyDown}>
+          <div className="seg-group-form at-tabs" role="tablist" aria-label={t('Bibliothèques de l’accueil')} onKeyDown={onTabKeyDown}>
             {HOME_TABS.map((item, position) => (
               <button
                 key={item.slug}
@@ -1246,7 +1244,7 @@ function HomeDashboard({
                 tabIndex={item.key === tab ? 0 : -1}
                 onClick={() => selectTab(item)}
               >
-                {item.label}
+                {t(item.label)}
               </button>
             ))}
           </div>
@@ -1255,7 +1253,7 @@ function HomeDashboard({
 
         <div key={current.slug} className="at-tab-panel" role="tabpanel" id="at-tab-panel" aria-labelledby={`at-tab-${current.slug}`}>
           {entries.length === 0 ? (
-            <p className="at-empty-tab">{current.empty}</p>
+            <p className="at-empty-tab">{t(current.empty)}</p>
           ) : (
             <>
               <FeaturedCarousel entries={featured} resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} />
@@ -1263,33 +1261,33 @@ function HomeDashboard({
               <div className="at-files">
                 <FileRow
                   id="at-favorites"
-                  label="Coups de cœur"
+                  label={t('Coups de cœur')}
                   entries={favorites}
                   renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showRating showContributor {...cardProps} />}
                 />
                 <FileRow
                   id="at-progress"
-                  label="En cours"
+                  label={t('En cours')}
                   entries={inProgress}
                   showMeta
                   renderCard={(entry) => <WorkCard key={entry.key} entry={entry} meta={entry.progressLabel ?? undefined} showContributor {...cardProps} />}
                 />
                 <FileRow
                   id="at-queue"
-                  label={current.queue}
+                  label={t(current.queue)}
                   entries={queue}
                   renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showContributor {...cardProps} />}
                 />
                 <FileRow
                   id="at-recent"
-                  label={current.recent}
+                  label={t(current.recent)}
                   entries={recent}
                   showMeta
                   renderCard={(entry) => (
                     <WorkCard
                       key={entry.key}
                       entry={entry}
-                      meta={`${entry.recentLabel ?? 'Activité'} · ${relativeDayLabel(entry.recentAt as string)}`}
+                      meta={`${t(entry.recentLabel ?? 'Activité')} · ${relativeDayLabel(entry.recentAt as string)}`}
                       showRating
                       showContributor
                       {...cardProps}
@@ -1298,13 +1296,13 @@ function HomeDashboard({
                 />
                 <FileRow
                   id="at-additions"
-                  label="Derniers ajouts"
+                  label={t('Derniers ajouts')}
                   entries={additions}
                   renderCard={(entry) => <WorkCard key={entry.key} entry={entry} showContributor {...cardProps} />}
                 />
                 <FileRow
                   id="at-pick"
-                  label="Pioche du jour"
+                  label={t('Pioche du jour')}
                   entries={pick}
                   action={(
                     <button
@@ -1312,8 +1310,8 @@ function HomeDashboard({
                       className="at-refresh-button"
                       onClick={refreshPick}
                       aria-controls="at-pick-voie"
-                      aria-label="Tirer une autre pioche du jour"
-                      title="Tirer une autre pioche"
+                      aria-label={t('Tirer une autre pioche du jour')}
+                      title={t('Tirer une autre pioche')}
                     >
                       <RefreshIcon />
                     </button>
@@ -1324,7 +1322,7 @@ function HomeDashboard({
 
               <section className="at-section at-activity" aria-labelledby="at-activity-titre">
                 <div className="at-file-head">
-                  <h2 className="at-section-title" id="at-activity-titre">Activité</h2>
+                  <h2 className="at-section-title" id="at-activity-titre">{t('Activité')}</h2>
                 </div>
                 <div className="at-activity-panel">
                   <ActivityCalendar activityMap={activityMap} journal={{ finished: current.finished, none: current.none, showMedium: isAll }} />

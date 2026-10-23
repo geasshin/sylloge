@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formatDate, formatNumber, getLanguage, getLocale, t, tc, translateMessage } from '../i18n/core.ts'
 import { QuotesSection } from './Quotes.tsx'
 import {
   CUSTOM_LIBRARY_TEMPLATES,
-  customEntryByline,
   type CustomEntry,
   type CustomEntryWriteInput,
   type CustomLibraryId,
+  type CustomFieldDefinition,
   type CustomStatus,
 } from '../domain/customLibraries.ts'
 import { customLibraryRepository } from '../data/customLibraryRepository.ts'
@@ -48,22 +49,28 @@ type CustomLibraryScreenProps = {
 }
 
 function formatCalendarDate(value: string): string {
-  const [year, month, day] = value.split('-').map(Number)
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(year, month - 1, day))
+  return formatDate(value, { dateStyle: 'long' })
 }
 
 function normalizedText(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLocaleLowerCase('fr')
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLocaleLowerCase(getLocale())
+}
+
+// Only catalogue choices are translated; free-form and imported values stay opaque.
+// A label from the library template takes its library context: « Dessin » is a
+// drawing in general, but the illustrator credit in Comics.
+function displayFieldValue(libraryId: CustomLibraryId, field: CustomFieldDefinition | undefined, value: string): string {
+  return field?.kind === 'select' && field.options?.includes(value) ? tc(libraryId, value) : value
 }
 
 function progressText(entry: CustomEntry): string | null {
   if (entry.progressCurrent === null && entry.progressTotal === null) return null
-  if (entry.progressTotal === null) return String(entry.progressCurrent)
-  return `${entry.progressCurrent ?? 0} / ${entry.progressTotal}`
+  if (entry.progressTotal === null) return formatNumber(entry.progressCurrent ?? 0)
+  return `${formatNumber(entry.progressCurrent ?? 0)} / ${formatNumber(entry.progressTotal)}`
 }
 
 function sortEntries(entries: CustomEntry[], sort: CustomSort): CustomEntry[] {
-  const byTitle = (first: CustomEntry, second: CustomEntry) => first.title.localeCompare(second.title, 'fr', { sensitivity: 'base' })
+  const byTitle = (first: CustomEntry, second: CustomEntry) => first.title.localeCompare(second.title, getLocale(), { sensitivity: 'base' })
   const sorted = [...entries]
   if (sort === 'recent') sorted.sort((first, second) => second.createdAt.localeCompare(first.createdAt) || byTitle(first, second))
   else if (sort === 'rating') sorted.sort((first, second) => (second.rating ?? -1) - (first.rating ?? -1) || byTitle(first, second))
@@ -78,6 +85,9 @@ function sortEntries(entries: CustomEntry[], sort: CustomSort): CustomEntry[] {
  */
 export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId, onOpenEntry, onChanged, onRemoved }: CustomLibraryScreenProps) {
   const template = CUSTOM_LIBRARY_TEMPLATES[libraryId]
+  const language = getLanguage()
+  /** Template copy keeps its library context (« Dessin » = Illustrator in Comics). */
+  const label = (source: string) => tc(libraryId, source)
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [query, setQuery] = useState('')
@@ -119,12 +129,15 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
       return normalizedText(haystack).includes(needle)
     })
     return sortEntries(filtered, sort)
-  }, [entries, kindField, kindFilter, query, sort, statusFilter])
+  }, [entries, kindField, kindFilter, language, query, sort, statusFilter])
 
   const isFiltered = query.trim() !== '' || statusFilter !== 'all' || kindFilter !== 'all'
   const favorites = entries.filter((entry) => entry.isFavorite).length
-  const countLabel = entries.length === 1 ? `1 ${template.singular}` : `${entries.length} ${template.plural}`
-  const subtitle = favorites > 0 ? `${countLabel} dont ${favorites} coup${favorites > 1 ? 's' : ''} de cœur` : countLabel
+  const noun = new Intl.PluralRules(getLocale()).select(entries.length) === 'one' ? template.singular : template.plural
+  const countLabel = `${formatNumber(entries.length)} ${t(noun)}`
+  const subtitle = favorites > 0
+    ? t(favorites === 1 ? '{countLabel} dont {count} coup de cœur' : '{countLabel} dont {count} coups de cœur', { countLabel, count: formatNumber(favorites) })
+    : countLabel
   const openEntry = entryId ? entries.find((entry) => entry.id === entryId) ?? null : null
 
   const replaceEntry = (updated: CustomEntry) => {
@@ -156,9 +169,9 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
       <FocusDialog
         className="editor-dialog dialog-add-flow"
         onClose={() => setForm(null)}
-        aria-label={form.mode === 'edit' ? 'Modifier la fiche' : template.addLabel}
+        aria-label={form.mode === 'edit' ? t('Modifier la fiche') : label(template.addLabel)}
       >
-        <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setForm(null)} aria-label="Fermer">×</button>
+        <button className="poster-dialog-close editor-dialog-close" type="button" onClick={() => setForm(null)} aria-label={t('Fermer')}>×</button>
         <CustomEntryForm
           libraryId={libraryId}
           entry={form.mode === 'edit' ? form.entry : undefined}
@@ -189,10 +202,10 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
         ) : (
           <main className="main detail-page-main">
             <header className="page-action-bar detail-action-bar">
-              <button className="back-button back-button-icon" type="button" onClick={() => onOpenEntry(null)} aria-label={`Retour à ${template.label}`}><ArrowLeftIcon /></button>
+              <button className="back-button back-button-icon" type="button" onClick={() => onOpenEntry(null)} aria-label={t('Retour à {library}', { library: label(template.label) })}><ArrowLeftIcon /></button>
             </header>
             <div className={`library-state ${state.status === 'loading' ? '' : 'error-state'}`} role={state.status === 'loading' ? 'status' : 'alert'}>
-              <h2>{state.status === 'loading' ? 'Chargement de la fiche' : 'Cette fiche ne peut pas être ouverte.'}</h2>
+              <h2>{t(state.status === 'loading' ? 'Chargement de la fiche' : 'Cette fiche ne peut pas être ouverte.')}</h2>
             </div>
           </main>
         )}
@@ -202,27 +215,27 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
   }
 
   return (
-    <main className={`main library-main custom-library-main custom-library-${template.coverShape}`} aria-label={`Bibliothèque ${template.label} du profil ${profileName}`}>
+    <main className={`main library-main custom-library-main custom-library-${template.coverShape}`} aria-label={t('Bibliothèque {library} du profil {profile}', { library: label(template.label), profile: profileName })}>
       <header className="library-header">
         <div>
-          <h1 className="display-title">{template.label}</h1>
+          <h1 className="display-title">{label(template.label)}</h1>
           <p className="library-subtitle">{state.status === 'ready' ? subtitle : '\u00a0'}</p>
         </div>
         <div className="library-header-actions">
-          <button className="icon-action-button icon-action-danger" type="button" onClick={() => setRemoving(true)} title={`Supprimer la bibliothèque ${template.label}`} aria-label={`Supprimer la bibliothèque ${template.label}`}>
+          <button className="icon-action-button icon-action-danger" type="button" onClick={() => setRemoving(true)} title={t('Supprimer la bibliothèque {library}', { library: label(template.label) })} aria-label={t('Supprimer la bibliothèque {library}', { library: label(template.label) })}>
             <TrashIcon />
           </button>
-          <button className="primary-button" type="button" onClick={() => setForm({ mode: 'create' })}>{template.addLabel}</button>
+          <button className="primary-button" type="button" onClick={() => setForm({ mode: 'create' })}>{label(template.addLabel)}</button>
         </div>
       </header>
 
       <div className="library-tools custom-library-tools">
         <label className="search">
           <SearchIcon />
-          <span className="visually-hidden">Rechercher dans {template.label}</span>
-          <input type="search" value={query} placeholder={`Titre, ${template.creatorLabel.toLocaleLowerCase('fr')}…`} onChange={(event) => setQuery(event.target.value)} />
+          <span className="visually-hidden">{t('Rechercher dans {library}', { library: label(template.label) })}</span>
+          <input type="search" value={query} placeholder={t('Titre, {creator}…', { creator: label(template.creatorLabel).toLocaleLowerCase(getLocale()) })} onChange={(event) => setQuery(event.target.value)} />
         </label>
-        <div className="seg-group-form library-views custom-status-filter" role="radiogroup" aria-label="Statut">
+        <div className="seg-group-form library-views custom-status-filter" role="radiogroup" aria-label={t('Statut')}>
           {(['all', ...template.statuses] as const).map((status) => (
             <button
               key={status}
@@ -232,30 +245,30 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
               className={`seg-pill-btn ${statusFilter === status ? 'on' : ''}`}
               onClick={() => setStatusFilter(status)}
             >
-              {status === 'all' ? 'Tous' : template.statusLabels[status]}
+              {t(status === 'all' ? 'Tous' : template.statusLabels[status])}
             </button>
           ))}
         </div>
         <div className="custom-library-selects">
           {kindField && kindOptions.length > 0 && (
             <div className="custom-select">
-              <span className="visually-hidden" id={`custom-${libraryId}-kind-label`}>{kindField.label}</span>
+              <span className="visually-hidden" id={`custom-${libraryId}-kind-label`}>{label(kindField.label)}</span>
               <Select
                 id={`custom-${libraryId}-kind`}
                 labelledBy={`custom-${libraryId}-kind-label`}
                 value={kindFilter}
-                options={[{ value: 'all', label: `${kindField.label} : tous` }, ...kindOptions.map((option) => ({ value: option, label: option }))]}
+                options={[{ value: 'all', label: t('{field} : tous', { field: label(kindField.label) }) }, ...kindOptions.map((option) => ({ value: option, label: kindField.options?.includes(option) ? label(option) : option }))]}
                 onChange={setKindFilter}
               />
             </div>
           )}
           <div className="custom-select">
-            <span className="visually-hidden" id={`custom-${libraryId}-sort-label`}>Trier</span>
+            <span className="visually-hidden" id={`custom-${libraryId}-sort-label`}>{t('Trier')}</span>
             <Select
               id={`custom-${libraryId}-sort`}
               labelledBy={`custom-${libraryId}-sort-label`}
               value={sort}
-              options={SORT_OPTIONS.map((option) => ({ value: option.value, label: `Tri : ${option.label.toLocaleLowerCase('fr')}` }))}
+              options={SORT_OPTIONS.map((option) => ({ value: option.value, label: t('Tri : {sort}', { sort: t(option.label).toLocaleLowerCase(getLocale()) }) }))}
               onChange={(next) => setSort(next as CustomSort)}
             />
           </div>
@@ -263,26 +276,26 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
       </div>
 
       {state.status === 'loading' ? (
-        <div className="results-state" role="status">Lecture de la bibliothèque…</div>
+        <div className="results-state" role="status">{t('Lecture de la bibliothèque…')}</div>
       ) : state.status === 'error' ? (
         <div className="results-state error-state" role="alert">
-          <h2>La bibliothèque n’a pas pu être lue.</h2>
-          <p>Vos fiches restent enregistrées. Réessayez pour les relire depuis SQLite.</p>
-          <button className="state-action" type="button" onClick={() => setAttempt((value) => value + 1)}>Réessayer</button>
+          <h2>{t('La bibliothèque n’a pas pu être lue.')}</h2>
+          <p>{t('Vos fiches restent enregistrées. Réessayez pour les relire depuis SQLite.')}</p>
+          <button className="state-action" type="button" onClick={() => setAttempt((value) => value + 1)}>{t('Réessayer')}</button>
         </div>
       ) : entries.length === 0 ? (
         <div className="library-state empty-library">
-          <h2>Votre bibliothèque {template.label} est vide.</h2>
-          <p>Ajoutez une première fiche ; seul le titre est obligatoire.</p>
-          <button className="primary-button empty-action" type="button" onClick={() => setForm({ mode: 'create' })}>{template.addLabel}</button>
+          <h2>{t('Votre bibliothèque {library} est vide.', { library: label(template.label) })}</h2>
+          <p>{t('Ajoutez une première fiche ; seul le titre est obligatoire.')}</p>
+          <button className="primary-button empty-action" type="button" onClick={() => setForm({ mode: 'create' })}>{label(template.addLabel)}</button>
         </div>
       ) : visible.length === 0 ? (
         <div className="results-state empty-results">
-          <h2>Aucune fiche ne correspond.</h2>
-          <p>Modifiez la recherche ou revenez à toute la bibliothèque.</p>
+          <h2>{t('Aucune fiche ne correspond.')}</h2>
+          <p>{t('Modifiez la recherche ou revenez à toute la bibliothèque.')}</p>
           {isFiltered && (
             <button className="state-action" type="button" onClick={() => { setQuery(''); setStatusFilter('all'); setKindFilter('all') }}>
-              Afficher toute la bibliothèque
+              {t('Afficher toute la bibliothèque')}
             </button>
           )}
         </div>
@@ -313,19 +326,21 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
 
 function CustomEntryCard({ libraryId, entry, onOpen }: { libraryId: CustomLibraryId; entry: CustomEntry; onOpen: () => void }) {
   const template = CUSTOM_LIBRARY_TEMPLATES[libraryId]
-  const byline = customEntryByline(libraryId, entry)
+  const kindField = template.fields.find((field) => field.key === template.kindField)
+  const kind = template.kindField ? entry.details[template.kindField] : undefined
+  const byline = [kind ? displayFieldValue(libraryId, kindField, kind) : null, entry.creator, entry.year !== null ? formatNumber(entry.year, { useGrouping: false }) : null].filter(Boolean).join(' · ')
   const progress = template.progress && entry.status !== 'à découvrir' ? progressText(entry) : null
   return (
-    <button className="film-card custom-card" type="button" onClick={onOpen} aria-label={`Ouvrir la fiche de ${entry.title}`}>
+    <button className="film-card custom-card" type="button" onClick={onOpen} aria-label={t('Ouvrir la fiche de {title}', { title: entry.title })}>
       <Poster title={entry.title} src={entry.coverUrl} label={customCoverLabel(libraryId)} className={template.coverShape === 'square' ? 'poster-square' : ''} />
       <span className="film-card-info">
         <span className="film-card-top">
           <b>{entry.title}</b>
-          {entry.isFavorite && <i aria-label="Favori">♥</i>}
+          {entry.isFavorite && <i aria-label={t('Favori')}>♥</i>}
         </span>
         {byline && <small>{byline}</small>}
         <span className={`status-line tone-${statusTone(entry.status)}`}>
-          {template.statusLabels[entry.status]}
+          {t(template.statusLabels[entry.status])}
           {progress ? ` · ${progress}` : ''}
         </span>
       </span>
@@ -342,6 +357,8 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
   onDelete: () => Promise<void>
 }) {
   const template = CUSTOM_LIBRARY_TEMPLATES[libraryId]
+  /** Template copy keeps its library context in English; French is unchanged. */
+  const label = (source: string) => tc(libraryId, source)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -365,13 +382,13 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
   return (
     <main className="main detail-page-main">
       <header className="page-action-bar detail-action-bar">
-        <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={`Retour à ${template.label}`}><ArrowLeftIcon /></button>
+        <button className="back-button back-button-icon" type="button" onClick={onBack} aria-label={t('Retour à {library}', { library: label(template.label) })}><ArrowLeftIcon /></button>
         <div className="detail-actions">
-          <button className="icon-action-button" type="button" onClick={() => onEdit()} title="Modifier la fiche">
+          <button className="icon-action-button" type="button" onClick={() => onEdit()} title={t('Modifier la fiche')}>
             <PencilIcon />
-            <span>Modifier</span>
+            <span>{t('Modifier')}</span>
           </button>
-          <button className="icon-action-button icon-action-danger" type="button" onClick={() => setConfirmingDelete(true)} title={`Supprimer ${template.thisLabel}`}>
+          <button className="icon-action-button icon-action-danger" type="button" onClick={() => setConfirmingDelete(true)} title={t('Supprimer {entry}', { entry: label(template.thisLabel) })}>
             <TrashIcon />
           </button>
         </div>
@@ -389,13 +406,13 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
             />
           </div>
           <div className="detail-status">
-            <StatusBadge status={entry.status} labels={template.statusLabels} />
+            <StatusBadge status={entry.status} labels={Object.fromEntries(Object.entries(template.statusLabels).map(([status, label]) => [status, t(label)]))} />
           </div>
           {(entry.rating !== null || entry.isFavorite) && (
             <div className="detail-rate">
               {entry.rating !== null && (
                 <>
-                  <span className="stars-display" aria-label={`Note ${entry.rating} sur 5`}>
+                  <span className="stars-display" aria-label={t('Note {rating} sur 5', { rating: formatNumber(entry.rating) })}>
                     {[1, 2, 3, 4, 5].map((star) => {
                       const fill = Math.max(0, Math.min(1, (entry.rating ?? 0) - star + 1))
                       return (
@@ -406,30 +423,30 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
                       )
                     })}
                   </span>
-                  <span className="rate-value">{entry.rating.toLocaleString('fr-FR')}/5</span>
+                  <span className="rate-value">{formatNumber(entry.rating)}/5</span>
                 </>
               )}
-              {entry.isFavorite && <span className="heart-display on" aria-label="Coup de cœur">♥</span>}
+              {entry.isFavorite && <span className="heart-display on" aria-label={t('Coup de cœur')}>♥</span>}
             </div>
           )}
         </div>
 
         <div className="detail-body">
-          <p className="eyebrow">{kind ?? template.label}</p>
+          <p className="eyebrow">{kind ? displayFieldValue(libraryId, template.fields.find((field) => field.key === template.kindField), kind) : label(template.label)}</p>
           <h1 className="display-title">{entry.title}</h1>
           {(entry.creator || entry.year !== null) && (
-            <p className="detail-factline">{[entry.creator, entry.year !== null ? String(entry.year) : null].filter(Boolean).join(' · ')}</p>
+            <p className="detail-factline">{[entry.creator, entry.year !== null ? formatNumber(entry.year, { useGrouping: false }) : null].filter(Boolean).join(' · ')}</p>
           )}
 
           <dl className="detail-facts">
-            {entry.creator && <div><dt>{template.creatorLabel}</dt><dd>{entry.creator}</dd></div>}
-            {entry.year !== null && <div><dt>Année</dt><dd>{entry.year}</dd></div>}
+            {entry.creator && <div><dt>{label(template.creatorLabel)}</dt><dd>{entry.creator}</dd></div>}
+            {entry.year !== null && <div><dt>{t('Année')}</dt><dd>{formatNumber(entry.year as number, { useGrouping: false })}</dd></div>}
             {template.fields.filter((field) => field.key !== template.kindField && entry.details[field.key]).map((field) => (
-              <div key={field.key}><dt>{field.label}</dt><dd>{entry.details[field.key]}</dd></div>
+              <div key={field.key}><dt>{label(field.label)}</dt><dd>{displayFieldValue(libraryId, field, entry.details[field.key])}</dd></div>
             ))}
             {extraDetails.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}
-            {template.progress && progress && <div><dt>{template.progress.label}</dt><dd>{progress}</dd></div>}
-            {entry.finishedAt && <div><dt>{template.dateLabel}</dt><dd>{formatCalendarDate(entry.finishedAt)}</dd></div>}
+            {template.progress && progress && <div><dt>{label(template.progress.label)}</dt><dd>{progress}</dd></div>}
+            {entry.finishedAt && <div><dt>{label(template.dateLabel)}</dt><dd>{formatCalendarDate(entry.finishedAt)}</dd></div>}
           </dl>
 
           {entry.summary && (
@@ -442,10 +459,10 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
             {entry.personalNote ? (
               <>
                 <blockquote className="review-personal">{entry.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={() => onEdit()}>Modifier</button>
+                <button className="link-accent review-edit-link" type="button" onClick={() => onEdit()}>{t('Modifier')}</button>
               </>
             ) : (
-              <p className="mine-empty">Ton avis s’écrira ici.</p>
+              <p className="mine-empty">{t('Ton avis s’écrira ici.')}</p>
             )}
 
           </section>
@@ -456,13 +473,13 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
       {confirmingDelete && (
         <div className="confirm-backdrop">
           <div className="delete-confirmation" role="alertdialog" aria-labelledby="custom-delete-title" aria-describedby="custom-delete-description">
-            <h2 id="custom-delete-title">Supprimer définitivement {template.thisLabel} ?</h2>
-            <p id="custom-delete-description">« {entry.title} » sera retiré de la bibliothèque {template.label} sans possibilité de restauration.</p>
-            {deleteError && <p className="field-error" role="alert">{deleteError}</p>}
+            <h2 id="custom-delete-title">{t('Supprimer définitivement {entry} ?', { entry: label(template.thisLabel) })}</h2>
+            <p id="custom-delete-description">{t('« {title} » sera retiré de la bibliothèque {library} sans possibilité de restauration.', { title: entry.title, library: label(template.label) })}</p>
+            {deleteError && <p className="field-error" role="alert">{translateMessage(deleteError)}</p>}
             <div>
-              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>Annuler</button>
+              <button className="secondary-button" type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting}>{t('Annuler')}</button>
               <button className="danger-button" type="button" onClick={() => void confirmDelete()} disabled={deleting}>
-                {deleting ? 'Suppression…' : 'Supprimer définitivement'}
+                {t(deleting ? 'Suppression…' : 'Supprimer définitivement')}
               </button>
             </div>
           </div>
@@ -487,9 +504,11 @@ function RemoveLibraryDialog({ libraryId, entryCount, onClose, onConfirm }: {
   onConfirm: () => Promise<void>
 }) {
   const template = CUSTOM_LIBRARY_TEMPLATES[libraryId]
+  /** Template copy keeps its library context in English; French is unchanged. */
+  const label = (source: string) => tc(libraryId, source)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const entriesLabel = entryCount === 1 ? `sa fiche` : `ses ${entryCount} fiches`
+  const entriesLabel = entryCount === 1 ? t('sa fiche') : t('ses {count} fiches', { count: formatNumber(entryCount) })
 
   const confirm = async () => {
     setPending(true)
@@ -505,20 +524,20 @@ function RemoveLibraryDialog({ libraryId, entryCount, onClose, onConfirm }: {
 
   return (
     <AccessibleDialog
-      title={`Supprimer la bibliothèque ${template.label} ?`}
+      title={t('Supprimer la bibliothèque {library} ?', { library: label(template.label) })}
       description={entryCount === 0
-        ? 'Elle disparaîtra de la barre latérale. Vous pourrez l’ajouter de nouveau plus tard.'
-        : `La bibliothèque et ${entriesLabel} seront supprimées définitivement de ce profil. Les sauvegardes JSON déjà écrites ne sont pas modifiées.`}
+        ? t('Elle disparaîtra de la barre latérale. Vous pourrez l’ajouter de nouveau plus tard.')
+        : t('La bibliothèque et {entries} seront supprimées définitivement de ce profil. Les sauvegardes JSON déjà écrites ne sont pas modifiées.', { entries: entriesLabel })}
       closeDisabled={pending}
       onClose={onClose}
       size="sm"
     >
       <div className="assistant-content">
-        {error && <p className="validation-errors" role="alert">{error}</p>}
+        {error && <p className="validation-errors" role="alert">{translateMessage(error)}</p>}
         <div className="assistant-actions">
-          <button className="secondary-button" type="button" onClick={onClose} disabled={pending}>Annuler</button>
+          <button className="secondary-button" type="button" onClick={onClose} disabled={pending}>{t('Annuler')}</button>
           <button className="danger-button" type="button" onClick={() => void confirm()} disabled={pending}>
-            {pending ? 'Suppression…' : entryCount === 0 ? 'Supprimer la bibliothèque' : `Supprimer la bibliothèque et ${entriesLabel}`}
+            {pending ? t('Suppression…') : entryCount === 0 ? t('Supprimer la bibliothèque') : t('Supprimer la bibliothèque et {entries}', { entries: entriesLabel })}
           </button>
         </div>
       </div>

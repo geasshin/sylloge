@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react'
+import { getLocale, t } from '../i18n/core.ts'
+import { useLanguage } from '../i18n/react.ts'
 
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024
 const AVATAR_SIZE = 256
@@ -6,7 +8,7 @@ const MAX_AVATAR_DATA_URL_LENGTH = 400_000
 const ACCEPTED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 function profileInitial(name: string): string {
-  return Array.from(name.trim())[0]?.toLocaleUpperCase('fr') ?? 'S'
+  return Array.from(name.trim())[0]?.toLocaleUpperCase(getLocale()) ?? 'S'
 }
 
 export async function normalizeProfileAvatar(file: File): Promise<string> {
@@ -95,6 +97,7 @@ export function ProfileAvatarPicker({
   onError: (message: string | null) => void
   compact?: boolean
 }) {
+  useLanguage()
   const inputRef = useRef<HTMLInputElement>(null)
   const [preparing, setPreparing] = useState(false)
 
@@ -131,8 +134,8 @@ export function ProfileAvatarPicker({
           <button
             className={`profile-avatar-pencil ${preparing ? 'busy' : ''}`}
             type="button"
-            aria-label={avatarDataUrl ? 'Modifier la photo de profil' : 'Choisir une photo de profil'}
-            title={preparing ? 'Préparation…' : avatarDataUrl ? 'Modifier la photo' : 'Choisir une photo'}
+            aria-label={avatarDataUrl ? t('Modifier la photo de profil') : t('Choisir une photo de profil')}
+            title={preparing ? t('Préparation…') : avatarDataUrl ? t('Modifier la photo') : t('Choisir une photo')}
             disabled={disabled || preparing}
             onClick={() => inputRef.current?.click()}
           >
@@ -151,7 +154,7 @@ export function ProfileAvatarPicker({
               onChange(null)
             }}
           >
-            Retirer
+            {t('Retirer')}
           </button>
         )}
         </>
@@ -165,7 +168,7 @@ export function ProfileAvatarPicker({
           disabled={disabled || preparing}
           onClick={() => inputRef.current?.click()}
         >
-          {preparing ? 'Préparation…' : avatarDataUrl ? 'Changer la photo' : 'Choisir une photo'}
+          {preparing ? t('Préparation…') : avatarDataUrl ? t('Changer la photo') : t('Choisir une photo')}
         </button>
         {avatarDataUrl && (
           <button
@@ -177,7 +180,7 @@ export function ProfileAvatarPicker({
               onChange(null)
             }}
           >
-            Retirer
+            {t('Retirer')}
           </button>
         )}
       </div>
