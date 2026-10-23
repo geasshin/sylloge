@@ -6,9 +6,24 @@
 
 **Les lots du 22 octobre sont dans `main`.** Imports guidés, onboarding et sauvegardes, bibliothèques personnalisées et citations ont été livrés par `93d1348`, corrigés par `03a1945` et `240e7ed`, puis tagués `v0.6.10`. Les mentions « implémenté localement, non publié » des sections qui suivent et de [PLAN_VERS_1.0.md](PLAN_VERS_1.0.md) datent du 22 octobre et ne décrivent plus l’état du dépôt.
 
-**Interface bilingue : décidée par Aurélien le 23 octobre 2026, implémentée localement, non committée.** Français et anglais dans l’application et sur le site : langue détectée au premier lancement (première langue prise en charge de `navigator.languages`, anglais à défaut), choix dans Paramètres › Général et sur le premier écran, mémorisé sur l’appareil, changement sans rechargement. Le français reste la langue source. Fonctionnement, contrôles et limites : [I18N.md](I18N.md).
+**Interface bilingue : décidée par Aurélien le 23 octobre 2026, committée localement (`9658f0e`), non poussée.** Français et anglais dans l’application et sur le site : langue détectée au premier lancement (première langue prise en charge de `navigator.languages`, anglais à défaut), choix dans Paramètres › Général et sur le premier écran, mémorisé sur l’appareil, changement sans rechargement. Le français reste la langue source. Fonctionnement, contrôles et limites : [I18N.md](I18N.md). Le site est poussé et en ligne.
 
-État mesuré de cette implémentation (23 octobre 2026) : `npm run verify` vert — 131 tests de portabilité et **134 tests i18n** (garde des catalogues, détection, contexte, messages du domaine et du natif, rendu anglais des écrans, relecture `verify`) ; typecheck et build de production verts ; `scripts/qa-language.js` 33 assertions sur 33 dans le navigateur ; recettes françaises inchangées. 1 954 clés en neuf catalogues. Limites assumées : les messages natifs et du domaine ne sont traduits que s’ils figurent au catalogue (sinon ils restent en français), les métadonnées TMDB déjà mises en cache gardent la langue de leur récupération, et les captures du site restent en interface française, annoncées comme telles.
+État mesuré de cette implémentation (23 octobre 2026) : `npm run verify` vert — 131 tests de portabilité et **134 tests i18n** (garde des catalogues, détection, contexte, messages du domaine et du natif, rendu anglais des écrans, relecture `verify`) ; typecheck et build de production verts ; `scripts/qa-language.js` 33 assertions sur 33 dans le navigateur ; recettes françaises inchangées ; site en production 14 assertions sur 14. 1 954 clés en neuf catalogues. Limites assumées : les messages natifs et du domaine ne sont traduits que s’ils figurent au catalogue (sinon ils restent en français), les métadonnées TMDB déjà mises en cache gardent la langue de leur récupération, et les captures du site restent en interface française, annoncées comme telles.
+
+### Proposé : rendre les mises à jour visibles sans ouvrir les réglages
+
+**Constat mesuré le 23 octobre 2026.** La vérification automatique existe déjà et fonctionne : `src/main.tsx` la lance à l’ouverture, `automatic_checks_enabled` vaut vrai par défaut, la version ignorée (`ignored_version`) est respectée, et Paramètres › Application propose déjà « Rechercher les mises à jour », Installer / Plus tard / Ignorer, ainsi que les notes de version. Le défaut n’est donc pas la recherche, c’est la restitution : `availableUpdate` n’est rendu que dans `Portability.tsx`, c’est-à-dire dans l’écran des réglages. Une mise à jour disponible reste invisible tant qu’on n’y va pas.
+
+**Décision proposée, à valider par Aurélien : bandeau discret plutôt que fenêtre modale au lancement.** Le bandeau apparaît une fois la première peinture faite, reste visible sur tous les écrans tant qu’on n’a pas tranché, et propose « Installer maintenant », « Plus tard » et « Ne plus proposer cette version ». La modale est écartée : elle interrompt au pire moment, réclame une décision avant que l’application ne serve à quelque chose, et revient à chaque lancement. Une fenêtre bloquante ne se justifierait que pour une mise à jour obligatoire, ce qui n’est pas le cas ici.
+
+**Ce qui reste à faire**, une fois l’accord donné :
+
+1. Surface de notification hors réglages : bandeau accessible (rôle `status`, focus non volé), notes de version à la demande, états « téléchargement », « prêt à redémarrer », « échec ».
+2. Cadence : aujourd’hui une seule vérification par lancement (`useEffect` sans dépendance). Revérifier toutes les six heures environ pour une session longue, et réessayer après un échec réseau, sans jamais bloquer l’interface ni afficher d’erreur hors ligne.
+3. Horodatage « dernière vérification » dans les réglages (`updated_at` est déjà stocké) et retour immédiat du bouton manuel.
+4. Recette Windows de l’updater (artefacts NSIS signés) avant de promettre la notification sur les deux plateformes.
+
+**Hors périmètre** : installation silencieuse ou automatique sans action de la personne.
 
 ### Ce qui reste (état vérifié le 23 octobre 2026)
 
