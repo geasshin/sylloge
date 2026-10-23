@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { formatDate, formatNumber, t, translateMessage } from '../../i18n/core.ts'
 import { useLanguage } from '../../i18n/react.ts'
 import { backupService, type BackupNotice } from '../../data/backupService.ts'
+import { collectProfileExperience } from '../../data/profileExperienceService.ts'
 import { listBackupSnapshots, readBackupSnapshot, type BackupSnapshotEntry } from '../../data/backupFiles.ts'
 import type { FilmLibrary } from '../../data/filmsRepository.ts'
 import { libraryRepository, type CulturalLibrary } from '../../data/libraryRepository.ts'
@@ -90,7 +91,7 @@ export function BackupSettings({ library, onRestored }: Props) {
   })
 
   const saveNow = () => run('save', async () => {
-    const result = await backupService.saveManualSnapshot(library)
+    const result = await backupService.saveManualSnapshot(library, await collectProfileExperience(library.profile.id))
     await refreshCopies()
     return result
   })
@@ -149,7 +150,7 @@ export function BackupSettings({ library, onRestored }: Props) {
       <SettingsGroup
         id="backup-title"
         title={t('Sauvegarde automatique')}
-        description={t('Une copie JSON du profil : toutes ses bibliothèques, personnalisées comprises, avec notes, avis, dates et citations. Les réglages et vues enregistrées n’en font pas partie.')}
+        description={t('Une copie JSON du profil : toutes ses bibliothèques, personnalisées comprises, avec notes, avis, dates et citations. Les vues enregistrées et les préférences d’affichage en font partie depuis la version 5.')}
       >
         {loading ? (
           <SettingsRow label={t('Lecture du réglage…')} />

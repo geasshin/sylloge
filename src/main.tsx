@@ -29,6 +29,7 @@ import { type AvailableUpdate } from './data/updaterService.ts'
 import { useAppUpdate } from './data/appUpdate.ts'
 import { UpdateNotice } from './components/UpdateNotice.tsx'
 import { backupService, type BackupNotice } from './data/backupService.ts'
+import { collectProfileExperience } from './data/profileExperienceService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
 import { libraryRepository } from './data/libraryRepository.ts'
 import { profilesRepository, type ProfileSummary } from './data/profilesRepository.ts'
@@ -2420,9 +2421,16 @@ function App() {
   }
 
   const requestAutomaticBackup = (library: FilmLibrary) => {
-    void backupService.tryAutomaticSnapshot(library).then((notice) => {
-      if (notice) setBackupNotice(notice)
-    })
+    // Le snapshot porte l'expérience du profil : vues enregistrées et préférences d'affichage.
+    void collectProfileExperience(library.profile.id)
+      .catch((error) => {
+        console.warn('Expérience du profil illisible pour la sauvegarde.', error)
+        return undefined
+      })
+      .then((experience) => backupService.tryAutomaticSnapshot(library, experience))
+      .then((notice) => {
+        if (notice) setBackupNotice(notice)
+      })
   }
 
   const activeBookLibrary: BookLibraryKey = view.name === 'mangas' || (view.name === 'book-detail' && bookCollection.find((book) => book.id === view.bookId)?.category === 'manga') ? 'mangas' : 'books'

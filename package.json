@@ -13,7 +13,7 @@
     "test:i18n": "node --experimental-strip-types --test scripts/i18n*.test.mjs",
     "test:update-notice": "node --experimental-strip-types --test scripts/update-notice.test.mjs",
     "test:release": "node --experimental-strip-types --test scripts/updater-manifest.test.mjs",
-    "test:portability": "node --experimental-strip-types --test scripts/portability-roundtrip.test.mjs scripts/third-party-import.test.mjs scripts/import-merge-preservation.test.mjs scripts/backup-service.test.mjs scripts/backup-restore.test.mjs scripts/onboarding.test.mjs scripts/quotes.test.mjs scripts/custom-library-persistence.test.mjs scripts/native-custom-entries.test.mjs scripts/custom-entry-qa-bridge.test.mjs scripts/import-warnings.test.mjs",
+    "test:portability": "node --experimental-strip-types --test scripts/portability-roundtrip.test.mjs scripts/third-party-import.test.mjs scripts/import-merge-preservation.test.mjs scripts/backup-service.test.mjs scripts/backup-restore.test.mjs scripts/onboarding.test.mjs scripts/quotes.test.mjs scripts/custom-library-persistence.test.mjs scripts/native-custom-entries.test.mjs scripts/custom-entry-qa-bridge.test.mjs scripts/import-warnings.test.mjs scripts/profile-experience.test.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"

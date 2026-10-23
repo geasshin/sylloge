@@ -25,6 +25,7 @@ import {
 import { mediaRepository, SqliteMediaRepository } from './mediaRepository.ts'
 import { customLibraryRepository, SqliteCustomLibraryRepository } from './customLibraryRepository.ts'
 import type { CustomLibrary } from '../domain/customLibraries.ts'
+import { restoreProfileExperience } from './profileExperienceService.ts'
 import {
   importLibraryDocumentAtomically,
   importLibraryDocumentIntoEmptyProfile,
@@ -169,6 +170,7 @@ export class SqliteLibraryRepository {
   private readonly importIntoEmptyNative: NativeLibraryDocumentImporter
   private readonly media: SqliteMediaRepository
   private readonly custom: SqliteCustomLibraryRepository
+  private readonly restoreExperience: ExperienceRestorer | null
 
   constructor(
     loadDatabase: DatabaseLoader = loadSyllogeDatabase,
@@ -178,12 +180,14 @@ export class SqliteLibraryRepository {
     media: SqliteMediaRepository = mediaRepository,
     importIntoEmptyNative: NativeLibraryDocumentImporter = importLibraryDocumentIntoEmptyProfile,
     custom: SqliteCustomLibraryRepository | null = null,
+    restoreExperience: ExperienceRestorer | null = null,
   ) {
     this.loadDatabase = loadDatabase
     this.createId = createId
     this.now = now
     this.importNative = importNative
     this.importIntoEmptyNative = importIntoEmptyNative
+    this.restoreExperience = restoreExperience
     this.media = media
     // Même base que le dépôt : un chargeur injecté en test vaut pour les deux.
     this.custom = custom ?? (loadDatabase === loadSyllogeDatabase ? customLibraryRepository : new SqliteCustomLibraryRepository(loadDatabase, createId, now))
@@ -276,7 +280,22 @@ export class SqliteLibraryRepository {
       throw new Error('Le rapport SQLite de l’import ne correspond pas au document validé.')
     }
 
+    await this.applyExperience(document, profileId)
     return this.loadLibrary(profileId)
+  }
+
+  /**
+   * L'expérience n'est restaurée qu'après un import réussi. Un échec de cette étape laisse les
+   * fiches intactes et se contente de le signaler : ce n'est pas une raison de perdre la
+   * restauration des données.
+   */
+  private async applyExperience(document: SyllogeLibraryDocument, profileId: string): Promise<void> {
+    if (this.restoreExperience === null) return
+    try {
+      await this.restoreExperience(document.experience, profileId)
+    } catch (error) {
+      console.warn('L’expérience du profil n’a pas pu être restaurée.', error)
+    }
   }
 
   async importLibraryDocumentIntoEmptyProfile(
@@ -308,4 +327,18 @@ export class SqliteLibraryRepository {
   }
 }
 
-export const libraryRepository = new SqliteLibraryRepository()
+type ExperienceRestorer = (
+  experience: SyllogeLibraryDocument['experience'],
+  profileId: string,
+) => Promise<unknown>
+
+export const libraryRepository = new SqliteLibraryRepository(
+  loadSyllogeDatabase,
+  () => crypto.randomUUID(),
+  () => new Date().toISOString(),
+  importLibraryDocumentAtomically,
+  mediaRepository,
+  importLibraryDocumentIntoEmptyProfile,
+  null,
+  restoreProfileExperience,
+)

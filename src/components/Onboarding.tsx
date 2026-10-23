@@ -5,6 +5,7 @@ import { LanguageSelect } from '../i18n/LanguageSelect.tsx'
 import { profilesRepository } from '../data/profilesRepository.ts'
 import { libraryRepository, type CulturalLibrary } from '../data/libraryRepository.ts'
 import { backupService } from '../data/backupService.ts'
+import { collectProfileExperience } from '../data/profileExperienceService.ts'
 import { pickBackupDestination, configureBackupDestination } from '../data/backupDestination.ts'
 import type { BackupSettings } from '../data/nativePortability.ts'
 import { createLibraryDocument } from '../domain/libraryDocument.ts'
@@ -104,7 +105,7 @@ export function Onboarding({ themePreference, onThemePreferenceChange, onProfile
       }
       if (destination) {
         await configureBackupDestination(library.profile.id, destination.backupDirectory)
-        const notice = await backupService.saveManualSnapshot(library)
+        const notice = await backupService.saveManualSnapshot(library, await collectProfileExperience(library.profile.id))
         if (notice.kind === 'error') { setError('Le profil est créé et ses données sont conservées. La première sauvegarde a échoué : réessayer ou choisir un autre dossier.'); return }
         setCompletion('Une première sauvegarde JSON a été créée.')
       } else setCompletion('Aucune sauvegarde automatique configurée ; le dossier pourra être choisi dans les réglages.')

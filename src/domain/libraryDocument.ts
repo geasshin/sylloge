@@ -16,16 +16,19 @@ import {
   type CustomQuote,
   type CustomStatus,
 } from './customLibraries.ts'
+import { EXPERIENCE_VERSION, readExperience, type ProfileExperience } from './profileExperience.ts'
 
 export const SYLLOGE_LIBRARY_FORMAT = 'sylloge-library' as const
 /**
  * Version écrite par l’application. La v4 (22 octobre 2026) ajoute les
- * bibliothèques personnalisées ; les versions 1 à 3 restent lisibles.
+ * bibliothèques personnalisées, la v5 (23 octobre 2026) l’expérience du
+ * profil — vues enregistrées et préférences d’affichage. Les versions 1 à 4
+ * restent lisibles : un document v4 s’importe sans experience, comme avant.
  */
-export const SYLLOGE_LIBRARY_VERSION = 4 as const
-export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3] as const
+export const SYLLOGE_LIBRARY_VERSION = 5 as const
+export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3, 4] as const
 
-type DocumentVersion = 1 | 2 | 3 | 4
+type DocumentVersion = 1 | 2 | 3 | 4 | 5
 
 export type SyllogeLibraryDocument = {
   format: typeof SYLLOGE_LIBRARY_FORMAT
@@ -41,6 +44,8 @@ export type SyllogeLibraryDocument = {
   artworks: Artwork[]
   /** Bibliothèques personnalisées ajoutées au profil, fiches comprises (v4). */
   customLibraries: CustomLibrary[]
+  /** Vues enregistrées et préférences d’affichage (v5). Absent d’un document v4. */
+  experience?: ProfileExperience
 }
 
 export type LibraryImportValidationError = {
@@ -88,6 +93,7 @@ const ROOT_KEYS_V1 = ['format', 'version', 'exportedAt', 'profile', 'films'] as 
 const ROOT_KEYS_V2 = [...ROOT_KEYS_V1, 'series', 'books', 'games', 'artworks'] as const
 const ROOT_KEYS_V3 = [...ROOT_KEYS_V2, 'anime', 'mangas'] as const
 const ROOT_KEYS_V4 = [...ROOT_KEYS_V3, 'customLibraries'] as const
+const ROOT_KEYS_V5 = [...ROOT_KEYS_V4, 'experience'] as const
 const CUSTOM_LIBRARY_KEYS = ['libraryId', 'position', 'addedAt', 'entries'] as const
 const CUSTOM_ENTRY_KEYS = [
   'id',
@@ -215,6 +221,7 @@ const CUSTOM_FIELD_KEYS = ['name', 'value'] as const
 export function createLibraryDocument(
   library: ExportableLibrary,
   exportedAt = new Date().toISOString(),
+  experience?: ProfileExperience,
 ): SyllogeLibraryDocument {
   const series = splitSeries(library.series, library.anime)
   const books = splitBooks(library.books, library.mangas)
@@ -231,6 +238,9 @@ export function createLibraryDocument(
     games: library.games.map(normalizeGame),
     artworks: library.artworks.map(prepareArtwork),
     customLibraries: prepareCustomLibraries(library.customLibraries ?? []),
+    // Toujours présent en v5 : un producteur qui ne collecte rien écrit un bloc vide, ce qui
+    // se lit « ce document ne porte aucune expérience » et jamais « préférences perdues ».
+    experience: experience ?? { version: EXPERIENCE_VERSION, savedViews: [], preferences: {} },
   }
 }
 
@@ -309,7 +319,7 @@ function prepareArtwork(artwork: Artwork): Artwork {
 }
 
 export function serializeLibraryDocument(document: SyllogeLibraryDocument): string {
-  return `${JSON.stringify(createLibraryDocument(document, document.exportedAt), null, 2)}\n`
+  return `${JSON.stringify(createLibraryDocument(document, document.exportedAt, document.experience), null, 2)}\n`
 }
 
 export function libraryExportFileName(exportedAt: string): string {
@@ -343,7 +353,7 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
   }
 
   if (version === null) {
-    addError(errors, '$.version', 'Les versions 1 à 4 du document sont prises en charge.')
+    addError(errors, '$.version', 'Les versions 1 à 5 du document sont prises en charge.')
     return { document: null, counts: emptyCounts, errors }
   }
 
@@ -416,9 +426,16 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
   const legacyComics = version <= 3 ? (bookItems ?? []).filter((entry) => (entry.category as string) === 'comics') : []
   const books = (version >= 3 ? bookItems : (bookItems ?? []).filter((entry) => entry.category !== 'manga'))
     ?.filter((entry) => (entry.category as string) !== 'comics') ?? null
-  const customLibraries = version === 4
+  const customLibraries = version >= 4
     ? validateCustomLibraries(value.customLibraries, profile?.id ?? null, ids, errors)
     : legacyComicsLibrary(legacyComics, typeof value.exportedAt === 'string' ? value.exportedAt : new Date(0).toISOString())
+
+  // L’expérience est facultative : un bloc absent (v4) ou partiellement abîmé ne doit pas
+  // empêcher la restauration des fiches. Ses défauts sont donc rapportés sans invalider.
+  // Un document v5 peut omettre le bloc : un producteur qui ne connaît pas l'expérience du
+  // profil reste valide, et la restauration des fiches n'en dépend jamais.
+  const experienceRead = version >= 5 ? readExperience(value.experience) : { experience: null, errors: [], dropped: [] }
+  for (const message of experienceRead.errors) addError(errors, '$.experience', message)
 
   const counts: LibraryCollectionCounts = {
     films: films?.length ?? 0,
@@ -461,6 +478,7 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
       games,
       artworks,
       customLibraries,
+      ...(experienceRead.experience ? { experience: experienceRead.experience } : {}),
     },
     counts,
     errors: [],
@@ -472,14 +490,15 @@ function emptyCollectionCounts(): LibraryCollectionCounts {
 }
 
 function libraryDocumentVersion(value: unknown): DocumentVersion | null {
-  return value === 1 || value === 2 || value === 3 || value === 4 ? value : null
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 ? value : null
 }
 
 function rootKeysFor(version: DocumentVersion): readonly string[] {
   if (version === 1) return ROOT_KEYS_V1
   if (version === 2) return ROOT_KEYS_V2
   if (version === 3) return ROOT_KEYS_V3
-  return ROOT_KEYS_V4
+  if (version === 4) return ROOT_KEYS_V4
+  return ROOT_KEYS_V5
 }
 
 const LEGACY_BOOK_STATUS_TO_CUSTOM: Record<string, CustomStatus> = {
@@ -907,7 +926,7 @@ function validateBook(
   validateOptionalYear(value.year, `${path}.year`, errors)
   validateOptionalString(value.summary, `${path}.summary`, errors)
   if (!((version <= 3 ? LEGACY_BOOK_CATEGORIES : BOOK_CATEGORIES) as readonly unknown[]).includes(value.category)) {
-    addError(errors, `${path}.category`, version === 4 && value.category === 'comics'
+    addError(errors, `${path}.category`, version >= 4 && value.category === 'comics'
       ? 'Les comics ont leur propre bibliothèque : la section Livres ne les accepte pas.'
       : 'La catégorie Livre est inconnue.')
   } else if (version >= 3 && section === 'books' && value.category === 'manga') {

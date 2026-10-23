@@ -46,7 +46,7 @@ function parseArguments(argv) {
     flags.set(name, value)
   }
 
-  const known = new Set(['--check', '--require', '--manifest', '--version', '--notes-file', '--platform', '--url', '--signature-file', '--output'])
+  const known = new Set(['--check', '--require', '--manifest', '--version', '--notes-file', '--platform', '--url', '--signature-file', '--alias', '--output'])
   for (const name of [...flags.keys(), ...repeated.keys()]) {
     if (!known.has(name)) throw new Error(`Argument inconnu : ${name}.`)
   }
@@ -127,10 +127,39 @@ function check(manifest, version, requiredPlatforms) {
   return names
 }
 
+if (flags.has('--check') && flags.has('--alias')) {
+  throw new Error('--check et --alias ne se combinent pas : vérifier ne déclare aucune plateforme.')
+}
+
 if (flags.has('--check')) {
   const manifest = readManifest(flags.get('--check'))
   const published = check(manifest, flags.get('--version'), requires)
   process.stdout.write(`Manifeste valide : ${manifest.version} pour ${published.join(', ')}.\n`)
+} else if (flags.has('--alias')) {
+  // L'archive macOS est universelle : darwin-x86_64 et darwin-aarch64 pointent le même fichier et la
+  // même signature. Déclarer l'alias explicitement évite un bloc de code non testé dans le workflow.
+  const required = ['--manifest', '--version', '--alias', '--output']
+  const absent = required.filter((name) => !flags.has(name))
+  if (absent.length > 0) throw new Error(`Arguments manquants : ${absent.join(', ')}.`)
+
+  const version = flags.get('--version').replace(/^v/, '')
+  const [source, target] = flags.get('--alias').split(':')
+  if (!PLATFORM_PATTERN.test(source ?? '') || !PLATFORM_PATTERN.test(target ?? '')) {
+    throw new Error(`Alias invalide : ${flags.get('--alias')} (attendu source:cible, deux plateformes connues).`)
+  }
+  if (source === target) throw new Error('Un alias doit désigner deux plateformes différentes.')
+
+  const manifest = readManifest(flags.get('--manifest'))
+  if (manifest.version !== version) {
+    throw new Error(`Le manifeste annonce ${manifest.version} alors que la release est ${version}.`)
+  }
+  const entry = manifest.platforms?.[source]
+  if (!entry) throw new Error(`La plateforme ${source} est absente du manifeste : alias impossible.`)
+  manifest.platforms[target] = { ...entry }
+  check(manifest, version, [target])
+
+  writeFileSync(resolve(flags.get('--output')), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+  process.stdout.write(`${target} ajouté comme alias de ${source} (${Object.keys(manifest.platforms).join(', ')}).\n`)
 } else {
   const required = ['--version', '--platform', '--url', '--signature-file', '--output']
   const absent = required.filter((name) => !flags.has(name))

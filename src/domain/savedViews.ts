@@ -19,8 +19,9 @@ import { SERIES_CATEGORIES, SERIES_STATUSES } from './series.ts'
  * vues intégrées : { filtres, tri }, plus le filtre propre au médium
  * (catégorie, plateforme ou forme). La recherche textuelle libre reste
  * éphémère et n'est jamais enregistrée. Les vues sont isolées par profil et
- * par médium, et restent locales : elles n'entrent ni dans les snapshots ni
- * dans les exports (décision actée au brief 0.4.21).
+ * par médium. Le brief 0.4.21 les gardait locales ; l'objectif « portabilité
+ * intégrale » l'a renversé : depuis le document v5, elles voyagent avec le
+ * profil (voir profileExperience.ts) et sont recréées à la restauration.
  *
  * Les critères écrits au schéma v1 (0.4.21 : { view, mediumFilter, filters })
  * sont convertis à la lecture en préset v2, sans réécriture en base.

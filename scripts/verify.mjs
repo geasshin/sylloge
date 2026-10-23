@@ -102,7 +102,9 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   const capabilities = JSON.parse(readFileSync('src-tauri/capabilities/default.json', 'utf8'))
   const cargoManifest = readFileSync('src-tauri/Cargo.toml', 'utf8')
   const updaterSource = readFileSync('src-tauri/src/updater.rs', 'utf8')
-  const releaseWorkflow = readFileSync('.github/workflows/macos-release.yml', 'utf8')
+  // Une seule release : les deux plateformes construisent, puis le manifeste est assemblé
+  // avant publication. Ce fichier est la seule porte de sortie d’une version.
+  const releaseWorkflow = readFileSync('.github/workflows/release.yml', 'utf8')
 
   assert.equal(tauriConfig.bundle.createUpdaterArtifacts, true, 'Le bundle doit générer les artefacts d’updater')
   assert.equal(
@@ -124,14 +126,14 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   assert.match(updaterSource, /\.updater\(\)/, 'L’updater doit se construire depuis la configuration, endpoint inclus')
   assert.match(
     releaseWorkflow,
-    /archive_url="https:\/\/github\.com\/\$GITHUB_REPOSITORY\/releases\/download\/\$TAG\/Sylloge\.app\.tar\.gz"/,
-    'Le manifeste doit pointer l’archive par son URL de release publique',
+    /base="https:\/\/github\.com\/\$GITHUB_REPOSITORY\/releases\/download\/\$TAG"/,
+    'Le manifeste doit pointer les archives par leur URL de release publique',
   )
   const releaseListIndex = releaseWorkflow.indexOf('releases?per_page=100')
   const draftReleaseIndex = releaseWorkflow.indexOf('gh release create "$TAG"')
-  const assetUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG"')
+  const assetUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG" "$DMG"')
   const manifestUploadIndex = releaseWorkflow.indexOf('gh release upload "$TAG" "$manifest"')
-  const releasePublishIndex = releaseWorkflow.indexOf('--method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id"')
+  const releasePublishIndex = releaseWorkflow.indexOf('--method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"')
   assert.ok(
     releaseListIndex >= 0 && releaseListIndex < draftReleaseIndex && draftReleaseIndex < assetUploadIndex &&
       assetUploadIndex < manifestUploadIndex && manifestUploadIndex < releasePublishIndex,
@@ -143,8 +145,8 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     'Le tag ne doit pas être poussé avant la publication du brouillon, afin qu’une reprise garde le même numéro de version',
   )
   assert.ok(
-    assetUploadIndex < releaseWorkflow.indexOf('--url "$archive_url"'),
-    'Le manifeste doit être généré après l’envoi de l’archive, pour que son URL publique existe',
+    assetUploadIndex < releaseWorkflow.indexOf('--platform darwin-aarch64 --url "$base/Sylloge.app.tar.gz"'),
+    'Le manifeste doit être généré après l’envoi des archives, pour que leurs URL publiques existent',
   )
   assert.doesNotMatch(
     releaseWorkflow,
@@ -153,7 +155,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   )
   assert.match(
     releaseWorkflow,
-    /--method PATCH "repos\/\$GITHUB_REPOSITORY\/releases\/\$release_id" \\\n\s+-F draft=false \\\n\s+-F target_commitish="\$GITHUB_SHA"/,
+    /--method PATCH "repos\/\$GITHUB_REPOSITORY\/releases\/\$RELEASE_ID" \\\n\s+-F draft=false -F target_commitish="\$GITHUB_SHA"/,
     'La publication doit mettre à jour la release par son identifiant et associer le commit exact du build',
   )
   assert.equal(tauriConfig.plugins.updater.dangerousInsecureTransportProtocol, false, 'Le transport HTTP non sécurisé doit rester interdit')
@@ -2517,7 +2519,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
 
   const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
   assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format sylloge-library')
-  assert.equal(document.version, 4, 'Le document doit porter la version 4')
+  assert.equal(document.version, 5, 'Le document doit porter la version 5 (expérience du profil)')
 
   const serialized = serializeLibraryDocument(document)
   const preview = validateLibraryDocument(serialized)

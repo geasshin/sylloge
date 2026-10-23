@@ -195,7 +195,7 @@ const messages: Record<string, string> = {
 
   // Sauvegarde
   "Sauvegarde automatique": "Automatic backup",
-  "Une copie JSON du profil : toutes ses bibliothèques, personnalisées comprises, avec notes, avis, dates et citations. Les réglages et vues enregistrées n’en font pas partie.": "A JSON copy of the profile: all its libraries, custom ones included, with ratings, reviews, dates and quotes. Settings and saved views are not part of it.",
+  'Une copie JSON du profil : toutes ses bibliothèques, personnalisées comprises, avec notes, avis, dates et citations. Les vues enregistrées et les préférences d’affichage en font partie depuis la version 5.': 'A JSON copy of the profile: every library, custom ones included, with notes, reviews, dates and quotations. Saved views and display preferences have been part of it since version 5.',
   "Lecture du réglage…": "Reading setting…",
   "Dossier introuvable": "Folder not found",
   "Active": "On",

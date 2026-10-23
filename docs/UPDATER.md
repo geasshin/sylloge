@@ -41,18 +41,37 @@ client Windows ne pouvait se mettre à jour**, et l’erreur s’affichait comme
 
 ## Qui écrit quoi
 
-| Workflow | Écrit |
-| --- | --- |
-| `macos-release.yml` | crée la release (brouillon), attache dmg + `Sylloge.app.tar.gz` + `.sig`, écrit `latest.json` avec `darwin-aarch64` et `darwin-x86_64`, vérifie, publie la release |
-| `windows-release.yml` | attend la release, attache l’installeur NSIS + `.sig`, **fusionne** `windows-x86_64` dans le `latest.json` existant, vérifie que les trois cibles sont présentes |
+Une seule release, `.github/workflows/release.yml`, déclenchée par un push sur `main` ou à la main
+(`workflow_dispatch`, mode `build` pour construire sans publier).
 
-Le workflow Windows ne crée jamais la release et ne fabrique jamais un manifeste sans `darwin` : un manifeste
-partiel casserait l’autre plateforme. Si la release ou le manifeste n’arrive pas dans les dix minutes, il
-échoue explicitement plutôt que de publier un installeur incapable de se mettre à jour.
+| Job | Rôle |
+| --- | --- |
+| `prepare` | calcule la prochaine version depuis les tags, vérifie que le proxy TMDB/IGDB répond — une version livrée avec une recherche morte est pire qu’une version retardée |
+| `macos` | construit l’archive universelle, produit `Sylloge.app.tar.gz` + `.sig` et le dmg, vérifie ses artefacts |
+| `windows` | construit l’installeur NSIS, produit `Sylloge_x.y.z_x64-setup.exe` + `.sig`, vérifie ses artefacts |
+| `publish` | assemble `latest.json` pour les trois cibles, l’envoie, **relit ce qui est publié**, vérifie les trois cibles, puis ouvre la release |
+
+Le manifeste est assemblé une seule fois, à partir des deux compilations, avant que la release ne quitte
+l’état de brouillon : aucun client ne peut donc lire un manifeste incomplet. Un build Windows en échec
+bloque la publication de la version — c’est le prix assumé pour qu’aucune release ne parte avec une
+plateforme muette.
+
+### Pourquoi pas deux workflows enchaînés
+
+C’était le montage précédent : macOS sur push, Windows sur un push de tag `v*`. Or le tag est créé par
+`gh release create` avec le jeton du workflow, et **cet événement ne déclenche aucun workflow**. Mesure au
+23 octobre 2026 : les trois derniers lancements de « Release Windows » étaient tous des lancements manuels,
+et le `latest.json` de `v0.6.10` ne publiait que `darwin-aarch64` et `darwin-x86_64` — alors que
+`Sylloge_0.6.10_x64-setup.exe` et sa signature étaient bien dans la release. L’installeur existait, le
+manifeste l’ignorait.
 
 ## Outils
 
 ```bash
+# Déclarer darwin-x86_64 comme alias de l’archive universelle déjà présente
+node scripts/merge-tauri-latest-json.mjs --manifest latest.json --version 0.6.11 \
+  --alias darwin-aarch64:darwin-x86_64 --output latest.json
+
 # Ajouter ou remplacer une plateforme dans un manifeste existant
 node scripts/merge-tauri-latest-json.mjs \
   --manifest latest.json --version 0.6.11 --platform windows-x86_64 \
@@ -68,12 +87,16 @@ Le script refuse une signature vide ou trop courte, une URL non HTTPS, une URL q
 annoncée, et le mélange de deux versions dans un même manifeste. Il complète `pub_date` s’il manque.
 `scripts/create-tauri-latest-json.mjs` produit l’entrée macOS initiale et date le manifeste.
 
-Contrôles : `npm run test:release` (sept cas, dont la séquence réelle des deux workflows et le refus d’un
-manifeste sans `windows-x86_64`), `cargo test --lib updater` (trois cas, dont la distinction entre manifeste
-absent et plateforme absente).
+Contrôles : `npm run test:release` (huit cas, dont la séquence réelle du job `publish` — création, alias
+macOS, ajout Windows, vérification des trois cibles — et le refus d’un manifeste sans `windows-x86_64`),
+`cargo test --lib updater` (trois cas, dont la distinction entre manifeste absent et plateforme absente).
 
 ## Ce qui reste à éprouver
 
 Le manifeste, les signatures et la fusion sont vérifiables sans Windows ; l’installation réelle d’un `.exe`
 NSIS par-dessus une version antérieure ne l’est pas. À faire sur une machine Windows : installer une version
 antérieure, attendre l’annonce, installer la nouvelle, vérifier que la base et les profils sont intacts.
+
+Premier passage à contrôler : la publication de la version qui suit la mise en service de `release.yml`.
+Le job `publish` doit afficher `Manifeste valide : x.y.z pour darwin-aarch64, darwin-x86_64,
+windows-x86_64`, et `releases/latest/download/latest.json` doit contenir les trois entrées.

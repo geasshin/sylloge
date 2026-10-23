@@ -1,0 +1,347 @@
+name: Release
+
+# Une seule release, une seule porte de sortie.
+#
+# Avant, deux workflows séparés : `macos-release.yml` publiait sur push vers main, et
+# `windows-release.yml` attendait un push de tag v*. Or le tag est créé par `gh release create`
+# avec le jeton du workflow : cet événement ne déclenche aucun workflow. Résultat mesuré sur
+# v0.6.10 : l'installateur Windows existait dans la release, mais `latest.json` ne publiait que
+# les cibles macOS, et chaque client Windows recevait `TargetNotFound` en silence.
+#
+# Ici, macOS et Windows construisent en parallèle, un troisième job assemble le manifeste
+# complet et ne publie la release que si les trois cibles y sont présentes. Aucune release
+# partielle ne peut donc atteindre les utilisateurs.
+#
+# - push sur main : release des deux plateformes.
+# - lancement manuel mode « build » : construit et vérifie les artefacts, publie rien.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "release : construire et publier. build : construire et vérifier seulement."
+        type: choice
+        options: [release, build]
+        default: release
+
+concurrency:
+  group: sylloge-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Version et disponibilité du proxy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Calculer la prochaine version
+        id: version
+        run: node scripts/prepare-tauri-release-version.mjs
+
+      # Bloque la publication si le proxy ou une clé du projet est hors service :
+      # une version livrée avec une recherche morte est pire qu'une version retardée.
+      - name: Vérifier le proxy de métadonnées
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl -fsS --max-time 20 https://sylloge.vercel.app/api/health)"
+          echo "$health"
+          grep -q '"tmdb":true' <<< "$health"
+          grep -q '"igdb":true' <<< "$health"
+          curl -fsS --max-time 25 "https://sylloge.vercel.app/api/tmdb/search/movie?query=Inception&language=fr-FR" | grep -q '"id"'
+          curl -fsS --max-time 25 -X POST https://sylloge.vercel.app/api/igdb/games \
+            -H 'Content-Type: text/plain' --data 'fields name; where id = 1020;' | grep -q '"name"'
+
+  macos:
+    name: Construire macOS (universel)
+    needs: prepare
+    # Intel : les runners macOS arm64 hébergés manquent de capacité (jobs annulés sans runner).
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer Rust et les cibles macOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Installer les dépendances npm
+        run: npm ci
+
+      - name: Aligner la version sur celle de la release
+        env:
+          SYLLOGE_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: node scripts/prepare-tauri-release-version.mjs
+
+      - name: Nettoyer les bundles macOS mis en cache
+        run: rm -rf src-tauri/target/universal-apple-darwin/release/bundle
+
+      - name: Construire le bundle macOS universel et signer l’archive updater
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${TAURI_SIGNING_PRIVATE_KEY:?Le secret TAURI_SIGNING_PRIVATE_KEY doit être configuré.}"
+          npm run tauri:build -- --target universal-apple-darwin
+
+      - name: Vérifier les artefacts macOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle="src-tauri/target/universal-apple-darwin/release/bundle"
+          shopt -s nullglob
+          dmg_files=("$bundle"/dmg/*.dmg)
+          if [[ ! -s "$bundle/macos/Sylloge.app.tar.gz" || ! -s "$bundle/macos/Sylloge.app.tar.gz.sig" || ${#dmg_files[@]} -ne 1 ]]; then
+            echo "Les artefacts macOS attendus sont absents ou ambigus." >&2
+            exit 1
+          fi
+          ls -l "$bundle/macos" "$bundle/dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-bundle
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/Sylloge.app.tar.gz
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/Sylloge.app.tar.gz.sig
+
+  windows:
+    name: Construire Windows (NSIS)
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: windows-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: windows-cargo-
+
+      - name: Installer les dépendances npm
+        run: npm ci
+
+      - name: Aligner la version sur celle de la release
+        shell: bash
+        env:
+          SYLLOGE_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: node scripts/prepare-tauri-release-version.mjs
+
+      # Le cache Cargo restaure target/ : sans ce nettoyage, l'installeur d'une
+      # version précédente reste dans bundle/nsis et part dans la release.
+      - name: Nettoyer les bundles Windows mis en cache
+        shell: bash
+        run: rm -rf src-tauri/target/release/bundle
+
+      - name: Construire le bundle Windows (NSIS + signature updater)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PASSWORD }}
+        run: npx tauri build --bundles nsis
+
+      - name: Vérifier les artefacts Windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          exe_files=(src-tauri/target/release/bundle/nsis/*.exe)
+          sig_files=(src-tauri/target/release/bundle/nsis/*.sig)
+          if [[ ${#exe_files[@]} -ne 1 || ${#sig_files[@]} -ne 1 ]]; then
+            echo "Les artefacts NSIS attendus sont absents ou ambigus : ${exe_files[*]} ${sig_files[*]}" >&2
+            exit 1
+          fi
+          ls -l src-tauri/target/release/bundle/nsis
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-bundle
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.sig
+
+  publish:
+    name: Assembler le manifeste et publier
+    needs: [prepare, macos, windows]
+    if: github.event_name == 'push' || inputs.mode != 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-bundle
+          path: artifacts/macos
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-bundle
+          path: artifacts/windows
+
+      # Les artefacts sont cherchés par nom, pas par chemin : la structure produite par
+      # upload-artifact ne fait pas partie du contrat.
+      - name: Localiser les artefacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg="$(find artifacts/macos -name '*.dmg' -type f | head -n 2)"
+          archive="$(find artifacts/macos -name 'Sylloge.app.tar.gz' -type f)"
+          archive_sig="$(find artifacts/macos -name 'Sylloge.app.tar.gz.sig' -type f)"
+          exe="$(find artifacts/windows -name '*.exe' -type f | head -n 2)"
+          exe_sig="$(find artifacts/windows -name '*.sig' -type f)"
+          for name in dmg archive archive_sig exe exe_sig; do
+            value="${!name}"
+            if [[ -z "$value" || "$(wc -l <<< "$value")" -ne 1 ]]; then
+              echo "Artefact $name absent ou ambigu : $value" >&2
+              exit 1
+            fi
+            echo "${name^^}=$value" >> "$GITHUB_ENV"
+          done
+
+      - name: Préparer les notes de version
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes="$RUNNER_TEMP/release-notes.md"
+          gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" \
+            -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" --jq .body > "$notes"
+          if ! grep -q '[^[:space:]]' "$notes" || grep -qx 'null' "$notes"; then
+            printf '%s\n' "Mise à jour de Sylloge. Consultez l’historique du dépôt pour le détail des changements." > "$notes"
+          fi
+          echo "NOTES=$notes" >> "$GITHUB_ENV"
+
+      # Une release déjà publiée n'est jamais réécrite : un nouveau passage doit échouer
+      # bruyamment plutôt que de changer les fichiers sous les clients.
+      - name: Créer ou reprendre le brouillon de release
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$TAG\") | \"\(.id) \(.draft)\"")"
+          if [[ -z "$existing" ]]; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Sylloge $VERSION" --notes-file "$NOTES" --draft
+            for attempt in $(seq 1 10); do
+              existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+                --jq ".[] | select(.tag_name == \"$TAG\") | \"\(.id) \(.draft)\"")"
+              [[ -n "$existing" ]] && break
+              sleep 3
+            done
+          fi
+          read -r release_id draft <<< "$existing"
+          if [[ ! "$release_id" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Impossible de retrouver la release $TAG." >&2
+            exit 1
+          fi
+          if [[ "$draft" != "true" ]]; then
+            echo "La release $TAG est déjà publiée : refus de la réécrire." >&2
+            exit 1
+          fi
+          echo "RELEASE_ID=$release_id" >> "$GITHUB_ENV"
+
+      - name: Attacher les artefacts des deux plateformes
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" "$DMG" "$ARCHIVE" "$ARCHIVE_SIG" "$EXE" "$EXE_SIG" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+      # L'archive macOS est universelle : une seule signature sert les deux cibles darwin.
+      - name: Assembler latest.json pour macOS et Windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/latest.json"
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+
+          node scripts/merge-tauri-latest-json.mjs \
+            --manifest none --version "$VERSION" --notes-file "$NOTES" \
+            --platform darwin-aarch64 --url "$base/Sylloge.app.tar.gz" \
+            --signature-file "$ARCHIVE_SIG" --output "$manifest"
+
+          node scripts/merge-tauri-latest-json.mjs \
+            --manifest "$manifest" --version "$VERSION" \
+            --alias darwin-aarch64:darwin-x86_64 --output "$manifest"
+
+          node scripts/merge-tauri-latest-json.mjs \
+            --manifest "$manifest" --version "$VERSION" \
+            --platform windows-x86_64 --url "$base/$(basename "$EXE")" \
+            --signature-file "$EXE_SIG" --output "$manifest"
+
+          node scripts/merge-tauri-latest-json.mjs --check "$manifest" --version "$VERSION" \
+            --require darwin-aarch64 --require darwin-x86_64 --require windows-x86_64
+
+          gh release upload "$TAG" "$manifest" --repo "$GITHUB_REPOSITORY" --clobber
+
+      # La release reste un brouillon tant que le manifeste publié n'est pas complet.
+      - name: Vérifier le manifeste publié puis ouvrir la release
+        shell: bash
+        run: |
+          set -euo pipefail
+          verify="$RUNNER_TEMP/verify"
+          mkdir -p "$verify"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern latest.json --dir "$verify" --clobber
+          node scripts/merge-tauri-latest-json.mjs --check "$verify/latest.json" --version "$VERSION" \
+            --require darwin-aarch64 --require darwin-x86_64 --require windows-x86_64
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -F draft=false -F target_commitish="$GITHUB_SHA" >/dev/null
+          echo "Sylloge $VERSION publiée pour macOS et Windows."

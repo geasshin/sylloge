@@ -12,7 +12,7 @@ Les décisions et l’ordre des prochains lots figurent dans [la feuille de rout
 
 ## Publication
 
-Chaque push sur `main` déclenche le build macOS et la publication automatique d’une GitHub Release : DMG, archive `.app.tar.gz` signée, signature et manifeste de l’updater. L’application installée propose ensuite cette version. Un push sur `main` est donc une mise en production. Les branches de travail ne publient rien. Le dépôt est public depuis le 21 octobre 2026 : l’application lit `releases/latest/download/latest.json` sans authentification, donc sans clé ni jeton à saisir. Les artefacts sont vérifiés par la signature de la clé du projet : remplacer le manifeste ne suffit pas à installer une archive non signée.
+Chaque push sur `main` déclenche le build macOS **et** Windows puis la publication automatique d’une GitHub Release : DMG, archive `.app.tar.gz` signée, installeur NSIS signé, et un manifeste d’updater qui publie les trois cibles (darwin arm64 et Intel, Windows x64). Une seule release : si une plateforme ne construit pas, rien n’est publié. L’application installée propose ensuite cette version. Un push sur `main` est donc une mise en production. Les branches de travail ne publient rien. Le dépôt est public depuis le 21 octobre 2026 : l’application lit `releases/latest/download/latest.json` sans authentification, donc sans clé ni jeton à saisir. Les artefacts sont vérifiés par la signature de la clé du projet : remplacer le manifeste ne suffit pas à installer une archive non signée.
 
 ## Technologies
 

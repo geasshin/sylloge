@@ -18,7 +18,8 @@ Les documents sous docs/archive et les anciens plans sous docs/plans sont histor
 - Sept bibliothèques de base : Films, Séries, Animation japonaise, Livres, Mangas, Jeux et Art. Une seule base `sylloge.db`, une table par bibliothèque (`films`, `series`, `anime`, `books`, `mangas`, `games`, `artworks`). Une bibliothèque n’est jamais une simple valeur de catégorie dans la table d’une autre : toute nouvelle bibliothèque suit ce modèle.
 - Bibliothèques personnalisées (22 octobre 2026) : modèles prêts qu’un profil ajoute par le « + » de la barre latérale. Huit modèles, une table chacun (`comics`, `magazines`, `audiobooks`, `music`, `podcasts`, `documentaries`, `shows`, `board_games`), liste par profil dans `profile_libraries`. Le catalogue est dans `src/domain/customLibraries.ts`. Les comics ont leur bibliothèque : Livres n’a plus de catégorie Comics.
 - Une seule direction visuelle pour toute l’application, accueil compris : monochrome neutre et froid (décision du 16 octobre 2026). Les écrans peuvent être recomposés quand l’usage le justifie ; les fonctions, les données et les sept bibliothèques sont préservées. DESIGN.md décrit le système en vigueur.
-- Cible desktop macOS uniquement. La présentation mobile n’est plus maintenue comme cible.
+- Cible desktop macOS et Windows (arbitrage du 23 octobre 2026). La présentation mobile n’est plus maintenue comme cible. macOS publie une archive universelle ; Windows un installeur NSIS signé. Les deux plateformes se mettent à jour par le même `latest.json`.
+- Une seule release (`.github/workflows/release.yml`) : un push sur `main`, ou un lancement manuel en mode « build ». macOS et Windows construisent en parallèle, puis un troisième job assemble `latest.json` (darwin-aarch64, darwin-x86_64, windows-x86_64), vérifie les trois cibles et seulement ensuite ouvre la release. Un build Windows en échec bloque la publication : aucune release partielle ne doit atteindre les personnes. Le tag créé par `gh release create` ne déclenche aucun workflow — ne pas compter sur un enchaînement macOS → Windows par événement de tag. Détail : docs/UPDATER.md.
 - Interface en français et en anglais (décision du 23 octobre 2026) : langue détectée au premier lancement, choix dans Paramètres › Général. Tout texte visible passe par `t()`, `tc()` ou `translateMessage()` avec son entrée anglaise ; les données de la personne (titres, avis, notes, citations, noms de profils et de vues) et les valeurs stockées ne se traduisent jamais. Règles et contrôles : docs/I18N.md ; `npm run test:i18n` doit rester vert.
 - Ne pas élargir le périmètre vers de nouveaux médias ou modèles, comptes, synchronisation, cloud ou distribution publique sans décision explicite.
 
@@ -27,7 +28,7 @@ Les documents sous docs/archive et les anciens plans sous docs/plans sont histor
 - Ne pas ouvrir, modifier, copier ou utiliser les données personnelles réelles pour les essais.
 - Garder les essais dans un dossier et un profil temporaires isolés.
 - Les clés fournisseur sont locales et ignorées par Git. Ne pas les afficher, les demander dans le chat, les copier dans des fichiers suivis ou envoyer des requêtes réelles pour une validation ordinaire.
-- Préserver les formats existants. Examiner le contrat concerné avant de changer un import, un export ou une migration SQLite.
+- Préserver les formats existants. Examiner le contrat concerné avant de changer un import, un export ou une migration SQLite. Le document de profil est en v5 depuis le 23 octobre 2026 (vues enregistrées et préférences d’affichage) ; les versions 1 à 4 restent lisibles. Ce qui voyage et ce qui reste sur la machine : docs/PORTABILITE.md.
 - Ne jamais remplacer ou fusionner une bibliothèque sans choix explicite de la personne.
 
 ## Changements et vérification

@@ -131,7 +131,7 @@ describe('Messages du domaine : import JSON historique', () => {
   })
 })
 
-describe('Messages du domaine : document de bibliothèque v1–v4', () => {
+describe('Messages du domaine : document de bibliothèque v1–v5', () => {
   const errorsOf = (value) => validateLibraryDocument(JSON.stringify(value)).errors
   const document = (overrides) => ({ ...createLibraryDocument(emptyLibrary(), ISO), ...overrides })
 
@@ -139,7 +139,7 @@ describe('Messages du domaine : document de bibliothèque v1–v4', () => {
     expectIn(validateLibraryDocument('pas du json').errors, 'Le fichier ne contient pas un JSON valide.', 'The file does not contain valid JSON.')
     expectIn(validateLibraryDocument('[]').errors, 'La racine du fichier doit être un objet JSON.', 'The file root must be a JSON object.')
     expectIn(errorsOf(document({ format: 'autre' })), 'Le format attendu est « sylloge-library ».', 'The expected format is “sylloge-library”.')
-    expectIn(errorsOf(document({ version: 9 })), 'Les versions 1 à 4 du document sont prises en charge.', 'Document versions 1 to 4 are supported.')
+    expectIn(errorsOf(document({ version: 9 })), 'Les versions 1 à 5 du document sont prises en charge.', 'Document versions 1 to 5 are supported.')
   })
 
   test('sections, bibliothèques personnalisées et entrées', () => {

@@ -107,38 +107,52 @@ test('Fusionner deux fois la même plateforme reste idempotent', () => {
   assert.deepEqual(Object.keys(manifest.platforms).sort(), ['darwin-aarch64', 'windows-x86_64'])
 })
 
-test('La séquence réelle des deux workflows publie les trois cibles', () => {
-  // Ce que fait la release macOS : générateur puis duplication darwin-x86_64 de l'archive universelle.
+test('La séquence réelle de la release publie les trois cibles', () => {
+  // Ce que fait le job `publish` : un manifeste vierge, l'entrée macOS, l'alias x86_64 de
+  // l'archive universelle, puis la cible Windows. Une seule release, un seul manifeste.
   const notes = file('release-notes.md', 'Corrections et interface bilingue.\n')
   const darwinSig = file('Sylloge.app.tar.gz.sig', signature('darwin'))
-  const darwinManifest = join(work, 'sequence-latest.json')
-  const generated = spawnSync(process.execPath, [
-    join(root, 'scripts/create-tauri-latest-json.mjs'),
-    '--version', '0.6.11',
-    '--notes-file', notes,
-    '--url', darwinUrl,
-    '--signature-file', darwinSig,
-    '--target', 'darwin-aarch64',
-    '--output', darwinManifest,
-  ], { encoding: 'utf8' })
-  assert.equal(generated.status, 0, generated.stderr)
-  assert.match(manifestOf(darwinManifest).pub_date, /^\d{4}-\d{2}-\d{2}T/, 'le générateur date le manifeste')
+  const manifest = join(work, 'sequence-latest.json')
 
-  // L'archive macOS est universelle : le workflow macOS déclare aussi darwin-x86_64.
-  const universal = manifestOf(darwinManifest)
-  universal.platforms['darwin-x86_64'] = universal.platforms['darwin-aarch64']
-  writeFileSync(darwinManifest, `${JSON.stringify(universal, null, 2)}\n`, 'utf8')
+  const created = run('--manifest', 'none', '--version', '0.6.11', '--notes-file', notes,
+    '--platform', 'darwin-aarch64', '--url', darwinUrl, '--signature-file', darwinSig, '--output', manifest)
+  assert.equal(created.status, 0, created.stderr)
+  assert.match(manifestOf(manifest).pub_date, /^\d{4}-\d{2}-\d{2}T/, 'le manifeste est daté')
 
-  // Ce que fait le workflow Windows : attendre le manifeste, y ajouter sa cible, vérifier l'ensemble.
+  const aliased = run('--manifest', manifest, '--version', '0.6.11',
+    '--alias', 'darwin-aarch64:darwin-x86_64', '--output', manifest)
+  assert.equal(aliased.status, 0, aliased.stderr)
+  assert.deepEqual(manifestOf(manifest).platforms['darwin-x86_64'], manifestOf(manifest).platforms['darwin-aarch64'])
+
   const windowsSig = file('Sylloge_0.6.11_x64-setup.exe.sig', signature('windows'))
-  const merged = run('--manifest', darwinManifest, '--version', '0.6.11', '--platform', 'windows-x86_64', '--url', windowsUrl, '--signature-file', windowsSig, '--output', darwinManifest)
+  const merged = run('--manifest', manifest, '--version', '0.6.11', '--platform', 'windows-x86_64',
+    '--url', windowsUrl, '--signature-file', windowsSig, '--output', manifest)
   assert.equal(merged.status, 0, merged.stderr)
 
-  const final = run('--check', darwinManifest, '--version', '0.6.11', '--require', 'darwin-aarch64', '--require', 'darwin-x86_64', '--require', 'windows-x86_64')
+  const final = run('--check', manifest, '--version', '0.6.11',
+    '--require', 'darwin-aarch64', '--require', 'darwin-x86_64', '--require', 'windows-x86_64')
   assert.equal(final.status, 0, final.stderr)
   assert.match(final.stdout, /Manifeste valide : 0\.6\.11/)
 
-  const manifest = manifestOf(darwinManifest)
-  assert.equal(manifest.platforms['windows-x86_64'].url, windowsUrl)
-  assert.equal(manifest.platforms['darwin-x86_64'].url, darwinUrl, 'la fusion Windows ne touche pas aux cibles macOS')
+  const published = manifestOf(manifest)
+  assert.equal(published.platforms['windows-x86_64'].url, windowsUrl)
+  assert.equal(published.platforms['darwin-x86_64'].url, darwinUrl, 'l’alias ne touche pas aux autres cibles')
+})
+
+test('Un alias refuse une source absente, un couple identique et le mode vérification', () => {
+  const manifest = mergeDarwin()
+
+  const absent = run('--manifest', manifest, '--version', '0.6.11',
+    '--alias', 'windows-x86_64:windows-aarch64', '--output', manifest)
+  assert.notEqual(absent.status, 0)
+  assert.match(absent.stderr, /windows-x86_64 est absente du manifeste/)
+
+  const same = run('--manifest', manifest, '--version', '0.6.11',
+    '--alias', 'darwin-aarch64:darwin-aarch64', '--output', manifest)
+  assert.notEqual(same.status, 0)
+  assert.match(same.stderr, /deux plateformes différentes/)
+
+  const both = run('--check', manifest, '--alias', 'darwin-aarch64:darwin-x86_64', '--version', '0.6.11')
+  assert.notEqual(both.status, 0)
+  assert.match(both.stderr, /ne se combinent pas/)
 })

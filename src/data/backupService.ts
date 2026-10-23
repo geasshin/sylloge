@@ -16,6 +16,7 @@ import {
   SYLLOGE_LIBRARY_SECTIONS,
   type ExportableLibrary,
 } from '../domain/libraryDocument.ts'
+import type { ProfileExperience } from '../domain/profileExperience.ts'
 import { libraryRepository } from './libraryRepository.ts'
 
 export type BackupNotice = {
@@ -72,11 +73,11 @@ export class BackupService {
     return this.native.clearBackupSettings(profileId)
   }
 
-  async saveManualSnapshot(library: FilmLibrary): Promise<BackupNotice> {
+  async saveManualSnapshot(library: FilmLibrary, experience?: ProfileExperience): Promise<BackupNotice> {
     let worksCount: number | null = null
 
     try {
-      const snapshot = await this.createSnapshot(library, this.now())
+      const snapshot = await this.createSnapshot(library, this.now(), experience)
       worksCount = snapshot.worksCount
       const result = await this.native.saveManualBackupSnapshot(library.profile.id, snapshot.contents)
       return {
@@ -92,12 +93,12 @@ export class BackupService {
     }
   }
 
-  async tryAutomaticSnapshot(library: FilmLibrary): Promise<BackupNotice | null> {
+  async tryAutomaticSnapshot(library: FilmLibrary, experience?: ProfileExperience): Promise<BackupNotice | null> {
     let worksCount: number | null = null
 
     try {
       const now = this.now()
-      const snapshot = await this.createSnapshot(library, now)
+      const snapshot = await this.createSnapshot(library, now, experience)
       worksCount = snapshot.worksCount
       const result = await this.native.saveAutomaticBackupSnapshot(
         library.profile.id,
@@ -121,13 +122,14 @@ export class BackupService {
   }
 
   /**
-   * Snapshot au format sylloge-library v4 : les sept bibliothèques du profil
-   * et ses bibliothèques personnalisées. Le chargeur historique à cinq listes
-   * reste accepté par le sérialiseur.
+   * Snapshot au format sylloge-library v5 : les sept bibliothèques du profil,
+   * ses bibliothèques personnalisées et, quand l'appelant la fournit,
+   * l'expérience du profil (vues enregistrées, préférences d'affichage).
+   * Le chargeur historique à cinq listes reste accepté par le sérialiseur.
    */
-  private async createSnapshot(library: FilmLibrary, now: Date): Promise<{ contents: string; worksCount: number }> {
+  private async createSnapshot(library: FilmLibrary, now: Date, experience?: ProfileExperience): Promise<{ contents: string; worksCount: number }> {
     const full = await this.loadLibrary(library.profile.id)
-    const document = createLibraryDocument(full, now.toISOString())
+    const document = createLibraryDocument(full, now.toISOString(), experience)
     return {
       contents: serializeLibraryDocument(document),
       worksCount: SYLLOGE_LIBRARY_SECTIONS.reduce((total, section) => total + document[section].length, 0)

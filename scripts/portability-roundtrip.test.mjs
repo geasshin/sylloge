@@ -156,9 +156,9 @@ const customLibraries = [
   { libraryId: 'shows', position: 2, addedAt: timestamp, entries: [] },
 ]
 
-test('JSON v4 : les sept bibliothèques, les bibliothèques personnalisées et chaque champ personnel restent identiques', () => {
+test('JSON v5 : les sept bibliothèques, les bibliothèques personnalisées et chaque champ personnel restent identiques', () => {
   const document = createLibraryDocument({ ...library, customLibraries }, timestamp)
-  assert.equal(document.version, 4)
+  assert.equal(document.version, 5)
   const result = validateLibraryDocument(serializeLibraryDocument(document))
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.document, document)
@@ -169,6 +169,9 @@ test('JSON v4 : les sept bibliothèques, les bibliothèques personnalisées et c
 test('JSON v3 : des comics rangés dans Livres rejoignent la bibliothèque Comics, citations comprises', () => {
   const legacy = { ...createLibraryDocument(library, timestamp), version: 3, books: [book('book'), { ...book('old-comic', 'comics'), status: 'lu', volumesRead: 4 }] }
   delete legacy.customLibraries
+  // Un document v3 ne connaît ni les bibliothèques personnalisées ni l'expérience : le fixtures
+  // doit retirer les deux, sinon la clé en trop est — à juste titre — refusée.
+  delete legacy.experience
   const result = validateLibraryDocument(JSON.stringify(legacy))
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.document.books.map((entry) => entry.id), ['book'])
