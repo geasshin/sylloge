@@ -13,6 +13,7 @@ import type { BookLibraryKey } from '../domain/bookLibraries.ts'
 import type { SeriesLibraryKey } from '../domain/seriesLibraries.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import { ShareCardDialog } from './ShareCardDialog.tsx'
+import { planLetterboxdExport, type LetterboxdKind, type LetterboxdReport } from '../domain/letterboxdExport.ts'
 
 export type LibraryExportMedium = CsvCollectionMedium
 
@@ -53,6 +54,8 @@ export type ExportMessage =
   | { kind: 'saved-json'; file: string; count: number; scope: ExportScope; medium: LibraryExportMedium }
   | { kind: 'saved-csv'; file: string; count: number; medium: LibraryExportMedium }
   | { kind: 'cancelled'; format: ExportFormat }
+  | { kind: 'saved-letterboxd'; files: string[]; count: number; report: LetterboxdReport; kindOf: LetterboxdKind; remaining: number }
+  | { kind: 'nothing-letterboxd'; kindOf: LetterboxdKind }
   | { kind: 'failed' }
 
 export function exportMessageText(message: ExportMessage): string {
@@ -72,6 +75,20 @@ export function exportMessageText(message: ExportMessage): string {
       count: formatNumber(message.count),
       medium: t(message.count === 1 ? MEDIUM_NOUNS[message.medium][0] : MEDIUM_NOUNS[message.medium][1]),
     })
+  }
+  if (message.kind === 'nothing-letterboxd') {
+    return t(message.kindOf === 'watched' ? 'Aucun film terminé à exporter pour Letterboxd.' : 'Aucun film à découvrir à exporter pour Letterboxd.')
+  }
+  if (message.kind === 'saved-letterboxd') {
+    const files = message.files.map(file => `« ${file} »`).join(', ')
+    const parts = [t(message.count === 1 ? 'Export Letterboxd enregistré dans {files} · {count} film.' : 'Export Letterboxd enregistré dans {files} · {count} films.', { files, count: formatNumber(message.count) })]
+    const { report } = message
+    if (report.matchedByTitleOnly > 0) parts.push(t('Reconnus par titre seulement (correspondance non garantie) : {count}.', { count: formatNumber(report.matchedByTitleOnly) }))
+    if (message.kindOf === 'watched' && report.withoutDate > 0) parts.push(t('Sans date de visionnage (marqués vus, sans entrée de journal) : {count}.', { count: formatNumber(report.withoutDate) }))
+    if (report.favoritesNotCarried > 0) parts.push(t('Favoris non transmis (Letterboxd n’a pas de colonne favori) : {count}.', { count: formatNumber(report.favoritesNotCarried) }))
+    if (report.skippedOtherStatus > 0) parts.push(t('Films d’un autre statut, non inclus : {count}.', { count: formatNumber(report.skippedOtherStatus) }))
+    if (message.remaining > 0) parts.push(t('Export interrompu : il reste {count} fichier à enregistrer, relancer l’export pour le recréer.', { count: formatNumber(message.remaining) }))
+    return parts.join(' ')
   }
   if (message.kind === 'cancelled') {
     return t(message.format === 'json' ? 'Export annulé. Aucun fichier n’a été écrit.' : 'Export CSV annulé. Aucun fichier n’a été écrit.')
@@ -145,6 +162,33 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
   const medium = exportMedium(kind, bookLibrary, seriesLibrary)
   const mediumLabel = MEDIUM_LABELS[medium]
 
+  const runLetterboxd = async (letterboxdKind: LetterboxdKind) => {
+    if (saving !== null) return
+    setSaving('csv')
+    setMessage(null)
+    try {
+      const loaded = await libraryRepository.loadLibrary(profileId)
+      const plan = planLetterboxdExport(loaded.films, letterboxdKind, new Date().toISOString())
+      if (plan.parts.length === 0) { setMessage({ kind: 'nothing-letterboxd', kindOf: letterboxdKind }); return }
+      const files: string[] = []
+      let count = 0
+      for (const part of plan.parts) {
+        const savedName = await saveExportCsv(part.fileName, part.contents)
+        if (savedName === null) break
+        files.push(savedName)
+        count += part.count
+      }
+      setMessage(files.length === 0
+        ? { kind: 'cancelled', format: 'csv' }
+        : { kind: 'saved-letterboxd', files, count, report: plan.report, kindOf: letterboxdKind, remaining: plan.parts.length - files.length })
+    } catch (error) {
+      console.error('Impossible d’exporter pour Letterboxd.', error)
+      setMessage({ kind: 'failed' })
+    } finally {
+      setSaving(null)
+    }
+  }
+
   const runExport = async (format: ExportFormat) => {
     if (saving !== null) return
     setSaving(format)
@@ -191,6 +235,7 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
             onScope={setScope}
             onExport={(format) => void runExport(format)}
             onShareCard={() => { setOpen(false); setShareOpen(true) }}
+            onLetterboxd={medium === 'films' ? kind => void runLetterboxd(kind) : undefined}
             onClose={() => setOpen(false)}
           />
         </AccessibleDialog>
@@ -209,6 +254,7 @@ export function ExportDialogContent({
   onScope,
   onExport,
   onShareCard,
+  onLetterboxd,
   onClose,
 }: {
   mediumLabel: string
@@ -219,6 +265,8 @@ export function ExportDialogContent({
   onExport: (format: ExportFormat) => void
   /** Ouvre la carte à partager ; sans elle, l'option n'est pas proposée. */
   onShareCard?: () => void
+  /** Export au format d'import de Letterboxd ; réservé aux films. */
+  onLetterboxd?: (kind: LetterboxdKind) => void
   onClose: () => void
 }) {
   return (
@@ -248,6 +296,16 @@ export function ExportDialogContent({
           <b>{saving === 'csv' ? t('Export en cours…') : 'CSV'}</b>
           <small>{t("Colonnes UTF-8 pour un tableur. Les citations restent des cellules JSON ; les champs libres d’Art et les identifiants de citations ne sont pas inclus. Privilégier JSON pour une copie fidèle.")}</small>
         </button>}
+        {onLetterboxd && scope === 'collection' && <>
+          <button className="export-format-option" type="button" disabled={saving !== null} onClick={() => onLetterboxd('watched')}>
+            <b>{t('Letterboxd · films vus')}</b>
+            <small>{t('CSV au format d’import de Letterboxd : films terminés avec note, date de visionnage et avis. À importer sur letterboxd.com/import.')}</small>
+          </button>
+          <button className="export-format-option" type="button" disabled={saving !== null} onClick={() => onLetterboxd('watchlist')}>
+            <b>{t('Letterboxd · liste à voir')}</b>
+            <small>{t('CSV au format d’import de Letterboxd : films à découvrir, pour la liste « à voir » de Letterboxd. Un fichier distinct, importé séparément.')}</small>
+          </button>
+        </>}
         {onShareCard && <button
           className="export-format-option"
           type="button"

@@ -168,15 +168,12 @@ async page => {
   assert(JSON.stringify(stars.threeHalf) === JSON.stringify([[true, true], [true, true], [true, true], [true, false], [false, false]]), `3,5 étoiles : trois pleines, une demie, une vide (${JSON.stringify(stars.threeHalf)})`)
   assert(JSON.stringify(stars.one) === JSON.stringify([[true, true], [false, false], [false, false], [false, false], [false, false]]), '1 étoile : une pleine, quatre vides')
 
-  // ── 7. Bibliothèque sans rien à montrer : un message, pas d'image vide ─────────────────────────
-  await page.evaluate(async () => {
-    const { libraryRepository } = await import('/src/data/libraryRepository.ts')
-    const real = libraryRepository.loadLibrary.bind(libraryRepository)
-    libraryRepository.loadLibrary = async id => {
-      const library = await real(id)
-      return { ...library, films: library.films.map(film => ({ ...film, status: 'à découvrir', isFavorite: false, rating: null })), series: [], anime: [], books: [], mangas: [], games: [], artworks: [], customLibraries: [] }
-    }
-  })
+  // ── 7. Profil sans rien à montrer : un message, pas d'image vide ─────────────────────────────────
+  // Scénario « empty » du harnais : aucune fiche. (Remplacer une méthode d'un module importé par la recette
+  // est fragile : l'application peut en détenir un autre exemplaire après un rechargement à chaud.)
+  await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=empty&lang=fr')
+  await page.waitForTimeout(600)
+  await page.getByRole('heading', { level: 1 }).first().waitFor()
   await openTransfer()
   await page.getByRole('button', { name: 'Créer une carte', exact: true }).click()
   await dialog().getByText(/Pas encore de quoi composer une carte/).waitFor()
