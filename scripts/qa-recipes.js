@@ -6,6 +6,13 @@
 // pas proposé pour une recette.
 async page => {
   page.setDefaultTimeout(8000)
+  // Hermétique : les photos de la recette visent picsum.photos, un service externe parfois très lent.
+  await page.route('https://picsum.photos/**', route => route.fulfill({
+    status: 200,
+    contentType: 'image/svg+xml',
+    headers: { 'cache-control': 'no-store' },
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#7a3b2e"/></svg>',
+  }))
   const checks = []
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
@@ -121,5 +128,6 @@ async page => {
   assert((await sql("SELECT COUNT(*) AS n FROM recipes"))[0].n === 1, 'Suppression : une seule recette reste')
 
   assert(errors.length === 0, `Aucune erreur de page : ${errors.join(' | ')}`)
+  await page.unroute('https://picsum.photos/**')
   return JSON.stringify({ ok: true, checks: checks.length, list: checks, errors })
 }

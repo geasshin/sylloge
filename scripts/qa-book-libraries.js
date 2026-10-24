@@ -127,5 +127,8 @@ async (page) => {
   assert(unexpectedRequests.length === 0, 'Une requête externe non simulée a été tentée.')
   assert((await page.evaluate(() => window.__syllogeRecette.unmocked())).length === 0, 'Une commande native non simulée a été appelée.')
   checks.push('import au périmètre explicite, annulation sans écriture et restauration du focus')
+  // L'interception reste active dans la session : on la retire pour ne pas fausser les recettes suivantes
+  // (une adresse volontairement introuvable serait servie comme une image).
+  await page.unroute('**/*')
   return { passed: true, checks, pageErrors: errors, consoleErrors, unexpectedRequests, nativeFileWrites: 0 }
 }

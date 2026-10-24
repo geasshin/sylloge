@@ -164,5 +164,8 @@ async (page) => {
   await open('Animation japonaise', false)
   check((await page.locator('main').textContent()).includes('La bibliothèque Animation japonaise est vide.'), 'état-vide-animation')
   check(errors.length === 0, 'aucune-erreur-page-réseau', { errors })
+  // L'interception reste active dans la session : on la retire pour ne pas fausser les recettes suivantes
+  // (une adresse volontairement introuvable serait servie comme une image).
+  await page.unroute('**/*')
   return JSON.stringify({ passed: true, assertions: assertions.length, measurements, errors })
 }

@@ -1,4 +1,4 @@
-// Couvertures et affiches par lien (qa-app.html, données synthétiques, aucune image téléchargée).
+// Couvertures et affiches par lien (qa-app.html, données synthétiques, images simulées : aucun réseau).
 // Ouvrir la session playwright-cli depuis le dossier scratch : aucune capture n'est écrite ici.
 // Défauts gardés : (1) la fiche associée à TMDB montrait « Sans affiche » dans le formulaire alors que
 // la fiche détail l'affichait ; (2) le crayon du formulaire Film n'ouvrait rien (le dialogue n'était pas
@@ -9,6 +9,14 @@ async page => {
   const errors = []
   page.on('pageerror', error => errors.push(error.message))
   const assert = (ok, name) => { if (!ok) throw Error(name); checks.push(name) }
+  // Hermétique : les liens d'image de la recette visent picsum.photos, un service externe parfois très lent
+  // (9 s, ou rien). Une image simulée suffit : la recette vérifie quelle image l'application choisit, pas le réseau.
+  await page.route('https://picsum.photos/**', route => route.fulfill({
+    status: 200,
+    contentType: 'image/svg+xml',
+    headers: { 'cache-control': 'no-store' },
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#7a3b2e"/></svg>',
+  }))
   const nav = () => page.getByRole('navigation', { name: 'Navigation principale' })
   const sql = (query, values = []) => page.evaluate(([q, v]) => window.__syllogeRecette.select(q, v), [query, values])
   // La barre latérale se déplie sous le pointeur et intercepte les clics : on l'écarte et on attend qu'elle se replie.
@@ -180,6 +188,7 @@ async page => {
   assert(await storedPoster(bare) === null, 'Aperçu : rien n’est enregistré sans valider')
   await page.keyboard.press('Escape')
 
+  await page.unroute('https://picsum.photos/**')
   assert(errors.length === 0, `Aucune erreur de page : ${errors.join(' | ')}`)
   return JSON.stringify({ ok: true, checks: checks.length, list: checks, errors })
 }

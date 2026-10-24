@@ -136,5 +136,8 @@ async (page) => {
   assert(errors.length === 0, 'aucune-erreur-console-ou-page', { errors })
   assert(unexpectedRequests.length === 0, 'aucune-requête-externe-non-simulée', { unexpectedRequests })
   const failures = assertions.filter((assertion) => !assertion.passed)
+  // L'interception reste active dans la session : on la retire pour ne pas fausser les recettes suivantes
+  // (une adresse volontairement introuvable serait servie comme une image).
+  await page.unroute('**/*')
   return JSON.stringify({ passed: failures.length === 0, cases: measurements.length, assertions: assertions.length, failures, errors, unexpectedRequests, measurements })
 }
