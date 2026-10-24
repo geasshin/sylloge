@@ -1,23 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { t } from '../i18n/core.ts'
+import { createPortal } from 'react-dom'
+import { formatNumber, t } from '../i18n/core.ts'
 import { useLanguage } from '../i18n/react.ts'
 import { libraryRepository, type CulturalLibrary } from '../data/libraryRepository.ts'
 import { resolveFilmDisplayPoster } from '../data/tmdbService.ts'
 import { saveShareImage } from '../data/nativePortability.ts'
+import { loadDirectorPortraits, loadFilmCredits } from '../data/sharePeopleSource.ts'
 import { openExternalUrl } from '../data/externalLinks.ts'
 import { copyCard, shareToDestination, type ShareDeps, type ShareResult } from '../data/shareActions.ts'
 import {
+  ALL_SHARE_STATS,
   buildShareCard,
   collectShareItems,
+  defaultShareSelection,
+  MAX_SHARE_FAVORITES,
+  setShareHero,
+  shareCandidates,
+  shareLibraryKind,
   shareScopes,
+  toggleShareOther,
   withDisplayedImages,
   type ShareCardModel,
+  type ShareItem,
   type ShareLibraryKey,
   type ShareScope,
+  type ShareStatsChoice,
 } from '../domain/shareCard.ts'
 import { shareLimitsFor } from '../domain/shareCardLayout.ts'
+import {
+  defaultPeopleIds, normalizeCharacters, orderPeople, peopleOptionsFor, rankCreators, rankFilmPeople, rankProfileCreators, type SharePerson,
+} from '../domain/sharePeople.ts'
 import { SHARE_DESTINATIONS, SHARE_FORMATS, SHARE_FORMAT_ORDER, type ShareDestination, type ShareFormatId } from '../domain/shareFormats.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { SharePeopleStep } from './SharePeopleStep.tsx'
 import { canvasToPng, renderShareCard, shareCardFileName, type RenderedShareCard } from './shareCardImage.ts'
 
 type Props = {
@@ -36,6 +51,10 @@ type Preview =
   | ({ status: 'ready' } & Drawn)
 
 const PROFILE_VALUE = 'profile'
+
+/** Les étapes de la fenêtre : on choisit l'œuvre principale, les autres, les chiffres, puis on partage. */
+type StepId = 'hero' | 'others' | 'people' | 'stats' | 'share'
+const STEP_LABELS: Record<StepId, string> = { hero: 'Principal', others: 'Autres', people: 'Personnes', stats: 'Chiffres', share: 'Partage' }
 
 const FORMAT_COPY: Record<ShareFormatId, { name: string; ratio: string; hint: string }> = {
   standard: { name: 'Standard', ratio: '4:5', hint: 'Messages, WhatsApp, Messenger, X' },
@@ -75,16 +94,56 @@ function realDeps(): ShareDeps {
   }
 }
 
+/** Une pastille d'affiche à cocher : l'œuvre, sa note, et un repli sur le titre si l'image manque. */
+function PosterChoice({ item, image, type, name, checked, disabled, showKind = false, onChange }: {
+  item: ShareItem
+  image: string | null
+  type: 'radio' | 'checkbox'
+  name: string
+  checked: boolean
+  disabled?: boolean
+  /** Sur le profil : la bibliothèque de l'œuvre, puisque la grille les mélange. */
+  showKind?: boolean
+  onChange: () => void
+}) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [image])
+  return (
+    <label className="share-poster" data-checked={checked || undefined} data-disabled={disabled || undefined} title={showKind ? `${item.title} · ${t(shareLibraryKind(item.library))}` : item.title}>
+      <input className="visually-hidden" type={type} name={name} checked={checked} disabled={disabled} onChange={onChange} aria-label={item.title} />
+      <span className="share-poster-frame">
+        <span className="share-poster-title" aria-hidden="true">{item.title}</span>
+        {image && !broken && <img src={image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} />}
+        {showKind && <span className="share-poster-kind" aria-hidden="true">{t(shareLibraryKind(item.library))}</span>}
+        {checked && <span className="share-poster-mark" aria-hidden="true">{type === 'radio' ? '★' : '✓'}</span>}
+      </span>
+      {item.rating !== null && <span className="share-poster-rating" aria-hidden="true">{formatNumber(item.rating, { minimumFractionDigits: 0, maximumFractionDigits: 1 })} ★</span>}
+    </label>
+  )
+}
+
 /**
- * Carte à partager : une image PNG qui résume une bibliothèque ou tout le profil (coups de cœur et
- * derniers terminés), au format standard ou story, à enregistrer, copier ou envoyer vers un service.
- * Le dessin se fait sur la machine ; rien n'est envoyé en ligne.
+ * Carte à partager : une image PNG qui met en avant les coups de cœur d'une bibliothèque ou de tout le
+ * profil. La personne répond à quelques questions (l'œuvre principale, les autres, les chiffres à garder),
+ * voit la carte se composer en direct, puis l'enregistre, la copie ou l'envoie vers un service, au format
+ * standard ou story. Le dessin se fait sur la machine ; rien n'est envoyé en ligne.
  */
 export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
   useLanguage()
   const [library, setLibrary] = useState<CulturalLibrary | null>(null)
   const [value, setValue] = useState<string>(initialLibrary ?? PROFILE_VALUE)
   const [format, setFormat] = useState<ShareFormatId>('standard')
+  const [selection, setSelection] = useState<string[]>([])
+  const [statsChoice, setStatsChoice] = useState<ShareStatsChoice>(ALL_SHARE_STATS)
+  // Les personnes : propositions calculées (réalisateur, acteurs, auteur, studio), cases cochées, personnages saisis.
+  const [suggestions, setSuggestions] = useState<SharePerson[]>([])
+  const [loadingPeople, setLoadingPeople] = useState(false)
+  const [missingTmdb, setMissingTmdb] = useState(false)
+  const [portraits, setPortraits] = useState<Record<string, string | null>>({})
+  const [chosenIds, setChosenIds] = useState<string[]>([])
+  const [characters, setCharacters] = useState<string[]>([])
+  const [step, setStep] = useState<StepId>('hero')
+  const [thumbs, setThumbs] = useState<Record<string, string | null>>({})
   const [preview, setPreview] = useState<Preview>({ status: 'loading' })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<Message | null>(null)
@@ -104,20 +163,97 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
 
   const items = useMemo(() => (library ? collectShareItems(library) : []), [library])
   const choices = useMemo(() => (library ? shareScopes(library) : []), [library])
-  const scope: ShareScope = value === PROFILE_VALUE ? { kind: 'profile' } : { kind: 'library', library: value as ShareLibraryKey }
+  const scope = useMemo<ShareScope>(() => (value === PROFILE_VALUE ? { kind: 'profile' } : { kind: 'library', library: value as ShareLibraryKey }), [value])
+  const candidates = useMemo(() => shareCandidates(items, scope), [items, scope])
+  const candidateByKey = useMemo(() => new Map(candidates.map(entry => [entry.key, entry])), [candidates])
+
+  // Le choix d'office se recompose quand la portée change : le mieux noté en tête, puis ses voisins.
+  useEffect(() => { setSelection(defaultShareSelection(candidates, scope)) }, [candidates, scope])
+
+  // Les affiches des pastilles suivent la règle de l'application (lien personnel, galerie, TMDB) pour les films.
+  useEffect(() => {
+    let alive = true
+    setThumbs(Object.fromEntries(candidates.map(entry => [entry.key, entry.imageUrl])))
+    Promise.all(candidates.map(async entry => [entry.key, entry.library === 'films' ? await resolveFilmDisplayPoster(entry.id, entry.imageUrl).catch(() => entry.imageUrl) : entry.imageUrl] as const))
+      .then(entries => { if (alive) setThumbs(Object.fromEntries(entries)) })
+    return () => { alive = false }
+  }, [candidates])
+
+  // Les propositions de personnes suivent la portée : tout se recompose quand elle change.
+  const peopleOptions = useMemo(() => peopleOptionsFor(scope), [scope])
+  useEffect(() => {
+    let alive = true
+    setSuggestions([])
+    setChosenIds([])
+    setCharacters([])
+    setPortraits({})
+    setMissingTmdb(false)
+    const spread = scope.kind === 'profile'
+    const apply = (list: SharePerson[]) => { if (alive) { setSuggestions(list); setChosenIds(defaultPeopleIds(list, spread)) } }
+    if (items.length === 0) { setLoadingPeople(false); return () => { alive = false } }
+    // Auteurs et studios se lisent sur les fiches, sans attente ; sur le profil, ils suivent le réalisateur et les acteurs.
+    const creatorRole = peopleOptions.roles.includes('studio') ? 'studio' : peopleOptions.roles.includes('author') ? 'author' : null
+    const creators = spread ? rankProfileCreators(items) : creatorRole && scope.kind === 'library' ? rankCreators(items, scope, creatorRole) : []
+    if (peopleOptions.roles.includes('director')) {
+      setLoadingPeople(true)
+      loadFilmCredits(items.filter(entry => entry.library === 'films' && entry.done))
+        .then(credits => {
+          if (!alive) return
+          const ranked = rankFilmPeople(credits)
+          // Sur le profil, deux réalisateurs et trois acteurs suffisent : les autres bibliothèques ont aussi leur place.
+          const directors = spread ? ranked.directors.slice(0, 2) : ranked.directors
+          const actors = spread ? ranked.actors.slice(0, 3) : ranked.actors
+          setMissingTmdb(credits.some(entry => entry.tmdbId === null))
+          apply([...directors, ...actors, ...creators])
+          setLoadingPeople(false)
+          // Les photos des réalisateurs demandent TMDB : elles arrivent après, la carte se redessine alors.
+          void loadDirectorPortraits(directors).then(found => { if (alive) setPortraits(found) })
+        })
+        .catch(error => {
+          console.error('Impossible de lire les acteurs et les réalisateurs.', error)
+          if (alive) { apply(creators); setLoadingPeople(false) }
+        })
+    } else {
+      setLoadingPeople(false)
+      apply(creators)
+    }
+    return () => { alive = false }
+  }, [items, scope, peopleOptions])
+
+  /** Les personnes que la carte montre : les cases cochées avec leur photo, puis les personnages saisis. */
+  const cardPeople = useMemo(() => orderPeople([
+    ...suggestions.filter(person => chosenIds.includes(person.id)).map(person => ({ ...person, portraitUrl: portraits[person.id] ?? person.portraitUrl })),
+    ...normalizeCharacters(characters),
+  ]), [suggestions, chosenIds, portraits, characters])
+  const peopleKey = cardPeople.map(person => `${person.id}|${person.portraitUrl ?? ''}`).join(',')
+
+  const hasPeopleStep = peopleOptions.roles.length > 0 || peopleOptions.characters
+  const steps = useMemo<StepId[]>(() => [
+    'hero',
+    ...(candidates.length > 1 ? ['others' as const] : []),
+    ...(hasPeopleStep ? ['people' as const] : []),
+    'stats',
+    'share',
+  ], [candidates.length, hasPeopleStep])
+  const stepIndex = Math.max(0, steps.indexOf(step))
+  useEffect(() => { if (!steps.includes(step)) setStep('hero') }, [steps, step])
+
+  const selectionKey = selection.join(',')
+  const statsKey = `${statsChoice.done ? 1 : 0}${statsChoice.year ? 1 : 0}${statsChoice.average ? 1 : 0}`
 
   /** Dessine la carte de la portée courante dans le format demandé ; `null` quand il n'y a rien à montrer. */
   const draw = (formatId: ShareFormatId): Promise<Drawn | null> => {
-    const key = `${value}|${formatId}`
+    const key = `${value}|${formatId}|${selectionKey}|${statsKey}|${peopleKey}`
     const cached = drawn.current.get(key)
     if (cached) return cached
     const shareFormat = SHARE_FORMATS[formatId]
-    const base = buildShareCard(items, scope, library?.profile.name ?? '', { limits: shareLimitsFor(shareFormat, scope) })
+    const base = buildShareCard(items, scope, library?.profile.name ?? '', { limits: shareLimitsFor(shareFormat, scope), selection, stats: statsChoice, people: cardPeople })
     const pending: Promise<Drawn | null> = base.isEmpty
       ? Promise.resolve(null)
       : withDisplayedImages(base, entry => (entry.library === 'films' ? resolveFilmDisplayPoster(entry.id, entry.imageUrl) : Promise.resolve(entry.imageUrl)))
         .then(async model => ({ model, rendered: await renderShareCard(model, shareFormat) }))
     pending.catch(() => drawn.current.delete(key))
+    if (drawn.current.size >= 6) drawn.current.clear()
     drawn.current.set(key, pending)
     return pending
   }
@@ -131,8 +267,8 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
       .then(result => { if (alive) setPreview(result ? { status: 'ready', ...result } : { status: 'empty' }) })
       .catch(error => { console.error('Impossible de dessiner la carte.', error); if (alive) setPreview({ status: 'failed' }) })
     return () => { alive = false }
-    // `scope` est dérivé de `value` : seuls `value` et `format` déclenchent un nouveau dessin.
-  }, [library, items, value, format])
+    // `scope` est dérivé de `value` : seuls la portée, le format, le choix et les chiffres déclenchent un nouveau dessin.
+  }, [library, items, value, format, selectionKey, statsKey, peopleKey])
 
   useEffect(() => {
     const node = host.current
@@ -179,80 +315,196 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
 
   const missing = preview.status === 'ready' ? preview.rendered.missingImages.length : 0
   const ready = preview.status === 'ready' && !busy
+  const heroItem = candidateByKey.get(selection[0] ?? '') ?? null
+  const otherCount = Math.max(0, selection.length - 1)
+  const maxOthers = MAX_SHARE_FAVORITES - 1
+  const thumb = (entry: ShareItem) => thumbs[entry.key] ?? entry.imageUrl
+
+  // Les chiffres proposés, avec leurs valeurs : une carte complète les calcule toutes, le choix les filtre ensuite.
+  const allStats = useMemo(() => buildShareCard(items, scope, '', { limits: { favorites: MAX_SHARE_FAVORITES }, stats: ALL_SHARE_STATS }).stats.cells, [items, scope])
+  const statChoices: Array<{ id: keyof ShareStatsChoice; label: string; value: string; available: boolean }> = [
+    { id: 'done', ...describeStat(allStats.find(cell => cell.format !== 'rating' && !cell.params), 'done') },
+    { id: 'year', ...describeStat(allStats.find(cell => cell.params?.year), 'year') },
+    { id: 'average', ...describeStat(allStats.find(cell => cell.format === 'rating'), 'average') },
+  ]
+
+  const goTo = (offset: number) => setStep(steps[Math.min(steps.length - 1, Math.max(0, stepIndex + offset))])
+
+  const nothingToShow = library !== null && candidates.length === 0
 
   return (
     <AccessibleDialog
-      title={t('Carte à partager')}
-      description={t('Une image PNG de vos coups de cœur et de vos derniers terminés, à envoyer ou à publier. Rien n’est envoyé en ligne.')}
+      title={t('Créer une carte')}
+      description={t('Choisissez les coups de cœur à mettre en avant : une image PNG à envoyer ou à publier. Rien n’est envoyé en ligne.')}
       closeDisabled={busy}
       onClose={onClose}
       size="lg"
     >
       <div className="assistant-content share-card-dialog">
         <div className="share-card-controls">
-          <div className="field">
-            <label htmlFor="share-card-scope">{t('Contenu de la carte')}</label>
-            <select id="share-card-scope" value={value} disabled={!library || busy} onChange={event => setValue(event.target.value)}>
-              <option value={PROFILE_VALUE}>{t('Tout le profil')}</option>
-              {choices.flatMap(choice => (choice.kind === 'library' ? [<option key={choice.library} value={choice.library}>{t(choice.label)}</option>] : []))}
-            </select>
-          </div>
+          {nothingToShow ? (
+            <>
+              <p className="inline-report" role="status">{t('Pas encore de coup de cœur à mettre en avant : marquez une œuvre comme coup de cœur depuis sa fiche, puis revenez créer votre carte.')}</p>
+              <div className="assistant-actions">
+                <button className="secondary-button" type="button" onClick={onClose}>{t('Fermer')}</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <ol className="share-steps" aria-label={t('Étapes')}>
+                {steps.map((id, index) => (
+                  <li key={id} aria-current={id === step ? 'step' : undefined} data-done={index < stepIndex || undefined}>
+                    <button type="button" disabled={busy || !library} onClick={() => setStep(id)}>
+                      <span className="share-step-number" aria-hidden="true">{index + 1}</span>
+                      <span>{t(STEP_LABELS[id])}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
 
-          <div className="field">
-            <span className="field-label" id="share-card-format-label">{t('Format de l’image')}</span>
-            <div className="share-format-options" role="radiogroup" aria-labelledby="share-card-format-label">
-              {SHARE_FORMAT_ORDER.map(id => (
-                <button key={id} type="button" role="radio" aria-checked={format === id} className="share-format-option" disabled={busy} onClick={() => setFormat(id)}>
-                  <b>{t(FORMAT_COPY[id].name)} · {FORMAT_COPY[id].ratio}</b>
-                  <small>{t(FORMAT_COPY[id].hint)}</small>
-                </button>
-              ))}
-            </div>
-          </div>
+              {step === 'hero' && (
+                <section className="share-step-body" aria-labelledby="share-step-title">
+                  <h3 id="share-step-title">{t('Votre coup de cœur principal')}</h3>
+                  <p className="field-hint">{t('C’est l’affiche en grand sur la carte.')}</p>
+                  {!initialLibrary && choices.length > 1 && (
+                    <div className="field">
+                      <label htmlFor="share-card-scope">{t('Contenu de la carte')}</label>
+                      <select id="share-card-scope" value={value} disabled={!library || busy} onChange={event => setValue(event.target.value)}>
+                        <option value={PROFILE_VALUE}>{t('Tout le profil')}</option>
+                        {choices.flatMap(choice => (choice.kind === 'library' ? [<option key={choice.library} value={choice.library}>{t(choice.label)}</option>] : []))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="share-picker" role="radiogroup" aria-labelledby="share-step-title">
+                    {candidates.map(entry => (
+                      <PosterChoice key={entry.key} item={entry} image={thumb(entry)} type="radio" name="share-hero" checked={entry.key === selection[0]} disabled={busy} showKind={scope.kind === 'profile'} onChange={() => setSelection(current => setShareHero(current, entry.key))} />
+                    ))}
+                  </div>
+                  {heroItem && <p className="share-picked" role="status">{t('Mis en avant : {title}', { title: heroItem.title })}</p>}
+                </section>
+              )}
 
-          {preview.status === 'loading' && <p role="status">{t('Composition de la carte…')}</p>}
-          {preview.status === 'empty' && <p className="inline-report" role="status">{t('Pas encore de quoi composer une carte : ajoutez un coup de cœur ou une œuvre terminée.')}</p>}
-          {preview.status === 'failed' && <p className="inline-report error" role="alert">{t('La carte n’a pas pu être composée.')}</p>}
-          {missing > 0 && <p className="inline-report" role="status">{missing === 1 ? t('1 image n’a pas pu être chargée : sa tuile affiche le titre.') : t('{count} images n’ont pas pu être chargées : leurs tuiles affichent le titre.', { count: missing })}</p>}
-          {message && <p className={`inline-report${isFailure(message) ? ' error' : ''}`} role={isFailure(message) ? 'alert' : 'status'}>{messageText(message)}</p>}
+              {step === 'others' && (
+                <section className="share-step-body" aria-labelledby="share-step-title">
+                  <h3 id="share-step-title">{t('Vos autres coups de cœur')}</h3>
+                  <p className="field-hint">{t('Jusqu’à {count} autres, à côté de l’affiche principale.', { count: maxOthers })}</p>
+                  <div className="share-picker" role="group" aria-labelledby="share-step-title">
+                    {candidates.filter(entry => entry.key !== selection[0]).map(entry => {
+                      const checked = selection.includes(entry.key)
+                      return (
+                        <PosterChoice key={entry.key} item={entry} image={thumb(entry)} type="checkbox" name="share-others" checked={checked} disabled={busy || (!checked && otherCount >= maxOthers)} showKind={scope.kind === 'profile'} onChange={() => setSelection(current => toggleShareOther(current, entry.key))} />
+                      )
+                    })}
+                  </div>
+                  <p className="share-picked" role="status">{t('{count} sur {max} choisis', { count: otherCount, max: maxOthers })}</p>
+                </section>
+              )}
 
-          <div className="assistant-actions">
-            <button className="primary-button" type="button" disabled={!ready} onClick={() => void save()}>
-              {busy ? t('Enregistrement…') : t('Enregistrer l’image')}
-            </button>
-            <button className="secondary-button" type="button" disabled={!ready} onClick={() => void copy()}>{t('Copier l’image')}</button>
-          </div>
+              {step === 'people' && (
+                <SharePeopleStep
+                  library={scope.kind === 'library' ? scope.library : 'books'}
+                  suggestions={suggestions}
+                  loading={loadingPeople}
+                  needsTmdbHint={peopleOptions.roles.includes('actor') && missingTmdb}
+                  portraits={portraits}
+                  chosenIds={chosenIds}
+                  characters={normalizeCharacters(characters).map(person => person.name)}
+                  allowCharacters={peopleOptions.characters}
+                  disabled={busy}
+                  onToggle={id => setChosenIds(current => (current.includes(id) ? current.filter(other => other !== id) : [...current, id]))}
+                  onAddCharacter={name => setCharacters(current => normalizeCharacters([...current, name]).map(person => person.name))}
+                  onRemoveCharacter={name => setCharacters(current => current.filter(other => other !== name))}
+                />
+              )}
 
-          <div className="field share-destinations">
-            <span className="field-label" id="share-card-destinations-label">{t('Partager vers')}</span>
-            <div className="share-destination-buttons" role="group" aria-labelledby="share-card-destinations-label">
-              {SHARE_DESTINATIONS.map(destination => (
-                <button key={destination.id} className="secondary-button" type="button" disabled={!library || busy || preview.status === 'empty'} onClick={() => void share(destination)}>
-                  {destination.name}
-                </button>
-              ))}
-            </div>
-            <small className="field-hint">{t('Choisit le bon format, copie l’image et ouvre le service : il ne reste qu’à la coller.')}</small>
-          </div>
+              {step === 'stats' && (
+                <section className="share-step-body" aria-labelledby="share-step-title">
+                  <h3 id="share-step-title">{t('Les chiffres sous les affiches')}</h3>
+                  <p className="field-hint">{t('Gardez ceux qui vous parlent.')}</p>
+                  <div className="share-stat-options">
+                    {statChoices.map(choice => (
+                      <label key={choice.id} className="share-stat-option" data-disabled={!choice.available || undefined}>
+                        <input type="checkbox" checked={choice.available && statsChoice[choice.id]} disabled={busy || !choice.available} onChange={event => setStatsChoice(current => ({ ...current, [choice.id]: event.target.checked }))} />
+                        <b>{choice.value}</b>
+                        <span>{choice.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+              )}
 
-          <div className="assistant-actions">
-            <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>{t('Fermer')}</button>
-          </div>
+              {step === 'share' && (
+                <section className="share-step-body" aria-labelledby="share-step-title">
+                  <h3 id="share-step-title">{t('Format et partage')}</h3>
+                  <div className="field">
+                    <span className="field-label" id="share-card-format-label">{t('Format de l’image')}</span>
+                    <div className="share-format-options" role="radiogroup" aria-labelledby="share-card-format-label">
+                      {SHARE_FORMAT_ORDER.map(id => (
+                        <button key={id} type="button" role="radio" aria-checked={format === id} className="share-format-option" disabled={busy} onClick={() => setFormat(id)}>
+                          <b>{t(FORMAT_COPY[id].name)} · {FORMAT_COPY[id].ratio}</b>
+                          <small>{t(FORMAT_COPY[id].hint)}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="assistant-actions">
+                    <button className="primary-button" type="button" disabled={!ready} onClick={() => void save()}>
+                      {busy ? t('Enregistrement…') : t('Enregistrer l’image')}
+                    </button>
+                    <button className="secondary-button" type="button" disabled={!ready} onClick={() => void copy()}>{t('Copier l’image')}</button>
+                  </div>
+                  <div className="field share-destinations">
+                    <span className="field-label" id="share-card-destinations-label">{t('Partager vers')}</span>
+                    <div className="share-destination-buttons" role="group" aria-labelledby="share-card-destinations-label">
+                      {SHARE_DESTINATIONS.map(destination => (
+                        <button key={destination.id} className="secondary-button" type="button" disabled={!library || busy || preview.status === 'empty'} onClick={() => void share(destination)}>
+                          {destination.name}
+                        </button>
+                      ))}
+                    </div>
+                    <small className="field-hint">{t('Choisit le bon format, copie l’image et ouvre le service : il ne reste qu’à la coller.')}</small>
+                  </div>
+                </section>
+              )}
+
+              {preview.status === 'loading' && <p role="status">{t('Composition de la carte…')}</p>}
+              {preview.status === 'failed' && <p className="inline-report error" role="alert">{t('La carte n’a pas pu être composée.')}</p>}
+              {missing > 0 && <p className="inline-report" role="status">{missing === 1 ? t('1 image n’a pas pu être chargée : sa tuile affiche le titre.') : t('{count} images n’ont pas pu être chargées : leurs tuiles affichent le titre.', { count: missing })}</p>}
+              {message && <p className={`inline-report${isFailure(message) ? ' error' : ''}`} role={isFailure(message) ? 'alert' : 'status'}>{messageText(message)}</p>}
+
+              <div className="assistant-actions share-nav">
+                <button className="secondary-button" type="button" disabled={busy || stepIndex === 0} onClick={() => goTo(-1)}>{t('Précédent')}</button>
+                {stepIndex < steps.length - 1
+                  ? <button className="primary-button" type="button" disabled={busy || !library} onClick={() => goTo(1)}>{t('Continuer')}</button>
+                  : <button className="secondary-button" type="button" disabled={busy} onClick={onClose}>{t('Fermer')}</button>}
+              </div>
+            </>
+          )}
         </div>
-        <div className="share-card-preview" ref={host} aria-busy={preview.status === 'loading'} />
+        {!nothingToShow && <div className="share-card-preview" ref={host} aria-busy={preview.status === 'loading'} />}
       </div>
     </AccessibleDialog>
   )
 }
 
+/** Valeur et légende d'un chiffre proposé à l'étape « Chiffres » ; la note moyenne manque quand rien n'est noté. */
+function describeStat(cell: ShareCardModel['stats']['cells'][number] | undefined, id: keyof ShareStatsChoice): { label: string; value: string; available: boolean } {
+  if (!cell) return { label: t('Aucune note pour l’instant'), value: '–', available: false }
+  const value = cell.format === 'rating'
+    ? `${formatNumber(cell.value, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ★`
+    : formatNumber(cell.value)
+  return { label: t(id === 'average' ? 'note moyenne' : cell.label, cell.params), value, available: true }
+}
+
 /** Bouton qui ouvre la fenêtre : réglages, et toute page qui propose la carte sans passer par l'export. */
-export function ShareCardLauncher({ profileId, initialLibrary }: { profileId: string; initialLibrary?: ShareLibraryKey }) {
+export function ShareCardLauncher({ profileId, initialLibrary, className = 'secondary-button' }: { profileId: string; initialLibrary?: ShareLibraryKey; className?: string }) {
   useLanguage()
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button className="secondary-button" type="button" onClick={() => setOpen(true)}>{t('Créer une carte')}</button>
-      {open && <ShareCardDialog profileId={profileId} initialLibrary={initialLibrary} onClose={() => setOpen(false)} />}
+      <button className={className} type="button" onClick={() => setOpen(true)}>{t('Créer une carte')}</button>
+      {/* Hors de l'arbre du bouton : sinon la fenêtre hérite des styles de la barre qui l'accueille (texte sur une ligne, conteneur). */}
+      {open && createPortal(<ShareCardDialog profileId={profileId} initialLibrary={initialLibrary} onClose={() => setOpen(false)} />, document.body)}
     </>
   )
 }

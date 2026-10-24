@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 
@@ -15,8 +16,27 @@ export function resolveTheme(preference: ThemePreference): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+/**
+ * Thème à demander à la fenêtre native : « system » rend la main au système (null), sinon le thème choisi.
+ * La barre de titre appartient au système : sans cela elle suit le thème de macOS ou de Windows, pas celui de l'app.
+ */
+export function nativeWindowTheme(preference: ThemePreference): 'light' | 'dark' | null {
+  return preference === 'system' ? null : preference
+}
+
+/** Aligne la barre de titre sur le thème choisi. Hors application native (navigateur), il n'y a rien à faire ; un échec ne bloque jamais l'interface. */
+async function applyWindowTheme(preference: ThemePreference) {
+  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return
+  try {
+    await getCurrentWindow().setTheme(nativeWindowTheme(preference))
+  } catch (error) {
+    console.warn('Impossible de changer le thème de la fenêtre.', error)
+  }
+}
+
 function applyTheme(preference: ThemePreference) {
   document.documentElement.dataset.theme = resolveTheme(preference)
+  void applyWindowTheme(preference)
 }
 
 /**

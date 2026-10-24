@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import logoSylloge from '../assets/logo-sylloge.png'
+import logoSylloge from '../assets/sylloge-mark.png'
 import { t } from '../i18n/core.ts'
 import { HomeIcon, FilmIcon, SeriesIcon, AnimeIcon, BookIcon, MangaIcon, GameIcon, ArtIcon, SettingsIcon } from './icons.tsx'
 import { ProfileAvatar } from './ProfileAvatar.tsx'

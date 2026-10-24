@@ -71,7 +71,7 @@ try {
     posterUrl: null, personalNote: null, createdAt: `${day}T09:00:00`, updatedAt: `${day}T12:00:00`,
   })
   const homeProps = {
-    library: { films: [film] }, seriesCollection: [series], bookCollection: [], gameCollection: [], artworkCollection: [],
+    library: { profile: { id: 'qa-memory', name: 'Mémoire' }, films: [film] }, seriesCollection: [series], bookCollection: [], gameCollection: [], artworkCollection: [],
     onOpen() {}, onOpenSeries() {}, onOpenBook() {}, onOpenGame() {}, onOpenArtwork() {},
   }
   const render = (Component, props) => renderToStaticMarkup(createElement(Component, props))
@@ -81,6 +81,7 @@ try {
     const before = JSON.stringify(homeProps)
     const html = render(Home, homeProps)
     assert.ok(html.includes('aria-label="Home"'), 'The home landmark must be English')
+    assert.ok(html.includes('>Create a card</button>'), 'The profile card button is English on the All tab')
     for (const copy of ['Featured', 'Favourites', 'In progress', 'Recent additions', 'Daily picks', 'Activity', 'Season 2 of 4', 'Previous month', 'Next month', '4.5 out of 5']) {
       assert.ok(html.includes(copy), `English copy is rendered: ${copy}`)
     }

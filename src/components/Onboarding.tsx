@@ -17,7 +17,7 @@ import type { ThemePreference } from '../domain/theme.ts'
 import { ProfileAvatarPicker } from './ProfileAvatar.tsx'
 import { BackupRestorePicker } from './BackupRestorePicker.tsx'
 import { LibraryImportButton } from './LibraryImportButton.tsx'
-import logoSylloge from '../assets/logo-sylloge.png'
+import logoSylloge from '../assets/sylloge-mark.png'
 
 type Props = {
   themePreference: ThemePreference

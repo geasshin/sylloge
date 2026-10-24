@@ -76,6 +76,7 @@ pub fn run() {
             tmdb::purge_expired_tmdb_cache,
             tmdb::search_tmdb_films,
             tmdb::preview_tmdb_film,
+            tmdb::fetch_tmdb_director_portrait,
             tmdb::search_tmdb_series,
             tmdb::preview_tmdb_series,
             openlibrary::search_openlibrary_books,

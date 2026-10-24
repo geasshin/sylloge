@@ -482,6 +482,8 @@ function associateFilm(filmId: unknown, tmdbId: number) {
 const unmocked = new Set<string>()
 // Adresses confiées au système par le plugin d'ouverture (aucun navigateur n'est réellement lancé).
 const opened: string[] = []
+// Thèmes demandés à la barre de titre native (null = suivre le système).
+const windowThemes: Array<string | null> = []
 // Cartes à partager enregistrées (octets du PNG), pour que la recette les relise.
 const savedImages: number[][] = []
 
@@ -499,6 +501,8 @@ function handle(cmd: string, args: Args): unknown {
     case 'plugin:updater|check': return null
     case 'plugin:process|restart':
     case 'plugin:process|exit': return null
+    // Thème de la barre de titre : le dernier demandé est lisible par la recette (null = suivre le système).
+    case 'plugin:window|set_theme': windowThemes.push((args.value as string | null) ?? null); return null
     case 'plugin:opener|open_url': opened.push(String(args.url)); return null
     case 'save_share_image': {
       const bytes = args instanceof ArrayBuffer ? new Uint8Array(args) : (args as unknown as Uint8Array)
@@ -618,6 +622,12 @@ function handle(cmd: string, args: Args): unknown {
         releaseYear: candidate.year, synopsis: 'Résultat factice de recette.', posterUrl: candidate.poster,
       }))
     case 'preview_tmdb_film': return filmPresentation(Number(args.tmdbId), `Œuvre ${args.tmdbId}`)
+    // Photo d'un réalisateur : comme le vrai service, une personne sans photo publiée rend `null`.
+    case 'fetch_tmdb_director_portrait': {
+      const name = String(args.name ?? '').trim()
+      if (name === '' || typeof args.tmdbId !== 'number') throw new Error('Appel de portrait invalide.')
+      return /sans photo/i.test(name) ? null : `https://picsum.photos/seed/sylloge-director-${encodeURIComponent(name)}/200/260`
+    }
     case 'preview_tmdb_series':
       return { tmdbId: args.tmdbId, title: `Série ${args.tmdbId}`, originalTitle: null, firstAirYear: 2019, synopsis: 'Synopsis factice de recette.', showrunners: ['Showrunner de recette'], cast: ['Interprète A', 'Interprète B'], seasonsTotal: 3, posterUrl: fakePoster(`series-${args.tmdbId}`) }
     case 'associate_film_with_tmdb': return associateFilm(args.filmId, Number(args.tmdbId))
@@ -668,6 +678,7 @@ Object.assign(window, {
     execute: (query: string, values: unknown[] = []) => execute(query, values),
     unmocked: () => [...unmocked],
     opened: () => [...opened],
+    windowThemes: () => [...windowThemes],
     savedImages: () => savedImages.map(bytes => [...bytes]),
   },
 })

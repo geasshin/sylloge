@@ -135,6 +135,7 @@ struct TmdbCastEntry {
 struct TmdbCrewEntry {
     name: Option<String>,
     job: Option<String>,
+    profile_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,6 +237,44 @@ impl ReqwestTmdbClient {
             .json::<T>()
             .await
             .map_err(|_| TmdbError::InvalidProviderResponse)
+    }
+}
+
+/// Photo (185 px) du réalisateur nommé dans les crédits d'un film : celle de l'entrée « Director » dont le nom
+/// correspond, sans tenir compte de la casse ni des espaces. Le nom vient d'une fiche TMDB du même film, donc
+/// deux homonymes ne se confondent pas ; sans photo publiée, `None`.
+fn director_portrait(crew: &[TmdbCrewEntry], name: &str) -> Option<String> {
+    let wanted = name.trim().to_lowercase();
+    if wanted.is_empty() {
+        return None;
+    }
+    crew.iter()
+        .filter(|member| member.job.as_deref() == Some("Director"))
+        .filter(|member| {
+            member
+                .name
+                .as_deref()
+                .is_some_and(|candidate| candidate.trim().to_lowercase() == wanted)
+        })
+        .find_map(|member| member.profile_path.as_deref())
+        .map(|path| ReqwestTmdbClient::image_url(path, "w185"))
+}
+
+impl ReqwestTmdbClient {
+    /// Lit les crédits d'un film pour y trouver la photo d'un réalisateur. Un seul appel, à la demande : le cache
+    /// local ne conserve que les noms des réalisateurs.
+    pub async fn fetch_director_portrait(
+        &self,
+        tmdb_id: i64,
+        name: &str,
+    ) -> Result<Option<String>, TmdbError> {
+        let credits: TmdbCreditsResponse = self
+            .get(
+                &format!("/movie/{tmdb_id}/credits"),
+                &[("language", DEFAULT_LANGUAGE)],
+            )
+            .await?;
+        Ok(director_portrait(&credits.crew, name))
     }
 }
 
@@ -647,6 +686,39 @@ fn validate_https_url(value: &str) -> Result<(), TmdbError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn director_portrait_matches_the_credited_director_only() {
+        let crew = vec![
+            TmdbCrewEntry {
+                name: Some("Jane Producer".to_string()),
+                job: Some("Producer".to_string()),
+                profile_path: Some("/producer.jpg".to_string()),
+            },
+            TmdbCrewEntry {
+                name: Some("  Céline Sciamma ".to_string()),
+                job: Some("Director".to_string()),
+                profile_path: None,
+            },
+            TmdbCrewEntry {
+                name: Some("Céline Sciamma".to_string()),
+                job: Some("Director".to_string()),
+                profile_path: Some("/celine.jpg".to_string()),
+            },
+        ];
+        assert_eq!(
+            director_portrait(&crew, "céline sciamma"),
+            Some("https://image.tmdb.org/t/p/w185/celine.jpg".to_string()),
+            "casse et espaces ignorés, première entrée avec une photo"
+        );
+        assert_eq!(
+            director_portrait(&crew, "Jane Producer"),
+            None,
+            "un producteur n'est pas le réalisateur"
+        );
+        assert_eq!(director_portrait(&crew, "Inconnu"), None);
+        assert_eq!(director_portrait(&crew, "   "), None);
+    }
 
     struct FakeTmdbClient;
 

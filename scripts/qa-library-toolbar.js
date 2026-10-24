@@ -122,7 +122,7 @@ async (page) => {
             assert(metrics.singleRovingStop, 'un-seul-arrêt-de-tabulation-des-vues', context)
             if (width === 1440 && sidebar === 'rail') assert(metrics.toolRows === 1 && metrics.viewBarRows === 1, 'une-ligne-à-1440-rail', { ...context, toolRows: metrics.toolRows, barRows: metrics.viewBarRows })
             const addLabel = { Films: 'Ajouter un film', Séries: 'Ajouter une série', 'Animation japonaise': 'Ajouter une animation japonaise', Livres: 'Ajouter un livre', Mangas: 'Ajouter un manga', Jeux: 'Ajouter un jeu', Art: 'Ajouter une œuvre' }[library]
-            assert(metrics.headerLabels.join('|') === `${library === 'Art' ? '' : 'Tout associer|'}Importer|Exporter|${addLabel}`, 'ordre-des-actions-en-tête', { ...context, labels: metrics.headerLabels })
+            assert(metrics.headerLabels.join('|') === `${library === 'Art' ? '' : 'Tout associer|'}Importer|Créer une carte|Exporter|${addLabel}`, 'ordre-des-actions-en-tête', { ...context, labels: metrics.headerLabels })
           }
         }
       }

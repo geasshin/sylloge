@@ -115,6 +115,20 @@ pub async fn preview_tmdb_film(
         .map_err(error_message)
 }
 
+/// Photo du réalisateur d'un film associé : un appel ciblé aux crédits TMDB, pour la carte à partager. Aucune
+/// écriture ; `None` quand TMDB ne publie pas de photo pour cette personne.
+#[tauri::command]
+pub async fn fetch_tmdb_director_portrait(
+    tmdb_id: i64,
+    name: String,
+) -> Result<Option<String>, String> {
+    let client = ReqwestTmdbClient::new().map_err(error_message)?;
+    client
+        .fetch_director_portrait(tmdb_id, &name)
+        .await
+        .map_err(error_message)
+}
+
 /// Recherche TV bornée pour le préremplissage Séries (jalon 0.4.26),
 /// sans cache ni écriture.
 #[tauri::command]

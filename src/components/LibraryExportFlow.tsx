@@ -13,6 +13,7 @@ import type { BookLibraryKey } from '../domain/bookLibraries.ts'
 import type { SeriesLibraryKey } from '../domain/seriesLibraries.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import { ShareCardDialog } from './ShareCardDialog.tsx'
+import type { ShareLibraryKey } from '../domain/shareCard.ts'
 import { planLetterboxdExport, type LetterboxdKind, type LetterboxdReport } from '../domain/letterboxdExport.ts'
 
 export type LibraryExportMedium = CsvCollectionMedium
@@ -47,6 +48,8 @@ type LibraryExportFlowProps = {
   profileId: string
   bookLibrary?: BookLibraryKey
   seriesLibrary?: SeriesLibraryKey
+  /** Ajoute, à côté d'« Exporter », le bouton qui ouvre la création d'une carte à partager de cette bibliothèque. */
+  shareCard?: boolean
 }
 
 /** Message du bilan : une description traduite au rendu, jamais une phrase figée. */
@@ -153,12 +156,13 @@ export function planLibraryExport(
  * Sylloge (document complet versionné) ou CSV (tableur) — puis écrit le
  * fichier choisi. Aucune écriture n'a lieu avant le choix explicite.
  */
-export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary }: LibraryExportFlowProps) {
+export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary, shareCard = false }: LibraryExportFlowProps) {
   const [open, setOpen] = useState(false)
   const [scope, setScope] = useState<ExportScope>('collection')
   const [saving, setSaving] = useState<ExportFormat | null>(null)
   const [message, setMessage] = useState<ExportMessage | null>(null)
-  const [shareOpen, setShareOpen] = useState(false)
+  // Quand la carte est ouverte, la bibliothèque qu'elle montre d'emblée (aucune : tout le profil).
+  const [shareOpen, setShareOpen] = useState<{ library: ShareLibraryKey | undefined } | null>(null)
   const medium = exportMedium(kind, bookLibrary, seriesLibrary)
   const mediumLabel = MEDIUM_LABELS[medium]
 
@@ -215,6 +219,7 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
 
   return (
     <span className="transfer-action">
+      {shareCard && <button className="secondary-button" type="button" onClick={() => setShareOpen({ library: medium })}>{t("Créer une carte")}</button>}
       <button className="secondary-button" type="button" onClick={() => { setScope('collection'); setMessage(null); setOpen(true) }}>
         {t("Exporter")}
       </button>
@@ -234,13 +239,13 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
             message={message === null ? null : exportMessageText(message)}
             onScope={setScope}
             onExport={(format) => void runExport(format)}
-            onShareCard={() => { setOpen(false); setShareOpen(true) }}
+            onShareCard={() => { setOpen(false); setShareOpen({ library: scope === 'profile' ? undefined : medium }) }}
             onLetterboxd={medium === 'films' ? kind => void runLetterboxd(kind) : undefined}
             onClose={() => setOpen(false)}
           />
         </AccessibleDialog>
       )}
-      {shareOpen && <ShareCardDialog profileId={profileId} initialLibrary={scope === 'profile' ? undefined : medium} onClose={() => setShareOpen(false)} />}
+      {shareOpen && <ShareCardDialog profileId={profileId} initialLibrary={shareOpen.library} onClose={() => setShareOpen(null)} />}
     </span>
   )
 }
@@ -313,7 +318,7 @@ export function ExportDialogContent({
           onClick={onShareCard}
         >
           <b>{t('Carte à partager')}</b>
-          <small>{t('Image PNG à envoyer ou à publier : vos coups de cœur et vos derniers terminés. Ce n’est pas une copie des données.')}</small>
+          <small>{t('Image PNG à envoyer ou à publier : les coups de cœur que vous choisissez, avec vos chiffres. Ce n’est pas une copie des données.')}</small>
         </button>}
       </div>
       {message && <p className="inline-report" role="status">{message}</p>}

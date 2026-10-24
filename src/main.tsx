@@ -132,7 +132,6 @@ import {
   type Artwork,
 } from './domain/artwork.ts'
 import type { ArtworkWriteInput } from './domain/artworkForm.ts'
-import logoSylloge from './assets/logo-sylloge.png'
 import {
   SearchIcon,
   HomeIcon,
@@ -650,7 +649,7 @@ function FilmsLibrary({
             existing={library.films}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="films" profileId={library.profile.id} />
+          <LibraryExportFlow kind="films" profileId={library.profile.id} shareCard />
           <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter un film")}</button>
         </div>
       </header>
@@ -1164,7 +1163,7 @@ function SeriesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="series" profileId={profileId} seriesLibrary={library} />
+          <LibraryExportFlow kind="series" profileId={profileId} seriesLibrary={library} shareCard />
           <button className="primary-button" type="button" onClick={onCreate}>{anime ? t('Ajouter une animation japonaise') : t('Ajouter une série')}</button>
         </div>
       </header>
@@ -1403,7 +1402,7 @@ function GamesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="games" profileId={profileId} />
+          <LibraryExportFlow kind="games" profileId={profileId} shareCard />
           <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter un jeu")}</button>
         </div>
       </header>
@@ -1561,7 +1560,7 @@ function ArtworksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="artworks" profileId={profileId} />
+          <LibraryExportFlow kind="artworks" profileId={profileId} shareCard />
           <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter une œuvre")}</button>
         </div>
       </header>
@@ -1746,7 +1745,7 @@ function BooksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="books" profileId={profileId} bookLibrary={library} />
+          <LibraryExportFlow kind="books" profileId={profileId} bookLibrary={library} shareCard />
           <button className="primary-button" type="button" onClick={onCreate}>{t('Ajouter un {medium}', { medium: t(singular) })}</button>
         </div>
       </header>

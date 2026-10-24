@@ -94,6 +94,14 @@ export function getFilmTmdbCache(filmId: string): Promise<CachedFilmTmdbPresenta
   return invoke('get_film_tmdb_cache', { filmId })
 }
 
+/**
+ * Photo d'un réalisateur, lue dans les crédits d'un film TMDB où il figure (le cache local ne garde que son nom).
+ * Un seul appel réseau, sans écriture ; `null` quand TMDB ne publie pas de photo.
+ */
+export function fetchTmdbDirectorPortrait(tmdbId: number, name: string): Promise<string | null> {
+  return invoke('fetch_tmdb_director_portrait', { tmdbId, name })
+}
+
 /** Réalisateur issu de l'association locale TMDB, sans nouvel appel réseau. */
 export async function resolveFilmDisplayDirector(filmId: string): Promise<string | null> {
   const cached = await getFilmTmdbCache(filmId)

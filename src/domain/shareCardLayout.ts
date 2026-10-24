@@ -1,168 +1,277 @@
-// Cartes à partager : la mise en page, en calcul pur.
+// Cartes à partager : la composition, en calcul pur.
 //
 // La toile a la taille exacte du format choisi (standard 1 080 × 1 350, story 1 080 × 1 920, voir
 // shareFormats.ts). Ce module place des rectangles ; il ne mesure aucun texte et ne dessine rien. Le
 // dessin (src/components/shareCardImage.ts) lit ces rectangles et y ajuste ses textes.
 //
-// La carte : en-tête (logo et titre), trois chiffres, les coups de cœur, puis les derniers terminés.
-// Les affiches sont aussi grandes que la place le permet (260 px au plus, 150 px au moins) : on cherche
-// la plus grande largeur pour laquelle tout tient dans la zone sûre du format.
+// La composition, de haut en bas :
+//   - l'en-tête : logo et nom de l'app sur le même axe, nom du profil à droite ;
+//   - le titre (bibliothèque ou profil), avec pour un profil la ligne « terminés par bibliothèque » ;
+//   - les coups de cœur : l'œuvre mise en avant en grande affiche (le héros), et à sa droite les autres,
+//     en grille sur toute la hauteur du héros ;
+//   - les personnes mises en avant (réalisateur, acteurs, auteur, studio, personnages), en une rangée de
+//     portraits ronds, quand il y en a ;
+//   - les chiffres, sur une seule rangée sous les affiches.
+// Le héros est aussi grand que la hauteur disponible le permet ; tout le reste s'y accorde.
 
 import type { ShareCardModel, ShareItem, ShareLimits, ShareScope } from './shareCard.ts'
+import type { ShareCardPerson } from './sharePeople.ts'
 import type { ShareFormat } from './shareFormats.ts'
 
 export const SHARE_CARD = {
+  /** Marges latérales ; la marge verticale est plus serrée pour laisser la place aux affiches. */
   margin: 72,
-  /** Espace entre deux affiches ou deux cases. */
+  marginY: 64,
+  /** Espace entre deux affiches. */
   gap: 16,
-  /** Espace de base entre deux blocs ; l'espace qui reste dans le format s'y ajoute, jusqu'à `maxExtraGap`. */
-  blockGap: 32,
-  maxExtraGap: 40,
-  headerHeight: 112,
+  headerHeight: 64,
   /** Le logo est la tuile carrée de l'icône de l'application. */
-  logoSize: 96,
-  logoGap: 28,
-  statHeight: 96,
-  librariesHeight: 36,
-  sectionTitleHeight: 40,
-  sectionTitleGap: 16,
-  /** Étoiles sous un coup de cœur noté. */
-  starsGap: 12,
-  starsHeight: 28,
-  minTileWidth: 150,
-  maxTileWidth: 260,
+  logoSize: 60,
+  logoGap: 16,
+  nameWidth: 360,
+  titleHeight: 104,
+  subtitleHeight: 30,
+  subtitleGap: 6,
+  /** Les chiffres : un nombre et sa légende par case, toutes les cases sur une seule rangée. */
+  statsHeight: 104,
+  /** Les personnes : un portrait rond, le nom dessous, puis la légende. Une case ne dépasse pas `personMaxWidth`. */
+  peopleHeight: 170,
+  portraitSize: 80,
+  personMaxWidth: 240,
+  /** Intitulé de la section : la ligne de texte, puis l'air avant les affiches. */
+  labelHeight: 28,
+  labelGap: 16,
+  /** Air entre le héros et la grille de droite. */
+  panelGap: 24,
+  /** Écarts de base entre blocs : en-tête → titre, titre → coups de cœur, coups de cœur → chiffres. */
+  gapHeader: 28,
+  gapTitle: 32,
+  gapSection: 36,
+  maxExtraGap: 24,
+  /**
+   * Le héros ne dépasse pas cette hauteur. À 820 px, avec six voisins sur deux colonnes et trois rangées, la
+   * grille de droite épouse exactement la hauteur et la largeur de son panneau : tout s'aligne.
+   */
+  heroMaxHeight: { standard: 820, story: 820 },
+  /** Un coup de cœur seul à côté du héros ne le concurrence pas. */
+  runnerUpMaxRatio: 0.8,
   tileRatio: 1.5,
+  maxRunnerUpCols: 3,
+  maxRunnerUpRows: 3,
+  /** Au plus sept coups de cœur : le héros et six autres. */
+  maxFavorites: 7,
+  /** Écart maximal entre deux colonnes d'affiches justifiées sur le panneau. */
+  maxColumnGap: 60,
+  heroRadius: 20,
+  tileRadius: 14,
 } as const
 
 export type Rect = { x: number; y: number; w: number; h: number }
-export type TileSection = 'favorites' | 'recent'
 
-export type LayoutTile = { rect: Rect; item: ShareItem; /** Rangée d'étoiles sous l'affiche, pour un coup de cœur noté. */ starsRect: Rect | null }
+export type LayoutTile = {
+  rect: Rect
+  item: ShareItem
+  radius: number
+  /** Rangée d'étoiles posée en bas de l'affiche, pour un coup de cœur noté. */
+  starsRect: Rect | null
+}
 
 export type LayoutBlock =
-  | { kind: 'header'; rect: Rect; logo: Rect; /** Abscisse du texte, à droite du logo. */ textX: number }
-  | { kind: 'stats'; rect: Rect; cells: Array<{ rect: Rect }>; libraries: Rect | null }
-  | { kind: 'tiles'; section: TileSection; rect: Rect; titleRect: Rect; tiles: LayoutTile[] }
+  | { kind: 'header'; rect: Rect; logo: Rect; wordmark: { x: number; centerY: number }; name: Rect | null }
+  | { kind: 'title'; rect: Rect; subtitle: Rect | null }
+  | { kind: 'spread'; rect: Rect; labelRect: Rect; hero: LayoutTile; tiles: LayoutTile[] }
+  /** Les personnes : une case par personne, côte à côte et centrées, avec son portrait rond. */
+  | { kind: 'people'; rect: Rect; cells: LayoutPerson[] }
+  /** Les chiffres : le dessin ajuste les textes dans ces cases, côte à côte. */
+  | { kind: 'stats'; rect: Rect; cells: Rect[] }
+
+export type LayoutPerson = {
+  /** Toute la case : portrait, nom et légende se centrent sur son axe vertical. */
+  rect: Rect
+  person: ShareCardPerson
+  /** Le carré du portrait, dessiné en rond. */
+  portrait: Rect
+}
 
 export type ShareCardLayout = {
   width: number
   height: number
   blocks: LayoutBlock[]
-  /** Adresses d'image à charger, une fois chacune, dans l'ordre d'apparition. */
+  /** Adresses d'affiche à charger, une fois chacune, dans l'ordre d'apparition. */
   imageUrls: string[]
+  /** Adresses de portrait à charger : à part, car un portrait manquant se remplace par des initiales sans rien dire. */
+  portraitUrls: string[]
 }
 
 const contentWidth = (format: ShareFormat) => format.width - 2 * SHARE_CARD.margin
+const tileHeight = (width: number) => Math.round(width * SHARE_CARD.tileRatio)
 
-/** Affiches par rangée et rangées permises, selon le format et la portée. */
-function grid(format: ShareFormat, scope: ShareScope) {
-  const profile = scope.kind === 'profile'
-  if (format.id === 'story') return { perRow: profile ? 4 : 3, favoriteRows: 2, recentRows: 1 }
-  return { perRow: profile ? 5 : 4, favoriteRows: 1, recentRows: 1 }
+/** Ce que la carte demande à la sélection : exactement ce que la composition peut montrer. */
+export function shareLimitsFor(_format: ShareFormat, _scope: ShareScope): ShareLimits {
+  return { favorites: SHARE_CARD.maxFavorites }
 }
 
-/** Ce que la carte demande à la sélection : exactement ce que la mise en page peut montrer. */
-export function shareLimitsFor(format: ShareFormat, scope: ShareScope): ShareLimits {
-  const { perRow, favoriteRows, recentRows } = grid(format, scope)
-  return { favorites: perRow * favoriteRows, recent: perRow * recentRows }
+export type RunnerUpGrid = { cols: number; rows: number; tileW: number }
+
+/** Répartit les personnes en cases égales (au plus `personMaxWidth`), la rangée entière centrée sur la largeur. */
+export function layoutPeopleCells(rect: Rect, count: number): Rect[] {
+  if (count <= 0) return []
+  const cellW = Math.floor(Math.min(rect.w / count, SHARE_CARD.personMaxWidth))
+  const startX = rect.x + Math.round((rect.w - cellW * count) / 2)
+  return Array.from({ length: count }, (_, index) => ({ x: startX + index * cellW, y: rect.y, w: cellW, h: rect.h }))
 }
 
-type SectionPlan = {
-  section: TileSection
-  rows: ShareItem[][]
-  fitWidth: number
-  /** Une rangée a des étoiles dès qu'un de ses éléments est noté. */
-  stars: boolean[]
+/** Répartit les chiffres en cases égales sur une seule rangée. */
+export function layoutStatCells(rect: Rect, count: number): Rect[] {
+  if (count <= 0) return []
+  const cellW = rect.w / count
+  return Array.from({ length: count }, (_, index) => ({ x: rect.x + index * cellW, y: rect.y, w: cellW, h: rect.h }))
 }
 
-function planSection(section: TileSection, all: ShareItem[], perRow: number, maxRows: number, width: number): SectionPlan | null {
-  const items = all.slice(0, perRow * maxRows)
-  if (items.length === 0) return null
-  const rows: ShareItem[][] = []
-  for (let i = 0; i < items.length; i += perRow) rows.push(items.slice(i, i + perRow))
-  const across = Math.min(items.length, perRow)
-  const fitWidth = Math.floor((width - (across - 1) * SHARE_CARD.gap) / across)
-  return { section, rows, fitWidth, stars: rows.map(row => section === 'favorites' && row.some(item => item.rating !== null)) }
+/**
+ * Les autres coups de cœur à droite du héros : la plus grande affiche possible dans l'espace (largeur du
+ * panneau, hauteur du héros), sur au plus trois colonnes et trois rangées. À taille égale, la grille la
+ * plus petite l'emporte (moins de trous).
+ */
+export function arrangeRunnerUps(count: number, panelWidth: number, gridHeight: number, maxWidth = Number.POSITIVE_INFINITY): RunnerUpGrid {
+  if (count <= 0) return { cols: 0, rows: 0, tileW: 0 }
+  const { gap } = SHARE_CARD
+  let best: RunnerUpGrid | null = null
+  for (let rows = 1; rows <= SHARE_CARD.maxRunnerUpRows; rows += 1) {
+    for (let cols = 1; cols <= SHARE_CARD.maxRunnerUpCols; cols += 1) {
+      if (cols * rows < count) continue
+      const tileW = Math.min(
+        Math.floor((panelWidth - (cols - 1) * gap) / cols),
+        Math.floor((gridHeight - (rows - 1) * gap) / rows / SHARE_CARD.tileRatio),
+        Math.floor(maxWidth),
+      )
+      const better = !best
+        || tileW > best.tileW
+        || (tileW === best.tileW && (cols * rows < best.cols * best.rows || (cols * rows === best.cols * best.rows && cols < best.cols)))
+      if (better) best = { cols, rows, tileW }
+    }
+  }
+  return best as RunnerUpGrid
 }
 
-const sectionHeight = (plan: SectionPlan, tileWidth: number) => {
-  const tileHeight = Math.round(tileWidth * SHARE_CARD.tileRatio)
-  const starsHeight = SHARE_CARD.starsGap + SHARE_CARD.starsHeight
-  return SHARE_CARD.sectionTitleHeight + SHARE_CARD.sectionTitleGap
-    + plan.rows.reduce((sum, _, index) => sum + tileHeight + (plan.stars[index] ? starsHeight : 0), 0)
-    + (plan.rows.length - 1) * SHARE_CARD.gap
+function starsFor(rect: Rect, item: ShareItem): Rect | null {
+  if (item.rating === null) return null
+  const size = Math.min(30, Math.max(12, Math.floor((rect.w - 24) / 5.8)))
+  return { x: rect.x, y: rect.y + rect.h - size - 16, w: rect.w, h: size }
 }
 
 export function layoutShareCard(model: ShareCardModel, format: ShareFormat): ShareCardLayout {
   const { margin, gap } = SHARE_CARD
   const width = contentWidth(format)
-  const { perRow, favoriteRows, recentRows } = grid(format, model.scope)
-  const top = Math.max(margin, format.safeTop)
-  const bottom = format.height - Math.max(margin, format.safeBottom)
+  const top = Math.max(SHARE_CARD.marginY, format.safeTop)
+  const bottom = format.height - Math.max(SHARE_CARD.marginY, format.safeBottom)
 
-  const plans = [
-    planSection('favorites', model.sections.favorites, perRow, favoriteRows, width),
-    planSection('recent', model.sections.recent, perRow, recentRows, width),
-  ].filter((plan): plan is SectionPlan => plan !== null)
+  const [heroItem, ...runnerUps] = model.sections.favorites.slice(0, SHARE_CARD.maxFavorites)
+  const statCount = model.stats.cells.length
+  const peopleCount = model.people.length
 
-  const showLibraries = model.scope.kind === 'profile' && (model.stats.perLibrary?.length ?? 0) >= 2
-  const statsHeight = SHARE_CARD.statHeight + (showLibraries ? gap + SHARE_CARD.librariesHeight : 0)
-  const blockCount = 2 + plans.length
-  const fixed = SHARE_CARD.headerHeight + statsHeight + (blockCount - 1) * SHARE_CARD.blockGap
+  const sectionLabel = SHARE_CARD.labelHeight + SHARE_CARD.labelGap
+  const subtitle = model.scope.kind === 'profile' && (model.stats.perLibrary?.length ?? 0) >= 2
+  const titleHeight = SHARE_CARD.titleHeight + (subtitle ? SHARE_CARD.subtitleGap + SHARE_CARD.subtitleHeight : 0)
 
-  // La plus grande largeur d'affiche pour laquelle tout tient. Sous le minimum on s'y tient quand même
-  // (le test des plafonds échoue alors : la sélection en demande trop pour ce format).
-  let cap: number = SHARE_CARD.maxTileWidth
-  const widthOf = (plan: SectionPlan, limit: number) => Math.min(plan.fitWidth, limit)
-  const heightAt = (limit: number) => fixed + plans.reduce((sum, plan) => sum + sectionHeight(plan, widthOf(plan, limit)), 0)
-  while (cap > 100 && heightAt(cap) > bottom - top) cap -= 1
+  // La hauteur du héros : tout ce qui n'est pas lui est compté d'abord.
+  const statsBlock = statCount > 0 ? SHARE_CARD.gapSection + SHARE_CARD.statsHeight : 0
+  const peopleBlock = peopleCount > 0 ? SHARE_CARD.gapSection + SHARE_CARD.peopleHeight : 0
+  const aboveSpread = SHARE_CARD.headerHeight + SHARE_CARD.gapHeader + titleHeight + SHARE_CARD.gapTitle
+  const available = bottom - top - aboveSpread - statsBlock - peopleBlock
+  const heroBound = heroItem ? Math.min(SHARE_CARD.heroMaxHeight[format.id], available - sectionLabel) : 0
+  const heroW = heroItem ? Math.floor(heroBound / SHARE_CARD.tileRatio) : 0
+  const heroH = heroItem ? tileHeight(heroW) : 0
+  const spreadHeight = heroItem ? sectionLabel + heroH : 0
 
-  // Ce qui reste dans le format est réparti entre les blocs, sans excès.
-  const extraGap = Math.min(SHARE_CARD.maxExtraGap, Math.max(0, Math.floor((bottom - top - heightAt(cap)) / (blockCount - 1))))
-  const blockGap = SHARE_CARD.blockGap + extraGap
+  // L'espace qui reste s'ajoute aux écarts (au plus 24 px chacun), le surplus centre le tout sous l'en-tête.
+  const used = aboveSpread + spreadHeight + peopleBlock + statsBlock
+  const slack = Math.max(0, bottom - top - used)
+  const gapCount = 2 + (peopleCount > 0 ? 1 : 0) + (statCount > 0 ? 1 : 0)
+  const extra = Math.min(SHARE_CARD.maxExtraGap, Math.floor(slack / gapCount))
+  const lift = Math.floor((slack - extra * gapCount) / 2)
 
   const blocks: LayoutBlock[] = []
   const imageUrls: string[] = []
+  const portraitUrls: string[] = []
+  const remember = (item: ShareItem) => { if (item.imageUrl && !imageUrls.includes(item.imageUrl)) imageUrls.push(item.imageUrl) }
   let y = top
 
+  // En-tête : logo et nom de l'app sur le même axe, nom du profil à droite (cartes de bibliothèque).
   const logo = { x: margin, y: y + Math.round((SHARE_CARD.headerHeight - SHARE_CARD.logoSize) / 2), w: SHARE_CARD.logoSize, h: SHARE_CARD.logoSize }
-  blocks.push({ kind: 'header', rect: { x: margin, y, w: width, h: SHARE_CARD.headerHeight }, logo, textX: margin + SHARE_CARD.logoSize + SHARE_CARD.logoGap })
-  y += SHARE_CARD.headerHeight + blockGap
-
-  const cellWidth = Math.floor((width - 2 * gap) / 3)
-  const cells = [0, 1, 2].map(index => ({ rect: { x: margin + index * (cellWidth + gap), y, w: cellWidth, h: SHARE_CARD.statHeight } }))
   blocks.push({
-    kind: 'stats',
-    rect: { x: margin, y, w: width, h: statsHeight },
-    cells,
-    libraries: showLibraries ? { x: margin, y: y + SHARE_CARD.statHeight + gap, w: width, h: SHARE_CARD.librariesHeight } : null,
+    kind: 'header',
+    rect: { x: margin, y, w: width, h: SHARE_CARD.headerHeight },
+    logo,
+    wordmark: { x: logo.x + logo.w + SHARE_CARD.logoGap, centerY: logo.y + logo.h / 2 },
+    name: model.scope.kind === 'library'
+      ? { x: format.width - margin - SHARE_CARD.nameWidth, y: logo.y, w: SHARE_CARD.nameWidth, h: logo.h }
+      : null,
   })
-  y += statsHeight + blockGap
+  y += SHARE_CARD.headerHeight + SHARE_CARD.gapHeader + extra + lift
 
-  for (const plan of plans) {
-    const tileWidth = widthOf(plan, cap)
-    const tileHeight = Math.round(tileWidth * SHARE_CARD.tileRatio)
-    const height = sectionHeight(plan, tileWidth)
-    const titleRect = { x: margin, y, w: width, h: SHARE_CARD.sectionTitleHeight }
-    let rowY = y + SHARE_CARD.sectionTitleHeight + SHARE_CARD.sectionTitleGap
+  blocks.push({
+    kind: 'title',
+    rect: { x: margin, y, w: width, h: SHARE_CARD.titleHeight },
+    subtitle: subtitle ? { x: margin, y: y + SHARE_CARD.titleHeight + SHARE_CARD.subtitleGap, w: width, h: SHARE_CARD.subtitleHeight } : null,
+  })
+  y += titleHeight + SHARE_CARD.gapTitle + extra
+
+  // Les coups de cœur : le héros, puis les autres sur toute sa hauteur.
+  if (heroItem) {
+    const labelRect = { x: margin, y, w: width, h: SHARE_CARD.labelHeight }
+    const heroY = y + sectionLabel
+    const heroRect = { x: margin, y: heroY, w: heroW, h: heroH }
+    const hero: LayoutTile = { rect: heroRect, item: heroItem, radius: SHARE_CARD.heroRadius, starsRect: starsFor(heroRect, heroItem) }
+    remember(heroItem)
+
+    const panelX = margin + heroW + SHARE_CARD.panelGap
+    const panelW = width - heroW - SHARE_CARD.panelGap
+    const grid = arrangeRunnerUps(runnerUps.length, panelW, heroH, Math.floor(heroW * SHARE_CARD.runnerUpMaxRatio))
     const tiles: LayoutTile[] = []
-    plan.rows.forEach((row, rowIndex) => {
-      // Une rangée qui n'est pas pleine reste centrée dans la largeur.
-      const rowWidth = row.length * tileWidth + (row.length - 1) * gap
-      const startX = margin + Math.round((width - rowWidth) / 2)
-      row.forEach((item, index) => {
-        const rect = { x: startX + index * (tileWidth + gap), y: rowY, w: tileWidth, h: tileHeight }
-        const starsRect = plan.stars[rowIndex] && item.rating !== null
-          ? { x: rect.x, y: rowY + tileHeight + SHARE_CARD.starsGap, w: tileWidth, h: SHARE_CARD.starsHeight }
-          : null
-        tiles.push({ rect, item, starsRect })
-        if (item.imageUrl && !imageUrls.includes(item.imageUrl)) imageUrls.push(item.imageUrl)
-      })
-      rowY += tileHeight + (plan.stars[rowIndex] ? SHARE_CARD.starsGap + SHARE_CARD.starsHeight : 0) + gap
-    })
-    blocks.push({ kind: 'tiles', section: plan.section, rect: { x: margin, y, w: width, h: height }, titleRect, tiles })
-    y += height + blockGap
+    if (runnerUps.length > 0) {
+      const tileH = tileHeight(grid.tileW)
+      const usedRows = Math.ceil(runnerUps.length / grid.cols)
+      // La grille se centre sur la hauteur du héros quand elle ne la remplit pas.
+      const gridTop = heroY + Math.round((heroH - (usedRows * tileH + (usedRows - 1) * gap)) / 2)
+      for (let row = 0; row < usedRows; row += 1) {
+        const items = runnerUps.slice(row * grid.cols, (row + 1) * grid.cols)
+        // Les colonnes se justifient sur la largeur du panneau (écart plafonné) : le bord droit rejoint celui
+        // des chiffres. Une rangée qui n'est pas pleine se centre, sur le même pas de colonnes.
+        const rawGap = grid.cols > 1 ? (panelW - grid.cols * grid.tileW) / (grid.cols - 1) : 0
+        const step = grid.cols > 1 ? grid.tileW + Math.min(SHARE_CARD.maxColumnGap, Math.max(gap, rawGap)) : 0
+        const rowWidth = grid.tileW + (items.length - 1) * step
+        const justified = grid.cols > 1 && items.length === grid.cols && rawGap <= SHARE_CARD.maxColumnGap
+        const startX = justified ? panelX : panelX + Math.round((panelW - rowWidth) / 2)
+        items.forEach((item, index) => {
+          const rect = { x: startX + Math.round(index * step), y: gridTop + row * (tileH + gap), w: grid.tileW, h: tileH }
+          tiles.push({ rect, item, radius: SHARE_CARD.tileRadius, starsRect: starsFor(rect, item) })
+          remember(item)
+        })
+      }
+    }
+    blocks.push({ kind: 'spread', rect: { x: margin, y, w: width, h: spreadHeight }, labelRect, hero, tiles })
+    y += spreadHeight
   }
 
-  return { width: format.width, height: format.height, blocks, imageUrls }
+  if (peopleCount > 0) {
+    y += SHARE_CARD.gapSection + extra
+    const rect = { x: margin, y, w: width, h: SHARE_CARD.peopleHeight }
+    const cells: LayoutPerson[] = layoutPeopleCells(rect, peopleCount).map((cell, index) => {
+      const person = model.people[index]
+      if (person.portraitUrl && !portraitUrls.includes(person.portraitUrl)) portraitUrls.push(person.portraitUrl)
+      const size = SHARE_CARD.portraitSize
+      return { rect: cell, person, portrait: { x: cell.x + Math.round((cell.w - size) / 2), y: cell.y, w: size, h: size } }
+    })
+    blocks.push({ kind: 'people', rect, cells })
+    y += SHARE_CARD.peopleHeight
+  }
+
+  if (statCount > 0) {
+    y += SHARE_CARD.gapSection + extra
+    const rect = { x: margin, y, w: width, h: SHARE_CARD.statsHeight }
+    blocks.push({ kind: 'stats', rect, cells: layoutStatCells(rect, statCount) })
+  }
+
+  return { width: format.width, height: format.height, blocks, imageUrls, portraitUrls }
 }

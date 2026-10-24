@@ -14,6 +14,7 @@ import type { Series } from '../domain/series.ts'
 import type { Book } from '../domain/book.ts'
 import type { Game } from '../domain/game.ts'
 import type { Artwork } from '../domain/artwork.ts'
+import { ShareCardLauncher } from './ShareCardDialog.tsx'
 
 function formatCalendarDate(date: Date): string {
   const year = date.getFullYear()
@@ -1136,7 +1137,7 @@ export function Home({
     })),
   ]
 
-  return <HomeDashboard allEntries={allEntries} resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} scrollRef={scrollRef} />
+  return <HomeDashboard profileId={library.profile.id} allEntries={allEntries} resolveFilmPoster={resolveFilmPoster} resolveFilmContributor={resolveFilmContributor} scrollRef={scrollRef} />
 }
 
 /**
@@ -1144,11 +1145,13 @@ export function Home({
  * puis calendrier d'activité. L'onglet filtre toute la page.
  */
 function HomeDashboard({
+  profileId,
   allEntries,
   resolveFilmPoster,
   resolveFilmContributor,
   scrollRef,
 }: {
+  profileId: string
   allEntries: HomeEntry[]
   resolveFilmPoster?: FilmPosterResolver
   resolveFilmContributor?: FilmContributorResolver
@@ -1249,6 +1252,8 @@ function HomeDashboard({
             ))}
           </div>
           <TabStatistics tab={current} stats={stats} />
+          {/* La carte du profil entier se crée depuis « Tout » ; chaque bibliothèque a la sienne sur sa page. */}
+          {isAll && <ShareCardLauncher profileId={profileId} className="secondary-button at-share" />}
         </div>
 
         <div key={current.slug} className="at-tab-panel" role="tabpanel" id="at-tab-panel" aria-labelledby={`at-tab-${current.slug}`}>
