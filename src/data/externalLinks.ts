@@ -62,6 +62,17 @@ const nativeDeps: ExternalLinkDeps = {
   onError: (url, error) => console.error('[liens] ouverture impossible :', url, error),
 }
 
+/**
+ * Ouvre une adresse https dans le navigateur du système (ou un nouvel onglet hors fenêtre native).
+ * Pour les boutons qui ouvrent un service : un lien `<a>` passe par `installExternalLinks`.
+ */
+export async function openExternalUrl(href: string): Promise<void> {
+  const url = externalLinkTarget(href)
+  if (!url) throw new Error(`Adresse refusée : ${href}`)
+  if (nativeDeps.isNative()) await nativeDeps.open(url)
+  else window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 /** À appeler une fois au démarrage ; sans effet si déjà installé (rechargement à chaud). */
 export function installExternalLinks(root: Document = document): void {
   const marker = 'externalLinks'

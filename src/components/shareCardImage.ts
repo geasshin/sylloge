@@ -6,9 +6,11 @@
 // identique sur le fond clair ou sombre d'un réseau social.
 
 import { formatDate, formatNumber, t } from '../i18n/core.ts'
-import type { ShareCardModel, ShareItem } from '../domain/shareCard.ts'
+import type { ShareCardModel, ShareItem, ShareScope } from '../domain/shareCard.ts'
 import { layoutShareCard, type LayoutBlock, type Rect, type ShareCardLayout } from '../domain/shareCardLayout.ts'
-import logoUrl from '../assets/logo-sylloge.png'
+import type { ShareFormat, ShareFormatId } from '../domain/shareFormats.ts'
+// Le vrai logo : la tuile Σ de l'icône de l'application (celle du Dock et du site), recadrée sur la tuile.
+import logoUrl from '../assets/sylloge-mark.png'
 
 const COLOR = {
   canvas: '#161618',
@@ -52,11 +54,12 @@ export type RenderedShareCard = {
 
 export async function renderShareCard(
   model: ShareCardModel,
+  format: ShareFormat,
   options: { loadImage?: ImageLoader; now?: Date } = {},
 ): Promise<RenderedShareCard> {
   const load = options.loadImage ?? loadCardImage
   const now = options.now ?? new Date()
-  const layout = layoutShareCard(model)
+  const layout = layoutShareCard(model, format)
 
   await loadDisplayFont()
   const images = new Map<string, CanvasImageSource | null>()
@@ -91,10 +94,10 @@ export function canvasToPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {
 }
 
 /** Nom de fichier proposé : ASCII seul, daté, sans accent ni espace. */
-export function shareCardFileName(model: ShareCardModel, now: Date = new Date()): string {
+export function shareCardFileName(scope: ShareScope, format: ShareFormatId, now: Date = new Date()): string {
   const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const scope = model.scope.kind === 'profile' ? 'profil' : model.scope.library
-  return `sylloge-carte-${scope}-${day}.png`
+  const name = scope.kind === 'profile' ? 'profil' : scope.library
+  return `sylloge-carte-${name}-${format}-${day}.png`
 }
 
 async function loadDisplayFont(): Promise<void> {
@@ -115,7 +118,7 @@ function drawBlock(context: Context, block: LayoutBlock, model: ShareCardModel, 
     case 'header': drawHeader(context, block, model, logo, now); break
     case 'stats': drawStats(context, block, model); break
     case 'tiles':
-      drawSectionTitle(context, block.titleRect, SECTION_TITLES[block.section]())
+      drawSectionTitle(context, block.titleRect, t(model.titles[block.section]))
       for (const tile of block.tiles) {
         drawTile(context, tile.rect, tile.item, tile.item.imageUrl ? images.get(tile.item.imageUrl) ?? null : null)
         if (tile.starsRect && tile.item.rating !== null) drawStars(context, tile.starsRect, tile.item.rating)
@@ -123,15 +126,6 @@ function drawBlock(context: Context, block: LayoutBlock, model: ShareCardModel, 
       break
   }
 }
-
-const SECTION_TITLES = {
-  favorites: () => t('Coups de cœur'),
-  topRated: () => t('Mieux notés'),
-  recent: () => t('Terminés récemment'),
-} as const
-
-/** Le logo a une grande marge transparente : on n'en dessine que le badge. */
-const LOGO_CROP = { x: 330, y: 215, w: 600, h: 780 } as const
 
 function drawHeader(context: Context, block: Extract<LayoutBlock, { kind: 'header' }>, model: ShareCardModel, logo: CanvasImageSource | null, now: Date) {
   const { rect, textX } = block
@@ -141,7 +135,8 @@ function drawHeader(context: Context, block: Extract<LayoutBlock, { kind: 'heade
   const kicker = `${label}  ·  ${formatDate(now, { month: 'long', year: 'numeric' }).toUpperCase()}`
   const textWidth = rect.x + rect.w - textX
 
-  if (logo) context.drawImage(logo, LOGO_CROP.x, LOGO_CROP.y, LOGO_CROP.w, LOGO_CROP.h, block.logo.x, block.logo.y, block.logo.w, block.logo.h)
+  if (logo) context.drawImage(logo, block.logo.x, block.logo.y, block.logo.w, block.logo.h)
+  else drawLogoFallback(context, block.logo)
 
   context.fillStyle = COLOR.muted
   setFont(context, 600, 22, UI_FONT)
@@ -153,34 +148,48 @@ function drawHeader(context: Context, block: Extract<LayoutBlock, { kind: 'heade
   context.fillText(titleFit.text, textX, rect.y + 34 + 18 + titleFit.size)
 }
 
+/** Si l'image du logo ne se charge pas (elle est dans l'application, c'est improbable) : le Σ, dessiné. */
+function drawLogoFallback(context: Context, rect: Rect) {
+  roundRect(context, rect, rect.w * 0.24)
+  context.fillStyle = '#1F1F22'
+  context.fill()
+  context.fillStyle = '#F2F2F5'
+  setFont(context, 700, rect.h * 0.6, DISPLAY_FONT)
+  context.textAlign = 'center'
+  context.fillText('Σ', rect.x + rect.w / 2, rect.y + rect.h * 0.7)
+  context.textAlign = 'left'
+}
+
 function drawStats(context: Context, block: Extract<LayoutBlock, { kind: 'stats' }>, model: ShareCardModel) {
-  const values: Record<string, { value: string; label: string }> = {
-    total: { value: formatNumber(model.stats.total), label: t('Fiches') },
-    done: { value: formatNumber(model.stats.done), label: t('Terminées') },
-    favorites: { value: formatNumber(model.stats.favorites), label: t('Favoris') },
-    average: { value: model.stats.averageRating === null ? '—' : formatNumber(model.stats.averageRating, { minimumFractionDigits: 1, maximumFractionDigits: 1 }), label: t('Note moyenne') },
-  }
-  for (const cell of block.cells) {
+  block.cells.forEach((cell, index) => {
+    const stat = model.stats.cells[index]
+    if (!stat) return
     roundRect(context, cell.rect, 14)
     context.fillStyle = COLOR.surface
     context.fill()
     context.strokeStyle = COLOR.border
     context.lineWidth = 1
     context.stroke()
-    const { value, label } = values[cell.key]
     context.fillStyle = COLOR.text
     setFont(context, 700, 40, DISPLAY_FONT)
-    context.fillText(value, cell.rect.x + 20, cell.rect.y + 52)
+    context.fillText(formatNumber(stat.value), cell.rect.x + 20, cell.rect.y + 52)
     context.fillStyle = COLOR.muted
     setFont(context, 400, 20, UI_FONT)
-    context.fillText(fitted(context, label, cell.rect.w - 40, 400, 20, 13, UI_FONT), cell.rect.x + 20, cell.rect.y + 80)
-  }
+    context.fillText(fitted(context, t(stat.label, stat.params), cell.rect.w - 40, 400, 20, 13, UI_FONT), cell.rect.x + 20, cell.rect.y + 80)
+  })
+  // Terminés par bibliothèque, sur une seule ligne lisible : si tout ne tient pas à 20 px, les plus petites
+  // bibliothèques passent d'abord (jamais un texte minuscule).
   if (block.libraries && model.stats.perLibrary) {
-    const line = model.stats.perLibrary.map(entry => `${t(entry.label)} ${formatNumber(entry.count)}`).join('  ·  ')
     context.fillStyle = COLOR.secondary
-    setFont(context, 400, 22, UI_FONT)
-    const lines = wrapLines(context, line, block.libraries.w, 2)
-    lines.forEach((text, index) => context.fillText(text, block.libraries!.x, block.libraries!.y + 24 + index * 30))
+    setFont(context, 400, 20, UI_FONT)
+    const entries = [...model.stats.perLibrary]
+    const text = (list: typeof entries) => list.map(entry => `${t(entry.label)} ${formatNumber(entry.count)}`).join('  ·  ')
+    while (entries.length > 2 && context.measureText(text(entries)).width > block.libraries.w) {
+      let smallest = 0
+      entries.forEach((entry, index) => { if (entry.count <= entries[smallest].count) smallest = index })
+      entries.splice(smallest, 1)
+    }
+    context.fillText(fitted(context, text(entries), block.libraries.w, 400, 20, 16, UI_FONT), block.libraries.x, block.libraries.y + 24)
   }
 }
 

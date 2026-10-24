@@ -313,7 +313,7 @@ export function ExportDialogContent({
           onClick={onShareCard}
         >
           <b>{t('Carte à partager')}</b>
-          <small>{t('Image PNG à envoyer ou à publier : coups de cœur, mieux notés et derniers terminés. Ce n’est pas une copie des données.')}</small>
+          <small>{t('Image PNG à envoyer ou à publier : vos coups de cœur et vos derniers terminés. Ce n’est pas une copie des données.')}</small>
         </button>}
       </div>
       {message && <p className="inline-report" role="status">{message}</p>}

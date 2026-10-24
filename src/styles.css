@@ -1846,6 +1846,8 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .field { display: grid; gap: var(--space-2); min-width: 0; }
 .field label { font-size: var(--text-sm); font-weight: 600; }
 .field label span { color: var(--color-danger); }
+.share-card-controls .field-label { font-size: var(--text-sm); font-weight: 600; }
+.share-card-controls .field-hint { color: var(--color-text-muted); }
 .field textarea { min-height: 92px; resize: vertical; }
 :where(.field input[type="search"]) { appearance: none; }
 .form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, .42fr); gap: var(--space-4); }
@@ -3578,14 +3580,20 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .share-card-controls .assistant-actions { margin-top: var(--space-2); }
 .share-card-preview {
   min-height: 160px;
-  max-height: min(68vh, 640px);
-  overflow-y: auto;
+  padding: var(--space-2);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
 }
 .share-card-preview:empty { display: none; }
-.share-card-canvas { display: block; width: 100%; height: auto; }
+.share-card-canvas { display: block; width: auto; max-width: 100%; height: auto; max-height: min(66vh, 620px); margin-inline: auto; }
+.share-format-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.share-format-option { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); padding: var(--space-2-5) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: transparent; color: inherit; text-align: start; cursor: pointer; }
+.share-format-option:hover:not(:disabled) { background: var(--color-surface-muted); }
+.share-format-option[aria-checked="true"] { border-color: var(--color-accent); background: var(--color-surface-muted); }
+.share-format-option:disabled { opacity: .6; cursor: default; }
+.share-format-option small { color: var(--color-text-muted); }
+.share-destination-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 @media (max-width: 760px) {
   .share-card-dialog { grid-template-columns: minmax(0, 1fr); }
 }

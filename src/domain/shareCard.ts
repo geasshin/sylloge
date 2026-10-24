@@ -4,11 +4,12 @@
 // comparables, puis on choisit ce qui mérite d'être montré. Le rendu de l'image est ailleurs
 // (src/components/shareCardImage.ts) ; il ne décide de rien.
 //
-// Règles de sélection, dans cet ordre, sans qu'une œuvre apparaisse deux fois :
-//   1. coups de cœur : les favoris, mieux notés en tête ;
-//   2. mieux notées : 4 étoiles et plus, hors coups de cœur ;
-//   3. vues récemment : ce qui est accompli, du plus récent au plus ancien, hors le reste.
-// Une envie (« à voir », « à lire ») ne fait pas une carte : elle ne compte que dans les chiffres.
+// Ce que la carte montre (décision du 24 octobre) :
+//   - les coups de cœur : uniquement les favoris, du mieux noté au moins bien noté ;
+//   - les derniers terminés : ce qui est accompli, du plus récent au plus ancien, hors coups de cœur ;
+//   - trois chiffres qui parlent de ce qu'on a accompli (jamais le nombre de fiches ni les envies).
+// Une bonne note sans cœur ne fait pas un coup de cœur : la carte met en avant les préférés, pas les
+// mieux notés. Une envie (« à voir », « à lire ») ne compte nulle part.
 
 import type { CulturalLibrary } from '../data/libraryRepository.ts'
 import { CUSTOM_LIBRARY_TEMPLATES, type CustomLibraryId } from './customLibraries.ts'
@@ -30,12 +31,6 @@ export const BASE_SHARE_LABELS: Record<BaseShareLibrary, string> = {
 
 const BASE_ORDER: readonly BaseShareLibrary[] = ['films', 'series', 'anime', 'books', 'mangas', 'games', 'artworks']
 
-/** Plafonds par section : la carte reste lisible, quelle que soit la taille de la bibliothèque. */
-export const SHARE_LIMITS = { favorites: 5, topRated: 5, recent: 5 } as const
-
-/** Une note de 4 étoiles ou plus fait une « mieux notée ». */
-export const TOP_RATING_THRESHOLD = 4
-
 export type ShareItem = {
   /** `bibliothèque:identifiant`, unique dans tout le profil. */
   key: string
@@ -48,8 +43,10 @@ export type ShareItem = {
   rating: number | null
   isFavorite: boolean
   done: boolean
-  /** Date d'accomplissement si la fiche est accomplie, sinon null. */
+  /** Date d'accomplissement si la fiche est accomplie (à défaut de date propre, la dernière modification). */
   doneAt: string | null
+  /** Date d'accomplissement saisie par la personne : la seule qui prouve « cette année ». */
+  doneOn: string | null
   imageUrl: string | null
 }
 
@@ -57,21 +54,27 @@ export type ShareScope = { kind: 'profile' } | { kind: 'library'; library: Share
 
 export type ShareScopeChoice = { kind: 'profile' } | { kind: 'library'; library: ShareLibraryKey; label: string }
 
+/** Plafonds de ce que la carte montre : ils dépendent du format et de la portée (voir shareCardLayout). */
+export type ShareLimits = { favorites: number; recent: number }
+
+/** Un chiffre clé : la valeur et sa légende (clé française à traduire au rendu, avec ses paramètres). */
+export type ShareStat = { value: number; label: string; params?: Record<string, string> }
+
 export type ShareCardModel = {
   scope: ShareScope
   /** Prénom du profil : titre d'une carte de profil, signature d'une carte de bibliothèque. */
   profileName: string
   heading: { kind: 'profile'; name: string } | { kind: 'library'; label: string }
   stats: {
-    total: number
-    done: number
-    favorites: number
-    averageRating: number | null
-    /** Répartition par bibliothèque non vide ; absente pour une carte de bibliothèque. */
+    /** Trois chiffres : accomplis, accomplis cette année, coups de cœur. */
+    cells: ShareStat[]
+    /** Accomplis par bibliothèque (non vides) ; absent pour une carte de bibliothèque. */
     perLibrary: Array<{ library: ShareLibraryKey; label: string; count: number }> | null
   }
-  sections: { favorites: ShareItem[]; topRated: ShareItem[]; recent: ShareItem[] }
-  /** Rien à montrer : aucune œuvre accomplie, notée ou favorite. */
+  /** Titres des deux sections (clés françaises à traduire au rendu). */
+  titles: { favorites: string; recent: string }
+  sections: { favorites: ShareItem[]; recent: ShareItem[] }
+  /** Rien à montrer : aucune œuvre accomplie ni favorite. */
   isEmpty: boolean
 }
 
@@ -111,6 +114,7 @@ function item(
     isFavorite: entry.isFavorite,
     done,
     doneAt: done ? own ?? entry.updatedAt : null,
+    doneOn: done && own ? own : null,
     imageUrl: imageUrl?.trim() ? imageUrl.trim() : null,
   }
 }
@@ -133,17 +137,12 @@ export function collectShareItems(library: CulturalLibrary): ShareItem[] {
   return items
 }
 
-/** Les portées proposées : le profil, puis chaque bibliothèque qui contient quelque chose. */
+/** Les portées proposées : le profil, puis chaque bibliothèque de base qui contient quelque chose. */
 export function shareScopes(library: CulturalLibrary): ShareScopeChoice[] {
   const present = new Set(collectShareItems(library).map(entry => entry.library))
   const choices: ShareScopeChoice[] = [{ kind: 'profile' }]
   for (const key of BASE_ORDER) {
     if (present.has(key)) choices.push({ kind: 'library', library: key, label: BASE_SHARE_LABELS[key] })
-  }
-  for (const custom of [...library.customLibraries].sort((a, b) => a.position - b.position)) {
-    if (present.has(custom.libraryId)) {
-      choices.push({ kind: 'library', library: custom.libraryId, label: CUSTOM_LIBRARY_TEMPLATES[custom.libraryId].label })
-    }
   }
   return choices
 }
@@ -162,33 +161,63 @@ const byRatingThenDate = (a: ShareItem, b: ShareItem) =>
 const byDateThenRating = (a: ShareItem, b: ShareItem) =>
   descending(a.doneAt, b.doneAt) || descending(a.rating, b.rating) || byTitle(a, b)
 
-function average(values: number[]): number | null {
-  if (values.length === 0) return null
-  const mean = values.reduce((sum, value) => sum + value, 0) / values.length
-  return Math.round(mean * 10) / 10
+type Words = { done: readonly [string, string]; year: string; recent: string }
+
+/** Le vocabulaire de chaque bibliothèque : « films vus », « livres lus », « jeux terminés »… */
+const WORDS: Record<BaseShareLibrary, Words> = {
+  films: { done: ['film vu', 'films vus'], year: 'vus en {year}', recent: 'Derniers films vus' },
+  series: { done: ['série vue', 'séries vues'], year: 'vues en {year}', recent: 'Dernières séries vues' },
+  anime: { done: ['animation vue', 'animations vues'], year: 'vues en {year}', recent: 'Dernières animations vues' },
+  books: { done: ['livre lu', 'livres lus'], year: 'lus en {year}', recent: 'Derniers livres lus' },
+  mangas: { done: ['manga lu', 'mangas lus'], year: 'lus en {year}', recent: 'Derniers mangas lus' },
+  games: { done: ['jeu terminé', 'jeux terminés'], year: 'terminés en {year}', recent: 'Derniers jeux terminés' },
+  artworks: { done: ['œuvre découverte', 'œuvres découvertes'], year: 'découvertes en {year}', recent: 'Dernières œuvres découvertes' },
+}
+const GENERIC_WORDS: Words = { done: ['œuvre terminée', 'œuvres terminées'], year: 'terminées en {year}', recent: 'Terminés récemment' }
+const FAVORITE_WORDS = ['coup de cœur', 'coups de cœur'] as const
+
+/** Français : zéro et un restent au singulier. */
+const plural = (count: number, [one, many]: readonly [string, string]) => (count > 1 ? many : one)
+
+function wordsFor(scope: ShareScope): Words {
+  return scope.kind === 'library' && scope.library in WORDS ? WORDS[scope.library as BaseShareLibrary] : GENERIC_WORDS
 }
 
-export function buildShareCard(items: readonly ShareItem[], scope: ShareScope, profileName: string): ShareCardModel {
+/** Un favori de chaque bibliothèque d'abord, puis un deuxième de chacune… : la carte du profil ne montre pas qu'un seul univers. */
+function balanced(favorites: ShareItem[], limit: number): ShareItem[] {
+  const groups = new Map<ShareLibraryKey, ShareItem[]>()
+  for (const entry of favorites) groups.set(entry.library, [...(groups.get(entry.library) ?? []), entry])
+  const queues = [...groups.entries()].sort(([a], [b]) => orderOf(a) - orderOf(b)).map(([, list]) => list)
+  const picked: ShareItem[] = []
+  for (let round = 0; picked.length < limit && queues.some(queue => queue.length > round); round += 1) {
+    for (const queue of queues) if (queue[round] && picked.length < limit) picked.push(queue[round])
+  }
+  return picked
+}
+
+export type ShareBuildOptions = { limits: ShareLimits; now?: Date }
+
+export function buildShareCard(items: readonly ShareItem[], scope: ShareScope, profileName: string, options: ShareBuildOptions): ShareCardModel {
   const inScope = scope.kind === 'profile' ? [...items] : items.filter(entry => entry.library === scope.library)
+  const year = String((options.now ?? new Date()).getFullYear())
+  const words = wordsFor(scope)
 
-  const favorites = inScope.filter(entry => entry.isFavorite).sort(byRatingThenDate).slice(0, SHARE_LIMITS.favorites)
+  const allFavorites = inScope.filter(entry => entry.isFavorite).sort(byRatingThenDate)
+  const favorites = (scope.kind === 'profile' ? balanced(allFavorites, options.limits.favorites) : allFavorites.slice(0, options.limits.favorites)).sort(byRatingThenDate)
   const shown = new Set(favorites.map(entry => entry.key))
-
-  const topRated = inScope
-    .filter(entry => !shown.has(entry.key) && entry.rating !== null && entry.rating >= TOP_RATING_THRESHOLD)
-    .sort(byRatingThenDate)
-    .slice(0, SHARE_LIMITS.topRated)
-  for (const entry of topRated) shown.add(entry.key)
 
   const recent = inScope
     .filter(entry => !shown.has(entry.key) && entry.done)
     .sort(byDateThenRating)
-    .slice(0, SHARE_LIMITS.recent)
+    .slice(0, options.limits.recent)
+
+  const done = inScope.filter(entry => entry.done)
+  const doneThisYear = done.filter(entry => entry.doneOn?.slice(0, 4) === year).length
 
   let perLibrary: ShareCardModel['stats']['perLibrary'] = null
   if (scope.kind === 'profile') {
     const counts = new Map<ShareLibraryKey, number>()
-    for (const entry of inScope) counts.set(entry.library, (counts.get(entry.library) ?? 0) + 1)
+    for (const entry of done) counts.set(entry.library, (counts.get(entry.library) ?? 0) + 1)
     perLibrary = [...counts.entries()]
       .map(([library, count]) => ({ library, label: shareLibraryLabel(library), count }))
       .sort((a, b) => orderOf(a.library) - orderOf(b.library))
@@ -201,14 +230,16 @@ export function buildShareCard(items: readonly ShareItem[], scope: ShareScope, p
       ? { kind: 'profile', name: profileName }
       : { kind: 'library', label: shareLibraryLabel(scope.library) },
     stats: {
-      total: inScope.length,
-      done: inScope.filter(entry => entry.done).length,
-      favorites: inScope.filter(entry => entry.isFavorite).length,
-      averageRating: average(inScope.flatMap(entry => (entry.rating === null ? [] : [entry.rating]))),
+      cells: [
+        { value: done.length, label: plural(done.length, words.done) },
+        { value: doneThisYear, label: words.year, params: { year } },
+        { value: allFavorites.length, label: plural(allFavorites.length, FAVORITE_WORDS) },
+      ],
       perLibrary,
     },
-    sections: { favorites, topRated, recent },
-    isEmpty: favorites.length + topRated.length + recent.length === 0,
+    titles: { favorites: 'Coups de cœur', recent: words.recent },
+    sections: { favorites, recent },
+    isEmpty: favorites.length + recent.length === 0,
   }
 }
 
@@ -230,10 +261,6 @@ export async function withDisplayedImages(
     const imageUrl = await resolve(entry).catch(() => entry.imageUrl)
     return imageUrl === entry.imageUrl ? entry : { ...entry, imageUrl }
   }))
-  const [favorites, topRated, recent] = await Promise.all([
-    resolveAll(model.sections.favorites),
-    resolveAll(model.sections.topRated),
-    resolveAll(model.sections.recent),
-  ])
-  return { ...model, sections: { favorites, topRated, recent } }
+  const [favorites, recent] = await Promise.all([resolveAll(model.sections.favorites), resolveAll(model.sections.recent)])
+  return { ...model, sections: { favorites, recent } }
 }

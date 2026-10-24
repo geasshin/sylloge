@@ -1,144 +1,165 @@
-// Cartes à partager : la mise en page. Le calcul est pur (aucune mesure de texte, aucun dessin) :
-// il place les blocs et les tuiles sur une toile de 1 080 px de large, dont la hauteur suit le contenu.
-// Les invariants qui comptent pour une image qu'on publie : rien ne déborde, rien ne se chevauche,
-// une section vide disparaît, et la même carte donne toujours la même mise en page.
+// Cartes à partager : la mise en page en calcul pur. Deux formats (standard 4:5, story 9:16), deux portées
+// (une bibliothèque, tout le profil). Invariants : rien ne déborde, rien ne se chevauche, la zone sûre d'une
+// story est respectée, les affiches restent assez grandes pour se lire, une section vide disparaît.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildShareCard, collectShareItems, SHARE_LIMITS } from '../src/domain/shareCard.ts'
-import { layoutShareCard, SHARE_CARD } from '../src/domain/shareCardLayout.ts'
+import { SHARE_FORMATS, SHARE_DESTINATIONS } from '../src/domain/shareFormats.ts'
+import { layoutShareCard, shareLimitsFor, SHARE_CARD } from '../src/domain/shareCardLayout.ts'
+import { buildShareCard } from '../src/domain/shareCard.ts'
 
-const base = { profileId: 'p', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-02-01T00:00:00.000Z' }
-const film = (id, over = {}) => ({ ...base, id, title: `Film ${id}`, year: 2020, status: 'terminé', isFavorite: false, rating: null, watchedAt: null, posterUrl: null, ...over })
-const book = (id, over = {}) => ({ ...base, id, title: `Livre ${id}`, author: 'A', year: 2019, status: 'lu', rating: null, isFavorite: false, progressUpdatedAt: null, startedAt: null, coverUrl: null, ...over })
-const library = (over = {}) => ({
-  profile: { id: 'p', name: 'Aurélien', createdAt: base.createdAt, updatedAt: base.updatedAt },
-  films: [], series: [], anime: [], books: [], mangas: [], games: [], artworks: [], customLibraries: [], ...over,
-})
-const cardOf = (lib, scope = { kind: 'profile' }) => buildShareCard(collectShareItems(lib), scope, 'Aurélien')
+const NOW = new Date('2026-10-24T10:00:00')
+let n = 0
+const entry = (library, over = {}) => { n += 1; return { key: `${library}:${n}`, id: String(n), library, title: `Titre ${n}`, creator: null, year: 2020, rating: 4, isFavorite: false, done: true, doneAt: '2026-01-01', doneOn: '2026-01-01', imageUrl: `https://img/${n}.jpg`, ...over } }
+const many = (library, count, over = {}) => Array.from({ length: count }, (_, i) => entry(library, { rating: 5 - (i % 8) * 0.5, ...over }))
 
-const full = () => library({
-  films: Array.from({ length: 8 }, (_, i) => film(`f${i}`, { isFavorite: i < 7, rating: 5 - (i % 3) * 0.5, watchedAt: `2026-0${(i % 9) + 1}-10` })),
-  books: Array.from({ length: 12 }, (_, i) => book(`b${i}`, { rating: 4 + (i % 2) * 0.5, progressUpdatedAt: `2026-1${i % 3}-0${(i % 8) + 1}T00:00:00.000Z` })),
-})
+function items(scope) {
+  if (scope.kind === 'library') return [...many(scope.library, 12, { isFavorite: true }), ...many(scope.library, 12)]
+  return ['films', 'series', 'anime', 'books', 'mangas', 'games', 'artworks'].flatMap(library => [...many(library, 3, { isFavorite: true }), ...many(library, 3)])
+}
+const card = (scope, format) => buildShareCard(items(scope), scope, 'Aurélien', { limits: shareLimitsFor(format, scope), now: NOW })
+const layoutOf = (scope, format) => layoutShareCard(card(scope, format), format)
+const SCOPES = [{ kind: 'library', library: 'films' }, { kind: 'profile' }]
+const FORMATS = Object.values(SHARE_FORMATS)
 
-const rectIn = (rect, width, height) => rect.x >= 0 && rect.y >= 0 && rect.x + rect.w <= width && rect.y + rect.h <= height
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+const rectsOf = layout => layout.blocks.flatMap(block => block.kind === 'tiles'
+  ? block.tiles.flatMap(tile => (tile.starsRect ? [tile.rect, tile.starsRect] : [tile.rect]))
+  : block.kind === 'stats' ? [...block.cells.map(cell => cell.rect), ...(block.libraries ? [block.libraries] : [])]
+    : [block.logo])
 
-test('Les blocs se suivent dans l’ordre voulu et la toile fait 1 080 px de large', () => {
-  const layout = layoutShareCard(cardOf(full()))
-  assert.equal(layout.width, SHARE_CARD.width)
-  assert.equal(layout.width, 1080)
-  assert.deepEqual(layout.blocks.map(block => block.kind === 'tiles' ? block.section : block.kind),
-    ['header', 'stats', 'favorites', 'topRated', 'recent'], 'trois murs d’affiches, aucun pied de page')
+test('Deux formats : standard 1 080 × 1 350 et story 1 080 × 1 920, la toile a exactement leur taille', () => {
+  assert.deepEqual([SHARE_FORMATS.standard.width, SHARE_FORMATS.standard.height], [1080, 1350])
+  assert.deepEqual([SHARE_FORMATS.story.width, SHARE_FORMATS.story.height], [1080, 1920])
+  for (const format of FORMATS) for (const scope of SCOPES) {
+    const layout = layoutOf(scope, format)
+    assert.deepEqual([layout.width, layout.height], [format.width, format.height])
+  }
 })
 
-test('Rien ne déborde de la toile et aucun bloc n’en chevauche un autre', () => {
-  for (const lib of [full(), library({ films: [film('f1', { isFavorite: true, rating: 5 })] })]) {
-    const layout = layoutShareCard(cardOf(lib))
-    const rects = layout.blocks.map(block => block.rect)
-    for (const rect of rects) assert.ok(rectIn(rect, layout.width, layout.height), `bloc dans la toile : ${JSON.stringify(rect)}`)
-    for (let i = 0; i < rects.length; i += 1) {
-      for (let j = i + 1; j < rects.length; j += 1) assert.ok(!overlap(rects[i], rects[j]), `blocs ${i} et ${j} séparés`)
+test('Chaque réseau demande son format : story pour Instagram, standard pour les messages et X', () => {
+  const byId = Object.fromEntries(SHARE_DESTINATIONS.map(destination => [destination.id, destination]))
+  assert.equal(byId['instagram-story'].format, 'story')
+  assert.equal(byId.whatsapp.format, 'standard')
+  assert.equal(byId.messenger.format, 'standard')
+  assert.equal(byId.x.format, 'standard', 'X et les messages partagent le même format')
+  assert.equal(byId['instagram-story'].url, null, 'pas de page web pour publier une story')
+  for (const destination of SHARE_DESTINATIONS) if (destination.url) assert.match(destination.url, /^https:\/\//)
+})
+
+test('Les blocs : en-tête, chiffres, coups de cœur, puis terminés récemment — rien d’autre', () => {
+  for (const format of FORMATS) for (const scope of SCOPES) {
+    const kinds = layoutOf(scope, format).blocks.map(block => (block.kind === 'tiles' ? block.section : block.kind))
+    assert.deepEqual(kinds, ['header', 'stats', 'favorites', 'recent'])
+  }
+})
+
+test('Rien ne déborde de la toile ni de la marge, et rien ne se chevauche', () => {
+  for (const format of FORMATS) for (const scope of SCOPES) {
+    const layout = layoutOf(scope, format)
+    const rects = rectsOf(layout)
+    for (const rect of rects) {
+      assert.ok(rect.x >= SHARE_CARD.margin && rect.x + rect.w <= format.width - SHARE_CARD.margin, `${format.id}/${scope.kind} : marges latérales`)
+      assert.ok(rect.y >= Math.max(SHARE_CARD.margin, format.safeTop) && rect.y + rect.h <= format.height - Math.max(SHARE_CARD.margin, format.safeBottom), `${format.id}/${scope.kind} : zone sûre (${JSON.stringify(rect)})`)
     }
-    for (const block of layout.blocks) {
-      const inner = block.kind === 'tiles' ? block.tiles.flatMap(tile => (tile.starsRect ? [tile.rect, tile.starsRect] : [tile.rect]))
-        : block.kind === 'stats' ? block.cells.map(cell => cell.rect) : []
-      for (const rect of inner) {
-        assert.ok(rectIn(rect, layout.width, layout.height), 'élément dans la toile')
-        assert.ok(rect.x >= block.rect.x && rect.x + rect.w <= block.rect.x + block.rect.w && rect.y >= block.rect.y && rect.y + rect.h <= block.rect.y + block.rect.h, 'élément dans son bloc')
-      }
-      const rectsInside = inner
-      for (let i = 0; i < rectsInside.length; i += 1) for (let j = i + 1; j < rectsInside.length; j += 1) assert.ok(!overlap(rectsInside[i], rectsInside[j]), 'éléments séparés')
+    for (let i = 0; i < rects.length; i += 1) for (let j = i + 1; j < rects.length; j += 1) assert.ok(!overlap(rects[i], rects[j]), `${format.id}/${scope.kind} : chevauchement ${i}/${j}`)
+  }
+})
+
+test('Les affiches restent assez grandes pour se lire (150 px au moins) et ne dépassent pas 260 px', () => {
+  for (const format of FORMATS) for (const scope of SCOPES) {
+    for (const block of layoutOf(scope, format).blocks) if (block.kind === 'tiles') for (const tile of block.tiles) {
+      assert.ok(tile.rect.w >= 150 && tile.rect.w <= 260, `${format.id}/${scope.kind} : largeur ${tile.rect.w}`)
+      assert.equal(tile.rect.h, Math.round(tile.rect.w * SHARE_CARD.tileRatio), 'ratio 2:3')
     }
   }
 })
 
-test('Les marges latérales sont respectées', () => {
-  const layout = layoutShareCard(cardOf(full()))
-  for (const block of layout.blocks) {
-    assert.ok(block.rect.x >= SHARE_CARD.margin && block.rect.x + block.rect.w <= layout.width - SHARE_CARD.margin, `marges : ${block.kind}`)
+test('Plafonds : la carte ne demande que ce que la mise en page peut montrer', () => {
+  assert.deepEqual(shareLimitsFor(SHARE_FORMATS.standard, { kind: 'library', library: 'films' }), { favorites: 4, recent: 4 })
+  assert.deepEqual(shareLimitsFor(SHARE_FORMATS.standard, { kind: 'profile' }), { favorites: 5, recent: 5 })
+  assert.deepEqual(shareLimitsFor(SHARE_FORMATS.story, { kind: 'library', library: 'films' }), { favorites: 6, recent: 3 })
+  assert.deepEqual(shareLimitsFor(SHARE_FORMATS.story, { kind: 'profile' }), { favorites: 8, recent: 4 })
+  for (const format of FORMATS) for (const scope of SCOPES) {
+    const layout = layoutOf(scope, format)
+    const limits = shareLimitsFor(format, scope)
+    const count = section => layout.blocks.find(block => block.section === section).tiles.length
+    assert.equal(count('favorites'), limits.favorites, `${format.id}/${scope.kind} : tous les coups de cœur demandés tiennent`)
+    assert.equal(count('recent'), limits.recent, `${format.id}/${scope.kind} : tous les terminés demandés tiennent`)
   }
+})
+
+test('Une story compte deux rangées de coups de cœur ; le format standard une seule', () => {
+  const rowsOf = layout => new Set(layout.blocks.find(block => block.section === 'favorites').tiles.map(tile => tile.rect.y)).size
+  assert.equal(rowsOf(layoutOf(SCOPES[0], SHARE_FORMATS.standard)), 1)
+  assert.equal(rowsOf(layoutOf(SCOPES[0], SHARE_FORMATS.story)), 2)
+  assert.equal(rowsOf(layoutOf(SCOPES[1], SHARE_FORMATS.story)), 2)
+})
+
+test('Les étoiles sont sous chaque coup de cœur noté, jamais sous les terminés récemment', () => {
+  const layout = layoutOf(SCOPES[0], SHARE_FORMATS.standard)
+  const favorites = layout.blocks.find(block => block.section === 'favorites')
+  for (const tile of favorites.tiles) {
+    assert.ok(tile.starsRect, 'étoiles présentes')
+    assert.equal(tile.starsRect.x, tile.rect.x)
+    assert.equal(tile.starsRect.w, tile.rect.w)
+    assert.ok(tile.starsRect.y >= tile.rect.y + tile.rect.h, 'sous l’affiche')
+  }
+  assert.ok(layout.blocks.find(block => block.section === 'recent').tiles.every(tile => tile.starsRect === null))
+})
+
+test('Sans note (l’Art), pas d’étoiles ni de place réservée pour elles', () => {
+  const art = [...many('artworks', 4, { isFavorite: true, rating: null }), ...many('artworks', 4, { rating: null })]
+  const scope = { kind: 'library', library: 'artworks' }
+  const model = buildShareCard(art, scope, 'Aurélien', { limits: shareLimitsFor(SHARE_FORMATS.standard, scope), now: NOW })
+  const layout = layoutShareCard(model, SHARE_FORMATS.standard)
+  assert.ok(layout.blocks.find(block => block.section === 'favorites').tiles.every(tile => tile.starsRect === null))
 })
 
 test('Une section vide disparaît de la mise en page', () => {
-  const onlyFavorites = layoutShareCard(cardOf(library({ films: [film('f1', { isFavorite: true })] })))
-  assert.deepEqual(onlyFavorites.blocks.map(block => block.kind === 'tiles' ? block.section : block.kind), ['header', 'stats', 'favorites'])
+  const only = many('films', 3, { isFavorite: true, done: false, doneAt: null, doneOn: null })
+  const scope = { kind: 'library', library: 'films' }
+  const model = buildShareCard(only, scope, 'Aurélien', { limits: shareLimitsFor(SHARE_FORMATS.standard, scope), now: NOW })
+  assert.deepEqual(layoutShareCard(model, SHARE_FORMATS.standard).blocks.map(block => (block.kind === 'tiles' ? block.section : block.kind)), ['header', 'stats', 'favorites'])
 })
 
-test('Les affiches : cinq par rangée remplissent la largeur, plus grandes quand il y en a peu, hauteur 3:2', () => {
-  const six = layoutShareCard(cardOf(full())).blocks.find(block => block.section === 'favorites')
-  assert.equal(six.tiles.length, SHARE_LIMITS.favorites)
-  assert.equal(SHARE_LIMITS.favorites, 5)
-  const widths = new Set(six.tiles.map(tile => tile.rect.w))
-  assert.equal(widths.size, 1, 'toutes les tuiles ont la même largeur')
-  const [tileWidth] = widths
-  const rowWidth = tileWidth * 5 + SHARE_CARD.gap * 4
-  assert.ok(rowWidth <= SHARE_CARD.width - 2 * SHARE_CARD.margin && rowWidth >= SHARE_CARD.width - 2 * SHARE_CARD.margin - 8, `cinq affiches remplissent la largeur utile (${rowWidth})`)
-  assert.equal(six.tiles[0].rect.h, Math.round(tileWidth * 1.5))
-  assert.equal(new Set(six.tiles.map(tile => tile.rect.y)).size, 1, 'une seule rangée')
-
-  const two = layoutShareCard(cardOf(library({ films: [film('a', { isFavorite: true }), film('b', { isFavorite: true })] }))).blocks.find(block => block.section === 'favorites')
-  assert.ok(two.tiles[0].rect.w > tileWidth, 'deux tuiles sont plus grandes que six')
-  assert.ok(two.tiles[0].rect.w <= SHARE_CARD.maxTileWidth, 'sans dépasser la largeur maximale')
-  assert.equal(two.tiles[0].rect.x, SHARE_CARD.margin, 'alignées à gauche, sous l’intitulé')
+test('Moins d’affiches que de places : elles restent au centre de la largeur, sans dépasser 260 px', () => {
+  const few = many('films', 2, { isFavorite: true })
+  const scope = { kind: 'library', library: 'films' }
+  const model = buildShareCard(few, scope, 'Aurélien', { limits: shareLimitsFor(SHARE_FORMATS.standard, scope), now: NOW })
+  const tiles = layoutShareCard(model, SHARE_FORMATS.standard).blocks.find(block => block.section === 'favorites').tiles
+  assert.equal(tiles.length, 2)
+  const left = tiles[0].rect.x
+  const right = SHARE_FORMATS.standard.width - (tiles[1].rect.x + tiles[1].rect.w)
+  assert.ok(Math.abs(left - right) <= 1, `rangée centrée (${left} / ${right})`)
 })
 
-test('Les mieux notés sont des affiches avec leurs étoiles dessous ; les autres sections n’en ont pas', () => {
-  const layout = layoutShareCard(cardOf(full()))
-  const top = layout.blocks.find(block => block.section === 'topRated')
-  assert.equal(top.tiles.length, SHARE_LIMITS.topRated)
-  for (const tile of top.tiles) {
-    assert.ok(tile.starsRect, 'une rangée d’étoiles par affiche')
-    assert.equal(tile.starsRect.x, tile.rect.x)
-    assert.equal(tile.starsRect.w, tile.rect.w)
-    assert.ok(tile.starsRect.y >= tile.rect.y + tile.rect.h, 'les étoiles sont sous l’affiche')
-  }
-  for (const section of ['favorites', 'recent']) {
-    const block = layout.blocks.find(candidate => candidate.section === section)
-    assert.ok(block.tiles.every(tile => tile.starsRect === null), `${section} : pas d’étoiles`)
+test('L’en-tête : le vrai logo à gauche, le texte à sa droite', () => {
+  for (const format of FORMATS) {
+    const header = layoutOf(SCOPES[1], format).blocks.find(block => block.kind === 'header')
+    assert.equal(header.logo.x, SHARE_CARD.margin)
+    assert.equal(header.logo.w, header.logo.h, 'la tuile du logo est carrée')
+    assert.ok(header.textX >= header.logo.x + header.logo.w + 16)
   }
 })
 
-test('Aucun texte secondaire : la mise en page ne réserve ni ligne de créateur, ni date, ni pied de page', () => {
-  const layout = layoutShareCard(cardOf(full()))
-  assert.ok(!layout.blocks.some(block => block.kind === 'footer' || block.kind === 'list'))
-  assert.equal(Object.hasOwn(SHARE_CARD, 'rowHeight'), false)
+test('Chiffres : trois cases ; la ligne par bibliothèque n’existe que pour un profil avec au moins deux bibliothèques', () => {
+  const stats = layout => layout.blocks.find(block => block.kind === 'stats')
+  assert.equal(stats(layoutOf(SCOPES[0], SHARE_FORMATS.standard)).cells.length, 3)
+  assert.equal(stats(layoutOf(SCOPES[0], SHARE_FORMATS.standard)).libraries, null)
+  assert.ok(stats(layoutOf(SCOPES[1], SHARE_FORMATS.standard)).libraries)
+  const mono = buildShareCard(many('films', 3), { kind: 'profile' }, 'A', { limits: shareLimitsFor(SHARE_FORMATS.standard, { kind: 'profile' }), now: NOW })
+  assert.equal(stats(layoutShareCard(mono, SHARE_FORMATS.standard)).libraries, null)
 })
 
-test('L’en-tête réserve la place du logo, à gauche', () => {
-  const layout = layoutShareCard(cardOf(full()))
-  const header = layout.blocks.find(block => block.kind === 'header')
-  assert.ok(header.logo, 'un rectangle de logo')
-  assert.equal(header.logo.x, header.rect.x)
-  assert.ok(header.logo.y >= header.rect.y && header.logo.y + header.logo.h <= header.rect.y + header.rect.h, 'logo dans l’en-tête')
-  assert.ok(header.textX >= header.logo.x + header.logo.w + 16, 'le texte démarre après le logo, avec de l’air')
-  assert.ok(header.textX < header.rect.x + header.rect.w, 'le texte reste dans l’en-tête')
+test('Les adresses d’image sont listées une fois chacune, dans l’ordre d’apparition', () => {
+  const layout = layoutOf(SCOPES[0], SHARE_FORMATS.story)
+  assert.equal(new Set(layout.imageUrls).size, layout.imageUrls.length)
+  assert.equal(layout.imageUrls.length, 9)
 })
 
-test('Chiffres clés : quatre cases avec une note moyenne, trois sans ; la répartition seulement pour un profil', () => {
-  const withAverage = layoutShareCard(cardOf(full())).blocks.find(block => block.kind === 'stats')
-  assert.deepEqual(withAverage.cells.map(cell => cell.key), ['total', 'done', 'favorites', 'average'])
-  assert.ok(withAverage.libraries, 'profil à plusieurs bibliothèques : une ligne de répartition')
-
-  const noRating = layoutShareCard(cardOf(library({ films: [film('f1', { isFavorite: true })] }))).blocks.find(block => block.kind === 'stats')
-  assert.deepEqual(noRating.cells.map(cell => cell.key), ['total', 'done', 'favorites'])
-  assert.equal(noRating.libraries, null, 'une seule bibliothèque : rien à répartir')
-
-  const libraryCard = layoutShareCard(cardOf(full(), { kind: 'library', library: 'films' })).blocks.find(block => block.kind === 'stats')
-  assert.equal(libraryCard.libraries, null, 'une carte de bibliothèque n’a pas de répartition')
-})
-
-test('La hauteur suit le contenu, avec un minimum, et la mise en page est déterministe', () => {
-  const small = layoutShareCard(cardOf(library({ films: [film('f1', { isFavorite: true })] })))
-  const large = layoutShareCard(cardOf(full()))
-  assert.ok(small.height >= SHARE_CARD.minHeight, 'une carte courte garde une hauteur minimale')
-  assert.ok(large.height > small.height, 'plus de contenu, plus de hauteur')
-  assert.ok(large.height <= SHARE_CARD.maxHeight, `une carte pleine reste exportable (${large.height})`)
-  assert.deepEqual(layoutShareCard(cardOf(full())), large)
-})
-
-test('Les images des œuvres montrées sont listées une fois chacune, pour le chargement', () => {
-  const lib = library({ films: [film('a', { isFavorite: true, rating: 5, posterUrl: 'https://x/a.jpg' }), film('b', { isFavorite: true, rating: 4, posterUrl: 'https://x/b.jpg' }), film('c', { posterUrl: 'https://x/c.jpg' })] })
-  const layout = layoutShareCard(cardOf(lib))
-  assert.deepEqual(layout.imageUrls.sort(), ['https://x/a.jpg', 'https://x/b.jpg', 'https://x/c.jpg'])
+test('Mise en page déterministe : mêmes entrées, même résultat', () => {
+  for (const format of FORMATS) {
+    const model = card(SCOPES[1], format)
+    assert.deepEqual(layoutShareCard(model, format), layoutShareCard(model, format))
+  }
 })
