@@ -480,6 +480,8 @@ function associateFilm(filmId: unknown, tmdbId: number) {
 }
 
 const unmocked = new Set<string>()
+// Adresses confiées au système par le plugin d'ouverture (aucun navigateur n'est réellement lancé).
+const opened: string[] = []
 
 function handle(cmd: string, args: Args): unknown {
   switch (cmd) {
@@ -495,6 +497,7 @@ function handle(cmd: string, args: Args): unknown {
     case 'plugin:updater|check': return null
     case 'plugin:process|restart':
     case 'plugin:process|exit': return null
+    case 'plugin:opener|open_url': opened.push(String(args.url)); return null
 
     // Profils
     case 'list_profiles': return listProfiles()
@@ -657,6 +660,7 @@ Object.assign(window, {
     select: (query: string, values: unknown[] = []) => select(query, values),
     execute: (query: string, values: unknown[] = []) => execute(query, values),
     unmocked: () => [...unmocked],
+    opened: () => [...opened],
   },
 })
 

@@ -155,6 +155,7 @@ import {
   PinIcon,
 } from './components/icons.tsx'
 import './styles.css'
+import { installExternalLinks } from './data/externalLinks.ts'
 
 type IconName = 'art' | 'book' | 'manga' | 'anime' | 'film' | 'game' | 'home' | 'refresh' | 'search' | 'series' | 'settings' | 'wand' | 'pencil' | 'trash' | 'panel' | 'unlink' | 'arrow-left'
 export type { IconName }
@@ -3699,4 +3700,6 @@ const rootElement = document.getElementById('root')!
 const existingRoot = (rootElement as unknown as { __reactRoot?: ReturnType<typeof createRoot> }).__reactRoot
 const root = existingRoot ?? createRoot(rootElement)
 ;(rootElement as unknown as { __reactRoot?: ReturnType<typeof createRoot> }).__reactRoot = root
+// Les liens https s'ouvrent dans le navigateur du système (rien ne se passait en natif).
+installExternalLinks()
 root.render(<App />)

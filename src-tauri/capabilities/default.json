@@ -8,6 +8,10 @@
   "permissions": [
     "core:default",
     "process:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }]
+    },
     "sql:allow-load",
     "sql:allow-select",
     "sql:allow-execute"
