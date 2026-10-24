@@ -31,7 +31,7 @@ export const BASE_SHARE_LABELS: Record<BaseShareLibrary, string> = {
 const BASE_ORDER: readonly BaseShareLibrary[] = ['films', 'series', 'anime', 'books', 'mangas', 'games', 'artworks']
 
 /** Plafonds par section : la carte reste lisible, quelle que soit la taille de la bibliothèque. */
-export const SHARE_LIMITS = { favorites: 6, topRated: 5, recent: 6 } as const
+export const SHARE_LIMITS = { favorites: 5, topRated: 5, recent: 5 } as const
 
 /** Une note de 4 étoiles ou plus fait une « mieux notée ». */
 export const TOP_RATING_THRESHOLD = 4

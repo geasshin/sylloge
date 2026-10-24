@@ -3,28 +3,35 @@
 // Toile de 1 080 px de large (la largeur d'une image de réseau social) dont la hauteur suit le contenu.
 // Ce module place des rectangles ; il ne mesure aucun texte et ne dessine rien. Le dessin
 // (src/components/shareCardImage.ts) lit ces rectangles et y ajuste ses textes.
+//
+// La carte est un mur d'affiches : trois rangées de cinq au plus (coups de cœur, mieux notés avec leurs
+// étoiles, terminés récemment). Aucun studio, aucune date, aucun pied de page.
 
 import type { ShareCardModel, ShareItem } from './shareCard.ts'
 
 export const SHARE_CARD = {
   width: 1080,
   margin: 72,
-  /** Espace entre deux tuiles, deux cases ou deux lignes de liste. */
+  /** Espace entre deux affiches ou deux cases. */
   gap: 16,
   /** Espace entre deux blocs. */
   blockGap: 32,
-  headerHeight: 176,
+  headerHeight: 128,
+  logoWidth: 80,
+  logoHeight: 104,
+  /** Air entre le logo et le texte de l'en-tête. */
+  logoGap: 28,
   statHeight: 96,
   librariesHeight: 56,
   sectionTitleHeight: 40,
   sectionTitleGap: 16,
-  rowHeight: 64,
-  rowGap: 8,
-  footerHeight: 64,
-  bottomMargin: 48,
-  maxTilesPerRow: 6,
-  /** Une tuile n'excède pas cette largeur : quelques œuvres ne deviennent pas d'immenses affiches. */
-  maxTileWidth: 173,
+  /** Étoiles sous une affiche des « mieux notés ». */
+  starsGap: 12,
+  starsHeight: 28,
+  bottomMargin: 56,
+  maxTilesPerRow: 5,
+  /** Une affiche n'excède pas cette largeur : quelques œuvres ne deviennent pas d'immenses affiches. */
+  maxTileWidth: 220,
   tileRatio: 1.5,
   minHeight: 1080,
   maxHeight: 1700,
@@ -33,14 +40,14 @@ export const SHARE_CARD = {
 export type Rect = { x: number; y: number; w: number; h: number }
 
 export type StatKey = 'total' | 'done' | 'favorites' | 'average'
-export type TileSection = 'favorites' | 'recent'
+export type TileSection = 'favorites' | 'topRated' | 'recent'
+
+export type LayoutTile = { rect: Rect; item: ShareItem; /** Rangée d'étoiles sous l'affiche, pour les mieux notés seulement. */ starsRect: Rect | null }
 
 export type LayoutBlock =
-  | { kind: 'header'; rect: Rect }
+  | { kind: 'header'; rect: Rect; logo: Rect; /** Abscisse du texte, à droite du logo. */ textX: number }
   | { kind: 'stats'; rect: Rect; cells: Array<{ key: StatKey; rect: Rect }>; libraries: Rect | null }
-  | { kind: 'tiles'; section: TileSection; rect: Rect; titleRect: Rect; tiles: Array<{ rect: Rect; item: ShareItem }> }
-  | { kind: 'list'; section: 'topRated'; rect: Rect; titleRect: Rect; rows: Array<{ rect: Rect; item: ShareItem; rank: number }> }
-  | { kind: 'footer'; rect: Rect }
+  | { kind: 'tiles'; section: TileSection; rect: Rect; titleRect: Rect; tiles: LayoutTile[] }
 
 export type ShareCardLayout = {
   width: number
@@ -57,7 +64,8 @@ export function layoutShareCard(model: ShareCardModel): ShareCardLayout {
   const blocks: LayoutBlock[] = []
   let y = margin
 
-  blocks.push({ kind: 'header', rect: { x: margin, y, w: contentWidth, h: SHARE_CARD.headerHeight } })
+  const logo = { x: margin, y: y + Math.round((SHARE_CARD.headerHeight - SHARE_CARD.logoHeight) / 2), w: SHARE_CARD.logoWidth, h: SHARE_CARD.logoHeight }
+  blocks.push({ kind: 'header', rect: { x: margin, y, w: contentWidth, h: SHARE_CARD.headerHeight }, logo, textX: margin + SHARE_CARD.logoWidth + SHARE_CARD.logoGap })
   y += SHARE_CARD.headerHeight + blockGap
 
   // Chiffres clés : la note moyenne n'a de case que s'il y a au moins une note.
@@ -80,34 +88,25 @@ export function layoutShareCard(model: ShareCardModel): ShareCardLayout {
     const count = Math.min(items.length, SHARE_CARD.maxTilesPerRow)
     const tileWidth = Math.min(SHARE_CARD.maxTileWidth, Math.floor((contentWidth - (count - 1) * gap) / count))
     const tileHeight = Math.round(tileWidth * SHARE_CARD.tileRatio)
+    const withStars = section === 'topRated'
     const titleRect = { x: margin, y, w: contentWidth, h: SHARE_CARD.sectionTitleHeight }
     const tilesY = y + SHARE_CARD.sectionTitleHeight + SHARE_CARD.sectionTitleGap
-    const tiles = items.slice(0, count).map((item, index) => ({ item, rect: { x: margin + index * (tileWidth + gap), y: tilesY, w: tileWidth, h: tileHeight } }))
+    const tiles: LayoutTile[] = items.slice(0, count).map((item, index) => {
+      const rect = { x: margin + index * (tileWidth + gap), y: tilesY, w: tileWidth, h: tileHeight }
+      return { item, rect, starsRect: withStars ? { x: rect.x, y: tilesY + tileHeight + SHARE_CARD.starsGap, w: tileWidth, h: SHARE_CARD.starsHeight } : null }
+    })
     for (const { item } of tiles) if (item.imageUrl && !imageUrls.includes(item.imageUrl)) imageUrls.push(item.imageUrl)
-    const height = SHARE_CARD.sectionTitleHeight + SHARE_CARD.sectionTitleGap + tileHeight
+    const height = SHARE_CARD.sectionTitleHeight + SHARE_CARD.sectionTitleGap + tileHeight + (withStars ? SHARE_CARD.starsGap + SHARE_CARD.starsHeight : 0)
     blocks.push({ kind: 'tiles', section, rect: { x: margin, y, w: contentWidth, h: height }, titleRect, tiles })
     y += height + blockGap
   }
 
   addTiles('favorites', model.sections.favorites)
-
-  if (model.sections.topRated.length > 0) {
-    const titleRect = { x: margin, y, w: contentWidth, h: SHARE_CARD.sectionTitleHeight }
-    const rowsY = y + SHARE_CARD.sectionTitleHeight + SHARE_CARD.sectionTitleGap
-    const rows = model.sections.topRated.map((item, index) => ({
-      item,
-      rank: index + 1,
-      rect: { x: margin, y: rowsY + index * (SHARE_CARD.rowHeight + SHARE_CARD.rowGap), w: contentWidth, h: SHARE_CARD.rowHeight },
-    }))
-    const height = SHARE_CARD.sectionTitleHeight + SHARE_CARD.sectionTitleGap + rows.length * SHARE_CARD.rowHeight + (rows.length - 1) * SHARE_CARD.rowGap
-    blocks.push({ kind: 'list', section: 'topRated', rect: { x: margin, y, w: contentWidth, h: height }, titleRect, rows })
-    y += height + blockGap
-  }
-
+  addTiles('topRated', model.sections.topRated)
   addTiles('recent', model.sections.recent)
 
-  blocks.push({ kind: 'footer', rect: { x: margin, y, w: contentWidth, h: SHARE_CARD.footerHeight } })
-  y += SHARE_CARD.footerHeight + SHARE_CARD.bottomMargin
+  // Le dernier bloc est déjà suivi d'un espace de bloc : on le remplace par la marge basse.
+  y += SHARE_CARD.bottomMargin - blockGap
 
   return { width: SHARE_CARD.width, height: Math.max(SHARE_CARD.minHeight, y), blocks, imageUrls }
 }

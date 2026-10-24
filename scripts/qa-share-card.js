@@ -69,6 +69,14 @@ async page => {
   const [r, g, b] = await pixel(Math.round(layout.tile.x + layout.tile.w / 2), Math.round(layout.tile.y + 20))
   assert(r > 150 && g < 90 && b < 90, `Tuile : l’image autorisée est dessinée (${r},${g},${b})`)
   assert(layout.height === dims[1], 'Aperçu : la hauteur de la toile suit la mise en page')
+  // Le logo est dessiné dans l'en-tête (le badge sombre cerclé de blanc : des pixels clairs du trait).
+  const logoZone = await canvas().evaluate(el => {
+    const data = el.getContext('2d').getImageData(72, 72, 80, 140).data
+    let bright = 0
+    for (let i = 0; i < data.length; i += 4) if ((data[i] + data[i + 1] + data[i + 2]) / 3 > 200) bright += 1
+    return bright
+  })
+  assert(logoZone > 300, `En-tête : le logo est dessiné (${logoZone} pixels clairs à sa place)`)
   await page.screenshot({ path: '/Users/aurelientrouble/.hermes/profiles/promethee/cache/scratch/qa/share-1-dialog.png' })
 
   // ── 2. Enregistrement : un vrai PNG, de la taille de l'aperçu ──────────────────────────────────
@@ -145,11 +153,11 @@ async page => {
     }
     const { canvas } = await renderShareCard(model, { loadImage: async () => null, now: new Date('2026-10-24T10:00:00') })
     const layout = layoutShareCard(model)
-    const rows = layout.blocks.find(block => block.kind === 'list').rows
+    const rows = layout.blocks.find(block => block.section === 'topRated').tiles
     const context = canvas.getContext('2d')
     const bright = (x, y) => { const d = context.getImageData(Math.round(x), Math.round(y), 1, 1).data; return (d[0] + d[1] + d[2]) / 3 > 160 }
-    const starsLeft = row => row.rect.x + row.rect.w - 20 - (5 * 26 + 4 * 6)
-    const sample = (row, index, half) => bright(starsLeft(row) + index * 32 + (half === 'left' ? 8 : 18), row.rect.y + row.rect.h / 2 + 1)
+    const starsLeft = tile => tile.starsRect.x + (tile.starsRect.w - (5 * 26 + 4 * 4)) / 2
+    const sample = (tile, index, half) => bright(starsLeft(tile) + index * 30 + (half === 'left' ? 8 : 18), tile.starsRect.y + tile.starsRect.h / 2 + 1)
     return {
       five: [0, 1, 2, 3, 4].map(index => sample(rows[0], index, 'left') && sample(rows[0], index, 'right')),
       threeHalf: [0, 1, 2, 3, 4].map(index => [sample(rows[1], index, 'left'), sample(rows[1], index, 'right')]),

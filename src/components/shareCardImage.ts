@@ -7,7 +7,8 @@
 
 import { formatDate, formatNumber, t } from '../i18n/core.ts'
 import type { ShareCardModel, ShareItem } from '../domain/shareCard.ts'
-import { layoutShareCard, SHARE_CARD, type LayoutBlock, type Rect, type ShareCardLayout } from '../domain/shareCardLayout.ts'
+import { layoutShareCard, type LayoutBlock, type Rect, type ShareCardLayout } from '../domain/shareCardLayout.ts'
+import logoUrl from '../assets/logo-sylloge.png'
 
 const COLOR = {
   canvas: '#161618',
@@ -59,7 +60,10 @@ export async function renderShareCard(
 
   await loadDisplayFont()
   const images = new Map<string, CanvasImageSource | null>()
-  await Promise.all(layout.imageUrls.map(async url => { images.set(url, await load(url)) }))
+  const [logo] = await Promise.all([
+    load(logoUrl),
+    ...layout.imageUrls.map(async url => { images.set(url, await load(url)) }),
+  ])
 
   const canvas = document.createElement('canvas')
   canvas.width = layout.width
@@ -70,7 +74,7 @@ export async function renderShareCard(
   context.fillStyle = COLOR.canvas
   context.fillRect(0, 0, layout.width, layout.height)
 
-  for (const block of layout.blocks) drawBlock(context, block, model, images, now)
+  for (const block of layout.blocks) drawBlock(context, block, model, images, logo, now)
 
   const missingImages = layout.imageUrls.filter(url => images.get(url) === null)
   return { canvas, layout, missingImages }
@@ -106,40 +110,47 @@ async function loadDisplayFont(): Promise<void> {
 
 type Context = CanvasRenderingContext2D
 
-function drawBlock(context: Context, block: LayoutBlock, model: ShareCardModel, images: Map<string, CanvasImageSource | null>, now: Date) {
+function drawBlock(context: Context, block: LayoutBlock, model: ShareCardModel, images: Map<string, CanvasImageSource | null>, logo: CanvasImageSource | null, now: Date) {
   switch (block.kind) {
-    case 'header': drawHeader(context, block.rect, model, now); break
+    case 'header': drawHeader(context, block, model, logo, now); break
     case 'stats': drawStats(context, block, model); break
     case 'tiles':
-      drawSectionTitle(context, block.titleRect, block.section === 'favorites' ? t('Coups de cœur') : t('Terminés récemment'))
-      for (const tile of block.tiles) drawTile(context, tile.rect, tile.item, tile.item.imageUrl ? images.get(tile.item.imageUrl) ?? null : null)
+      drawSectionTitle(context, block.titleRect, SECTION_TITLES[block.section]())
+      for (const tile of block.tiles) {
+        drawTile(context, tile.rect, tile.item, tile.item.imageUrl ? images.get(tile.item.imageUrl) ?? null : null)
+        if (tile.starsRect && tile.item.rating !== null) drawStars(context, tile.starsRect, tile.item.rating)
+      }
       break
-    case 'list':
-      drawSectionTitle(context, block.titleRect, t('Mieux notés'))
-      for (const row of block.rows) drawRow(context, row.rect, row.item, row.rank)
-      break
-    case 'footer': drawFooter(context, block.rect); break
   }
 }
 
-function drawHeader(context: Context, rect: Rect, model: ShareCardModel, now: Date) {
+const SECTION_TITLES = {
+  favorites: () => t('Coups de cœur'),
+  topRated: () => t('Mieux notés'),
+  recent: () => t('Terminés récemment'),
+} as const
+
+/** Le logo a une grande marge transparente : on n'en dessine que le badge. */
+const LOGO_CROP = { x: 330, y: 215, w: 600, h: 780 } as const
+
+function drawHeader(context: Context, block: Extract<LayoutBlock, { kind: 'header' }>, model: ShareCardModel, logo: CanvasImageSource | null, now: Date) {
+  const { rect, textX } = block
   const isProfile = model.heading.kind === 'profile'
-  const kicker = isProfile ? 'SYLLOGE' : model.profileName.toUpperCase()
+  const label = isProfile ? 'SYLLOGE' : model.profileName.toUpperCase()
   const title = model.heading.kind === 'profile' ? model.heading.name : t(model.heading.label)
-  const month = capitalize(formatDate(now, { month: 'long', year: 'numeric' }))
+  const kicker = `${label}  ·  ${formatDate(now, { month: 'long', year: 'numeric' }).toUpperCase()}`
+  const textWidth = rect.x + rect.w - textX
+
+  if (logo) context.drawImage(logo, LOGO_CROP.x, LOGO_CROP.y, LOGO_CROP.w, LOGO_CROP.h, block.logo.x, block.logo.y, block.logo.w, block.logo.h)
 
   context.fillStyle = COLOR.muted
   setFont(context, 600, 22, UI_FONT)
-  context.fillText(fitted(context, kicker, rect.w, 600, 22, 14, UI_FONT), rect.x, rect.y + 24)
+  context.fillText(fitted(context, kicker, textWidth, 600, 22, 14, UI_FONT), textX, rect.y + 34)
 
   context.fillStyle = COLOR.text
-  const titleFit = fitSize(context, title, rect.w, 700, 68, 34, DISPLAY_FONT)
+  const titleFit = fitSize(context, title, textWidth, 700, 64, 32, DISPLAY_FONT)
   setFont(context, 700, titleFit.size, DISPLAY_FONT)
-  context.fillText(titleFit.text, rect.x, rect.y + 24 + 16 + titleFit.size)
-
-  context.fillStyle = COLOR.secondary
-  setFont(context, 400, 26, UI_FONT)
-  context.fillText(month, rect.x, rect.y + rect.h - 12)
+  context.fillText(titleFit.text, textX, rect.y + 34 + 18 + titleFit.size)
 }
 
 function drawStats(context: Context, block: Extract<LayoutBlock, { kind: 'stats' }>, model: ShareCardModel) {
@@ -224,38 +235,13 @@ function drawCover(context: Context, image: CanvasImageSource, rect: Rect) {
   context.drawImage(image, rect.x + (rect.w - drawWidth) / 2, rect.y + (rect.h - drawHeight) / 2, drawWidth, drawHeight)
 }
 
-function drawRow(context: Context, rect: Rect, item: ShareItem, rank: number) {
-  roundRect(context, rect, 12)
-  context.fillStyle = COLOR.surface
-  context.fill()
-  context.strokeStyle = COLOR.hairline
-  context.lineWidth = 1
-  context.stroke()
+const STAR = { size: 26, gap: 4 } as const
 
-  context.fillStyle = COLOR.muted
-  setFont(context, 700, 28, DISPLAY_FONT)
-  context.fillText(String(rank), rect.x + 20, rect.y + rect.h / 2 + 10)
-
-  const starsWidth = 5 * STAR.size + 4 * STAR.gap
-  const textX = rect.x + 64
-  const textWidth = rect.w - 64 - starsWidth - 40
-  context.fillStyle = COLOR.text
-  const titleFit = fitSize(context, item.title, textWidth, 700, 26, 17, UI_FONT)
-  setFont(context, 700, titleFit.size, UI_FONT)
-  const detail = [item.creator, item.year ? String(item.year) : null].filter(Boolean).join(' · ')
-  // Avec une ligne de détail, le titre monte ; sans elle, il se centre dans la rangée.
-  context.fillText(titleFit.text, textX, detail ? rect.y + 29 : rect.y + rect.h / 2 + titleFit.size * 0.35)
-  if (detail) {
-    context.fillStyle = COLOR.muted
-    setFont(context, 400, 18, UI_FONT)
-    context.fillText(fitted(context, detail, textWidth, 400, 18, 13, UI_FONT), textX, rect.y + 52)
-  }
-  if (item.rating !== null) drawStars(context, rect.x + rect.w - 20 - starsWidth, rect.y + (rect.h - STAR.size) / 2, item.rating)
-}
-
-const STAR = { size: 26, gap: 6 } as const
-
-function drawStars(context: Context, x: number, y: number, rating: number) {
+/** Cinq étoiles, remplies à la demi-étoile, centrées sous l'affiche. */
+function drawStars(context: Context, area: Rect, rating: number) {
+  const width = 5 * STAR.size + 4 * STAR.gap
+  const x = area.x + (area.w - width) / 2
+  const y = area.y + (area.h - STAR.size) / 2
   for (let index = 0; index < 5; index += 1) {
     const left = x + index * (STAR.size + STAR.gap)
     const fill = Math.max(0, Math.min(1, rating - index))
@@ -292,31 +278,10 @@ function starPath(context: Context, left: number, top: number, size: number) {
   context.closePath()
 }
 
-function drawFooter(context: Context, rect: Rect) {
-  context.strokeStyle = COLOR.hairline
-  context.lineWidth = 2
-  context.beginPath()
-  context.moveTo(rect.x, rect.y + 8)
-  context.lineTo(rect.x + rect.w, rect.y + 8)
-  context.stroke()
-  context.fillStyle = COLOR.text
-  setFont(context, 700, 26, DISPLAY_FONT)
-  context.fillText('SYLLOGE', rect.x, rect.y + 52)
-  context.fillStyle = COLOR.muted
-  setFont(context, 400, 20, UI_FONT)
-  context.textAlign = 'right'
-  context.fillText(t('Ma bibliothèque culturelle'), rect.x + rect.w, rect.y + 52)
-  context.textAlign = 'left'
-}
-
 // ── Utilitaires de texte ────────────────────────────────────────────────────────────────────────
 
 function setFont(context: Context, weight: number, size: number, family: string) {
   context.font = `${weight} ${size}px ${family}`
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toLocaleUpperCase() + text.slice(1)
 }
 
 function roundRect(context: Context, rect: Rect, radius: number) {

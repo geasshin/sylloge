@@ -27,8 +27,7 @@ const share: Readonly<Record<string, string>> = {
   "Fiches": "Entries",
   "Terminées": "Finished",
   "Favoris": "Favourites",
-  "Note moyenne": "Average rating",
-  "Ma bibliothèque culturelle": "My cultural library"
+  "Note moyenne": "Average rating"
 }
 
 export default share
