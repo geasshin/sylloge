@@ -139,6 +139,15 @@ export function saveExportJson(suggestedName: string, contents: string): Promise
   return invoke('save_export_json', { suggestedName, contents, language: getLanguage() })
 }
 
+/**
+ * Enregistre une carte à partager (PNG). Les octets partent en corps brut, sans conversion en texte ;
+ * le nom proposé (ASCII) et la langue passent par les en-têtes. Rend le nom enregistré, ou null si la
+ * personne annule.
+ */
+export function saveShareImage(suggestedName: string, png: Uint8Array): Promise<string | null> {
+  return invoke('save_share_image', png, { headers: { 'x-suggested-name': suggestedName, 'x-language': getLanguage() } })
+}
+
 export function saveExportCsv(suggestedName: string, contents: string): Promise<string | null> {
   return invoke('save_export_csv', { suggestedName, contents, language: getLanguage() })
 }

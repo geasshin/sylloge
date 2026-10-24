@@ -1,6 +1,6 @@
 use super::*;
 
-fn dialog_copy(labels: NativeDialogLabels) -> [&'static str; 11] {
+fn dialog_copy(labels: NativeDialogLabels) -> [&'static str; 13] {
     [
         labels.import_any_title,
         labels.import_any_filter,
@@ -13,6 +13,8 @@ fn dialog_copy(labels: NativeDialogLabels) -> [&'static str; 11] {
         labels.csv_filter,
         labels.backup_destination_title,
         labels.backup_directory_title,
+        labels.image_filter,
+        labels.share_title,
     ]
 }
 
@@ -32,6 +34,8 @@ fn native_dialog_labels_select_all_english_titles_and_filters() {
             "Sylloge CSV export",
             "Choose the folder for future Sylloge backups",
             "Choose the Sylloge backup folder",
+            "PNG image to share",
+            "Save the share card",
         ]
     );
 }
@@ -50,6 +54,8 @@ fn native_dialog_labels_default_to_french_for_omitted_or_unsupported_languages()
         "Export CSV Sylloge",
         "Choisir le dossier des futures sauvegardes Sylloge",
         "Choisir le dossier de sauvegarde Sylloge",
+        "Image PNG à partager",
+        "Enregistrer la carte à partager",
     ];
     for language in [
         None,

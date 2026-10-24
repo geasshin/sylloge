@@ -123,6 +123,11 @@ const NOT_DISPLAY = new Set([
   'Sylloge import (JSON, CSV, ZIP)',
   'Sylloge JSON export',
   'Sylloge CSV export',
+  // Carte à partager : filtre et titre de la fenêtre d'enregistrement du PNG.
+  'Image PNG à partager',
+  'Enregistrer la carte à partager',
+  'PNG image to share',
+  'Save the share card',
   // Labels, stored values, folder names and logs.
   'L’archive ZIP',
   'Le dossier choisi',

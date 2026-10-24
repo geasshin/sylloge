@@ -1,22 +1,12 @@
 import { t, formatNumber } from '../i18n/core.ts'
 import type { ReactNode } from 'react'
+import { statusTone } from '../domain/statusTone.ts'
 
 type StatusLabels = { readonly [key: string]: string }
 
-const TONE_DONE = new Set(['terminé', 'vu', 'lu', 'joué', 'découverte'])
-const TONE_DROPPED = new Set(['abandonné', 'abandonnée'])
-const TONE_ACTIVE = new Set(['en cours'])
-
-export type StatusTone = 'done' | 'active' | 'dropped' | 'todo'
-
-/** Famille visuelle d'un statut, partagée par le badge des fiches et la
- *  pastille des cartes : accompli, en cours, abandonné ou en attente. */
-export function statusTone(status: string): StatusTone {
-  if (TONE_DROPPED.has(status)) return 'dropped'
-  if (TONE_DONE.has(status)) return 'done'
-  if (TONE_ACTIVE.has(status)) return 'active'
-  return 'todo'
-}
+// La famille d'un statut vit dans le domaine (les cartes à partager la lisent aussi).
+export { statusTone }
+export type { StatusTone } from '../domain/statusTone.ts'
 
 /** Badge de statut unique : un seul état visible, rendu monochrome par famille. */
 export function StatusBadge({ status, labels }: { status: string; labels: StatusLabels }) {

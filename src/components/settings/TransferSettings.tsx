@@ -5,6 +5,7 @@ import type { FilmLibrary } from '../../data/filmsRepository.ts'
 import { libraryRepository, type CulturalLibrary } from '../../data/libraryRepository.ts'
 import { LibraryExportFlow } from '../LibraryExportFlow.tsx'
 import { LibraryImportButton } from '../LibraryImportButton.tsx'
+import { ShareCardLauncher } from '../ShareCardDialog.tsx'
 import { SettingsGroup, SettingsRow } from './SettingsLayout.tsx'
 
 type Props = {
@@ -82,6 +83,12 @@ export function TransferSettings({ library, onLibraryChanged }: Props) {
             </SettingsRow>
           </>
         )}
+      </SettingsGroup>
+
+      <SettingsGroup id="transfer-share-title" title={t('Carte à partager')} description={t('Une image PNG de vos coups de cœur, de vos mieux notés et de vos derniers terminés, pour tout le profil ou une seule bibliothèque. Rien n’est envoyé en ligne.')}>
+        <SettingsRow label={t('Créer une carte')} detail={t('Choisir le contenu, voir l’aperçu, puis enregistrer l’image.')}>
+          <ShareCardLauncher profileId={library.profile.id} />
+        </SettingsRow>
       </SettingsGroup>
     </>
   )

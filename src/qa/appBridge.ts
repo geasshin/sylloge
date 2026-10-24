@@ -482,6 +482,8 @@ function associateFilm(filmId: unknown, tmdbId: number) {
 const unmocked = new Set<string>()
 // Adresses confiées au système par le plugin d'ouverture (aucun navigateur n'est réellement lancé).
 const opened: string[] = []
+// Cartes à partager enregistrées (octets du PNG), pour que la recette les relise.
+const savedImages: number[][] = []
 
 function handle(cmd: string, args: Args): unknown {
   switch (cmd) {
@@ -498,6 +500,11 @@ function handle(cmd: string, args: Args): unknown {
     case 'plugin:process|restart':
     case 'plugin:process|exit': return null
     case 'plugin:opener|open_url': opened.push(String(args.url)); return null
+    case 'save_share_image': {
+      const bytes = args instanceof ArrayBuffer ? new Uint8Array(args) : (args as unknown as Uint8Array)
+      savedImages.push(Array.from(bytes))
+      return 'sylloge-carte-recette.png'
+    }
 
     // Profils
     case 'list_profiles': return listProfiles()
@@ -661,6 +668,7 @@ Object.assign(window, {
     execute: (query: string, values: unknown[] = []) => execute(query, values),
     unmocked: () => [...unmocked],
     opened: () => [...opened],
+    savedImages: () => savedImages.map(bytes => [...bytes]),
   },
 })
 

@@ -34,6 +34,9 @@ const MAX_ZIP_PATH_COMPONENTS: usize = 8;
 const MAX_ZIP_NESTING_DEPTH: usize = 4;
 const MAX_ZIP_UNCOMPRESSED_BYTES: u128 = 32 * 1024 * 1024;
 const MAX_ZIP_ENTRY_BYTES: u64 = 4 * 1024 * 1024;
+/// Une carte à partager fait quelques centaines de Kio ; 12 Mio laissent une marge sans accepter n'importe quoi.
+const MAX_SHARE_IMAGE_BYTES: usize = 12 * 1024 * 1024;
+const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 static SNAPSHOT_NONCE: AtomicU64 = AtomicU64::new(0);
 
 struct NativeDialogLabels {
@@ -48,6 +51,8 @@ struct NativeDialogLabels {
     csv_filter: &'static str,
     backup_destination_title: &'static str,
     backup_directory_title: &'static str,
+    image_filter: &'static str,
+    share_title: &'static str,
 }
 
 // Only application-owned copy is localized; native controls follow the OS.
@@ -84,6 +89,8 @@ fn native_dialog_labels(language: Option<&str>) -> NativeDialogLabels {
             "Choisir le dossier de sauvegarde Sylloge",
             "Choose the Sylloge backup folder",
         ),
+        image_filter: text("Image PNG à partager", "PNG image to share"),
+        share_title: text("Enregistrer la carte à partager", "Save the share card"),
     }
 }
 
@@ -1218,6 +1225,63 @@ pub async fn save_export_csv(
     )
 }
 
+/// Valide une carte à partager avant toute écriture : un vrai PNG, de taille raisonnable.
+fn validate_share_png(bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() < PNG_SIGNATURE.len() || bytes[..PNG_SIGNATURE.len()] != PNG_SIGNATURE {
+        return Err("Le fichier à enregistrer n’est pas une image PNG valide.".to_string());
+    }
+    if bytes.len() > MAX_SHARE_IMAGE_BYTES {
+        return Err("L’image à enregistrer dépasse la taille maximale de 12 Mio.".to_string());
+    }
+    Ok(())
+}
+
+/// Nom proposé pour la carte : sans chemin, et toujours terminé par « .png ».
+fn share_image_file_name(suggested_name: &str) -> String {
+    let safe = safe_export_file_name(suggested_name, "sylloge-carte.png");
+    if safe.to_ascii_lowercase().ends_with(".png") {
+        safe
+    } else {
+        format!("{safe}.png")
+    }
+}
+
+/// Enregistre une carte à partager. Les octets de l'image arrivent en corps brut de la requête
+/// (pas de conversion en texte) ; le nom proposé et la langue passent par les en-têtes.
+#[tauri::command]
+pub async fn save_share_image(
+    app: AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Option<String>, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("L’image doit être envoyée en octets bruts.".to_string());
+    };
+    validate_share_png(bytes)?;
+    let header = |name: &str| {
+        request
+            .headers()
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string)
+    };
+    let labels = native_dialog_labels(header("x-language").as_deref());
+    let name = share_image_file_name(&header("x-suggested-name").unwrap_or_default());
+    let Some(file_path) = app
+        .dialog()
+        .file()
+        .add_filter(labels.image_filter, &["png"])
+        .set_file_name(&name)
+        .set_title(labels.share_title)
+        .blocking_save_file()
+    else {
+        return Ok(None);
+    };
+    let path = file_path
+        .into_path()
+        .map_err(|error| format!("Chemin de fichier illisible : {error}"))?;
+    write_export_bytes(&path, bytes, "sylloge-carte.png").map(Some)
+}
+
 fn save_export_file(
     app: &AppHandle,
     suggested_name: &str,
@@ -1255,6 +1319,10 @@ fn safe_export_file_name(suggested_name: &str, fallback_name: &str) -> String {
 }
 
 fn write_export_file(path: &Path, contents: &str, fallback_name: &str) -> Result<String, String> {
+    write_export_bytes(path, contents.as_bytes(), fallback_name)
+}
+
+fn write_export_bytes(path: &Path, contents: &[u8], fallback_name: &str) -> Result<String, String> {
     // Écrire à côté puis renommer : un échec ne doit pas tronquer un export
     // existant, ni modifier une autre cible via un lien symbolique ou physique.
     let directory = path
@@ -1277,7 +1345,7 @@ fn write_export_file(path: &Path, contents: &str, fallback_name: &str) -> Result
         }
         let mut file = options.open(&temporary)?;
         created = true;
-        file.write_all(contents.as_bytes())?;
+        file.write_all(contents)?;
         file.sync_all()?;
         drop(file);
         fs::rename(&temporary, path)
@@ -4778,6 +4846,7 @@ mod tests {
     include!("portability_io_tests.rs");
     include!("backup_destination_tests.rs");
     include!("backup_retention_tests.rs");
+    include!("share_image_tests.rs");
 
     type CanonicalFilmRow = (
         Option<String>,

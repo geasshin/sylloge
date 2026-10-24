@@ -33,6 +33,8 @@ Les documents sous docs/archive et les anciens plans sous docs/plans sont histor
 - Ne jamais remplacer ou fusionner une bibliothèque sans choix explicite de la personne.
 - Liens externes : écrire un `<a href="https://…">` ordinaire. `installExternalLinks()` (src/data/externalLinks.ts) le confie au navigateur du système dans la fenêtre native, où un `target="_blank"` ne fait rien. Ne pas appeler `window.open`, et n'ouvrir que du `https`.
 - Champs de formulaire : l'anneau de focus se dessine dans la boîte (`inset`), jamais en débord, sinon un conteneur défilant le rogne.
+- Cartes à partager : la sélection (`shareCard.ts`) et la mise en page (`shareCardLayout.ts`) sont pures et testées en Node ; le canevas ne décide de rien. Toute image dessinée se charge avec `crossOrigin` (sinon le canevas est contaminé et le PNG impossible) et retombe sur le titre si le serveur refuse. Aucun envoi réseau.
+- Recettes navigateur : ne dépendre d'aucun service externe (simuler les images par `page.route`) et retirer toute interception en sortie (`page.unroute`), sinon les recettes suivantes de la même session sont faussées.
 
 ## Changements et vérification
 

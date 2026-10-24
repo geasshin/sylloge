@@ -33,6 +33,7 @@ pub fn run() {
             portability::pick_import_films_csv_or_notion,
             portability::save_export_json,
             portability::save_export_csv,
+            portability::save_share_image,
             portability::get_backup_settings,
             portability::pick_backup_destination,
             portability::configure_backup_destination,

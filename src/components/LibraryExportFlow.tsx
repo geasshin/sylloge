@@ -12,6 +12,7 @@ import type { CulturalLibrary } from '../data/libraryRepository.ts'
 import type { BookLibraryKey } from '../domain/bookLibraries.ts'
 import type { SeriesLibraryKey } from '../domain/seriesLibraries.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { ShareCardDialog } from './ShareCardDialog.tsx'
 
 export type LibraryExportMedium = CsvCollectionMedium
 
@@ -140,6 +141,7 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
   const [scope, setScope] = useState<ExportScope>('collection')
   const [saving, setSaving] = useState<ExportFormat | null>(null)
   const [message, setMessage] = useState<ExportMessage | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
   const medium = exportMedium(kind, bookLibrary, seriesLibrary)
   const mediumLabel = MEDIUM_LABELS[medium]
 
@@ -188,10 +190,12 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary 
             message={message === null ? null : exportMessageText(message)}
             onScope={setScope}
             onExport={(format) => void runExport(format)}
+            onShareCard={() => { setOpen(false); setShareOpen(true) }}
             onClose={() => setOpen(false)}
           />
         </AccessibleDialog>
       )}
+      {shareOpen && <ShareCardDialog profileId={profileId} initialLibrary={scope === 'profile' ? undefined : medium} onClose={() => setShareOpen(false)} />}
     </span>
   )
 }
@@ -204,6 +208,7 @@ export function ExportDialogContent({
   message,
   onScope,
   onExport,
+  onShareCard,
   onClose,
 }: {
   mediumLabel: string
@@ -212,6 +217,8 @@ export function ExportDialogContent({
   message: string | null
   onScope: (scope: ExportScope) => void
   onExport: (format: ExportFormat) => void
+  /** Ouvre la carte à partager ; sans elle, l'option n'est pas proposée. */
+  onShareCard?: () => void
   onClose: () => void
 }) {
   return (
@@ -240,6 +247,15 @@ export function ExportDialogContent({
         >
           <b>{saving === 'csv' ? t('Export en cours…') : 'CSV'}</b>
           <small>{t("Colonnes UTF-8 pour un tableur. Les citations restent des cellules JSON ; les champs libres d’Art et les identifiants de citations ne sont pas inclus. Privilégier JSON pour une copie fidèle.")}</small>
+        </button>}
+        {onShareCard && <button
+          className="export-format-option"
+          type="button"
+          disabled={saving !== null}
+          onClick={onShareCard}
+        >
+          <b>{t('Carte à partager')}</b>
+          <small>{t('Image PNG à envoyer ou à publier : coups de cœur, mieux notés et derniers terminés. Ce n’est pas une copie des données.')}</small>
         </button>}
       </div>
       {message && <p className="inline-report" role="status">{message}</p>}

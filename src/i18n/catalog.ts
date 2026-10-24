@@ -7,6 +7,7 @@ import views from './catalogs/views.ts'
 import messages from './catalogs/messages.ts'
 import shared from './catalogs/shared.ts'
 import native from './catalogs/native.ts'
+import share from './catalogs/share.ts'
 
-export const catalogs = { main, shell, entries, transfers, home, views, messages, shared, native }
+export const catalogs = { main, shell, entries, transfers, home, views, messages, shared, native, share }
 export const english: Readonly<Record<string, string>> = Object.assign({}, ...Object.values(catalogs))
