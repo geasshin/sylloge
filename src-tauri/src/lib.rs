@@ -6,6 +6,7 @@ mod migration_backup;
 mod openlibrary;
 mod portability;
 mod profiles;
+mod share_images;
 mod tmdb;
 mod updater;
 mod updater_preferences;
@@ -34,6 +35,7 @@ pub fn run() {
             portability::save_export_json,
             portability::save_export_csv,
             portability::save_share_image,
+            share_images::fetch_remote_image,
             portability::get_backup_settings,
             portability::pick_backup_destination,
             portability::configure_backup_destination,

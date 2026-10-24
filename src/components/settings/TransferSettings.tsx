@@ -85,8 +85,8 @@ export function TransferSettings({ library, onLibraryChanged }: Props) {
         )}
       </SettingsGroup>
 
-      <SettingsGroup id="transfer-share-title" title={t('Carte à partager')} description={t('Une image PNG de vos coups de cœur, pour tout le profil ou une bibliothèque, aux formats standard et story. Vous choisissez les œuvres mises en avant, puis vous l’enregistrez, la copiez ou l’envoyez vers WhatsApp, Messenger ou X. Rien n’est envoyé en ligne.')}>
-        <SettingsRow label={t('Créer une carte')} detail={t('Choisir les coups de cœur à mettre en avant, voir l’aperçu, puis enregistrer l’image.')}>
+      <SettingsGroup id="transfer-share-title" title={t('Partage')} description={t('Une image PNG de vos coups de cœur, pour tout le profil ou une bibliothèque, aux formats standard et story. Vous choisissez les œuvres mises en avant, puis vous l’enregistrez, la copiez ou l’envoyez vers WhatsApp, Messenger ou X. Rien n’est envoyé en ligne.')}>
+        <SettingsRow label={t('Partager mon profil')} detail={t('Choisir les coups de cœur à mettre en avant, voir l’aperçu, puis enregistrer l’image.')}>
           <ShareCardLauncher profileId={library.profile.id} />
         </SettingsRow>
       </SettingsGroup>

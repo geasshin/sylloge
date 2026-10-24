@@ -1253,7 +1253,7 @@ function HomeDashboard({
           </div>
           <TabStatistics tab={current} stats={stats} />
           {/* La carte du profil entier se crée depuis « Tout » ; chaque bibliothèque a la sienne sur sa page. */}
-          {isAll && <ShareCardLauncher profileId={profileId} className="secondary-button at-share" />}
+          {isAll && <ShareCardLauncher profileId={profileId} className="secondary-button at-share" withIcon />}
         </div>
 
         <div key={current.slug} className="at-tab-panel" role="tabpanel" id="at-tab-panel" aria-labelledby={`at-tab-${current.slug}`}>

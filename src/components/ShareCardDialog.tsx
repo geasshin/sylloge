@@ -6,6 +6,7 @@ import { libraryRepository, type CulturalLibrary } from '../data/libraryReposito
 import { resolveFilmDisplayPoster } from '../data/tmdbService.ts'
 import { saveShareImage } from '../data/nativePortability.ts'
 import { loadDirectorPortraits, loadFilmCredits } from '../data/sharePeopleSource.ts'
+import { loadShareCardImage } from '../data/shareImageSource.ts'
 import { openExternalUrl } from '../data/externalLinks.ts'
 import { copyCard, shareToDestination, type ShareDeps, type ShareResult } from '../data/shareActions.ts'
 import {
@@ -32,6 +33,7 @@ import {
 } from '../domain/sharePeople.ts'
 import { SHARE_DESTINATIONS, SHARE_FORMATS, SHARE_FORMAT_ORDER, type ShareDestination, type ShareFormatId } from '../domain/shareFormats.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
+import { ShareIcon } from './icons.tsx'
 import { SharePeopleStep } from './SharePeopleStep.tsx'
 import { canvasToPng, renderShareCard, shareCardFileName, type RenderedShareCard } from './shareCardImage.ts'
 
@@ -251,7 +253,7 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
     const pending: Promise<Drawn | null> = base.isEmpty
       ? Promise.resolve(null)
       : withDisplayedImages(base, entry => (entry.library === 'films' ? resolveFilmDisplayPoster(entry.id, entry.imageUrl) : Promise.resolve(entry.imageUrl)))
-        .then(async model => ({ model, rendered: await renderShareCard(model, shareFormat) }))
+        .then(async model => ({ model, rendered: await renderShareCard(model, shareFormat, { loadImage: loadShareCardImage }) }))
     pending.catch(() => drawn.current.delete(key))
     if (drawn.current.size >= 6) drawn.current.clear()
     drawn.current.set(key, pending)
@@ -334,7 +336,7 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
 
   return (
     <AccessibleDialog
-      title={t('Créer une carte')}
+      title={scope.kind === 'profile' ? t('Partager mon profil') : t('Partager mes coups de cœur')}
       description={t('Choisissez les coups de cœur à mettre en avant : une image PNG à envoyer ou à publier. Rien n’est envoyé en ligne.')}
       closeDisabled={busy}
       onClose={onClose}
@@ -497,14 +499,35 @@ function describeStat(cell: ShareCardModel['stats']['cells'][number] | undefined
 }
 
 /** Bouton qui ouvre la fenêtre : réglages, et toute page qui propose la carte sans passer par l'export. */
-export function ShareCardLauncher({ profileId, initialLibrary, className = 'secondary-button' }: { profileId: string; initialLibrary?: ShareLibraryKey; className?: string }) {
+export function ShareCardLauncher({ profileId, initialLibrary, className = 'secondary-button', withIcon = false }: { profileId: string; initialLibrary?: ShareLibraryKey; className?: string; withIcon?: boolean }) {
   useLanguage()
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button className={className} type="button" onClick={() => setOpen(true)}>{t('Créer une carte')}</button>
+      <button className={className} type="button" onClick={() => setOpen(true)}>
+        {withIcon && <ShareIcon />}
+        {initialLibrary ? t('Partager mes coups de cœur') : t('Partager mon profil')}
+      </button>
       {/* Hors de l'arbre du bouton : sinon la fenêtre hérite des styles de la barre qui l'accueille (texte sur une ligne, conteneur). */}
       {open && createPortal(<ShareCardDialog profileId={profileId} initialLibrary={initialLibrary} onClose={() => setOpen(false)} />, document.body)}
+    </>
+  )
+}
+
+/**
+ * L'entrée de la carte sur la page d'une bibliothèque : un lien discret sous le titre, à côté du
+ * décompte, et non un bouton de plus dans la rangée des actions (ajouter, importer, exporter).
+ */
+export function ShareCardLink({ profileId, library }: { profileId: string; library: ShareLibraryKey }) {
+  useLanguage()
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button className="share-card-link" type="button" onClick={() => setOpen(true)}>
+        <ShareIcon />
+        <span>{t('Partager mes coups de cœur')}</span>
+      </button>
+      {open && createPortal(<ShareCardDialog profileId={profileId} initialLibrary={library} onClose={() => setOpen(false)} />, document.body)}
     </>
   )
 }

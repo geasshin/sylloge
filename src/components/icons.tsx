@@ -213,3 +213,14 @@ export function RecipeIcon({ size = 17, filled = false }: NavigationIconProps) {
 export function PlusIcon({ size = 17, filled = false }: NavigationIconProps) {
   return <NavigationIcon name="plus" size={size} filled={filled} />
 }
+
+/** Partager : une flèche qui sort d'un plateau — l'image quitte l'application, sans rien publier. */
+export function ShareIcon({ size = 15 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+      <path {...strokeProps} d="M10 2.9v9.2" />
+      <path {...strokeProps} d="M6.7 6.1 10 2.9l3.3 3.2" />
+      <path {...strokeProps} d="M4.2 11.4v3.9a1.8 1.8 0 0 0 1.8 1.8h8a1.8 1.8 0 0 0 1.8-1.8v-3.9" />
+    </svg>
+  )
+}

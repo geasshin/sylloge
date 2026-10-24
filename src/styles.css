@@ -1689,6 +1689,26 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   margin-top: var(--space-0-5);
 }
 .library-subtitle { margin: var(--space-1-5) 0 0; color: var(--color-text-muted); font-size: var(--text-md); }
+/* Le partage se lit sous le titre, à côté du décompte : un lien, jamais un bouton de plus dans la
+   rangée des actions. Le survol l'éclaircit, le focus garde un anneau visible. */
+.subtitle-sep { margin: 0 var(--space-2); }
+.share-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.share-card-link svg { display: block; flex-shrink: 0; }
+.share-card-link:not(:disabled):hover { text-decoration: underline; text-underline-offset: 3px; }
+.share-card-link:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; }
 .library-state {
   min-height: 330px;
   border-top: 1px solid var(--color-border);

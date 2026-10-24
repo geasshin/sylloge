@@ -126,7 +126,7 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
 
   const heading = embeddedInDialog ? null : (
     <div className="editor-heading">
-      <h1 className="display-title">{series ? t("Modifier la fiche") : animation ? t("Ajouter une animation japonaise") : t("Ajouter une série")}</h1>
+      <h1 className="display-title">{series ? t("Modifier la fiche") : animation ? t("Ajouter un animé") : t("Ajouter une série")}</h1>
     </div>
   )
 

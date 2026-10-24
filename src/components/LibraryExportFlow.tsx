@@ -48,8 +48,6 @@ type LibraryExportFlowProps = {
   profileId: string
   bookLibrary?: BookLibraryKey
   seriesLibrary?: SeriesLibraryKey
-  /** Ajoute, à côté d'« Exporter », le bouton qui ouvre la création d'une carte à partager de cette bibliothèque. */
-  shareCard?: boolean
 }
 
 /** Message du bilan : une description traduite au rendu, jamais une phrase figée. */
@@ -156,7 +154,7 @@ export function planLibraryExport(
  * Sylloge (document complet versionné) ou CSV (tableur) — puis écrit le
  * fichier choisi. Aucune écriture n'a lieu avant le choix explicite.
  */
-export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary, shareCard = false }: LibraryExportFlowProps) {
+export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary }: LibraryExportFlowProps) {
   const [open, setOpen] = useState(false)
   const [scope, setScope] = useState<ExportScope>('collection')
   const [saving, setSaving] = useState<ExportFormat | null>(null)
@@ -219,7 +217,6 @@ export function LibraryExportFlow({ kind, profileId, bookLibrary, seriesLibrary,
 
   return (
     <span className="transfer-action">
-      {shareCard && <button className="secondary-button" type="button" onClick={() => setShareOpen({ library: medium })}>{t("Créer une carte")}</button>}
       <button className="secondary-button" type="button" onClick={() => { setScope('collection'); setMessage(null); setOpen(true) }}>
         {t("Exporter")}
       </button>
@@ -317,7 +314,7 @@ export function ExportDialogContent({
           disabled={saving !== null}
           onClick={onShareCard}
         >
-          <b>{t('Carte à partager')}</b>
+          <b>{t('Image à partager')}</b>
           <small>{t('Image PNG à envoyer ou à publier : les coups de cœur que vous choisissez, avec vos chiffres. Ce n’est pas une copie des données.')}</small>
         </button>}
       </div>

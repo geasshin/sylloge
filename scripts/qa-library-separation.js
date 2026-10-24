@@ -151,7 +151,7 @@ async (page) => {
   check((await titles()).includes('Arcane'), 'correction-visible-destination')
   await open('Animation japonaise')
   check(!(await titles()).includes('Arcane'), 'correction-absente-source')
-  await page.getByRole('button', { name: 'Ajouter une animation japonaise', exact: true }).click()
+  await page.getByRole('button', { name: 'Ajouter un animé', exact: true }).click()
   await page.getByRole('button', { name: 'Saisir manuellement', exact: true }).click()
   await page.locator('#series-title').fill('Animation créée en recette')
   check(await page.getByRole('radiogroup', { name: 'Type de série', exact: true }).count() === 0, 'création-sans-bascule')

@@ -24,6 +24,7 @@ import { BookOpenLibrarySearchFlow } from './components/BookOpenLibrarySearchFlo
 import { GameIgdbSearchFlow } from './components/GameIgdbSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
+import { ShareCardLink } from './components/ShareCardDialog.tsx'
 import { statusTone } from './components/VerdictControls.tsx'
 import { type AvailableUpdate } from './data/updaterService.ts'
 import { useAppUpdate } from './data/appUpdate.ts'
@@ -628,7 +629,11 @@ function FilmsLibrary({
       <header className="library-header">
         <div>
           <h1 className="display-title">{t("Films")}</h1>
-          <p className="library-subtitle">{librarySubtitle(library.films, 'film', 'films')}</p>
+          <p className="library-subtitle">
+            {librarySubtitle(library.films, 'film', 'films')}
+            <span className="subtitle-sep" aria-hidden="true">·</span>
+            <ShareCardLink profileId={library.profile.id} library="films" />
+          </p>
         </div>
         <div className="library-header-actions">
           <button
@@ -649,7 +654,7 @@ function FilmsLibrary({
             existing={library.films}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="films" profileId={library.profile.id} shareCard />
+          <LibraryExportFlow kind="films" profileId={library.profile.id} />
           <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter un film")}</button>
         </div>
       </header>
@@ -1141,7 +1146,11 @@ function SeriesLibrary({
       <header className="library-header">
         <div>
           <h1 className="display-title">{t(label)}</h1>
-          <p className="library-subtitle">{librarySubtitle(collection, singular, plural)}</p>
+          <p className="library-subtitle">
+            {librarySubtitle(collection, singular, plural)}
+            <span className="subtitle-sep" aria-hidden="true">·</span>
+            <ShareCardLink profileId={profileId} library={library} />
+          </p>
         </div>
         <div className="library-header-actions">
           <button
@@ -1163,8 +1172,8 @@ function SeriesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="series" profileId={profileId} seriesLibrary={library} shareCard />
-          <button className="primary-button" type="button" onClick={onCreate}>{anime ? t('Ajouter une animation japonaise') : t('Ajouter une série')}</button>
+          <LibraryExportFlow kind="series" profileId={profileId} seriesLibrary={library} />
+          <button className="primary-button" type="button" onClick={onCreate}>{anime ? t('Ajouter un animé') : t('Ajouter une série')}</button>
         </div>
       </header>
       {/* 0.6.27 : barre d'outils toujours affichée, même bibliothèque vide. */}
@@ -1203,7 +1212,7 @@ function SeriesLibrary({
         <div className="library-state empty-library">
           <h2>{t('La bibliothèque {library} est vide.', { library: t(label) })}</h2>
           <p>{anime ? t('Ajouter une première animation japonaise, avec un titre seulement si nécessaire.') : t('Ajouter une première {medium}, avec un titre seulement si nécessaire.', { medium: t(singular) })}</p>
-          <button className="primary-button empty-action" type="button" onClick={onCreate}>{anime ? t('Ajouter une animation japonaise') : t('Ajouter une {medium}', { medium: t(singular) })}</button>
+          <button className="primary-button empty-action" type="button" onClick={onCreate}>{anime ? t('Ajouter un animé') : t('Ajouter une {medium}', { medium: t(singular) })}</button>
         </div>
       ) : (
         <>
@@ -1381,7 +1390,11 @@ function GamesLibrary({
       <header className="library-header">
         <div>
           <h1 className="display-title">{t("Jeux")}</h1>
-          <p className="library-subtitle">{librarySubtitle(collection, 'jeu', 'jeux')}</p>
+          <p className="library-subtitle">
+            {librarySubtitle(collection, 'jeu', 'jeux')}
+            <span className="subtitle-sep" aria-hidden="true">·</span>
+            <ShareCardLink profileId={profileId} library="games" />
+          </p>
         </div>
         <div className="library-header-actions">
           <button
@@ -1402,7 +1415,7 @@ function GamesLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="games" profileId={profileId} shareCard />
+          <LibraryExportFlow kind="games" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter un jeu")}</button>
         </div>
       </header>
@@ -1548,7 +1561,11 @@ function ArtworksLibrary({
       <header className="library-header">
         <div>
           <h1 className="display-title">{t("Art")}</h1>
-          <p className="library-subtitle">{librarySubtitle(collection, 'œuvre', 'œuvres')}</p>
+          <p className="library-subtitle">
+            {librarySubtitle(collection, 'œuvre', 'œuvres')}
+            <span className="subtitle-sep" aria-hidden="true">·</span>
+            <ShareCardLink profileId={profileId} library="artworks" />
+          </p>
         </div>
         <div className="library-header-actions">
           <LibraryImportButton
@@ -1560,7 +1577,7 @@ function ArtworksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="artworks" profileId={profileId} shareCard />
+          <LibraryExportFlow kind="artworks" profileId={profileId} />
           <button className="primary-button" type="button" onClick={onCreate}>{t("Ajouter une œuvre")}</button>
         </div>
       </header>
@@ -1723,7 +1740,11 @@ function BooksLibrary({
       <header className="library-header">
         <div>
           <h1 className="display-title">{t(label)}</h1>
-          <p className="library-subtitle">{librarySubtitle(collection, singular, plural)}</p>
+          <p className="library-subtitle">
+            {librarySubtitle(collection, singular, plural)}
+            <span className="subtitle-sep" aria-hidden="true">·</span>
+            <ShareCardLink profileId={profileId} library={library} />
+          </p>
         </div>
         <div className="library-header-actions">
           <button
@@ -1745,7 +1766,7 @@ function BooksLibrary({
             existing={collection}
             onDone={onLibraryChanged}
           />
-          <LibraryExportFlow kind="books" profileId={profileId} bookLibrary={library} shareCard />
+          <LibraryExportFlow kind="books" profileId={profileId} bookLibrary={library} />
           <button className="primary-button" type="button" onClick={onCreate}>{t('Ajouter un {medium}', { medium: t(singular) })}</button>
         </div>
       </header>
@@ -3345,7 +3366,7 @@ function App() {
             aria-modal="true"
             aria-label={{
               film: t('Ajouter un film'),
-              série: addFlow.medium === 'série' && addFlow.editSeriesId ? t('Modifier la fiche') : addFlow.medium === 'série' && addFlow.seriesLibrary === 'anime' ? t('Ajouter une animation japonaise') : t('Ajouter une série'),
+              série: addFlow.medium === 'série' && addFlow.editSeriesId ? t('Modifier la fiche') : addFlow.medium === 'série' && addFlow.seriesLibrary === 'anime' ? t('Ajouter un animé') : t('Ajouter une série'),
               livre: addFlow.medium === 'livre' && addFlow.editBookId ? t('Modifier la fiche') : addFlow.medium === 'livre' && addFlow.bookLibrary === 'mangas' ? t('Ajouter un manga') : t('Ajouter un livre'),
               jeu: t('Ajouter un jeu'),
               artwork: t('Ajouter une œuvre'),

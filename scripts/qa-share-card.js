@@ -1,12 +1,15 @@
 // Carte à partager (qa-app.html : le harnais simule l'enregistrement natif et l'ouverture du navigateur).
 //
-// Gardes : un bouton « Créer une carte » sur la page de chaque bibliothèque ; la fenêtre pose des questions
-// (coup de cœur principal, autres coups de cœur, chiffres à garder, format) et l'aperçu suit chaque réponse ;
-// deux formats aux tailles exactes (standard 1 080 × 1 350, story 1 080 × 1 920) ; le vrai logo (Σ) dessiné
-// dans l'en-tête ; chaque réseau choisit son format ; « copier » met un vrai PNG dans le presse-papiers puis le
-// service s'ouvre ; le repli (copie refusée) enregistre le fichier ; la story Instagram enregistre sans rien
-// ouvrir ; les bibliothèques ajoutées ne sont pas proposées ; images refusées par le serveur = tuile de titre,
-// export toujours possible ; demi-étoiles au pixel ; aucun coup de cœur = message.
+// Gardes : l'entrée « Partager mes coups de cœur » sous le titre de chaque bibliothèque (jamais dans la
+// rangée des actions), et « Partager mon profil » sur l'accueil ; la fenêtre pose des questions
+// (coup de cœur principal, autres coups de cœur, chiffres à garder, format) et l'aperçu suit chaque
+// réponse ; les affiches passent par la commande native qui rend leurs octets (le canevas n'a alors
+// besoin d'aucune autorisation inter-sites) ; deux formats aux tailles exactes (standard 1 080 × 1 350,
+// story 1 080 × 1 920) ; le vrai logo (Σ) dessiné dans l'en-tête ; chaque réseau choisit son format ;
+// « copier » met un vrai PNG dans le presse-papiers puis le service s'ouvre ; le repli (copie refusée)
+// enregistre le fichier ; la story Instagram enregistre sans rien ouvrir ; les bibliothèques ajoutées ne
+// sont pas proposées ; images refusées par le serveur = tuile de titre, export toujours possible ;
+// demi-étoiles au pixel ; aucun coup de cœur = message.
 async page => {
   page.setDefaultTimeout(12000)
   const checks = []
@@ -46,7 +49,7 @@ async page => {
     if (!(await entry.isVisible().catch(() => false))) await page.getByRole('button', { name: settings, exact: true }).click()
     await entry.click()
   }
-  const dialog = () => page.getByRole('dialog', { name: 'Créer une carte' })
+  const dialog = () => page.getByRole('dialog', { name: /Partager (mes coups de cœur|mon profil)/ })
   // La croix de l'en-tête ferme à toute étape ; le bouton « Fermer » n'existe qu'à la dernière.
   const closeDialog = () => dialog().getByRole('button', { name: 'Fermer l’assistant', exact: true }).click()
   const step = name => dialog().locator('.share-steps').getByRole('button', { name })
@@ -87,11 +90,15 @@ async page => {
   const lastSaved = () => page.evaluate(() => { const all = window.__syllogeRecette.savedImages(); return all[all.length - 1] })
   const opened = () => page.evaluate(() => window.__syllogeRecette.opened())
 
-  // ── 1. Le bouton est sur la page de la bibliothèque ; la fenêtre pose ses questions, l'aperçu les suit ──
+  // ── 1. L'entrée est sur la page de la bibliothèque ; la fenêtre pose ses questions, l'aperçu les suit ──
   await start()
   await page.locator('nav').getByRole('button', { name: 'Films', exact: true }).click()
-  assert(await page.getByRole('button', { name: 'Créer une carte', exact: true }).count() === 1, 'Page Films : un bouton « Créer une carte »')
-  await page.getByRole('button', { name: 'Créer une carte', exact: true }).click()
+  // Le partage se lit sous le titre, à côté du décompte — jamais dans la rangée des actions.
+  const libraryShare = () => page.locator('.library-subtitle').getByRole('button', { name: 'Partager mes coups de cœur', exact: true })
+  assert(await libraryShare().count() === 1, 'Page Films : un lien « Partager mes coups de cœur » sous le titre')
+  assert(await libraryShare().locator('svg').count() === 1, 'Page Films : le lien porte une icône de partage')
+  assert(await page.locator('.library-header-actions').getByRole('button', { name: /Partager/ }).count() === 0, 'Page Films : le partage n’est pas un bouton de plus dans la rangée des actions')
+  await libraryShare().click()
   await dialog().waitFor()
   await canvas().waitFor()
   assert(JSON.stringify(await size()) === '[1080,1350]', `Standard d'office : 1 080 × 1 350 (${await size()})`)
@@ -100,6 +107,11 @@ async page => {
   assert(JSON.stringify(stepNames.map(name => name.replace(/\s+/g, ' ').trim())) === JSON.stringify(['1 Principal', '2 Autres', '3 Personnes', '4 Chiffres', '5 Partage']), `Cinq étapes pour Films : ${stepNames.join(' | ')}`)
   assert(await dialog().getByText(/n’ont pas pu être chargées|n’a pas pu être chargée/).count() === 0, 'Images autorisées : aucun message d’image manquante')
   assert(await dialog().locator('.share-card-preview').isVisible(), 'L’aperçu de la carte est visible pendant les questions')
+  // Le dessin ne dépend plus de l'autorisation du serveur d'affiches : les octets viennent de la
+  // commande native, et leur absence (étape 8) retombe sur le titre sans casser l'export.
+  const fetchedImages = await page.evaluate(() => window.__syllogeRecette.fetchedImages())
+  assert(fetchedImages.length >= 7, `Les affiches passent par la commande native (${fetchedImages.length} demandées)`)
+  assert(fetchedImages.every(url => /^https:\/\/picsum\.photos\//.test(url)), `La commande reçoit les adresses des affiches (${fetchedImages[0]})`)
 
   // Le vrai logo, au rectangle exact choisi dans l'en-tête : tuile Σ, pas l'ancien marque-page.
   const logoGap = await page.evaluate(async () => {
@@ -279,7 +291,7 @@ async page => {
   cors = false
   await start()
   await openTransfer()
-  await page.getByRole('button', { name: 'Créer une carte', exact: true }).click()
+  await page.getByRole('button', { name: 'Partager mon profil', exact: true }).click()
   await dialog().waitFor()
   await canvas().waitFor()
   await dialog().getByText(/images n’ont pas pu être chargées : leurs tuiles affichent le titre/).waitFor()
@@ -296,23 +308,23 @@ async page => {
   await page.locator('nav').getByRole('button', { name: 'Films', exact: true }).click()
   await page.getByRole('button', { name: 'Exporter', exact: true }).first().click()
   const exportDialog = page.getByRole('dialog', { name: /Exporter/ })
-  await exportDialog.getByRole('button', { name: /Carte à partager/ }).click()
+  await exportDialog.getByRole('button', { name: /Image à partager/ }).click()
   await dialog().waitFor()
-  assert(await page.locator('#share-card-scope').count() === 0 && await dialog().locator('.share-picker input[name="share-hero"]').count() === favorites, 'Export › Carte à partager : la carte s’ouvre sur la bibliothèque courante (ses coups de cœur seulement)')
+  assert(await page.locator('#share-card-scope').count() === 0 && await dialog().locator('.share-picker input[name="share-hero"]').count() === favorites, 'Export › Image à partager : la carte s’ouvre sur la bibliothèque courante (ses coups de cœur seulement)')
   assert(await page.getByRole('dialog', { name: /Exporter/ }).count() === 0, 'La fenêtre d’export est remplacée par celle de la carte')
   await closeDialog()
   await page.getByRole('button', { name: 'Exporter', exact: true }).first().click()
   await page.getByRole('dialog', { name: /Exporter/ }).getByRole('radio', { name: /Tout le profil/ }).check()
-  await page.getByRole('dialog', { name: /Exporter/ }).getByRole('button', { name: /Carte à partager/ }).click()
+  await page.getByRole('dialog', { name: /Exporter/ }).getByRole('button', { name: /Image à partager/ }).click()
   await dialog().waitFor()
-  assert(await page.locator('#share-card-scope').inputValue() === 'profile', 'Export (tout le profil) › Carte à partager : la carte s’ouvre sur le profil')
+  assert(await page.locator('#share-card-scope').inputValue() === 'profile', 'Export (tout le profil) › Image à partager : la carte s’ouvre sur le profil')
   await closeDialog()
 
   // ── 9 bis. Réglages : portée au choix ; sur le profil, le choix d'office mêle les bibliothèques ──
   await start()
   await openTransfer()
-  assert(await page.getByRole('heading', { name: 'Carte à partager', exact: true }).count() === 1, 'Réglages : un groupe « Carte à partager »')
-  await page.getByRole('button', { name: 'Créer une carte', exact: true }).click()
+  assert(await page.getByRole('heading', { name: 'Partage', exact: true }).count() === 1, 'Réglages : un groupe « Partage »')
+  await page.getByRole('button', { name: 'Partager mon profil', exact: true }).click()
   await dialog().waitFor()
   await canvas().waitFor()
   assert(await page.locator('#share-card-scope').inputValue() === 'profile', 'Réglages : portée par défaut, tout le profil')
@@ -458,7 +470,7 @@ async page => {
   await start()
   const openLibraryCard = async label => {
     await page.locator('nav').getByRole('button', { name: label, exact: true }).click()
-    await page.getByRole('button', { name: 'Créer une carte', exact: true }).first().click()
+    await page.locator('.library-subtitle').getByRole('button', { name: 'Partager mes coups de cœur', exact: true }).click()
     await dialog().waitFor()
     await canvas().waitFor()
   }
@@ -491,10 +503,10 @@ async page => {
   await start()
   const homeTab = label => page.getByRole('tab', { name: label, exact: true })
   await homeTab('Films').click()
-  assert(await page.locator('.at-topbar').getByRole('button', { name: 'Créer une carte', exact: true }).count() === 0, 'Accueil : pas de bouton sur l’onglet Films (chaque bibliothèque a le sien sur sa page)')
+  assert(await page.locator('.at-topbar').getByRole('button', { name: 'Partager mon profil', exact: true }).count() === 0, 'Accueil : pas de bouton sur l’onglet Films (chaque bibliothèque a le sien sur sa page)')
   await homeTab('Tout').click()
-  const homeButton = page.locator('.at-topbar').getByRole('button', { name: 'Créer une carte', exact: true })
-  assert(await homeButton.count() === 1, 'Accueil : un bouton « Créer une carte » sur l’onglet Tout')
+  const homeButton = page.locator('.at-topbar').getByRole('button', { name: 'Partager mon profil', exact: true })
+  assert(await homeButton.count() === 1, 'Accueil : un bouton « Partager mon profil » sur l’onglet Tout')
   const topbarCenters = await page.locator('.at-topbar').evaluate(bar => [...bar.children].map(child => { const box = child.getBoundingClientRect(); return Math.round(box.top + box.height / 2) }))
   assert(Math.max(...topbarCenters) - Math.min(...topbarCenters) <= 2, `Accueil à 1440 px : onglets, bilan et bouton restent sur une seule ligne (${topbarCenters})`)
   await homeButton.click()
@@ -559,7 +571,7 @@ async page => {
   // ── 11. Aucun coup de cœur : un message, pas d'image vide ni d'étapes ───────────────────────────
   await start('fr', 'empty')
   await openTransfer()
-  await page.getByRole('button', { name: 'Créer une carte', exact: true }).click()
+  await page.getByRole('button', { name: 'Partager mon profil', exact: true }).click()
   await dialog().getByText(/Pas encore de coup de cœur à mettre en avant/).waitFor()
   assert(await canvas().count() === 0, 'Aucun coup de cœur : aucun aperçu vide')
   for (const name of ['Enregistrer l’image', 'Copier l’image', 'WhatsApp', 'Story Instagram', 'Continuer']) {
@@ -570,8 +582,8 @@ async page => {
   // ── 12. Anglais ────────────────────────────────────────────────────────────────────────────────
   await start('en')
   await page.locator('nav').getByRole('button', { name: 'Films', exact: true }).click()
-  await page.getByRole('button', { name: 'Create a card', exact: true }).first().click()
-  const english = page.getByRole('dialog', { name: 'Create a card' })
+  await page.getByRole('button', { name: 'Share my favourites', exact: true }).first().click()
+  const english = page.getByRole('dialog', { name: 'Share my favourites' })
   await english.waitFor()
   await english.locator('canvas.share-card-canvas').waitFor()
   // innerText rend les titres en capitales (text-transform) : on compare sans tenir compte de la casse.

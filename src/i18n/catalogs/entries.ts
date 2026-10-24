@@ -127,7 +127,7 @@ const messages: Record<string, string> = {
   "Qu’as-tu pensé de ce livre ?": "Thoughts on this book…",
   "Année de parution": "Publication year",
   "Ajouter une série": "Add a series",
-  "Ajouter une animation japonaise": "Add an anime",
+  "Ajouter un animé": "Add an anime",
   "Ajouter la série": "Add series",
   "Ajouter l’animation japonaise": "Add anime",
   "Début du visionnage": "Watching started",

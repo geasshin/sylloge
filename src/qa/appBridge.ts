@@ -486,6 +486,8 @@ const opened: string[] = []
 const windowThemes: Array<string | null> = []
 // Cartes à partager enregistrées (octets du PNG), pour que la recette les relise.
 const savedImages: number[][] = []
+/** Les adresses d'images demandées à la commande native : la recette vérifie que la carte passe par elle. */
+const fetchedImages: string[] = []
 
 function handle(cmd: string, args: Args): unknown {
   switch (cmd) {
@@ -508,6 +510,17 @@ function handle(cmd: string, args: Args): unknown {
       const bytes = args instanceof ArrayBuffer ? new Uint8Array(args) : (args as unknown as Uint8Array)
       savedImages.push(Array.from(bytes))
       return 'sylloge-carte-recette.png'
+    }
+    // Octets d'une affiche pour la carte : le vrai pont les demande à Rust (le canevas n'a alors besoin
+    // d'aucune autorisation inter-sites) ; la recette les prend au serveur simulé, et échoue comme lui.
+    case 'fetch_remote_image': {
+      const url = String(args.url ?? '')
+      if (!/^https?:\/\//.test(url)) throw new Error('Adresse d’image invalide.')
+      fetchedImages.push(url)
+      return fetch(url).then(async response => {
+        if (!response.ok) throw new Error(`Le serveur a refusé l’image (${response.status}).`)
+        return await response.arrayBuffer()
+      })
     }
 
     // Profils
@@ -680,6 +693,7 @@ Object.assign(window, {
     opened: () => [...opened],
     windowThemes: () => [...windowThemes],
     savedImages: () => savedImages.map(bytes => [...bytes]),
+    fetchedImages: () => [...fetchedImages],
   },
 })
 
