@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatDate, formatNumber, t, translateMessage } from '../i18n/core.ts'
 import { useLanguage } from '../i18n/react.ts'
-import { pickImportContainer, pickImportJson } from '../data/nativePortability.ts'
+import { pickImportJson } from '../data/nativePortability.ts'
 import { findBackupCandidates } from '../data/backupFiles.ts'
 import { experiencePreviewText } from './restoreReport.ts'
 import { catalogBackupFiles, customLibrarySummary, PROFILE_LIBRARIES, PROFILE_LIBRARY_LABELS, profileWorkCount, type PreparedBackup } from '../domain/backupRestore.ts'
@@ -46,7 +46,6 @@ export function BackupRestorePicker({ value, onChange, disabled = false, searchO
   useLanguage()
   const [busy, setBusy] = useState(false)
   const reading = useRef(false)
-  const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [found, setFound] = useState<{ catalog: Catalog; unreadable: string[] } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,37 +57,26 @@ export function BackupRestorePicker({ value, onChange, disabled = false, searchO
     setError(null)
     setMessage(null)
     try { await task() } catch {
-      setError('Lecture impossible. Choisir un fichier JSON Sylloge ou un dossier local accessible. Aucune donnée n’a été écrite.')
+      setError('Lecture impossible. Choisir un fichier JSON Sylloge accessible. Aucune donnée n’a été écrite.')
     } finally { reading.current = false; setBusy(false) }
   }
 
   const search = () => run(async () => {
-    setCatalog(null)
     onChange(null)
     const result = await findBackupCandidates()
     const files = result.candidates.map(candidate => ({ name: candidate.fileName, contents: candidate.contents, location: candidate.location }))
     const nextCatalog = catalogBackupFiles(files)
     setFound({ catalog: nextCatalog, unreadable: result.unreadableLocations })
-    if (nextCatalog.valid.length === 0) setMessage('Aucune sauvegarde Sylloge trouvée dans iCloud Drive, Google Drive, Documents, Bureau ou Téléchargements. Choisir le fichier ou le dossier manuellement.')
+    if (nextCatalog.valid.length === 0) setMessage('Aucune sauvegarde Sylloge trouvée dans iCloud Drive, Google Drive, Documents, Bureau ou Téléchargements. Choisir le fichier manuellement.')
   })
 
-  const choose = (folder: boolean) => run(async () => {
-    setCatalog(null)
+  const chooseFile = () => run(async () => {
     onChange(null)
-    if (folder) {
-      const picked = await pickImportContainer()
-      if (!picked) { setMessage('Sélection annulée. Aucune donnée n’a été écrite.'); return }
-      const files = picked.kind === 'container' ? picked.containerCandidates.filter(candidate => candidate.kind === 'json') : []
-      const result = catalogBackupFiles(files)
-      setCatalog(result)
-      setMessage(result.valid.length > 0 ? 'Choisir explicitement la copie à restaurer. Aucune copie n’est sélectionnée automatiquement.' : 'Aucune sauvegarde Sylloge JSON valide dans ce dossier.')
-    } else {
-      const picked = await pickImportJson()
-      if (!picked) { setMessage('Sélection annulée. Aucune donnée n’a été écrite.'); return }
-      const result = catalogBackupFiles([picked])
-      if (result.valid.length > 0) onChange(result.valid[0])
-      else setError(result.invalid[0]?.message ?? 'Le fichier n’est pas une sauvegarde Sylloge valide.')
-    }
+    const picked = await pickImportJson()
+    if (!picked) { setMessage('Sélection annulée. Aucune donnée n’a été écrite.'); return }
+    const result = catalogBackupFiles([picked])
+    if (result.valid.length > 0) onChange(result.valid[0])
+    else setError(result.invalid[0]?.message ?? 'Le fichier n’est pas une sauvegarde Sylloge valide.')
   })
 
   const searchedOnce = useRef(false)
@@ -105,13 +93,9 @@ export function BackupRestorePicker({ value, onChange, disabled = false, searchO
   return <div className="backup-restore-picker">
     <div className="backup-picker-actions">
       <button className={found ? 'secondary-button' : 'primary-button'} type="button" disabled={busy || disabled} onClick={() => void search()}>{found ? t('Relancer la recherche') : t('Rechercher sur ce Mac')}</button>
+      <button className="secondary-button" type="button" disabled={busy || disabled} onClick={() => void chooseFile()}>{t('Choisir un fichier JSON')}</button>
     </div>
-    <p className="backup-search-note">{t('La recherche lit seulement les fichiers « sylloge-… .json » d’iCloud Drive, Google Drive, Dropbox, OneDrive, Documents, Bureau et Téléchargements. macOS peut demander l’autorisation d’y accéder.')}</p>
-    <div className="backup-picker-manual">
-      <span>{t('Sauvegarde sur une clé USB ou dans un autre dossier ?')}</span>
-      <button className="text-button" type="button" disabled={busy || disabled} onClick={() => void choose(false)}>{t('Choisir un fichier JSON')}</button>
-      <button className="text-button" type="button" disabled={busy || disabled} onClick={() => void choose(true)}>{t('Parcourir un dossier de sauvegardes')}</button>
-    </div>
+    <p className="backup-search-note">{t('La recherche lit seulement les fichiers « sylloge-… .json » d’iCloud Drive, Google Drive, Dropbox, OneDrive, Documents, Bureau et Téléchargements. macOS peut demander l’autorisation d’y accéder.')} {t('Sauvegarde sur une clé USB ou dans un autre dossier : choisir directement son fichier JSON.')}</p>
     {busy && <p role="status">{t('Lecture et vérification des sauvegardes…')}</p>}
     {message && <p role="status">{pickerMessageText(message)}</p>}
     {error && <p className="inline-report error" role="alert">{pickerMessageText(error)}</p>}
@@ -124,7 +108,6 @@ export function BackupRestorePicker({ value, onChange, disabled = false, searchO
       </div>
       <button className={value === newest ? 'secondary-button' : 'primary-button'} type="button" disabled={busy || disabled || value === newest} onClick={() => onChange(newest)}>{value === newest ? t('Sélectionnée') : t('Utiliser cette sauvegarde')}</button>
     </section>}
-    {newest && <p className="backup-search-note">{t('Une copie plus récente ailleurs, par exemple sur une clé USB ? La choisir avec « Choisir un fichier JSON ».')}</p>}
     {others.length > 0 && <details className="import-guide-limits">
       <summary>{t('Autres sauvegardes trouvées · {count}', { count: formatNumber(others.length) })}</summary>
       <fieldset className="backup-catalog" disabled={disabled || busy}>
@@ -135,14 +118,6 @@ export function BackupRestorePicker({ value, onChange, disabled = false, searchO
         </label>)}
       </fieldset>
     </details>}
-    {catalog && catalog.valid.length > 0 && <fieldset className="backup-catalog" disabled={disabled || busy}>
-      <legend>{t('Copies valides · {count}', { count: formatNumber(catalog.valid.length) })}</legend>
-      {catalog.valid.map((entry, index) => <label key={index}>
-        <input type="radio" name="backup-candidate" checked={value === entry} onChange={() => onChange(entry)} />
-        <span><b>{entry.fileName}</b><small>{dateLabel(entry.document.exportedAt)} · {entry.document.profile.name} · {worksLabel(profileWorkCount(entry.document))}</small></span>
-      </label>)}
-    </fieldset>}
-    {catalog && catalog.invalid.length > 0 && <details className="import-guide-limits"><summary>{t('Fichiers JSON non restaurables · {count}', { count: formatNumber(catalog.invalid.length) })}</summary><ul>{catalog.invalid.map((entry, index) => <li key={index}>{entry.fileName} — {pickerMessageText(entry.message)}</li>)}</ul></details>}
     {value && <BackupSummary value={value} />}
   </div>
 }

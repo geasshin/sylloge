@@ -10,10 +10,9 @@ import { SettingsGroup, SettingsRow } from './SettingsLayout.tsx'
 type Props = {
   library: FilmLibrary
   onLibraryChanged: () => void
-  onOpenBackups?: () => void
 }
 
-export function TransferSettings({ library, onLibraryChanged, onOpenBackups }: Props) {
+export function TransferSettings({ library, onLibraryChanged }: Props) {
   useLanguage()
   const [full, setFull] = useState<CulturalLibrary | null>(null)
   const [failed, setFailed] = useState(false)
@@ -83,12 +82,6 @@ export function TransferSettings({ library, onLibraryChanged, onOpenBackups }: P
             </SettingsRow>
           </>
         )}
-      </SettingsGroup>
-
-      <SettingsGroup id="transfer-profile-title" title={t('Tout le profil')} description={t('Pour sauvegarder, restaurer ou changer d’ordinateur, un seul fichier JSON réunit toutes les bibliothèques du profil.')}>
-        <SettingsRow label={t('Sauvegarde et restauration')} detail={t('Sauvegarde automatique, copies du profil, restauration et export d’une copie.')}>
-          {onOpenBackups && <button className="secondary-button" type="button" onClick={onOpenBackups}>{t('Ouvrir Sauvegarde')}</button>}
-        </SettingsRow>
       </SettingsGroup>
     </>
   )

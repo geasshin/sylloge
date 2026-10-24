@@ -25,9 +25,9 @@ async page => {
         const state=window.__onboardTest
         state.events.push({cmd,args})
         if(cmd==='pick_import_json')return{name:'profile.json',contents:source}
-        if(cmd==='pick_import_container'){
+        if(cmd==='find_backup_candidates'&&mode==='search'){
           const old=JSON.parse(source);old.exportedAt='2026-01-01T00:00:00.000Z'
-          return{name:'Copies de recette',kind:'container',contents:null,csvCandidates:[],markdownPages:[],containerCandidates:[{id:'old',kind:'json',name:'z-old.json',contents:JSON.stringify(old)},{id:'recent',kind:'json',name:'a-recent.json',contents:source},{id:'bad',kind:'json',name:'invalid.json',contents:'{invalid'}]}
+          return{candidates:[{fileName:'z-old.json',contents:JSON.stringify(old),location:'Documents'},{fileName:'a-recent.json',contents:source,location:'iCloud Drive'}],unreadableLocations:[]}
         }
         if(cmd==='pick_import_any')return{name:state.file,kind:'csv',contents:null,csvCandidates:[{id:'csv',name:state.file,contents:csv[state.file]}],containerCandidates:[],markdownPages:[]}
         if(cmd==='pick_backup_destination'&&mode==='cancel-destination')return null
@@ -71,14 +71,17 @@ async page => {
   assert(!!snapshot&&['anime','mangas'].every(key=>JSON.parse(snapshot.args.contents)[key].length===sourceCounts[key]),'Première sauvegarde JSON : Anime et Mangas inclus')
   assert(log.findIndex(x=>x.cmd==='save_manual_backup_snapshot')>log.findIndex(x=>x.cmd==='import_library_document_into_empty_profile'),'Première sauvegarde après import finalisé')
 
-  await setup('folder')
+  await setup('search')
   await page.getByRole('radio',{name:/^Restaurer Sylloge/}).click()
-  await page.getByRole('button',{name:'Parcourir un dossier de sauvegardes',exact:true}).click()
-  assert(await page.getByRole('radio',{name:/a-recent.json/}).count()===1,'Dossier : copies valides proposées')
-  assert(await page.getByRole('button',{name:'Continuer',exact:true}).isDisabled(),'Dossier : aucune copie sélectionnée implicitement')
-  await page.getByRole('radio',{name:/a-recent.json/}).check()
-  assert(await page.getByRole('button',{name:'Continuer',exact:true}).isEnabled(),'Dossier : sélection explicite avant poursuite')
-  assert(await noWrites(),'Dossier source : aucune configuration de destination implicite')
+  await page.getByRole('region',{name:'Sauvegarde la plus récente trouvée'}).waitFor()
+  assert(await page.getByRole('region',{name:'Sauvegarde la plus récente trouvée'}).getByText(/a-recent\.json/).count()===1,'Recherche : la copie la plus récente est proposée')
+  assert(await page.getByRole('button',{name:'Continuer',exact:true}).isDisabled(),'Recherche : aucune copie sélectionnée implicitement')
+  await page.getByRole('button',{name:'Utiliser cette sauvegarde',exact:true}).click()
+  assert(await page.getByRole('button',{name:'Continuer',exact:true}).isEnabled(),'Recherche : sélection explicite avant poursuite')
+  await page.locator('details.import-guide-limits summary').click()
+  assert(await page.getByRole('radio',{name:/z-old\.json/}).count()===1,'Recherche : les autres copies sont listées')
+  assert(await page.getByRole('button',{name:'Parcourir un dossier de sauvegardes',exact:true}).count()===0,'Recherche : plus de bouton « dossier »')
+  assert(await noWrites(),'Recherche : aucune configuration de destination implicite')
 
   await setup('third-party')
   await page.getByRole('radio',{name:/^Importer d’un autre service/}).click()

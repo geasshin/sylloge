@@ -1234,9 +1234,11 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .custom-field-row input, .provider-information-platform input):is(:focus, :focus-within) {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 1px var(--color-accent);
+  /* Le second pixel de l'anneau est dessiné DANS la boîte : un débord extérieur est rogné par
+     le conteneur défilant d'une fenêtre (haut et gauche à 1 px, bas et droite à 2 px). */
+  box-shadow: inset 0 0 0 1px var(--color-accent);
 }
-.search:has(input:focus-visible) { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
+.search:has(input:focus-visible) { border-color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
 :where(input, textarea)::placeholder { color: var(--color-placeholder); }
 :where(.field input, .field select, .field textarea, .select-trigger)[aria-invalid="true"] { border-color: var(--color-danger); }
 :where(.field input, .field select, .field textarea, .select-trigger):disabled { opacity: .55; cursor: default; }
@@ -1254,7 +1256,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   text-align: left;
   cursor: pointer;
 }
-.select.is-open .select-trigger { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
+.select.is-open .select-trigger { border-color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
 .select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select-value.is-placeholder { color: var(--color-placeholder); }
 .select-chevron { flex: none; color: var(--color-text-muted); transition: transform var(--duration-fast) var(--ease-out); }
@@ -1779,9 +1781,11 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   letter-spacing: -.02em;
   border-color: transparent;
   background: transparent;
-  padding-inline: 0;
+  /* Même marge intérieure au repos et au focus : rien ne bouge, seuls le trait et le fond
+     apparaissent. Pas de marge négative : un débord serait rogné par le conteneur défilant. */
+  padding-inline: var(--space-3);
 }
-.field-title-read input:focus { padding-inline: var(--space-3); background: var(--color-surface); }
+.field-title-read input:focus { border-color: var(--color-accent); background: var(--color-surface); }
 
 .verdict-block {
   display: grid;
@@ -3612,7 +3616,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .onboarding-import-summary { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-bottom: var(--space-5); }
 .onboarding-import-summary dt { overflow-wrap: anywhere; }
 .backup-picker-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-5) 0; }
-.backup-picker-manual { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-4) 0; color: var(--color-text-secondary); font-size: var(--text-sm); }
 .backup-restore-picker { min-width: 0; }
 .backup-restore-picker > p, .backup-preview > p { line-height: 1.6; overflow-wrap: anywhere; }
 .backup-preview { margin: var(--space-5) 0; }

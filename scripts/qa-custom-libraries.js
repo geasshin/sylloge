@@ -16,6 +16,12 @@ async page => {
   const labels = (await nav().locator('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label'))))
   const expected = ['Accueil', 'Films', 'Séries', 'Animation japonaise', 'Livres', 'Mangas', 'Jeux', 'Art', 'Comics', 'Musique', 'Spectacles', 'Jeux de société', 'Ajouter une bibliothèque']
   assert(JSON.stringify(labels) === JSON.stringify(expected), `Barre latérale : ${labels.join(', ')}`)
+  // Une bibliothèque ajoutée se range à la suite des bibliothèques de base : un seul intitulé
+  // « Bibliothèques », aucun sous-titre « Ajouter » / « Ajoutées » entre les deux.
+  const order = await nav().evaluate(el => [...el.children].map(c => c.classList.contains('nav-group') ? 'GROUPE:' + c.textContent.trim() : c.getAttribute('aria-label')))
+  assert(order.filter(x => x.startsWith('GROUPE:')).join() === 'GROUPE:Bibliothèques', `Barre latérale : un seul intitulé de section (${order.filter(x => x.startsWith('GROUPE:'))})`)
+  assert(order.indexOf('Comics') === order.indexOf('Art') + 1, 'Barre latérale : la première bibliothèque ajoutée suit directement « Art »')
+  assert(!(await nav().innerText()).match(/Ajoutées|^Ajouter$/m), 'Barre latérale : aucun sous-titre « Ajoutées » ni « Ajouter »')
   const comicsInBooks = await sql("SELECT COUNT(*) AS n FROM books WHERE category = 'comics'")
   assert(Number(comicsInBooks[0].n) === 0, 'Livres ne contient aucun comics')
 

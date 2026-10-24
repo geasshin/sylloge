@@ -6,7 +6,7 @@
 
 **v0.6.11 est publiée** (23 octobre) : première release par la chaîne unique, manifeste `latest.json` à trois cibles (macOS Apple Silicon et Intel, Windows) vérifié, adresses répondant.
 
-**Lot suivant (v0.6.12), implémenté et vérifié localement :**
+**v0.6.12 est publiée** (24 octobre), avec :
 
 - **Défaut de la v0.6.11 corrigé** : restaurer un profil au premier lancement ou depuis la fenêtre « Restaurer » ne réappliquait pas les vues enregistrées ni les préférences d’un document v5. Un seul des deux chemins d’import appelait la restauration de l’expérience. Voir [PORTABILITE.md](PORTABILITE.md).
 - **Bilan de restauration affiché** (vues restaurées, renommées, préférences appliquées), et aperçu qui annonce, avant d’écrire, ce que le document emporte.
@@ -14,7 +14,15 @@
 - **Paramètres › Sauvegarde recomposée** : la ligne « Rythme » (sans réglage) disparaît, le rythme se lit dans « Sauvegarder maintenant » ; conseil de dossier synchronisé ; le sélecteur de dossier s’ouvre sur iCloud Drive (sinon Documents) et Sylloge crée lui-même un dossier « Sylloge » dans le dossier choisi, sauf si celui-ci porte déjà ce nom ; la restauration n’a plus qu’une action principale (« Rechercher sur ce Mac »), le fichier ou le dossier manuels sont regroupés sous une phrase.
 - **Site de téléchargement toujours à jour** : ses boutons pointent vers `releases/latest/download/<nom fixe>` ; `release.yml` attache deux copies à nom fixe à chaque release et refuse de publier si l’une manque. Plus d’installateur dans le dépôt du site, plus de numéro de version à mettre à jour. Mention TMDB rétablie en pied de page.
 
-Non exercé : le sélecteur de dossier macOS réel (ouverture sur iCloud Drive, création du dossier « Sylloge » depuis l’application native) ; seules les fonctions de résolution du dossier sont testées, par des tests Rust.
+Non exercé : le sélecteur de dossier macOS réel (ouverture sur iCloud Drive, création du dossier « Sylloge » depuis l’application native) ; seules les fonctions de résolution du dossier sont testées, par des tests Rust. Vu à l'usage par Aurélien le 24 octobre : le dossier « Sylloge » est bien créé dans le dossier choisi.
+
+**Lot suivant (v0.6.13), implémenté et vérifié localement, non publié :**
+
+- **Liens externes réparés en natif** : aucun des douze liens `https` de l'application ne s'ouvrait dans la fenêtre Tauri (bouton « Ouvrir le site de Letterboxd », aides d'import, À propos, crédits TMDB et IGDB). Un écouteur unique (`src/data/externalLinks.ts`) confie désormais tout lien `https://` au navigateur du système par le plugin officiel `tauri-plugin-opener` (permission limitée à `https://*`). Nouvelle dépendance : `tauri-plugin-opener` 2.5.5 et `@tauri-apps/plugin-opener` 2.5.5 (la ligne 3.x est en alpha, la 2.7 aurait changé `wry`). **Non exercé en natif** : le harnais enregistre l'appel d'ouverture, il ne lance pas de navigateur.
+- **Contour des champs de formulaire** : l'anneau de focus débordait de 1 px à l'extérieur du champ et le conteneur défilant des fenêtres rognait ce débord (haut et gauche à 1 px, bas et droite à 2 px). Il est dessiné à l'intérieur de la boîte, sur les champs, la recherche et les listes. Le titre « en lecture » ne décale plus son texte au focus.
+- **Restauration** : un seul geste principal « Rechercher sur ce Mac », et « Choisir un fichier JSON » en vrai bouton à côté ; le bouton « Parcourir un dossier de sauvegardes » est retiré (la recherche liste déjà toutes les copies, le sélecteur de fichier couvre une clé USB).
+- **Réglages** : la rangée « Tout le profil › Ouvrir Sauvegarde » de « Importer et exporter », qui ne faisait que renvoyer, est supprimée.
+- **Barre latérale** : plus de sous-titre « Ajouter » / « Ajoutées » ; les bibliothèques ajoutées suivent directement celles de base.
 
 ## Actualisation du 23 octobre 2026
 

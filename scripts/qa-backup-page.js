@@ -43,16 +43,19 @@ async page => {
   assert(/Rien à faire ici en temps normal/.test(body), 'Copies : explique que « Restaurer… » n’est pas à faire en temps normal')
   assert(await page.locator('.settings-row', { hasText: 'Rythme' }).count() === 0, 'Aucune ligne Rythme')
 
-  // ── 3. Le sélecteur : une action principale, deux gestes manuels groupés ───────────────────────
+  // ── 3. Le sélecteur : « Rechercher » en principal, « Choisir un fichier JSON » visible à côté ──────
   await page.getByRole('button', { name: 'Restaurer une sauvegarde', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.waitFor()
   const primary = await dialog.locator('.backup-picker-actions .primary-button').allInnerTexts()
   assert(primary.length === 1 && primary[0] === 'Rechercher sur ce Mac', 'Sélecteur : un seul bouton principal, « Rechercher sur ce Mac »')
-  assert(await dialog.locator('.backup-picker-actions button').count() === 1, 'Sélecteur : une seule action dans la rangée principale')
-  const manual = dialog.locator('.backup-picker-manual')
-  assert(/clé USB ou dans un autre dossier/.test(await text(manual)), 'Gestes manuels : phrase d’introduction')
-  assert(await manual.locator('.text-button').count() === 2, 'Gestes manuels : deux boutons discrets (fichier, dossier)')
+  const actions = await dialog.locator('.backup-picker-actions button').allInnerTexts()
+  assert(JSON.stringify(actions) === JSON.stringify(['Rechercher sur ce Mac', 'Choisir un fichier JSON']), `Sélecteur : exactement deux actions, côte à côte (${actions})`)
+  assert(await dialog.locator('.backup-picker-actions .secondary-button', { hasText: 'Choisir un fichier JSON' }).count() === 1, '« Choisir un fichier JSON » est un vrai bouton, plus un lien discret')
+  assert(await dialog.getByRole('button', { name: /Parcourir un dossier/ }).count() === 0, 'Plus de bouton « Parcourir un dossier de sauvegardes »')
+  assert(/clé USB ou dans un autre dossier : choisir directement son fichier JSON/.test(await text(dialog.locator('.backup-search-note'))), 'Note : une clé USB ou un autre dossier passe par « Choisir un fichier JSON »')
+  const sameRow = await dialog.locator('.backup-picker-actions button').evaluateAll(b => new Set(b.map(x => Math.round(x.getBoundingClientRect().top))).size === 1)
+  assert(sameRow, 'Les deux boutons sont sur une seule ligne')
   await page.screenshot({ path: 'qa/bk-1-picker.png' })
 
   // ── 4. Un document v5 qui emporte deux vues et deux préférences ────────────────────────────────
@@ -134,7 +137,9 @@ async page => {
   assert(/Take your data elsewhere or keep a copy/i.test(english) && !/Rythme|Fréquence|Restaurer/.test(english), 'EN : titres traduits, aucun résidu français')
   await page.screenshot({ path: 'qa/bk-4-en.png' })
 
-  // La langue choisie est mémorisée : on la remet en français pour ne pas fausser la recette suivante.
+  // Langue, thème et barre épinglée sont mémorisés (le document v5 restauré applique un thème sombre) :
+  // on remet l'état de départ pour ne pas fausser la recette suivante.
+  await page.evaluate(() => ['sylloge-theme', 'sylloge-sidebar-pinned', 'sylloge-language'].forEach(key => localStorage.removeItem(key)))
   await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full&lang=fr')
   await page.getByRole('heading', { level: 1 }).first().waitFor()
 

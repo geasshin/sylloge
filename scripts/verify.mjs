@@ -4963,7 +4963,9 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
     assert.doesNotMatch(block, /auto-associate-button/, 'Ligne d’outils : « Tout associer » ne revient pas à côté de la recherche')
   }
   assert.match(stylesSourceLight, /\.library-tools > \.search \{[^}]*flex: 0 0 344px;[^}]*border-radius: var\(--radius-pill\);/, 'Recherche : pilule comme les boutons, un peu plus large que son texte d’aide')
-  assert.match(stylesSourceLight, /\.search:has\(input:focus-visible\) \{ border-color: var\(--color-accent\); box-shadow: 0 0 0 1px var\(--color-accent\); \}/, 'Recherche : l’anneau de focus clavier reste celui du cadre, il suit la pilule')
+  assert.match(stylesSourceLight, /\.search:has\(input:focus-visible\) \{ border-color: var\(--color-accent\); box-shadow: inset 0 0 0 1px var\(--color-accent\); \}/, 'Recherche : l’anneau de focus clavier reste celui du cadre, il suit la pilule')
+  // Aucun anneau de champ ne déborde : le conteneur défilant d'une fenêtre le rognerait (haut et gauche à 1 px).
+  assert.doesNotMatch(stylesSourceLight, /box-shadow: 0 0 0 1px var\(--color-accent\)/, 'Champs : l’anneau de focus est dessiné dans la boîte (inset), jamais en débord')
 
   // « Nouvelle vue » : après la zone qui défile (fondu et flèches compris), jamais dedans.
   const scrollerStart = viewBarSourceLight.indexOf('<div className="view-bar-scroller"')

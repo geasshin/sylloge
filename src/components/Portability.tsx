@@ -39,7 +39,6 @@ type PortabilityProps = {
   onProfilesChanged: () => void
   onProfileDeleted: (deletedProfileId: string) => void
   onLibraryChanged: () => void
-  onSectionChange?: (section: PortabilitySection) => void
 }
 
 export function Portability({
@@ -58,7 +57,6 @@ export function Portability({
   onProfilesChanged,
   onProfileDeleted,
   onLibraryChanged,
-  onSectionChange,
 }: PortabilityProps) {
   useLanguage()
   const page = SETTINGS_SECTIONS.find((entry) => entry.id === section) ?? SETTINGS_SECTIONS[0]
@@ -102,7 +100,6 @@ export function Portability({
           <TransferSettings
             library={library}
             onLibraryChanged={onLibraryChanged}
-            onOpenBackups={onSectionChange ? () => onSectionChange('backups') : undefined}
           />
         )}
         {section === 'application' && (

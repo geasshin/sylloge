@@ -377,7 +377,6 @@ function Sidebar({
             {artworkCount !== null && <span className="nav-count">{artworkCount}</span>}
             <span className="nav-item-peek" aria-hidden="true">{icon('art', activeItem === 'artworks')}</span>
           </button>
-          <span className="nav-group" aria-hidden="true"><span>{customLibraries.length > 0 ? t('Ajoutées') : t('Ajouter')}</span></span>
           {customLibraries.map(({ libraryId, count: entryCount }) => {
             const label = t(CUSTOM_LIBRARY_TEMPLATES[libraryId].label)
             const active = activeItem === 'custom' && activeCustomLibrary === libraryId
@@ -2830,7 +2829,6 @@ function App() {
     content = (
       <Portability
         section={settingsSection}
-        onSectionChange={setSettingsSection}
         library={library}
         profiles={profiles}
         themePreference={themePreference}

@@ -152,19 +152,19 @@ try {
     assert.equal(formatBackupDay('2026-10-24'), new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(2026, 9, 24)))
   })
 
-  await test('Transferts traduit les bibliothèques, les sources et le renvoi vers Sauvegarde', () => {
+  await test('Transferts traduit les bibliothèques et les sources, sans rangée qui ne fait que renvoyer vers Sauvegarde', () => {
     i18n.setLanguage('en')
     try {
-      const html = render(TransferSettings, { library, onLibraryChanged: noop, onOpenBackups: noop })
+      const html = render(TransferSettings, { library, onLibraryChanged: noop })
       assert.match(html, />By library<\/h2>/)
       assert.match(html, /Reading libraries…/)
-      assert.match(html, />Whole profile<\/h2>/)
-      assert.match(html, />Open Backup<\/button>/)
-      assert.doesNotMatch(html, /Par bibliothèque|Lecture des bibliothèques|Tout le profil|Ouvrir Sauvegarde/)
+      assert.doesNotMatch(html, /Par bibliothèque|Lecture des bibliothèques/)
+      // La page Sauvegarde porte déjà la sauvegarde, la restauration et l'export du profil.
+      assert.doesNotMatch(html, /Whole profile|Open Backup|Backup and restoration/)
     } finally { i18n.setLanguage('fr') }
-    const html = render(TransferSettings, { library, onLibraryChanged: noop, onOpenBackups: noop })
+    const html = render(TransferSettings, { library, onLibraryChanged: noop })
     assert.match(html, />Par bibliothèque<\/h2>/)
-    assert.match(html, />Tout le profil<\/h2>/)
+    assert.doesNotMatch(html, /Tout le profil|Ouvrir Sauvegarde|Sauvegarde et restauration/)
   })
 
   await test('L’aperçu d’une sauvegarde suit la langue, y compris les dates, les compteurs et les noms propres', () => {

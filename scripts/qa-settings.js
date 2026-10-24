@@ -142,8 +142,11 @@ async page => {
     const libraryRow = page.locator('.settings-row', { has: page.locator('b', { hasText: new RegExp(`^${library}$`) }) })
     assert(await libraryRow.getByRole('button', { name: /^Importer/ }).count() === 1 && await libraryRow.getByRole('button', { name: /^Exporter/ }).count() === 1, `Importer et exporter : ${library} a ses deux actions`)
   }
-  await page.getByRole('button', { name: 'Ouvrir Sauvegarde', exact: true }).click()
-  assert(await page.getByRole('heading', { level: 1, name: 'Sauvegarde' }).count() === 1, 'Importer et exporter : renvoi vers Sauvegarde pour le profil entier')
+  // Le profil entier se sauvegarde, se restaure et s'exporte depuis Sauvegarde : plus de rangée qui ne fait que renvoyer.
+  assert(await page.getByRole('button', { name: 'Ouvrir Sauvegarde', exact: true }).count() === 0 && await page.getByRole('heading', { name: 'Tout le profil', exact: true }).count() === 0, 'Importer et exporter : aucune rangée « Tout le profil » qui ne fait que renvoyer vers Sauvegarde')
+  assert(await page.getByRole('heading', { name: 'Par bibliothèque', exact: true }).count() === 1, 'Importer et exporter : seul le groupe « Par bibliothèque » reste')
+  await nav('Sauvegarde').click()
+  assert(await page.getByRole('heading', { level: 1, name: 'Sauvegarde' }).count() === 1, 'Sauvegarde : reste atteignable depuis la navigation des réglages')
 
   // 7. Premier lancement : choisir « Restaurer Sylloge » lance la recherche et propose la plus récente.
   const recentDocument = await page.evaluate(async () => {

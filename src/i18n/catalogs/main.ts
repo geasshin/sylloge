@@ -14,7 +14,6 @@ const messages: Record<string, string> = {
   "Mangas": "Manga",
   "Jeux": "Games",
   "Art": "Art",
-  "Ajoutées": "Added",
   "Ajouter": "Add",
   "Ajouter une bibliothèque": "Add a library",
   "Retour à la bibliothèque": "Back to library",
