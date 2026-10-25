@@ -37,11 +37,17 @@ async fn test_pool() -> SqlitePool {
 }
 
 fn payload(library: &str) -> CustomEntryWritePayload {
+    // Les recettes n'ont pas d'état « en cours » : leur fiche de contrôle part de « terminé ».
+    let status = if library == "recipes" {
+        "terminé"
+    } else {
+        "en cours"
+    };
     serde_json::from_value(json!({
         "libraryId": library,
         "entry": {
             "id": "entry-1", "profileId": "reader", "title": "Synthetic entry",
-            "creator": "\t=Creator, \"日本語\"  ", "year": 1986, "status": "en cours",
+            "creator": "\t=Creator, \"日本語\"  ", "year": 1986, "status": status,
             "rating": 4.5, "isFavorite": true, "progressCurrent": 0, "progressTotal": 10,
             "progressUpdatedAt": "2026-10-01T10:00:00.000Z", "startedAt": "2026-09-01",
             "finishedAt": "2026-10-02", "coverUrl": "https://example.invalid/cover.png",
@@ -139,8 +145,15 @@ fn every_custom_model_preserves_all_fields_statuses_optional_nulls_and_unknown_d
                 vec![expected_entry_row(&value.entry)],
                 "all initial fields for {model}"
             );
-            for status in ["à découvrir", "en cours", "terminé", "abandonné"] {
-                value.entry.status = status.into();
+            // Les recettes n'ont que trois états : « maîtrisée » remplace « en cours » et
+            // « abandonné », que la contrainte CHECK de `recipes` refuse (migration 0023).
+            let statuses: &[&str] = if model == "recipes" {
+                &["à découvrir", "terminé", "maîtrisée"]
+            } else {
+                &["à découvrir", "en cours", "terminé", "abandonné"]
+            };
+            for status in statuses {
+                value.entry.status = (*status).into();
                 value.entry.title = format!("Changed {model}");
                 value.entry.updated_at = "2026-10-22T11:00:00.000Z".into();
                 update_custom_entry_in_pool(&pool, value.clone())

@@ -414,6 +414,7 @@ mod tests {
             include_str!("../migrations/0020_split_anime_and_mangas.sql"),
             include_str!("../migrations/0021_custom_libraries.sql"),
             include_str!("../migrations/0022_recipes_library.sql"),
+            include_str!("../migrations/0023_recipes_statuses.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)

@@ -7,8 +7,8 @@ import { SYLLOGE_EXPORT_FORMAT, validateLibraryImport } from './libraryTransfer.
 import { normalizeSeries, SERIES_CATEGORIES, SERIES_STATUSES, type Series } from './series.ts'
 import {
   CUSTOM_LIBRARY_TEMPLATES,
-  CUSTOM_STATUSES,
   isCustomLibraryId,
+  isStatusAllowedFor,
   normalizeCustomEntry,
   type CustomEntry,
   type CustomLibrary,
@@ -608,7 +608,7 @@ function validateCustomEntry(
   const identityValid = validateSharedIdentity(value, path, CUSTOM_ENTRY_KEYS, 4, profileId, ids, errors, template.label)
   validateOptionalString(value.creator, `${path}.creator`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
-  if (!(CUSTOM_STATUSES as readonly unknown[]).includes(value.status)) {
+  if (!isStatusAllowedFor(libraryId, value.status)) {
     addError(errors, `${path}.status`, `Le statut ${template.label} est inconnu.`)
   }
   validateRating(value.rating, `${path}.rating`, errors)

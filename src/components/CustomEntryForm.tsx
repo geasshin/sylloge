@@ -1,5 +1,5 @@
 import { t, tc, translateMessage } from '../i18n/core.ts'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent } from 'react'
 import {
   CUSTOM_LIBRARY_TEMPLATES,
   customEntryToFormValues,
@@ -39,6 +39,117 @@ type CustomEntryFormProps = {
   onSave: (input: CustomEntryWriteInput) => Promise<void>
 }
 
+/** Lignes d'un champ `list` : une ligne vide reste une ligne à remplir, jamais rien. */
+function listItems(value: string): string[] {
+  const items = value === '' ? [''] : value.split('\n')
+  return items
+}
+
+/**
+ * Éditeur en liste d'un texte multiligne : un ingrédient ou une étape par
+ * ligne. Entrée ouvre la ligne suivante, Retour arrière sur une ligne vide la
+ * retire, et un collage de plusieurs lignes les répartit. La valeur reste le
+ * texte multiligne déjà stocké : ni le schéma ni les sauvegardes ne changent.
+ */
+function ListField({
+  id,
+  label,
+  value,
+  placeholder,
+  ordered,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: string
+  placeholder?: string
+  ordered: boolean
+  onChange: (next: string) => void
+}) {
+  const items = listItems(value)
+  const inputs = useRef<Array<HTMLInputElement | null>>([])
+  const pendingFocus = useRef<number | null>(null)
+
+  useEffect(() => {
+    const index = pendingFocus.current
+    if (index === null) return
+    pendingFocus.current = null
+    const input = inputs.current[index]
+    input?.focus()
+    input?.setSelectionRange(input.value.length, input.value.length)
+  })
+
+  const commit = (next: string[], focusIndex?: number) => {
+    if (focusIndex !== undefined) pendingFocus.current = focusIndex
+    onChange(next.join('\n'))
+  }
+
+  const setItem = (index: number, text: string) => {
+    const next = [...items]
+    next[index] = text
+    commit(next)
+  }
+
+  const insertAfter = (index: number, lines: string[] = ['']) => {
+    const next = [...items]
+    next.splice(index + 1, 0, ...lines)
+    commit(next, index + 1)
+  }
+
+  const removeAt = (index: number) => {
+    if (items.length === 1) {
+      onChange('')
+      return
+    }
+    const next = [...items]
+    next.splice(index, 1)
+    commit(next, Math.max(0, index - 1))
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      insertAfter(index)
+      return
+    }
+    if (event.key === 'Backspace' && items[index] === '' && items.length > 1) {
+      event.preventDefault()
+      removeAt(index)
+    }
+  }
+
+  const handlePaste = (event: ClipboardEvent<HTMLInputElement>, index: number) => {
+    const text = event.clipboardData.getData('text/plain')
+    const lines = text.split(/\r?\n/u).map((line) => line.trim()).filter((line) => line !== '')
+    if (lines.length < 2) return
+    event.preventDefault()
+    const next = [...items]
+    next.splice(index, 1, ...lines)
+    commit(next, index + lines.length - 1)
+  }
+
+  return (
+    <ol className={`list-field ${ordered ? 'is-ordered' : 'is-bulleted'}`}>
+      {items.map((item, index) => (
+        <li className="list-field-row" key={index}>
+          <span className="list-field-marker" aria-hidden="true">{ordered ? index + 1 : '•'}</span>
+          <input
+            ref={(element) => { inputs.current[index] = element }}
+            id={index === 0 ? id : `${id}-${index}`}
+            aria-label={label}
+            value={item}
+            placeholder={index === items.length - 1 ? placeholder : undefined}
+            autoComplete="off"
+            onChange={(event) => setItem(index, event.target.value)}
+            onKeyDown={(event) => handleKeyDown(event, index)}
+            onPaste={(event) => handlePaste(event, index)}
+          />
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 /**
  * Formulaire commun aux bibliothèques personnalisées, composé d’après le
  * modèle : statuts proposés, progression, date, champs propres et citations.
@@ -58,6 +169,9 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
   const ratingValue = values.rating === '' ? null : Number(values.rating)
   const started = values.status !== 'à découvrir'
   const progressVisible = template.progress !== null && started
+  // L'avis conclut une lecture, une écoute, une partie. Les notes d'une recette, elles,
+  // existent dès la fiche créée : elles arrivent même avec l'import.
+  const noteVisible = started || template.noteLabel !== undefined
   const dateVisible = values.status === 'terminé' || values.status === 'abandonné'
   const idPrefix = `custom-${libraryId}`
 
@@ -192,11 +306,11 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
               </div>
             )}
 
-            {started && (
+            {noteVisible && (
               <div className="review-write review-inline">
                 <textarea
                   id={`${idPrefix}-personalNote`}
-                  aria-label={t("Avis personnel")}
+                  aria-label={t(template.noteLabel ?? "Avis personnel")}
                   rows={5}
                   placeholder={tc(libraryId, template.notePlaceholder)}
                   value={values.personalNote}
@@ -208,36 +322,49 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
             )}
 
             <div className="secondary-fields editorial-open">
-              <div className="form-row">
+              <div className={`form-row ${template.showsYear !== false ? '' : 'form-row-single'}`}>
                 <div className="field">
                   <label htmlFor={`${idPrefix}-creator`}>{tc(libraryId, libraryId === 'podcasts' ? 'Animation du podcast' : template.creatorLabel)}</label>
                   <input id={`${idPrefix}-creator`} value={values.creator} onChange={(event) => update('creator', event.target.value)} />
                 </div>
-                <div className="field field-year">
-                  <label htmlFor={`${idPrefix}-year`}>{t("Année")}</label>
-                  <input
-                    id={`${idPrefix}-year`}
-                    inputMode="numeric"
-                    value={values.year}
-                    onChange={(event) => update('year', event.target.value)}
-                    aria-invalid={Boolean(errors.year)}
-                  />
-                  {errors.year && <p className="field-error">{translateMessage(errors.year)}</p>}
-                </div>
+                {template.showsYear !== false && (
+                  <div className="field field-year">
+                    <label htmlFor={`${idPrefix}-year`}>{t("Année")}</label>
+                    <input
+                      id={`${idPrefix}-year`}
+                      inputMode="numeric"
+                      value={values.year}
+                      onChange={(event) => update('year', event.target.value)}
+                      aria-invalid={Boolean(errors.year)}
+                    />
+                    {errors.year && <p className="field-error">{translateMessage(errors.year)}</p>}
+                  </div>
+                )}
               </div>
               <div className="custom-detail-fields">
                 {template.fields.map((field) => {
                   const fieldId = `${idPrefix}-detail-${field.key}`
                   const value = values.details[field.key] ?? ''
+                  const label = tc(libraryId, field.label)
+                  const placeholder = field.placeholder ? tc(libraryId, field.placeholder) : undefined
                   return (
-                    <div className={field.kind === 'textarea' ? 'field field-long' : 'field'} key={field.key}>
-                      <label id={`${fieldId}-label`} htmlFor={fieldId}>{tc(libraryId, field.label)}</label>
-                      {field.kind === 'textarea' ? (
+                    <div className={field.kind === 'textarea' || field.kind === 'list' ? 'field field-long' : 'field'} key={field.key}>
+                      <label id={`${fieldId}-label`} htmlFor={fieldId}>{label}</label>
+                      {field.kind === 'list' ? (
+                        <ListField
+                          id={fieldId}
+                          label={label}
+                          value={value}
+                          placeholder={placeholder}
+                          ordered={field.key === 'steps'}
+                          onChange={(next) => updateDetail(field.key, next)}
+                        />
+                      ) : field.kind === 'textarea' ? (
                         <textarea
                           id={fieldId}
                           rows={field.key === 'ingredients' ? 6 : 8}
                           value={value}
-                          placeholder={field.placeholder ? tc(libraryId, field.placeholder) : undefined}
+                          placeholder={placeholder}
                           onChange={(event) => updateDetail(field.key, event.target.value)}
                         />
                       ) : field.kind === 'select' && field.options ? (
@@ -255,16 +382,18 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
                           onChange={(next) => updateDetail(field.key, next)}
                         />
                       ) : (
-                        <input id={fieldId} value={value} placeholder={field.placeholder ? tc(libraryId, field.placeholder) : undefined} onChange={(event) => updateDetail(field.key, event.target.value)} />
+                        <input id={fieldId} value={value} placeholder={placeholder} onChange={(event) => updateDetail(field.key, event.target.value)} />
                       )}
                     </div>
                   )
                 })}
               </div>
-              <div className="field">
-                <label htmlFor={`${idPrefix}-summary`}>{t("Résumé")}</label>
-                <textarea id={`${idPrefix}-summary`} rows={3} value={values.summary} onChange={(event) => update('summary', event.target.value)} />
-              </div>
+              {template.showsSummary !== false && (
+                <div className="field">
+                  <label htmlFor={`${idPrefix}-summary`}>{t("Résumé")}</label>
+                  <textarea id={`${idPrefix}-summary`} rows={3} value={values.summary} onChange={(event) => update('summary', event.target.value)} />
+                </div>
+              )}
             </div>
 
             {template.quotes && <QuotesEditor values={values.quotes} onChange={quotes => update('quotes', quotes)} disabled={saving} autoFocusLast={initialQuoteDraft} />}

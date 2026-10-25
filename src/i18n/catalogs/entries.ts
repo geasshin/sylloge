@@ -268,7 +268,7 @@ const messages: Record<string, string> = {
   "Boisson": "Drink",
   "Accompagnement": "Side dish",
   "Sauce": "Sauce",
-  "Pain et viennoiserie": "Bread and pastries",
+  "Pain": "Bread",
   "Apéritif": "Appetiser",
   "Tes ajustements, ce que tu referais autrement ?": "Your tweaks, what you would do differently…",
   // Fiches détail, galerie d’affiches fournisseur et dialogue d’URL.

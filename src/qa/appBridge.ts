@@ -16,6 +16,9 @@
  *   full (défaut)  sept bibliothèques remplies
  *   empty          profil ouvert mais bibliothèques vides
  *   onboarding     aucun profil : premier lancement
+ *   recettes       un profil ne contenant que la bibliothèque Recettes, importée
+ *                  de Notion par scripts/import-notion-recipes.mjs
+ *                  (fixtures/recettes-notion.json)
  *
  * Langue, via ?lang= : fr (défaut), en, auto (détection réelle) — voir qaLanguage.ts.
  */
@@ -25,6 +28,7 @@ import sqlWasmUrl from 'sql.js/dist/sql-wasm-browser.wasm?url'
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks'
 import type { NativeCustomEntryWritePayload } from '../data/nativeCustomEntries.ts'
 import type { CustomLibraryId } from '../domain/customLibraries.ts'
+import recettesNotion from '../../fixtures/recettes-notion.json'
 import {
   QA_PROFILE_ID,
   QA_PROFILE_NAME,
@@ -37,7 +41,7 @@ import {
   seedSeries,
 } from './appSeed.ts'
 
-type Scenario = 'full' | 'empty' | 'onboarding'
+type Scenario = 'full' | 'empty' | 'onboarding' | 'recettes'
 
 /** Tables des bibliothèques personnalisées (migration 0021). */
 const CUSTOM_TABLES = ['comics', 'magazines', 'audiobooks', 'music', 'podcasts', 'documentaries', 'shows', 'board_games', 'recipes'] as const
@@ -46,7 +50,7 @@ type Row = Record<string, unknown>
 
 const scenario: Scenario = (() => {
   const value = new URLSearchParams(window.location.search).get('scenario')
-  return value === 'empty' || value === 'onboarding' ? value : 'full'
+  return value === 'empty' || value === 'onboarding' || value === 'recettes' ? value : 'full'
 })()
 
 const migrations = import.meta.glob('../../src-tauri/migrations/*.sql', {
@@ -132,6 +136,19 @@ if (scenario === 'full') {
   custom.libraries.forEach((row) => insert('profile_libraries', row))
   custom.entries.forEach(([table, row]) => insert(table, row))
   custom.quotes.forEach((row) => insert('comic_quotes', row))
+}
+
+if (scenario === 'recettes') {
+  // Le document importé garde son propre profil : il est réécrit sur celui de
+  // recette, vide, pour que la bibliothèque recettes s'ouvre directement.
+  const payload = structuredClone(recettesNotion) as unknown as Row
+  const profile = payload.profile as Row
+  profile.id = QA_PROFILE_ID
+  profile.name = QA_PROFILE_NAME
+  for (const library of payload.customLibraries as Row[]) {
+    for (const entry of library.entries as Row[]) entry.profileId = QA_PROFILE_ID
+  }
+  importPortableProfile(payload, false)
 }
 
 // ─── Commandes Rust reproduites ─────────────────────────────────────────────
@@ -356,7 +373,7 @@ function writeCustomEntry(payload: NativeCustomEntryWritePayload, mode: 'create'
   const entry = payload.entry
   if (!entry.id.trim() || !entry.profileId.trim()) fail('La fiche ou son profil possède un identifiant invalide.')
   if (!entry.title.trim()) fail('Le titre est obligatoire.')
-  if (!['à découvrir', 'en cours', 'terminé', 'abandonné'].includes(entry.status)) fail('Le statut de la fiche est invalide.')
+  if (!['à découvrir', 'en cours', 'terminé', 'abandonné', 'maîtrisée'].includes(entry.status)) fail('Le statut de la fiche est invalide.')
   if (table !== 'comics' && entry.quotes.length) fail('Seuls les comics portent des citations.')
   entry.quotes.forEach((quote, index) => {
     if (!quote.id.trim() || quote.entryId !== entry.id) fail('Une citation ne correspond pas à la fiche à enregistrer.')

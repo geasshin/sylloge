@@ -26,7 +26,14 @@ export type CustomLibraryId = (typeof CUSTOM_LIBRARY_IDS)[number]
 /** Statuts stockés, communs aux neuf tables. */
 export const CUSTOM_STATUSES = ['à découvrir', 'en cours', 'terminé', 'abandonné'] as const
 
-export type CustomStatus = (typeof CUSTOM_STATUSES)[number]
+/**
+ * Recettes (24 octobre 2026) : une recette s'essaie, se teste puis se
+ * maîtrise. `maîtrisée` n'existe que dans la table `recipes` (migration 0023),
+ * jamais dans les huit autres.
+ */
+export const RECIPE_STATUSES = ['à découvrir', 'terminé', 'maîtrisée'] as const
+
+export type CustomStatus = (typeof CUSTOM_STATUSES)[number] | (typeof RECIPE_STATUSES)[number]
 
 export type CustomFieldDefinition = {
   key: string
@@ -34,8 +41,10 @@ export type CustomFieldDefinition = {
   /**
    * `textarea` : texte long sur plusieurs lignes (ingrédients, préparation). Il est enregistré
    * tel que saisi — retours à la ligne et lignes vides compris — et affiché de même.
+   * `list` : une ligne = un élément (ingrédient, étape). L'éditeur ajoute une ligne à chaque
+   * Entrée ; le stockage reste le même texte multiligne que `textarea`.
    */
-  kind: 'text' | 'select' | 'textarea'
+  kind: 'text' | 'select' | 'textarea' | 'list'
   options?: readonly string[]
   placeholder?: string
 }
@@ -68,28 +77,44 @@ export type CustomLibraryTemplate = {
   quotes: boolean
   coverShape: 'portrait' | 'square'
   notePlaceholder: string
+  /** Libellé du bloc de texte libre quand il ne s'agit pas d'un avis (recette : « Notes »). */
+  noteLabel?: string
+  /** Invite affichée sur une fiche dont le bloc de texte libre est encore vide. */
+  noteEmpty?: string
+  /** Une recette n'a pas de millésime : le champ Année disparaît du formulaire et de la fiche. */
+  showsYear?: boolean
+  /** Une recette n'a pas de résumé séparé : ses textes longs portent tout le contenu. */
+  showsSummary?: boolean
 }
 
-const READING_LABELS: Record<CustomStatus, string> = {
+/** Libellés du socle : chaque modèle les reprend, et n'en change que ce qui lui est propre. */
+const DEFAULT_STATUS_LABELS: Record<CustomStatus, string> = {
+  'à découvrir': 'À essayer',
+  'en cours': 'En cours',
+  terminé: 'Terminé',
+  abandonné: 'Abandonné',
+  'maîtrisée': 'Maîtrisée',
+}
+
+/** Libellés complets d'un modèle : un statut hérité sans libellé propre ne s'affiche jamais vide. */
+function statusLabels(overrides: Partial<Record<CustomStatus, string>>): Record<CustomStatus, string> {
+  return { ...DEFAULT_STATUS_LABELS, ...overrides }
+}
+
+const READING_LABELS = statusLabels({
   'à découvrir': 'À lire',
-  'en cours': 'En cours',
   terminé: 'Lu',
-  abandonné: 'Abandonné',
-}
+})
 
-const LISTENING_LABELS: Record<CustomStatus, string> = {
+const LISTENING_LABELS = statusLabels({
   'à découvrir': 'À écouter',
-  'en cours': 'En cours',
   terminé: 'Écouté',
-  abandonné: 'Abandonné',
-}
+})
 
-const WATCHING_LABELS: Record<CustomStatus, string> = {
+const WATCHING_LABELS = statusLabels({
   'à découvrir': 'À voir',
-  'en cours': 'En cours',
   terminé: 'Vu',
-  abandonné: 'Abandonné',
-}
+})
 
 export const CUSTOM_LIBRARY_TEMPLATES: Record<CustomLibraryId, CustomLibraryTemplate> = {
   comics: {
@@ -282,7 +307,7 @@ export const CUSTOM_LIBRARY_TEMPLATES: Record<CustomLibraryId, CustomLibraryTemp
     addLabel: 'Ajouter un jeu de société',
     thisLabel: 'ce jeu de société',
     statuses: ['à découvrir', 'en cours', 'terminé', 'abandonné'],
-    statusLabels: { 'à découvrir': 'À essayer', 'en cours': 'En cours', terminé: 'Joué', abandonné: 'Délaissé' },
+    statusLabels: statusLabels({ terminé: 'Joué', abandonné: 'Délaissé' }),
     creatorLabel: 'Auteurs',
     progress: { label: 'Parties jouées', hasTotal: false },
     dateLabel: 'Dernière partie',
@@ -308,24 +333,30 @@ export const CUSTOM_LIBRARY_TEMPLATES: Record<CustomLibraryId, CustomLibraryTemp
     plural: 'recettes',
     addLabel: 'Ajouter une recette',
     thisLabel: 'cette recette',
-    // « En cours » n’a pas de sens pour une recette : on l’essaie, on l’adopte ou on l’écarte.
-    statuses: ['à découvrir', 'terminé', 'abandonné'],
-    statusLabels: { 'à découvrir': 'À essayer', 'en cours': 'En cours', terminé: 'Testée', abandonné: 'Écartée' },
+    // Une recette s'essaie, se teste, puis se maîtrise : ni « en cours » ni « écartée ».
+    statuses: RECIPE_STATUSES,
+    statusLabels: statusLabels({ 'à découvrir': 'À tester', terminé: 'Testée', 'maîtrisée': 'Maîtrisée' }),
     creatorLabel: 'Source',
     progress: null,
     dateLabel: 'Testée le',
     kindField: 'dish',
+    // Ni millésime ni résumé : une recette a un type de plat, des temps et une source.
+    showsYear: false,
+    showsSummary: false,
     fields: [
-      { key: 'dish', label: 'Type de plat', kind: 'select', options: ['Entrée', 'Plat', 'Dessert', 'Boisson', 'Accompagnement', 'Sauce', 'Pain et viennoiserie', 'Apéritif', 'Autre'] },
+      { key: 'dish', label: 'Type de plat', kind: 'select', options: ['Entrée', 'Plat', 'Dessert', 'Boisson', 'Accompagnement', 'Sauce', 'Pain', 'Apéritif', 'Autre'] },
       { key: 'servings', label: 'Portions', kind: 'text', placeholder: '4 personnes' },
       { key: 'prepTime', label: 'Préparation', kind: 'text', placeholder: '20 min' },
       { key: 'cookTime', label: 'Cuisson', kind: 'text', placeholder: '35 min' },
-      { key: 'ingredients', label: 'Ingrédients', kind: 'textarea', placeholder: 'Un ingrédient par ligne' },
-      { key: 'steps', label: 'Étapes', kind: 'textarea', placeholder: 'Une étape par ligne' },
+      { key: 'ingredients', label: 'Ingrédients', kind: 'list', placeholder: 'Un ingrédient par ligne' },
+      { key: 'steps', label: 'Étapes', kind: 'list', placeholder: 'Une étape par ligne' },
     ],
     quotes: false,
     coverShape: 'square',
-    notePlaceholder: 'Tes ajustements, ce que tu referais autrement ?',
+    // Le texte libre d'une recette n'est pas un avis : ce sont les remarques de la fiche.
+    noteLabel: 'Notes',
+    noteEmpty: 'Tes notes s’écriront ici.',
+    notePlaceholder: 'Tes remarques : variante, conservation, ce que tu referais autrement…',
   },
 }
 
@@ -336,7 +367,17 @@ export function isCustomLibraryId(value: unknown): value is CustomLibraryId {
 }
 
 export function isCustomStatus(value: unknown): value is CustomStatus {
-  return typeof value === 'string' && (CUSTOM_STATUSES as readonly string[]).includes(value)
+  return typeof value === 'string'
+    && ((CUSTOM_STATUSES as readonly string[]).includes(value) || (RECIPE_STATUSES as readonly string[]).includes(value))
+}
+
+/**
+ * Statut qu'une table peut réellement stocker : les statuts communs partout,
+ * `maîtrisée` dans les seules recettes (contrainte CHECK de `recipes`).
+ */
+export function isStatusAllowedFor(libraryId: CustomLibraryId, status: unknown): status is CustomStatus {
+  if (!isCustomStatus(status)) return false
+  return libraryId === 'recipes' || status !== 'maîtrisée'
 }
 
 export type CustomQuote = {

@@ -72,3 +72,45 @@
 - Ingrédients en texte libre : pas de quantité/unité structurées, donc pas de recalcul des portions ni de liste de courses.
 - Pas de lien cliquable ni de recherche de métadonnées en ligne pour les recettes.
 - Recette navigateur : `qa-custom-libraries.js` attendait « Animation » (le formulaire dit « Animation du podcast » depuis l’interface bilingue) et « v4 » (le document est en v5) ; elle était déjà périmée avant ce lot et est corrigée.
+
+---
+
+## Mise à jour du 24 octobre 2026 : les recettes prennent leur forme d’usage
+
+**Implémenté localement dans un worktree (`recettes-notion`), non commité, non publié.**
+
+Décisions d’Aurélien : trois états seulement (À tester, Testée, Maîtrisée — ni « Écartée », ni année, ni résumé) ; ingrédients et étapes saisis en listes, une ligne par élément, Entrée ouvrant la ligne suivante ; des vues par état **et** par type de plat, avec le tri comme dans les autres bibliothèques ; les recettes Notion (« Meal Tracker ») importées pour juger sur pièces.
+
+### Ce qui a changé
+
+| Couche | Fichiers | Contenu |
+|---|---|---|
+| Schéma | `migrations/0023_recipes_statuses.sql`, `database.rs` | Table `recipes` reconstruite (SQLite ne modifie pas un CHECK) : `maîtrisée` entre, `en cours` et `abandonné` sortent. Les lignes existantes sont copiées colonne par colonne ; un état hors contrat revient à `à découvrir`. Index recréé, clé étrangère vers `profiles` conservée. |
+| Statuts | `customLibraries.ts`, `libraryDocument.ts`, `statusTone.ts`, `custom_entries.rs` | `RECIPE_STATUSES` et `isStatusAllowedFor()` : `maîtrisée` n’existe que dans `recipes`, côté TS comme côté écriture native. Le document de sauvegarde refuse `maîtrisée` pour les huit autres tables. Famille visuelle « accompli ». |
+| Catalogue | `customLibraries.ts` | Recettes : trois statuts, libellés À tester / Testée / Maîtrisée ; `showsYear` et `showsSummary` à `false` ; `Préparation` et `Cuisson` comme seuls temps ; type de plat « Pain » ; ingrédients et étapes en champs `list` ; texte libre renommé « Notes » et visible dès la création (`noteLabel`). |
+| Formulaire | `CustomEntryForm.tsx`, `styles.css` | Éditeur en liste : puce ou numéro, Entrée ouvre la ligne suivante, Retour arrière sur une ligne vide la retire, un collage multiligne se répartit. Le stockage reste le texte multiligne existant : ni le schéma ni les sauvegardes ne changent. Année et résumé disparaissent quand le modèle les exclut. |
+| Bibliothèque | `CustomLibraryScreen.tsx`, `styles.css` | Une rangée de vues qui défile, avec fondu et flèches : « Tous », les statuts, puis les valeurs du filtre principal présentes dans la bibliothèque. État et type de plat se combinent ; « Tous » remet les deux à zéro ; un second clic sur un type de plat le referme. Tri par titre, ajout récent, note, et — sans millésime — date de test. La source s’affiche en lien cliquable dans la fiche et en nom de domaine sur la carte. |
+| Fiche | `CustomLibraryScreen.tsx` | Ingrédients en liste à puces, étapes en liste numérotée ; les textes libres restent tels quels. |
+| Traductions | `catalogs/home.ts`, `shared.ts` | À tester, Maîtrisée, Date de test, Pain, Notes et l’invite des notes (contexte `recipes`). |
+| Import Notion | `scripts/import-notion-recipes.mjs`, `fixtures/recettes-notion.json`, `qa/appBridge.ts` | Lecture seule de la base Notion (52 recettes) par `NOTION_API_KEY` (environnement ou `.env` du profil, jamais affichée) : propriétés, corps en sections, blocs imbriqués, tableaux. Le script écrit un document Sylloge v5 d’une seule bibliothèque `recipes`, restaurable dans un profil neuf. `?scenario=recettes` charge ce document dans la base en mémoire pour la recette visuelle. |
+| Recettes navigateur | `scripts/qa-recipes.js`, `scripts/qa-custom-libraries.js` | 42 contrôles pour les recettes (édition en liste, Entrée et Retour arrière, vues d’état et de type, fiche, base, suppression) ; le filtre de format des comics passe des listes déroulantes aux pastilles. |
+
+### Vérifications exécutées
+
+- `npm run typecheck`, `npm run build` : réussis. Le document importé **n’entre pas** dans le bundle de l’application (aucune chaîne des recettes dans `dist/`).
+- `npm run verify` : vert (catalogue, formulaire, document v5, portabilité, i18n).
+- Rust : `cargo test` 177 réussis — dont la nouvelle migration 0023 (lignes conservées colonne par colonne, états hors contrat ramenés à `à découvrir`, `maîtrisée` accepté dans `recipes` et refusé dans `comics`) et les écritures par modèle avec les trois états de recette.
+- Navigateur, `qa-app.html` sur le serveur du worktree : `qa-recipes.js` 42/42, `qa-custom-libraries.js` 29/29, aucune erreur de page.
+- Rendu examiné en clair et en sombre, en français et en anglais, 1440 × 900 : rangée de vues, grille, fiche, formulaire. Aucun débordement horizontal ; puces et numéros centrés sur leur champ (centres mesurés identiques).
+- Import réel exercé sur la base Notion d’Aurélien : 52 recettes, 24 « maîtrisée », 28 « à découvrir » ; ingrédients et étapes relus sur plusieurs fiches (Goulash 21/8, Manakish 8/9).
+
+### Limites et points non exercés
+
+- **La migration 0023 n’a pas été rejouée sur une copie de la vraie base** : elle est exercée sur des bases synthétiques construites par le vrai migrateur. L’application prend sa copie de sécurité habituelle avant migration.
+- **Application native non lancée** : toute la preuve vient du navigateur (base SQLite en mémoire, vraies migrations) et des tests Rust.
+- Notion ne porte qu’un champ « Durée », un temps total : il remplit `Préparation` (38 recettes sur 52) ; `Cuisson` reste vide et se complète à la main.
+- Les états Notion « Pain » et « Brioches & beignets » tenaient lieu de rayon : ces 20 recettes arrivent **À tester**, avec leur type de plat correct — leur vrai état n’est pas connu.
+- 16 recettes n’ont aucun visuel, 20 aucune source ; 4 photos Notion sont hébergées par Notion (liens signés qui expirent) et ne sont donc pas reprises.
+- Les paragraphes Notion hors sections (« Pour 2 portions », conservation, quantités) atterrissent dans le bloc **Notes**, faute d’un champ dédié.
+- `fixtures/recettes-notion.json` contient les vraies recettes d’Aurélien : à garder hors Git ou à assumer dans l’historique.
+- 15 recettes ont une préparation vide **dans Notion** (blocs vides, méthode restée dans la vidéo source) : l’import ne peut pas inventer ce qui n’y est pas.

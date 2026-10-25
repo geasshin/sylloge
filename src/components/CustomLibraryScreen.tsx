@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDate, formatNumber, getLanguage, getLocale, t, tc, translateMessage } from '../i18n/core.ts'
 import { QuotesSection } from './Quotes.tsx'
 import {
@@ -19,13 +19,14 @@ import { Select } from './Select.tsx'
 import { StatusBadge, statusTone } from './VerdictControls.tsx'
 import { SearchIcon, ArrowLeftIcon, PencilIcon, TrashIcon } from './icons.tsx'
 
-type CustomSort = 'title' | 'recent' | 'rating' | 'year'
+type CustomSort = 'title' | 'recent' | 'rating' | 'year' | 'date'
 
 const SORT_OPTIONS: ReadonlyArray<{ value: CustomSort; label: string }> = [
   { value: 'title', label: 'Titre' },
   { value: 'recent', label: 'Ajout récent' },
   { value: 'rating', label: 'Note' },
   { value: 'year', label: 'Année' },
+  { value: 'date', label: 'Date de test' },
 ]
 
 type LoadState =
@@ -56,6 +57,30 @@ function normalizedText(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').toLocaleLowerCase(getLocale())
 }
 
+/**
+ * Source d'une fiche : une adresse reste une adresse, mais son nom lisible
+ * (« marmiton.org ») tient dans une ligne de carte, là où l'URL entière la
+ * ferait déborder.
+ */
+function sourceLabel(value: string): string {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return value
+    return url.hostname.replace(/^www\./u, '')
+  } catch {
+    return value
+  }
+}
+
+function isHttpSource(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 // Only catalogue choices are translated; free-form and imported values stay opaque.
 // A label from the library template takes its library context: « Dessin » is a
 // drawing in general, but the illustrator credit in Comics.
@@ -75,6 +100,8 @@ function sortEntries(entries: CustomEntry[], sort: CustomSort): CustomEntry[] {
   if (sort === 'recent') sorted.sort((first, second) => second.createdAt.localeCompare(first.createdAt) || byTitle(first, second))
   else if (sort === 'rating') sorted.sort((first, second) => (second.rating ?? -1) - (first.rating ?? -1) || byTitle(first, second))
   else if (sort === 'year') sorted.sort((first, second) => (second.year ?? -Infinity) - (first.year ?? -Infinity) || byTitle(first, second))
+  // Date personnelle : la plus récente d'abord, une fiche sans date en dernier.
+  else if (sort === 'date') sorted.sort((first, second) => (second.finishedAt ?? '').localeCompare(first.finishedAt ?? '') || byTitle(first, second))
   else sorted.sort(byTitle)
   return sorted
 }
@@ -96,6 +123,52 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
   const [sort, setSort] = useState<CustomSort>('title')
   const [form, setForm] = useState<FormState>(null)
   const [removing, setRemoving] = useState(false)
+  /** Défilement de la rangée de vues : bords visibles et flèches, comme la barre des bibliothèques de base. */
+  const stripRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [edges, setEdges] = useState({ start: false, end: false })
+
+  const updateEdges = useCallback(() => {
+    const strip = stripRef.current
+    if (!strip) return
+    const start = strip.scrollLeft > 1
+    const end = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1
+    setEdges((previous) => (previous.start === start && previous.end === end ? previous : { start, end }))
+  }, [])
+
+  useLayoutEffect(() => {
+    const strip = stripRef.current
+    if (!strip) return
+    updateEdges()
+    const observer = new ResizeObserver(updateEdges)
+    observer.observe(strip)
+    if (trackRef.current) observer.observe(trackRef.current)
+    strip.addEventListener('scroll', updateEdges, { passive: true })
+    // Molette verticale : elle fait défiler la rangée tant qu'il reste des vues.
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+      const max = strip.scrollWidth - strip.clientWidth
+      if (max <= 0) return
+      const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY
+      const next = Math.min(max, Math.max(0, strip.scrollLeft + delta))
+      if (Math.abs(next - strip.scrollLeft) < 0.5) return
+      event.preventDefault()
+      strip.scrollLeft = next
+    }
+    strip.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      observer.disconnect()
+      strip.removeEventListener('scroll', updateEdges)
+      strip.removeEventListener('wheel', onWheel)
+    }
+  }, [updateEdges])
+
+  const scrollViews = (direction: 1 | -1) => {
+    const strip = stripRef.current
+    if (!strip) return
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+    strip.scrollBy({ left: direction * strip.clientWidth * 0.7, behavior: reduced ? 'auto' : 'smooth' })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -118,6 +191,12 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
     const ordered = [...(kindField.options ?? []).filter((option) => present.has(option)), ...[...present].filter((value) => !(kindField.options ?? []).includes(value))]
     return ordered
   }, [entries, kindField])
+  /** Une bibliothèque sans millésime trie par sa date personnelle, pas par année. */
+  const sortOptions = useMemo(
+    () => SORT_OPTIONS.filter((option) => (option.value === 'year' ? template.showsYear !== false : true))
+      .filter((option) => (option.value === 'date' ? template.showsYear === false : true)),
+    [template],
+  )
 
   const visible = useMemo(() => {
     const needle = normalizedText(query.trim())
@@ -235,40 +314,81 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
           <span className="visually-hidden">{t('Rechercher dans {library}', { library: label(template.label) })}</span>
           <input type="search" value={query} placeholder={t('Titre, {creator}…', { creator: label(template.creatorLabel).toLocaleLowerCase(getLocale()) })} onChange={(event) => setQuery(event.target.value)} />
         </label>
-        <div className="seg-group-form library-views custom-status-filter" role="radiogroup" aria-label={t('Statut')}>
-          {(['all', ...template.statuses] as const).map((status) => (
-            <button
-              key={status}
-              type="button"
-              role="radio"
-              aria-checked={statusFilter === status}
-              className={`seg-pill-btn ${statusFilter === status ? 'on' : ''}`}
-              onClick={() => setStatusFilter(status)}
-            >
-              {t(status === 'all' ? 'Tous' : template.statusLabels[status])}
-            </button>
-          ))}
+        {/* Vues : tout, chaque statut, puis chaque valeur du filtre principal
+            (type de plat, format, salle…). Une seule rangée, qui défile avec
+            ses flèches plutôt que de rogner une pastille. */}
+        <div className="custom-view-strip">
+          <div className="custom-view-scroller" ref={stripRef}>
+            <div className="custom-view-track" ref={trackRef}>
+              <div className="seg-group-form library-views custom-status-filter" role="radiogroup" aria-label={t('Statut')}>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={statusFilter === 'all' && kindFilter === 'all'}
+                  className={`seg-pill-btn view-pill ${statusFilter === 'all' && kindFilter === 'all' ? 'on' : ''}`}
+                  onClick={() => { setStatusFilter('all'); setKindFilter('all') }}
+                >
+                  {t('Tous')}
+                </button>
+                {template.statuses.map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    role="radio"
+                    aria-checked={statusFilter === status}
+                    className={`seg-pill-btn view-pill ${statusFilter === status ? 'on' : ''}`}
+                    onClick={() => setStatusFilter(statusFilter === status ? 'all' : status)}
+                  >
+                    {t(template.statusLabels[status])}
+                  </button>
+                ))}
+              </div>
+              {kindOptions.length > 0 && (
+                <>
+                  <span className="view-bar-separator" aria-hidden="true" />
+                  <div className="seg-group-form library-views custom-kind-filter" role="group" aria-label={label(kindField?.label ?? '')}>
+                    {kindOptions.map((option) => {
+                      const active = kindFilter === option
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          aria-pressed={active}
+                          className={`seg-pill-btn view-pill ${active ? 'on' : ''}`}
+                          onClick={() => setKindFilter(active ? 'all' : option)}
+                        >
+                          {kindField?.options?.includes(option) ? label(option) : option}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          {edges.start && (
+            <span className="view-bar-edge view-bar-edge-start">
+              <button className="view-bar-scroll" type="button" tabIndex={-1} aria-label={t('Faire défiler les vues vers la gauche')} onClick={() => scrollViews(-1)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
+            </span>
+          )}
+          {edges.end && (
+            <span className="view-bar-edge view-bar-edge-end">
+              <button className="view-bar-scroll" type="button" tabIndex={-1} aria-label={t('Faire défiler les vues vers la droite')} onClick={() => scrollViews(1)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
+            </span>
+          )}
         </div>
         <div className="custom-library-selects">
-          {kindField && kindOptions.length > 0 && (
-            <div className="custom-select">
-              <span className="visually-hidden" id={`custom-${libraryId}-kind-label`}>{label(kindField.label)}</span>
-              <Select
-                id={`custom-${libraryId}-kind`}
-                labelledBy={`custom-${libraryId}-kind-label`}
-                value={kindFilter}
-                options={[{ value: 'all', label: t('{field} : tous', { field: label(kindField.label) }) }, ...kindOptions.map((option) => ({ value: option, label: kindField.options?.includes(option) ? label(option) : option }))]}
-                onChange={setKindFilter}
-              />
-            </div>
-          )}
           <div className="custom-select">
             <span className="visually-hidden" id={`custom-${libraryId}-sort-label`}>{t('Trier')}</span>
             <Select
               id={`custom-${libraryId}-sort`}
               labelledBy={`custom-${libraryId}-sort-label`}
               value={sort}
-              options={SORT_OPTIONS.map((option) => ({ value: option.value, label: t('Tri : {sort}', { sort: t(option.label).toLocaleLowerCase(getLocale()) }) }))}
+              options={sortOptions.map((option) => ({ value: option.value, label: t('Tri : {sort}', { sort: t(option.label).toLocaleLowerCase(getLocale()) }) }))}
               onChange={(next) => setSort(next as CustomSort)}
             />
           </div>
@@ -328,7 +448,7 @@ function CustomEntryCard({ libraryId, entry, onOpen }: { libraryId: CustomLibrar
   const template = CUSTOM_LIBRARY_TEMPLATES[libraryId]
   const kindField = template.fields.find((field) => field.key === template.kindField)
   const kind = template.kindField ? entry.details[template.kindField] : undefined
-  const byline = [kind ? displayFieldValue(libraryId, kindField, kind) : null, entry.creator, entry.year !== null ? formatNumber(entry.year, { useGrouping: false }) : null].filter(Boolean).join(' · ')
+  const byline = [kind ? displayFieldValue(libraryId, kindField, kind) : null, entry.creator ? sourceLabel(entry.creator) : null, entry.year !== null ? formatNumber(entry.year, { useGrouping: false }) : null].filter(Boolean).join(' · ')
   const progress = template.progress && entry.status !== 'à découvrir' ? progressText(entry) : null
   return (
     <button className="film-card custom-card" type="button" onClick={onOpen} aria-label={t('Ouvrir la fiche de {title}', { title: entry.title })}>
@@ -366,6 +486,11 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
   const kind = template.kindField ? entry.details[template.kindField] : undefined
   const progress = progressText(entry)
   const extraDetails = Object.entries(entry.details).filter(([key]) => !template.fields.some((field) => field.key === key))
+  /** Une source est un fait, pas une signature : elle vit dans les faits, pas sous le titre. */
+  const detailByline = [
+    template.showsYear !== false && entry.creator ? sourceLabel(entry.creator) : null,
+    entry.year !== null && template.showsYear !== false ? formatNumber(entry.year, { useGrouping: false }) : null,
+  ].filter(Boolean).join(' · ')
 
   const confirmDelete = async () => {
     setDeleting(true)
@@ -434,14 +559,21 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
         <div className="detail-body">
           <p className="eyebrow">{kind ? displayFieldValue(libraryId, template.fields.find((field) => field.key === template.kindField), kind) : label(template.label)}</p>
           <h1 className="display-title">{entry.title}</h1>
-          {(entry.creator || entry.year !== null) && (
-            <p className="detail-factline">{[entry.creator, entry.year !== null ? formatNumber(entry.year, { useGrouping: false }) : null].filter(Boolean).join(' · ')}</p>
-          )}
+          {detailByline && <p className="detail-factline">{detailByline}</p>}
 
           <dl className="detail-facts">
-            {entry.creator && <div><dt>{label(template.creatorLabel)}</dt><dd>{entry.creator}</dd></div>}
-            {entry.year !== null && <div><dt>{t('Année')}</dt><dd>{formatNumber(entry.year as number, { useGrouping: false })}</dd></div>}
-            {template.fields.filter((field) => field.key !== template.kindField && field.kind !== 'textarea' && entry.details[field.key]).map((field) => (
+            {entry.creator && (
+              <div>
+                <dt>{label(template.creatorLabel)}</dt>
+                <dd>
+                  {isHttpSource(entry.creator)
+                    ? <a href={entry.creator}>{sourceLabel(entry.creator)}</a>
+                    : entry.creator}
+                </dd>
+              </div>
+            )}
+            {template.showsYear !== false && entry.year !== null && <div><dt>{t('Année')}</dt><dd>{formatNumber(entry.year as number, { useGrouping: false })}</dd></div>}
+            {template.fields.filter((field) => field.key !== template.kindField && field.kind !== 'textarea' && field.kind !== 'list' && entry.details[field.key]).map((field) => (
               <div key={field.key}><dt>{label(field.label)}</dt><dd>{displayFieldValue(libraryId, field, entry.details[field.key])}</dd></div>
             ))}
             {extraDetails.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}
@@ -449,33 +581,44 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
             {entry.finishedAt && <div><dt>{label(template.dateLabel)}</dt><dd>{formatCalendarDate(entry.finishedAt)}</dd></div>}
           </dl>
 
-          {entry.summary && (
+          {template.showsSummary !== false && entry.summary && (
             <div className="synopsis-block">
               <p>{entry.summary}</p>
             </div>
           )}
 
-          {/* Textes longs (ingrédients, préparation) : affichés tels qu'ils ont été saisis,
-              retours à la ligne et lignes vides compris. */}
-          {template.fields.some((field) => field.kind === 'textarea' && entry.details[field.key]) && (
+          {/* Ingrédients et préparation : une ligne = un élément, lu comme une
+              liste. Un texte libre reste affiché tel qu'il a été saisi. */}
+          {template.fields.some((field) => (field.kind === 'textarea' || field.kind === 'list') && entry.details[field.key]) && (
             <div className="detail-long-texts">
-              {template.fields.filter((field) => field.kind === 'textarea' && entry.details[field.key]).map((field) => (
-                <section className="detail-long-text" key={field.key} data-field={field.key}>
-                  <h2>{label(field.label)}</h2>
-                  <p>{entry.details[field.key]}</p>
-                </section>
-              ))}
+              {template.fields.filter((field) => (field.kind === 'textarea' || field.kind === 'list') && entry.details[field.key]).map((field) => {
+                const lines = entry.details[field.key].split('\n').map((line) => line.trim()).filter((line) => line !== '')
+                const ordered = field.kind === 'list' && field.key === 'steps'
+                return (
+                  <section className="detail-long-text" key={field.key} data-field={field.key}>
+                    <h2>{label(field.label)}</h2>
+                    {field.kind === 'list' ? (
+                      ordered
+                        ? <ol className="detail-list">{lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ol>
+                        : <ul className="detail-list">{lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ul>
+                    ) : (
+                      <p>{entry.details[field.key]}</p>
+                    )}
+                  </section>
+                )
+              })}
             </div>
           )}
 
           <section className="mine-block">
+            {template.noteLabel && <h3 className="mine-label">{label(template.noteLabel)}</h3>}
             {entry.personalNote ? (
               <>
                 <blockquote className="review-personal">{entry.personalNote}</blockquote>
                 <button className="link-accent review-edit-link" type="button" onClick={() => onEdit()}>{t('Modifier')}</button>
               </>
             ) : (
-              <p className="mine-empty">{t('Ton avis s’écrira ici.')}</p>
+              <p className="mine-empty">{label(template.noteEmpty ?? 'Ton avis s’écrira ici.')}</p>
             )}
 
           </section>

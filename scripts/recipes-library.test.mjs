@@ -12,7 +12,9 @@ const {
   CUSTOM_LIBRARY_GROUPS,
   CUSTOM_LIBRARY_TEMPLATES,
   CUSTOM_STATUSES,
+  RECIPE_STATUSES,
   emptyCustomEntryForm,
+  isStatusAllowedFor,
   validateCustomEntryForm,
   customEntryToFormValues,
   customEntryByline,
@@ -61,7 +63,7 @@ test('Chaque modèle du catalogue est cohérent avec ce que la base accepte', ()
     const template = CUSTOM_LIBRARY_TEMPLATES[id]
     assert.equal(template.id, id)
     assert.ok(CUSTOM_LIBRARY_GROUPS.includes(template.group), `${id} : famille « ${template.group} » inconnue du catalogue`)
-    assert.ok(template.statuses.length > 0 && template.statuses.every((status) => CUSTOM_STATUSES.includes(status)), `${id} : statuts`)
+    assert.ok(template.statuses.length > 0 && template.statuses.every((status) => isStatusAllowedFor(id, status)), `${id} : statuts`)
     for (const status of CUSTOM_STATUSES) assert.ok(template.statusLabels[status], `${id} : libellé du statut ${status}`)
     const keys = template.fields.map((field) => field.key)
     assert.equal(new Set(keys).size, keys.length, `${id} : clés de champs uniques`)
@@ -70,13 +72,13 @@ test('Chaque modèle du catalogue est cohérent avec ce que la base accepte', ()
       assert.equal(kind?.kind, 'select', `${id} : le filtre principal est un champ à choix`)
     }
     for (const field of template.fields) {
-      assert.ok(['text', 'select', 'textarea'].includes(field.kind), `${id}.${field.key} : type de champ`)
+      assert.ok(['text', 'select', 'textarea', 'list'].includes(field.kind), `${id}.${field.key} : type de champ`)
       if (field.kind === 'select') assert.ok(field.options && field.options.length > 0, `${id}.${field.key} : options`)
     }
   }
 })
 
-test('Le modèle Recettes propose ingrédients et préparation en textes longs', () => {
+test('Le modèle Recettes propose ingrédients et préparation en listes', () => {
   const template = CUSTOM_LIBRARY_TEMPLATES.recipes
   assert.equal(template.label, 'Recettes')
   assert.equal(template.group, 'Cuisine')
@@ -85,19 +87,42 @@ test('Le modèle Recettes propose ingrédients et préparation en textes longs',
   assert.equal(template.quotes, false)
   assert.equal(template.progress, null)
   assert.equal(template.kindField, 'dish')
+  // Une recette n'a ni millésime ni résumé séparé : les temps, les listes et la source disent tout.
+  assert.equal(template.showsYear, false)
+  assert.equal(template.showsSummary, false)
   const byKey = Object.fromEntries(template.fields.map((field) => [field.key, field]))
-  assert.equal(byKey.ingredients.kind, 'textarea')
-  assert.equal(byKey.steps.kind, 'textarea')
+  assert.equal(byKey.ingredients.kind, 'list')
+  assert.equal(byKey.steps.kind, 'list')
   assert.equal(byKey.ingredients.label, 'Ingrédients')
   assert.equal(byKey.steps.label, 'Étapes')
   assert.equal(byKey.prepTime.label, 'Préparation')
   assert.equal(byKey.cookTime.label, 'Cuisson')
+  // Le temps de Notion est un temps total : il va en préparation, pas dans un champ « Durée ».
+  assert.equal(byKey.duration, undefined)
   for (const key of ['servings', 'prepTime', 'cookTime']) assert.equal(byKey[key].kind, 'text', key)
-  assert.deepEqual(template.statuses, ['à découvrir', 'terminé', 'abandonné'])
+  // Le type de plat porte « Pain », pas un rayon « Pain et viennoiserie ».
+  assert.ok(byKey.dish.options.includes('Pain'))
+  assert.ok(!byKey.dish.options.includes('Pain et viennoiserie'))
+  // Le texte libre d'une recette est un bloc de notes, pas un avis de lecture.
+  assert.equal(template.noteLabel, 'Notes')
+  assert.ok(template.notePlaceholder.length > 0)
+  assert.deepEqual(template.statuses, ['à découvrir', 'terminé', 'maîtrisée'])
+  assert.deepEqual([...RECIPE_STATUSES], ['à découvrir', 'terminé', 'maîtrisée'])
   assert.deepEqual(
-    [template.statusLabels['à découvrir'], template.statusLabels.terminé, template.statusLabels.abandonné],
-    ['À essayer', 'Testée', 'Écartée'],
+    [template.statusLabels['à découvrir'], template.statusLabels.terminé, template.statusLabels['maîtrisée']],
+    ['À tester', 'Testée', 'Maîtrisée'],
   )
+  // « Écartée » n'est plus proposé mais reste lisible sur une fiche importée d'avant.
+  assert.equal(template.statusLabels.abandonné, 'Abandonné')
+})
+
+test('« maîtrisée » n’appartient qu’aux recettes', () => {
+  assert.equal(isStatusAllowedFor('recipes', 'maîtrisée'), true)
+  for (const id of CUSTOM_LIBRARY_IDS.filter((libraryId) => libraryId !== 'recipes')) {
+    assert.equal(isStatusAllowedFor(id, 'maîtrisée'), false, id)
+  }
+  assert.equal(isStatusAllowedFor('comics', 'terminé'), true)
+  assert.equal(isStatusAllowedFor('recipes', 'vinyles'), false)
 })
 
 test('Le formulaire garde les lignes d’une recette et ne retire que les marges extérieures', () => {
@@ -124,7 +149,16 @@ test('Une recette n’accepte pas le statut « en cours »', () => {
   assert.equal(result.success, false)
 })
 
+test('Une recette accepte « maîtrisée » comme état', () => {
+  const values = { ...emptyCustomEntryForm('recipes'), title: 'Manakish', status: 'maîtrisée' }
+  const result = validateCustomEntryForm('recipes', values)
+  assert.equal(result.success, true, JSON.stringify(result.errors))
+  if (result.success) assert.equal(result.data.status, 'maîtrisée')
+})
+
 test('Le sous-titre d’une recette suit le type de plat, la source et l’année', () => {
+  assert.equal(customEntryByline('recipes', recipe({ year: null })), 'Dessert · Grand-mère')
+  // Une fiche d'avant ce lot peut encore porter un millésime : il reste lisible.
   assert.equal(customEntryByline('recipes', recipe({ year: 2019 })), 'Dessert · Grand-mère · 2019')
 })
 

@@ -2087,6 +2087,14 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 /* La partie personnelle : filet, date seule, critique en voix serif */
 .mine-block { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--color-hairline); }
+.mine-label {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
 .mine-date {
   margin: 0;
   display: flex;
@@ -4201,14 +4209,41 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 /* Visuels carrés : pochettes, livres audio, podcasts, jeux de société. */
 .poster.poster-square { aspect-ratio: 1 / 1; }
 
-/* Barre d’outils : recherche, statuts, puis tri et format à droite. */
+/* Barre d’outils : recherche, vues (tout, statuts, filtre principal), puis tri à droite. */
+.custom-view-strip { position: relative; flex: 1 1 0; min-width: 0; display: flex; }
+.custom-view-scroller { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; padding: var(--space-1); overflow-x: auto; scrollbar-width: none; }
+.custom-view-scroller::-webkit-scrollbar { display: none; }
+.custom-view-track { display: flex; align-items: center; gap: var(--space-1); width: max-content; }
+/* Les pastilles de vue sont plus serrées que le contrôle segmenté d'ailleurs :
+   onze libellés de recettes doivent tenir sur la ligne, sans ellipse. */
+.custom-view-track .seg-pill-btn { padding-inline: 9px; }
+.custom-library-tools .library-views { flex: none; flex-wrap: nowrap; }
 .custom-library-tools .custom-status-filter { flex: none; flex-wrap: nowrap; }
 .custom-library-selects { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); }
 .custom-select { flex: none; }
 @container library-tools (width < 1080px) {
   .custom-library-tools > .search { flex-grow: 1; max-width: none; }
+  .custom-view-strip { flex-basis: 100%; order: 3; }
   .custom-library-selects { margin-left: 0; }
 }
+
+/* Éditeur en liste (ingrédients, étapes) : une ligne = un élément, Entrée
+   ouvre la suivante. La puce et le numéro vivent hors du champ, dans la zone
+   cliquable du libellé. */
+.list-field { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.list-field-row { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr); align-items: center; gap: var(--space-2); }
+.list-field-marker { color: var(--color-text-muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; line-height: 1; text-align: right; }
+.list-field.is-bulleted .list-field-marker { font-size: var(--text-lg); }
+.list-field-row input { width: 100%; }
+
+/* Fiche : ingrédients et étapes lus comme des listes. */
+.detail-list { margin: 0; padding-left: var(--space-5); color: var(--color-text-secondary); font-size: var(--text-md); line-height: 1.72; }
+.detail-list li { padding-left: var(--space-1); overflow-wrap: anywhere; }
+.detail-list li + li { margin-top: var(--space-1); }
+.detail-list li::marker { color: var(--color-text-muted); }
+.detail-facts dd a { color: inherit; text-decoration: underline; text-decoration-color: var(--color-border-strong); text-underline-offset: 2px; }
+.detail-facts dd a:hover { text-decoration-color: currentColor; }
+.form-row-single { grid-template-columns: minmax(0, 1fr); }
 
 /* Formulaire : champs propres au modèle sur deux colonnes. */
 .custom-detail-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-4); }

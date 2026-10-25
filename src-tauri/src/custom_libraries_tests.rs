@@ -1163,6 +1163,113 @@ fn migration_0022_rebuilds_profile_libraries_without_touching_added_libraries() 
     });
 }
 
+// ---------------------------------------------------------------------------
+// Migration 0023 : une recette se maîtrise
+// ---------------------------------------------------------------------------
+
+/// `maîtrisée` entre dans `recipes` seulement. La migration reconstruit la
+/// table : les lignes existantes gardent leurs colonnes, et les deux états
+/// qu'une recette ne connaît plus (« en cours », « abandonné ») reviennent à
+/// « À tester » au lieu de bloquer la migration.
+#[test]
+fn migration_0023_rebuilds_recipes_with_the_mastered_status() {
+    tauri::async_runtime::block_on(async {
+        let pool = pool_at(22).await;
+        execute_all(
+            &pool,
+            &[
+                "INSERT INTO profiles (id, name, created_at, updated_at) VALUES
+                   ('cuisinier', 'Cuisinier', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')",
+                "INSERT INTO recipes (id, profile_id, title, creator, status, rating, is_favorite,
+                   finished_at, cover_url, personal_note, details, created_at, updated_at) VALUES
+                   ('recette-testee', 'cuisinier', 'Tarte testée', 'Grand-mère', 'terminé', 4.5, 1,
+                    '2026-10-20', 'https://exemple.org/tarte.jpg', 'Moins de sucre.',
+                    '{\"dish\":\"Dessert\",\"ingredients\":\"200 g de farine\\n100 g de beurre\"}',
+                    '2026-10-01T08:00:00.000Z', '2026-10-02T08:00:00.000Z'),
+                   ('recette-encours', 'cuisinier', 'Pain en cours', NULL, 'en cours', NULL, 0,
+                    NULL, NULL, NULL, '{}',
+                    '2026-10-03T08:00:00.000Z', '2026-10-03T08:00:00.000Z'),
+                   ('recette-abandonnee', 'cuisinier', 'Soupe abandonnée', NULL, 'abandonné', NULL, 0,
+                    NULL, NULL, NULL, '{}',
+                    '2026-10-04T08:00:00.000Z', '2026-10-04T08:00:00.000Z')",
+            ],
+        )
+        .await;
+        let before = rows_json(&pool, "recipes", "id = 'recette-testee'").await;
+
+        assert!(
+            sqlx::query(
+                "INSERT INTO recipes (id, profile_id, title, status) VALUES ('refus', 'cuisinier', 'Refus', 'maîtrisée')"
+            )
+            .execute(&pool)
+            .await
+            .is_err(),
+            "avant 0023, le schéma refuse « maîtrisée »"
+        );
+
+        migrator_up_to(23)
+            .run(&pool)
+            .await
+            .expect("la migration 0023 s’applique sur une base v22");
+        let version: i64 =
+            sqlx::query_scalar("SELECT MAX(version) FROM _sqlx_migrations WHERE success = 1")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(version, 23);
+
+        assert_eq!(
+            rows_json(&pool, "recipes", "id = 'recette-testee'").await,
+            before,
+            "une recette testée garde toutes ses colonnes, textes longs compris"
+        );
+        let statuses: Vec<(String, String)> =
+            sqlx::query_as("SELECT id, status FROM recipes ORDER BY id")
+                .fetch_all(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            statuses,
+            vec![
+                ("recette-abandonnee".to_string(), "à découvrir".to_string()),
+                ("recette-encours".to_string(), "à découvrir".to_string()),
+                ("recette-testee".to_string(), "terminé".to_string()),
+            ],
+            "les états hors contrat reviennent à « À tester », le reste est inchangé"
+        );
+
+        sqlx::query(
+            "INSERT INTO recipes (id, profile_id, title, status) VALUES ('recette-maitrisee', 'cuisinier', 'Manakish', 'maîtrisée')",
+        )
+        .execute(&pool)
+        .await
+        .expect("« maîtrisée » est accepté après 0023");
+        for refused in ["en cours", "abandonné"] {
+            assert!(
+                sqlx::query(
+                    "INSERT INTO recipes (id, profile_id, title, status) VALUES ('refus', 'cuisinier', 'Refus', ?1)",
+                )
+                .bind(refused)
+                .execute(&pool)
+                .await
+                .is_err(),
+                "« {refused} » n’est plus un état de recette"
+            );
+        }
+        assert!(
+            sqlx::query(
+                "INSERT INTO comics (id, profile_id, title, status) VALUES ('comic-refus', 'cuisinier', 'Refus', 'maîtrisée')"
+            )
+            .execute(&pool)
+            .await
+            .is_err(),
+            "« maîtrisée » reste étranger aux huit autres tables"
+        );
+
+        assert_database_is_consistent(&pool).await;
+    });
+}
+
 /// Une recette porte des textes longs : ingrédients et préparation arrivent
 /// en plusieurs lignes, avec retours chariot, lignes vides, espaces de tête et
 /// de fin, tabulations et caractères non latins. Rien ne doit être normalisé.
