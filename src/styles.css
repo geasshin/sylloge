@@ -1094,6 +1094,12 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   border-color: var(--color-border);
   background: var(--color-surface);
 }
+.state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
 .secondary-button:not(:disabled):hover, .icon-action-button:not(:disabled):hover, .state-action:not(:disabled):hover,
 .auto-associate-button:not(:disabled):hover {
   border-color: var(--color-border-strong);
@@ -1661,6 +1667,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 
 .film-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-8) var(--space-5); margin-top: var(--space-8); align-items: start; }
+.incremental-sentinel { width: 100%; height: 1px; }
 .film-card { display: block; width: 100%; padding: 0; min-width: 0; text-align: left; border: 0; background: none; }
 .film-card:hover .poster { transform: translateY(-3px); box-shadow: var(--shadow-lifted); }
 /* Texte de carte : trois faits serrés sous l'affiche — titre, signature et

@@ -16,6 +16,7 @@ use std::time::Duration;
 
 /// Taille maximale acceptée pour une image : une affiche TMDB en `w500` pèse moins de 500 Ko.
 const MAX_IMAGE_BYTES: usize = 12 * 1024 * 1024;
+const MAX_IMAGE_REDIRECTS: usize = 5;
 const TIMEOUT_SECONDS: u64 = 20;
 
 /// Vrai pour une adresse qui désigne cette machine ou le réseau local : la fenêtre n'a aucune raison
@@ -77,9 +78,20 @@ pub async fn fetch_remote_image(url: String) -> Result<tauri::ipc::Response, Str
     let url = validate_image_url(&url)?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(TIMEOUT_SECONDS))
+        // Une redirection ne doit pas contourner le contrôle d'hôte : chaque
+        // saut repasse par la même validation que l'adresse initiale.
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= MAX_IMAGE_REDIRECTS {
+                return attempt.stop();
+            }
+            if validate_image_url(attempt.url().as_str()).is_err() {
+                return attempt.stop();
+            }
+            attempt.follow()
+        }))
         .build()
         .map_err(|_| "Le client réseau n’a pas pu être préparé.".to_string())?;
-    let response = client
+    let mut response = client
         .get(url)
         .header("Accept", "image/*")
         .send()
@@ -91,6 +103,12 @@ pub async fn fetch_remote_image(url: String) -> Result<tauri::ipc::Response, Str
             response.status().as_u16()
         ));
     }
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_IMAGE_BYTES as u64)
+    {
+        return Err("L’image est trop volumineuse pour la carte.".to_string());
+    }
     if let Some(content_type) = response
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
@@ -100,14 +118,23 @@ pub async fn fetch_remote_image(url: String) -> Result<tauri::ipc::Response, Str
             return Err("L’adresse ne renvoie pas une image.".to_string());
         }
     }
-    let bytes = response
-        .bytes()
+    // `Content-Length` peut manquer ou mentir : la lecture est plafonnée
+    // morceau par morceau, avant d'accumuler toute la réponse en mémoire.
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
-        .map_err(|_| "L’image n’a pas pu être lue.".to_string())?;
-    if bytes.len() > MAX_IMAGE_BYTES {
-        return Err("L’image est trop volumineuse pour la carte.".to_string());
+        .map_err(|_| "L’image n’a pas pu être lue.".to_string())?
+    {
+        if bytes.len().saturating_add(chunk.len()) > MAX_IMAGE_BYTES {
+            return Err("L’image est trop volumineuse pour la carte.".to_string());
+        }
+        bytes.extend_from_slice(&chunk);
     }
-    Ok(tauri::ipc::Response::new(bytes.to_vec()))
+    if bytes.is_empty() {
+        return Err("L’image reçue est vide.".to_string());
+    }
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 #[cfg(test)]

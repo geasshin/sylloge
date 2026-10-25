@@ -181,10 +181,10 @@ impl IgdbClient {
             return Err(IgdbError::ProviderError(response.status().as_u16()));
         }
 
-        response
-            .json::<T>()
+        let body = crate::http::read_body_capped(response, crate::http::MAX_PROVIDER_BYTES)
             .await
-            .map_err(|_| IgdbError::InvalidProviderResponse)
+            .map_err(|_| IgdbError::InvalidProviderResponse)?;
+        serde_json::from_slice(&body).map_err(|_| IgdbError::InvalidProviderResponse)
     }
 
     pub async fn search_games(

@@ -25,7 +25,18 @@ const server = await createServer({
 })
 after(async () => {
   await server.close()
-  rmSync(cacheDir, { recursive: true, force: true })
+  // Vite peut encore terminer d'écrire son optimiseur de dépendances dans
+  // `deps_temp_*` après `close()`. Le nettoyage réessaie brièvement au lieu de
+  // faire échouer la suite sur une course de fichiers temporaires.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      rmSync(cacheDir, { recursive: true, force: true })
+      return
+    } catch (error) {
+      if (error?.code !== 'ENOTEMPTY' || attempt === 9) throw error
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+  }
 })
 
 const { UpdateNotice } = await server.ssrLoadModule('/src/components/UpdateNotice.tsx')

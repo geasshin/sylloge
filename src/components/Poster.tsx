@@ -68,7 +68,7 @@ export function Poster({ title, src, className = '', label = 'Affiche', onEdit }
           <b>{title}</b>
         </div>
       ) : (
-        <img src={src} alt={t(copy.alt, { title })} onError={() => setMissing(true)} />
+        <img src={src} alt={t(copy.alt, { title })} loading="lazy" decoding="async" onError={() => setMissing(true)} />
       )}
       {onEdit && (
         <button type="button" className="poster-edit-overlay" onClick={onEdit} aria-label={t(copy.editFor, { title })} title={posterEditTitle(label)}>

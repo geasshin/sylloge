@@ -4,6 +4,17 @@ dist
 .DS_Store
 CODEX_FINAL.md
 
+# Secrets locaux (ne jamais versionner)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.tauri/
+
+# Artefacts de compilation locaux
+src-tauri/target/
+
 # Sauvegardes locales avant migration (jamais versionnées)
 .backups-locales/
 

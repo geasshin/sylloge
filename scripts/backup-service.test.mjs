@@ -356,3 +356,37 @@ test('la première copie explicite après finalisation relit le profil importé 
   assertSevenSections(write.mock.calls[0].arguments[1])
   assert.equal(log.mock.calls[0].arguments[1], error)
 })
+
+// Vérification avant sérialisation : le chemin appelé à chaque écriture ne
+// charge la bibliothèque que si un dossier est configuré et que la copie du
+// jour n'existe pas encore.
+for (const [label, configured] of [
+  ['sans dossier configuré', null],
+  ['avec un dossier indisponible', { ...settings, directoryAvailable: false }],
+  ['avec la copie du jour déjà écrite', { ...settings, lastAutomaticSnapshotDay: '2026-10-22' }],
+]) {
+  test(`sauvegarde automatique ${label} : aucun chargement, aucune écriture`, async () => {
+    const loader = mock.fn(async () => undefined)
+    const write = mock.fn(async () => ({ outcome: 'saved', fileName: 'ne-doit-pas-arriver.json' }))
+    const { service, calls } = harness({
+      getBackupSettings: async () => configured,
+      saveAutomaticBackupSnapshot: write,
+    })
+    assert.equal(await service.tryAutomaticSnapshotIfDue({ profile, films: [] }, loader), null)
+    assert.deepEqual(calls, [])
+    assert.equal(loader.mock.callCount(), 0)
+    assert.equal(write.mock.callCount(), 0)
+  })
+}
+
+test('sauvegarde automatique due : l’expérience est chargée après le contrôle, puis la copie est écrite', async (t) => {
+  const loader = t.mock.fn(async () => ({ version: 1, savedViews: [], preferences: {} }))
+  const write = t.mock.fn(async () => ({ outcome: 'saved', fileName: 'fixture-due.json' }))
+  const { service, calls } = harness({ getBackupSettings: async () => settings, saveAutomaticBackupSnapshot: write })
+  const notice = await service.tryAutomaticSnapshotIfDue({ profile, films: [] }, loader)
+  assert.equal(notice?.kind, 'success')
+  assert.match(notice.message, /fixture-due\.json/u)
+  assert.equal(loader.mock.callCount(), 1)
+  assert.deepEqual(calls.map((call) => call.kind), ['load'])
+  assertSevenSections(write.mock.calls[0].arguments[1])
+})
