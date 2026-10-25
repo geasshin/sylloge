@@ -44,6 +44,29 @@ Livré : `src/domain/yearRecap.ts` (calcul pur, **17 tests Node** : dates, agré
 - **Trier Séries / Animés et Livres / Mangas** : il reste des doublons d’un côté ou de l’autre (des animés dans Séries, des mangas dans Livres). Le déplacement entre tables existe (`qa-book-type-move.js`), mais aucune aide au tri n’est proposée : à concevoir — repérage des cas probables et déplacement assisté, sans jamais fusionner ni supprimer sans choix explicite. Aurélien veut être aidé pour ces déplacements.
 - **Personnages sur les cartes** : Aurélien ne sait pas encore s’il garde l’étape « Personnes » pour les personnages ; elle est en place et testée, à confirmer ou retirer plus tard.
 
+**Recettes : deux états, l’import Notion posé une fois.** Livré le 25 octobre (commit `9629a00`) : les 52 recettes de la base Notion « Meal Tracker » sont dans le profil d’Aurélien, et le modèle ne propose plus que **À tester** et **Maîtrisée** — « Testée » doublonnait « Maîtrisée » (son arbitrage). La date de fiche s’ouvre sur « Maîtrisée ». Décisions associées : le temps total de Notion va en préparation (la cuisson se remplit à la main), le texte libre s’appelle **Notes** et s’affiche dès la création, la catégorie devient **Pain**, la fiche n’a ni millésime ni résumé. L’import lui-même a été fait **hors application**, par un script ponctuel (`scripts/import-notion-recipes.mjs`, lecture seule côté Notion) : ce n’est pas une fonction du produit, et il n’y a pas de bouton d’import pour les bibliothèques personnalisées. Défaut trouvé au passage : le validateur de document (`portability.rs`) refusait « maîtrisée », donc une sauvegarde contenant des recettes maîtrisées ne se restaurait pas ; corrigé, avec un test par état. Aucune migration : `terminé` reste toléré par la contrainte CHECK de `recipes` comme vestige de la 0023, aucune ligne ne l’utilise et l’application le refuse partout.
+
+### Mis de côté : piloter Sylloge depuis un agent (API locale, MCP, accès distant)
+
+**Demande d’Aurélien, 25 octobre** : pouvoir dire à une IA — dans Hermes ou dans ChatGPT — « regarde mes recettes et envoie-moi celle-là sur Discord ». Non prioritaire, mais à instruire. Contrainte ferme : **aucun service payant**.
+
+**Ce qui est établi** (vérifié le 25 octobre) :
+
+- Une **API locale dans l’application** (`127.0.0.1`) ne répond que sur le Mac, et seulement application ouverte. C’est aussi ce qui en fait un écrivain unique : la base n’est jamais ouverte par deux processus.
+- **MCP** ne dit pas *où* tourne le serveur, c’est le transport qui décide. En **stdio**, le client lance le serveur : même machine uniquement (Hermes, Claude Code, Cursor). Pour être joint **à distance**, il faut une URL **HTTPS publique** en *Streamable HTTP* ou *SSE*, avec authentification. OpenAI l’écrit : « Can I connect to a local MCP server? Not directly. » Le téléphone passe par le même cloud, donc même contrainte. Les connecteurs MCP personnalisés de ChatGPT sont par ailleurs annoncés sur les offres **Business / Enterprise / Edu** : à vérifier sur le compte d’Aurélien avant tout travail de ce côté. OpenAI propose un **Secure MCP Tunnel** pour exposer un serveur privé sans ouvrir de port.
+- **La donnée est sur le Mac.** Un serveur distant ne peut répondre qu’avec ce qu’il atteint : soit un tunnel vers le Mac (Mac éveillé, application lancée), soit une copie hébergée (instantané en lecture, avec du retard), soit les deux.
+
+**Arbitrage d’Aurélien** : la passerelle de son agent suffit. Hermes sur Discord, depuis son téléphone, réveille l’agent Hermes du Mac, qui interroge l’API locale. Aucun tunnel, aucun hébergement, aucun abonnement : l’accès distant passe par un agent qui tourne déjà sur la machine où vivent les données. C’est fonctionnel tant que le Mac est éveillé.
+
+**Ordre retenu, quand le sujet reviendra** :
+
+1. **CLI en lecture seule** (`sylloge recipes search`, `sylloge recipes show`, `sylloge stats`) lisant `sylloge.db` en mode lecture (WAL : la lecture concurrente ne gêne pas l’application) — puis une skill Hermes qui sait quand l’appeler, et l’envoi Discord par le salon de Prométhée. Zéro coût, aucune surface réseau.
+2. **API locale dans l’application**, jeton stocké dans les réglages, lecture d’abord, écriture ensuite ; l’application reste le seul écrivain.
+3. **MCP stdio** par-dessus l’API, pour Hermes et les clients locaux.
+4. **Accès réellement distant** seulement si le besoin se confirme : tunnel Cloudflare **nommé** (hostname stable, SSE supporté ; un tunnel rapide change d’adresse et ne convient pas) avec OAuth devant, ou instantané en lecture vers Cloudflare (R2/D1) et MCP hébergé.
+
+**Garde-fous** : lecture avant écriture ; toute écriture par un agent suppose confirmation et copie de sauvegarde préalable ; jamais d’écoute sur `0.0.0.0` en réseau local.
+
 ## Actualisation du 24 octobre 2026
 
 **v0.6.11 est publiée** (23 octobre) : première release par la chaîne unique, manifeste `latest.json` à trois cibles (macOS Apple Silicon et Intel, Windows) vérifié, adresses répondant.
