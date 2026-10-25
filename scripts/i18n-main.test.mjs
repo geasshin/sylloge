@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
@@ -10,7 +11,7 @@ import react from '@vitejs/plugin-react'
 
 // Vraies fonctions TSX. Seul le bootstrap DOM final est retiré du module de test.
 // Aucun port HTTP, .env, fournisseur ou accès à une base personnelle.
-const scratch = '/Users/aurelientrouble/.hermes/profiles/promethee/cache/scratch'
+const scratch = process.env.TMPDIR ?? tmpdir()
 const cacheDir = mkdtempSync(join(scratch, 'sylloge-i18n-main-'))
 const server = await createServer({
   root: fileURLToPath(new URL('..', import.meta.url)), configFile: false, envFile: false,

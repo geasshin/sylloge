@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -8,7 +9,7 @@ import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // In-memory SSR only: no shared listener, .env file, native command or personal data.
-const scratch = process.env.TMPDIR
+const scratch = process.env.TMPDIR ?? tmpdir()
 assert.ok(scratch, 'An isolated scratch directory must be supplied through TMPDIR')
 const cacheDir = await mkdtemp(resolve(scratch, 'sylloge-i18n-transfers-'))
 const server = await createServer({

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
@@ -9,7 +10,7 @@ import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // Real TSX, no HTTP listener, .env, provider requests or personal database.
-const scratch = process.env.TMPDIR ?? '/Users/aurelientrouble/.hermes/profiles/promethee/cache/scratch'
+const scratch = process.env.TMPDIR ?? tmpdir()
 const cacheDir = mkdtempSync(join(scratch, 'sylloge-i18n-home-'))
 const server = await createServer({
   root: fileURLToPath(new URL('..', import.meta.url)),

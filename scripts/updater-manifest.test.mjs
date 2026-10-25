@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { after, test } from 'node:test'
@@ -13,7 +13,7 @@ import { after, test } from 'node:test'
  */
 const root = fileURLToPath(new URL('..', import.meta.url))
 const script = join(root, 'scripts/merge-tauri-latest-json.mjs')
-const scratch = process.env.TMPDIR ?? join(homedir(), '.hermes/profiles/promethee/cache/scratch')
+const scratch = process.env.TMPDIR ?? tmpdir()
 const work = mkdtempSync(join(scratch, 'sylloge-manifest-'))
 after(() => rmSync(work, { recursive: true, force: true }))
 
