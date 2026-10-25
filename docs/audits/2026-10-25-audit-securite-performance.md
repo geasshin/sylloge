@@ -251,7 +251,7 @@ Mesures avant correction dans le harnais de recette (Chromium, SQLite en mémoir
 
 `tauri-plugin-single-instance` est maintenant déclaré dans `Cargo.toml` et enregistré en premier dans `lib.rs`, avant les greffons SQL et de migration. Une deuxième ouverture appelle la fenêtre existante (`unminimize`, `show`, `set_focus`) et quitte le nouveau processus avant qu'il n'ouvre SQLite.
 
-**Preuves.** `cargo check`, `cargo clippy -D warnings`, `cargo test` (191 tests) et le build passent avec le greffon. Le comportement de double lancement n'a pas été scénarisé dans un runner graphique ; c'est la limite de cette vérification.
+**Preuves.** `cargo check`, `cargo clippy -D warnings`, `cargo test` (191 tests) et le build passent avec le greffon. Le double lancement a été vérifié avec un `HOME` temporaire : le premier processus reste vivant, le second se termine avec le code 0 en moins d'une seconde. Aucune donnée réelle n'a été ouverte.
 
 ### 4.7 Corrigé, avec une réserve — La release vérifie le code et limite les droits
 
