@@ -172,6 +172,7 @@ impl IgdbClient {
             .client
             .post(&url)
             .header("Accept", "application/json")
+            .headers(crate::installation::header_map())
             .body(request_body.to_string())
             .send()
             .await

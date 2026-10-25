@@ -40,7 +40,7 @@ export function AboutSettings() {
       <SettingsGroup id="about-data-title" title={t('Données')} description={t('Aucun compte. Les bibliothèques restent sur ce Mac.')}>
         <SettingsRow label={t('Bibliothèques')} detail={t('Enregistrées dans la base interne de l’application, sur ce Mac. Pour les copier ailleurs : Paramètres › Sauvegarde.')} />
         <SettingsRow label={t('Mises à jour de la base')} detail={t('Avant qu’une nouvelle version modifie la structure de la base, Sylloge en garde une copie interne. Les trois dernières sont conservées.')} />
-        <SettingsRow label={t('Recherches de métadonnées')} detail={t('TMDB (Films, Séries, Animation japonaise) et IGDB (Jeux) passent par le relais Sylloge, qui garde les clés d’accès ; Open Library (Livres, Mangas) est interrogé directement. Seuls les titres recherchés ou associés quittent ce Mac ; notes, avis et citations n’en sortent jamais.')} />
+        <SettingsRow label={t('Recherches de métadonnées')} detail={t('TMDB (Films, Séries, Animation japonaise) et IGDB (Jeux) passent par le relais Sylloge, qui garde les clés d’accès ; Open Library (Livres, Mangas) est interrogé directement. Seuls les titres recherchés ou associés quittent ce Mac, avec un identifiant d’installation anonyme qui sert à répartir la charge ; notes, avis et citations n’en sortent jamais.')} />
       </SettingsGroup>
 
       <SettingsGroup id="about-credits-title" title={t('Sources des métadonnées')}>

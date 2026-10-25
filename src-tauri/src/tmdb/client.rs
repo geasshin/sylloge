@@ -224,6 +224,7 @@ impl ReqwestTmdbClient {
             .client
             .get(&url)
             .header("Accept", "application/json")
+            .headers(crate::installation::header_map())
             .query(query)
             .send()
             .await
