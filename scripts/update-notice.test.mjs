@@ -23,9 +23,24 @@ const server = await createServer({
   appType: 'custom',
   server: { middlewareMode: true, hmr: false, ws: false, watch: null },
 })
+// Vite laisse parfois un processus écrire dans son dossier temporaire une fois
+// `close()` revenu : un rmdir immédiat tombe alors sur ENOTEMPTY. On réessaie
+// sans transformer un nettoyage en échec de la recette.
+async function removeScratch(directory) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      rmSync(directory, { recursive: true, force: true })
+      return
+    } catch (error) {
+      if (error.code !== 'ENOTEMPTY' && error.code !== 'EBUSY') throw error
+      await new Promise((resolve) => setTimeout(resolve, 60 * (attempt + 1)))
+    }
+  }
+}
+
 after(async () => {
   await server.close()
-  rmSync(cacheDir, { recursive: true, force: true })
+  await removeScratch(cacheDir)
 })
 
 const { UpdateNotice } = await server.ssrLoadModule('/src/components/UpdateNotice.tsx')
