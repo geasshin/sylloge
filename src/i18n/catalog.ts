@@ -9,6 +9,7 @@ import shared from './catalogs/shared.ts'
 import native from './catalogs/native.ts'
 import share from './catalogs/share.ts'
 import services from './catalogs/services.ts'
+import recap from './catalogs/recap.ts'
 
-export const catalogs = { main, shell, entries, transfers, home, views, messages, shared, native, share, services }
+export const catalogs = { main, shell, entries, transfers, home, views, messages, shared, native, share, services, recap }
 export const english: Readonly<Record<string, string>> = Object.assign({}, ...Object.values(catalogs))

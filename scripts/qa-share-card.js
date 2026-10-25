@@ -248,42 +248,27 @@ async page => {
   const clip = await clipboardPng()
   assert(clip.types.includes('image/png') && clip.width === 1080 && clip.height === 1350, `Copier : PNG 1 080 × 1 350 dans le presse-papiers (${clip.width}×${clip.height})`)
   assert(await saved() === before, 'Copier ne crée aucun fichier')
+  // Le partage direct vers un service est retiré (25 octobre 2026) : aucun bouton de réseau, aucune page ouverte.
+  assert(await dialog().locator('.share-destinations').count() === 0, 'Aucune section « Partager vers »')
+  for (const name of ['WhatsApp', 'Messenger', 'X', 'Story Instagram']) {
+    assert(await dialog().getByRole('button', { name, exact: true }).count() === 0, `Aucun bouton de réseau « ${name} »`)
+  }
+  assert((await opened()).length === 0, 'Aucune page de service ouverte')
 
-  // ── 5. Partager vers WhatsApp, X, Messenger : format standard, image copiée, service ouvert ───
-  await format(/Story/).click()
-  await heightIs(1920)
-  await dialog().getByRole('button', { name: 'WhatsApp', exact: true }).click()
-  await dialog().getByText(/Image copiée\. WhatsApp s’ouvre dans votre navigateur/).waitFor()
-  assert(await format(/Standard/).getAttribute('aria-checked') === 'true', 'WhatsApp choisit le format standard (la story était cochée)')
-  const whatsapp = await clipboardPng()
-  assert(whatsapp.width === 1080 && whatsapp.height === 1350, 'WhatsApp : l’image copiée est au format standard')
-  assert((await opened()).at(-1) === 'https://web.whatsapp.com/', 'WhatsApp : la page du service s’ouvre dans le navigateur du système')
-  await dialog().getByRole('button', { name: 'X', exact: true }).click()
-  await dialog().getByText(/Image copiée\. X s’ouvre/).waitFor()
-  assert((await opened()).at(-1) === 'https://x.com/compose/post', 'X : la page de composition s’ouvre')
-  await dialog().getByRole('button', { name: 'Messenger', exact: true }).click()
-  await dialog().getByText(/Image copiée\. Messenger s’ouvre/).waitFor()
-  assert((await opened()).at(-1) === 'https://www.messenger.com/', 'Messenger : la page du service s’ouvre')
-
-  // ── 6. Story Instagram : format story, enregistrée, rien ne s'ouvre ───────────────────────────
-  const openedBefore = (await opened()).length
-  await dialog().getByRole('button', { name: 'Story Instagram', exact: true }).click()
-  await dialog().getByText(/Image au format story enregistrée dans « sylloge-carte-recette\.png »/).waitFor()
-  const story = await pngInfo(await lastSaved())
-  assert(story.width === 1080 && story.height === 1920, `Story Instagram : PNG 1 080 × 1 920 (${story.width}×${story.height})`)
-  assert(await format(/Story/).getAttribute('aria-checked') === 'true', 'Story Instagram coche le format story')
-  assert((await dialog().innerText()).includes('depuis le téléphone'), 'Le message explique que la story se publie depuis le téléphone')
-  assert((await opened()).length === openedBefore, 'Story Instagram n’ouvre aucune page')
-
-  // ── 7. Copie refusée : le fichier est enregistré à la place, le service s'ouvre ────────────────
+  // ── 5. Copie refusée : on le dit, sans enregistrer de fichier en silence ──────────────────────
   await page.evaluate(() => { navigator.clipboard.write = () => Promise.reject(new Error('refusé')) })
   const savedBefore = await saved()
-  await dialog().getByRole('button', { name: 'Messenger', exact: true }).click()
-  await dialog().getByText(/La copie n’a pas fonctionné : l’image est enregistrée dans « sylloge-carte-recette\.png »/).waitFor()
-  assert(await saved() === savedBefore + 1 && (await opened()).at(-1) === 'https://www.messenger.com/', 'Copie refusée : fichier enregistré et service ouvert')
   await dialog().getByRole('button', { name: 'Copier l’image', exact: true }).click()
   await dialog().getByText(/La copie n’a pas fonctionné dans cette fenêtre/).waitFor()
-  assert(await saved() === savedBefore + 1, 'Copie seule refusée : aucun fichier créé en silence')
+  assert(await saved() === savedBefore, 'Copie seule refusée : aucun fichier créé en silence')
+  // Le PNG story reste enregistrable après un refus de copie.
+  await format(/Story/).click()
+  await heightIs(1920)
+  await dialog().getByRole('button', { name: 'Enregistrer l’image', exact: true }).click()
+  await dialog().getByText(/Image enregistrée dans « sylloge-carte-recette\.png »/).waitFor()
+  const story = await pngInfo(await lastSaved())
+  assert(story.width === 1080 && story.height === 1920, `Story : PNG 1 080 × 1 920 (${story.width}×${story.height})`)
+  assert(await format(/Story/).getAttribute('aria-checked') === 'true', 'La story reste le format choisi')
   await closeDialog()
   assert(await dialog().count() === 0, 'La fenêtre se ferme')
 
@@ -334,12 +319,13 @@ async page => {
   assert(profileFavorites > favorites, `Le profil propose les coups de cœur de toutes les bibliothèques (${profileFavorites} > ${favorites})`)
   await next()
   const fullBoxes = dialog().locator('.share-picker input[name="share-others"]')
-  assert(await dialog().getByText('6 sur 6 choisis').count() === 1, 'Profil : sept coups de cœur choisis d’office, le plafond est atteint')
+  const expectedSelection = Math.min(10, profileFavorites)
+  assert(await dialog().getByText(`${expectedSelection - 1} sur 9 choisis`).count() === 1, `Profil : ${expectedSelection} coups de cœur choisis d’office, plafond de dix`)
   const blocked = await fullBoxes.evaluateAll(list => list.filter(box => !box.checked && box.disabled).length)
-  assert(blocked === profileFavorites - 7, `Plafond atteint : les ${profileFavorites - 7} autres sont désactivées (${blocked})`)
+  assert(blocked === profileFavorites - expectedSelection, `Plafond atteint : les ${profileFavorites - expectedSelection} autres sont désactivées (${blocked})`)
   const beforeFree = await fingerprint()
   await dialog().locator('label.share-poster[data-checked]').first().click()
-  await dialog().getByText('5 sur 6 choisis').waitFor()
+  await dialog().getByText(`${expectedSelection - 2} sur 9 choisis`).waitFor()
   await redrawn(beforeFree, 'une place libérée sur le profil')
   assert(await fullBoxes.evaluateAll(list => list.filter(box => !box.checked && box.disabled).length) === 0, 'Une place libérée : les autres redeviennent choisissables')
   await closeDialog()
@@ -599,7 +585,7 @@ async page => {
   assert(/The numbers under the posters/i.test(stepStats) && /average rating/.test(stepStats) && /films watched/.test(stepStats) && /watched in 2026/.test(stepStats), 'Anglais : étape 3 traduite')
   await english.getByRole('button', { name: 'Continue', exact: true }).click()
   const englishText = await english.innerText()
-  assert(/Image format/i.test(englishText) && /Instagram and Facebook stories/.test(englishText) && /Copy the image/.test(englishText) && /Share to/i.test(englishText) && /Save the image/.test(englishText), 'Anglais : étape 4 traduite')
+  assert(/Image format/i.test(englishText) && /Stories and status updates/.test(englishText) && /Copy the image/.test(englishText) && !/Share to/i.test(englishText) && /Save the image/.test(englishText), 'Anglais : étape 4 traduite')
   assert(!/Contenu de la carte|Enregistrer|Partager vers|Copier|Continuer|Précédent|coups de cœur/i.test(englishText), 'Anglais : aucun reste de français')
   await english.getByRole('button', { name: 'Close', exact: true }).click()
 
