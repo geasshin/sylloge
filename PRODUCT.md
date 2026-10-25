@@ -23,7 +23,7 @@ Une médiathèque personnelle locale qui couvre sept bibliothèques, sans compte
 - Fenêtre d’application de bureau macOS (Tauri). Desktop uniquement : la présentation mobile n’est plus une cible (décision du 16 octobre 2026).
 - Parcours fréquents : ouvrir l’accueil pour voir les derniers ajouts et ce qui est en cours ; ajouter une œuvre via la recherche du fournisseur ou à la main ; mettre à jour statut, note et critique depuis la fiche ; filtrer, trier et enregistrer des vues dans une bibliothèque.
 - Parcours ponctuels : imports et exports JSON ou CSV, sauvegardes locales, gestion des profils, réglages de mise à jour.
-- Chaque push sur `main` publie une mise à jour que l’application installée propose.
+- Une release se publie à la main ; l’application installée propose ensuite cette mise à jour. Un push sur `main` ne publie rien.
 
 ## Capabilities and Constraints
 

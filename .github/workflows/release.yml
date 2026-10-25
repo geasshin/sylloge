@@ -12,13 +12,12 @@ name: Release
 # complet et ne publie la release que si les trois cibles y sont présentes. Aucune release
 # partielle ne peut donc atteindre les utilisateurs.
 #
-# - push sur main : release des deux plateformes.
+# - lancement manuel mode « release » : construit, vérifie et publie les deux plateformes.
 # - lancement manuel mode « build » : construit et vérifie les artefacts, publie rien.
+# - un push sur main ne déclenche plus rien (décision d’Aurélien, 25 octobre 2026) : la
+#   release est toujours un geste explicite, jamais un effet de bord d’un push.
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       mode:

@@ -34,7 +34,7 @@ Une question est nécessaire seulement quand une décision produit change réell
 
 Un commit est une photo du projet à un instant donné. Une branche est une piste de travail isolée. Ne pas commit, fusionner, créer un tag, pousser sur GitHub ou publier sans demande explicite.
 
-Depuis le 8 octobre 2026, chaque push sur `main` lance automatiquement le build macOS et publie une release corrective que l’application installée propose en mise à jour. Pousser sur `main` revient donc à livrer. Le numéro correctif est calculé dans la CI à partir de la version de base des manifestes et des tags existants, sans commit de version dans le dépôt. Les branches de travail ne publient rien.
+Du 8 au 25 octobre 2026, chaque push sur `main` lançait le build et publiait une release corrective. Depuis le 25 octobre 2026, la release se déclenche à la main (`workflow_dispatch`), mode « release » pour publier, mode « build » pour vérifier sans publier. Pousser sur `main` ne livre donc plus rien. Le numéro correctif est calculé dans la CI à partir de la version de base des manifestes et des tags existants, sans commit de version dans le dépôt. Les branches de travail ne publient rien.
 
 Les versions, tags et notes anciennes ne déterminent pas la taille ou l’ordre des prochains lots. Aucun numéro de version n’est attribué au lot de reprise en cours.
 

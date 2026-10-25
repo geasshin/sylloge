@@ -6,13 +6,13 @@ L’interface existe en français et en anglais : la langue est détectée au pr
 
 ## État du projet
 
-Chaque push sur `main` publie une version corrective ; le numéro des manifestes source reste `0.6.0`, la CI applique le numéro au moment de construire. La dernière version publiée est visible sur la page des releases. Le projet est gratuit et open source sous licence MIT.
+Une release se lance à la main depuis l’onglet Actions ; le numéro des manifestes source reste `0.6.0`, la CI applique le numéro au moment de construire. La dernière version publiée est visible sur la page des releases. Le projet est gratuit et open source sous licence MIT.
 
 Les décisions et l’ordre des prochains lots figurent dans [la feuille de route](docs/ROADMAP.md). Les faits de l’audit et ses limites sont dans [l’état de base](docs/ETAT_DE_BASE.md).
 
 ## Publication
 
-Chaque push sur `main` déclenche le build macOS **et** Windows puis la publication automatique d’une GitHub Release : DMG, archive `.app.tar.gz` signée, installeur NSIS signé, et un manifeste d’updater qui publie les trois cibles (darwin arm64 et Intel, Windows x64). Une seule release : si une plateforme ne construit pas, rien n’est publié. L’application installée propose ensuite cette version. Un push sur `main` est donc une mise en production. Les branches de travail ne publient rien. Le dépôt est public depuis le 21 octobre 2026 : l’application lit `releases/latest/download/latest.json` sans authentification, donc sans clé ni jeton à saisir. Les artefacts sont vérifiés par la signature de la clé du projet : remplacer le manifeste ne suffit pas à installer une archive non signée.
+Une release lancée à la main construit macOS **et** Windows puis publie une GitHub Release : DMG, archive `.app.tar.gz` signée, installeur NSIS signé, et un manifeste d’updater qui publie les trois cibles (darwin arm64 et Intel, Windows x64). Une seule release : si une plateforme ne construit pas, rien n’est publié. L’application installée propose ensuite cette version. Un push sur `main` ne publie donc rien : la mise en production reste un geste explicite. Les branches de travail ne publient rien. Le dépôt est public depuis le 21 octobre 2026 : l’application lit `releases/latest/download/latest.json` sans authentification, donc sans clé ni jeton à saisir. Les artefacts sont vérifiés par la signature de la clé du projet : remplacer le manifeste ne suffit pas à installer une archive non signée.
 
 ## Technologies
 

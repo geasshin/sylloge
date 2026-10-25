@@ -41,8 +41,8 @@ client Windows ne pouvait se mettre à jour**, et l’erreur s’affichait comme
 
 ## Qui écrit quoi
 
-Une seule release, `.github/workflows/release.yml`, déclenchée par un push sur `main` ou à la main
-(`workflow_dispatch`, mode `build` pour construire sans publier).
+Une seule release, `.github/workflows/release.yml`, déclenchée à la main uniquement
+(`workflow_dispatch` ; depuis le 25 octobre 2026, plus aucune release sur push ; mode `build` pour construire sans publier).
 
 | Job | Rôle |
 | --- | --- |
