@@ -15,6 +15,7 @@ import { BookForm } from './components/BookForm.tsx'
 import { GameDetail } from './components/GameDetail.tsx'
 import { GameForm } from './components/GameForm.tsx'
 import { Poster } from './components/Poster.tsx'
+import { WorkCardFacts } from './components/WorkCardFacts.tsx'
 import { Home } from './components/AtriumHome.tsx'
 import { Portability, SETTINGS_SECTIONS, type PortabilitySection } from './components/Portability.tsx'
 import { SeriesDetail } from './components/SeriesDetail.tsx'
@@ -25,7 +26,6 @@ import { GameIgdbSearchFlow } from './components/GameIgdbSearchFlow.tsx'
 import { TmdbSearchFlow } from './components/TmdbSearchFlow.tsx'
 import { LibraryExportFlow } from './components/LibraryExportFlow.tsx'
 import { ShareCardLink } from './components/ShareCardDialog.tsx'
-import { statusTone } from './components/VerdictControls.tsx'
 import { type AvailableUpdate } from './data/updaterService.ts'
 import { useAppUpdate } from './data/appUpdate.ts'
 import { UpdateNotice } from './components/UpdateNotice.tsx'
@@ -107,7 +107,6 @@ import type { SeriesFormValues, SeriesWriteInput } from './domain/seriesForm.ts'
 import { seriesLibraryForCategory, seriesLibraryCategories, seriesLibraryStoredFilter, seriesForLibrary, type SeriesLibraryKey } from './domain/seriesLibraries.ts'
 import { seriesPresentationToInitialValues } from './domain/seriesMetadataAssistance.ts'
 import {
-  BOOK_CATEGORY_LABELS,
   BOOK_STATUS_LABELS,
   BOOK_STATUSES,
   type Book,
@@ -479,7 +478,6 @@ function librarySubtitle(
 
 function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
   const [displayPosterUrl, setDisplayPosterUrl] = useState<string | null>(film.posterUrl)
-  const attribution = [film.director, film.year].filter((value) => value !== null).join(' · ')
 
   useEffect(() => {
     let cancelled = false
@@ -493,16 +491,15 @@ function FilmCard({ film, onOpen }: { film: Film; onOpen: () => void }) {
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${film.title}`}>
       <Poster title={film.title} src={displayPosterUrl} />
-      <span className="film-card-info">
-        <span className="film-card-top">
-          <b>{film.title}</b>
-          {film.isFavorite && <i aria-label={t("Favori")}>♥</i>}
-        </span>
-        {attribution && <small>{attribution}</small>}
-        <span className={`status-line tone-${statusTone(film.status)}`}>
-          {t(FILM_STATUS_LABELS[film.status])}
-        </span>
-      </span>
+      <WorkCardFacts
+        title={film.title}
+        isFavorite={film.isFavorite}
+        creator={film.director}
+        rating={film.rating}
+        year={film.year}
+        status={film.status}
+        statusLabel={t(FILM_STATUS_LABELS[film.status])}
+      />
     </button>
   )
 }
@@ -1045,17 +1042,16 @@ function SeriesCard({ series, onOpen }: { series: Series; onOpen: () => void }) 
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${series.title}`}>
       <Poster title={series.title} src={series.posterUrl} />
-      <span className="film-card-info">
-        <span className="film-card-top">
-          <b>{series.title}</b>
-          {series.isFavorite && <i aria-label={t("Favori")}>♥</i>}
-        </span>
-        {series.showrunner && <small>{series.showrunner}</small>}
-        <span className={`status-line tone-${statusTone(series.status)}`}>
-          {t(SERIES_STATUS_LABELS[series.status])}
-          {progress ? ` · ${progress}` : ''}
-        </span>
-      </span>
+      <WorkCardFacts
+        title={series.title}
+        isFavorite={series.isFavorite}
+        creator={series.showrunner}
+        rating={series.rating}
+        year={null}
+        status={series.status}
+        statusLabel={t(SERIES_STATUS_LABELS[series.status])}
+        progress={progress}
+      />
     </button>
   )
 }
@@ -1259,9 +1255,6 @@ function SeriesLibrary({
 }
 
 function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
-  const attribution = [t(BOOK_CATEGORY_LABELS[book.category]), book.author, book.year]
-    .filter((value) => value !== null)
-    .join(' · ')
   const progress = book.volumesRead !== null && book.volumesTotal !== null
     ? t('{read} / {total} tomes', { read: formatNumber(book.volumesRead), total: formatNumber(book.volumesTotal) })
     : null
@@ -1269,39 +1262,35 @@ function BookCard({ book, onOpen }: { book: Book; onOpen: () => void }) {
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${book.title}`}>
       <Poster title={book.title} src={book.coverUrl} label="Couverture" />
-      <span className="film-card-info">
-        <span className="film-card-top">
-          <b>{book.title}</b>
-          {book.isFavorite && <i aria-label={t("Favori")}>♥</i>}
-        </span>
-        {attribution && <small>{attribution}</small>}
-        <span className={`status-line tone-${statusTone(book.status)}`}>
-          {t(BOOK_STATUS_LABELS[book.status])}
-          {progress ? ` · ${progress}` : ''}
-        </span>
-      </span>
+      <WorkCardFacts
+        title={book.title}
+        isFavorite={book.isFavorite}
+        creator={book.author}
+        rating={book.rating}
+        year={book.year}
+        status={book.status}
+        statusLabel={t(BOOK_STATUS_LABELS[book.status])}
+        progress={progress}
+      />
     </button>
   )
 }
 
 function GameCard({ game, onOpen }: { game: Game; onOpen: () => void }) {
-  const attribution = [game.platform, game.developer, game.year]
-    .filter((value) => value !== null)
-    .join(' · ')
+  const creator = [game.platform, game.developer].filter(Boolean).join(' · ')
 
   return (
     <button className="film-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${game.title}`}>
       <Poster title={game.title} src={game.coverUrl} label="Couverture" />
-      <span className="film-card-info">
-        <span className="film-card-top">
-          <b>{game.title}</b>
-          {game.isFavorite && <i aria-label={t("Favori")}>♥</i>}
-        </span>
-        {attribution && <small>{attribution}</small>}
-        <span className={`status-line tone-${statusTone(game.status)}`}>
-          {t(GAME_STATUS_LABELS[game.status])}
-        </span>
-      </span>
+      <WorkCardFacts
+        title={game.title}
+        isFavorite={game.isFavorite}
+        creator={creator === '' ? null : creator}
+        rating={game.rating}
+        year={game.year}
+        status={game.status}
+        statusLabel={t(GAME_STATUS_LABELS[game.status])}
+      />
     </button>
   )
 }
@@ -1499,23 +1488,22 @@ function GamesLibrary({
 }
 
 function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void }) {
-  const attribution = [t(ARTWORK_FORM_LABELS[artwork.form]), artwork.artist, artwork.year]
-    .filter((value) => value !== null)
-    .join(' · ')
+  // L'Art n'a pas de note : la forme reste devant l'artiste, l'année occupe la
+  // place que les autres médiums donnent à la note.
+  const creator = [t(ARTWORK_FORM_LABELS[artwork.form]), artwork.artist].filter(Boolean).join(' · ')
 
   return (
     <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${artwork.title}`}>
       <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" className="artwork-visual" />
-      <span className="film-card-info">
-        <span className="film-card-top">
-          <b>{artwork.title}</b>
-          {artwork.isFavorite && <i aria-label={t("Favori")}>♥</i>}
-        </span>
-        {attribution && <small>{attribution}</small>}
-        <span className={`status-line tone-${statusTone(artwork.status)}`}>
-          {t(ARTWORK_STATUS_LABELS[artwork.status])}
-        </span>
-      </span>
+      <WorkCardFacts
+        title={artwork.title}
+        isFavorite={artwork.isFavorite}
+        creator={creator === '' ? null : creator}
+        rating={null}
+        year={artwork.year}
+        status={artwork.status}
+        statusLabel={t(ARTWORK_STATUS_LABELS[artwork.status])}
+      />
     </button>
   )
 }
@@ -2064,6 +2052,20 @@ function App() {
   /** L'accueil défile dans sa propre colonne, les bibliothèques dans la fenêtre. */
   const homeScrollRef = useRef<HTMLElement | null>(null)
 
+  /**
+   * Une écriture faite depuis une fiche — visuel remplacé, fiche associée à un
+   * fournisseur — laissait la grille de sa bibliothèque en arrière : la grille
+   * affiche le résultat de sa propre requête SQL, distinct de la collection
+   * maître tenue en mémoire. On relance donc cette requête après l'écriture.
+   * Films n'en a pas besoin : sa grille lit directement la collection maître.
+   */
+  const refreshLibraryQuery = (medium: 'série' | 'livre' | 'jeu' | 'artwork') => {
+    if (medium === 'série') setSeriesSearchAttempt((attempt) => attempt + 1)
+    else if (medium === 'livre') setBookSearchAttempt((attempt) => attempt + 1)
+    else if (medium === 'jeu') setGameSearchAttempt((attempt) => attempt + 1)
+    else setArtworkSearchAttempt((attempt) => attempt + 1)
+  }
+
   useEffect(() => {
     let cancelled = false
     setLibraryState({ status: 'loading' })
@@ -2607,6 +2609,7 @@ function App() {
       setSeriesCollection((current) => current.map((entry) => entry.id === series.id
         ? (refreshed ?? seriesWithPresentation(series, presentation))
         : entry))
+      refreshLibraryQuery('série')
       setCandidateSelection({ pendingId: null, error: null })
       setAssociateTarget(null)
     } catch (error) {
@@ -2645,6 +2648,7 @@ function App() {
       setBookCollection((current) => sortBooks(current.map((entry) => entry.id === book.id
         ? (refreshed ?? bookWithPresentation(book, presentation))
         : entry)))
+      refreshLibraryQuery('livre')
       setBookSelection({ pendingKey: null, error: null })
       setAssociateTarget(null)
     } catch (error) {
@@ -2680,6 +2684,7 @@ function App() {
       setGameCollection((current) => sortGames(current.map((entry) => entry.id === game.id
         ? (refreshed ?? gameWithPresentation(game, presentation))
         : entry)))
+      refreshLibraryQuery('jeu')
       setCandidateSelection({ pendingId: null, error: null })
       setAssociateTarget(null)
     } catch (error) {
@@ -3000,6 +3005,7 @@ function App() {
           onPosterEdit={async (url: string | null) => {
             await mediaRepository.updateSeries(library.profile.id, series.id, { ...series, posterUrl: url }, seriesLibraryForCategory(series.category))
             setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...series, posterUrl: url } : entry)))
+            refreshLibraryQuery('série')
           }}
           onDelete={async () => {
             await mediaRepository.deleteSeries(library.profile.id, view.seriesId, seriesLibraryForCategory(series.category))
@@ -3071,6 +3077,7 @@ function App() {
           onCoverEdit={async (url: string | null) => {
             await mediaRepository.updateBook(library.profile.id, book.id, { ...book, coverUrl: url }, undefined, bookLibraryForCategory(book.category))
             setBookCollection((current) => current.map((entry) => (entry.id === book.id ? { ...book, coverUrl: url } : entry)))
+            refreshLibraryQuery('livre')
           }}
           onDelete={async () => {
             await mediaRepository.deleteBook(library.profile.id, view.bookId, bookLibraryForCategory(book.category))
@@ -3138,6 +3145,7 @@ function App() {
           onCoverEdit={async (url: string | null) => {
             await mediaRepository.updateGame(library.profile.id, game.id, { ...game, coverUrl: url })
             setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...game, coverUrl: url } : entry)))
+            refreshLibraryQuery('jeu')
           }}
           onDelete={async () => {
             await mediaRepository.deleteGame(library.profile.id, view.gameId)
@@ -3219,6 +3227,7 @@ function App() {
           onImageEdit={async (url: string | null) => {
             await mediaRepository.updateArtwork(library.profile.id, artwork.id, { ...artwork, imageUrl: url })
             setArtworkCollection((current) => current.map((entry) => (entry.id === artwork.id ? { ...artwork, imageUrl: url } : entry)))
+            refreshLibraryQuery('artwork')
           }}
           onDelete={async () => {
             await mediaRepository.deleteArtwork(library.profile.id, view.artworkId)

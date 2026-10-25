@@ -1663,16 +1663,19 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .film-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-8) var(--space-5); margin-top: var(--space-8); align-items: start; }
 .film-card { display: block; width: 100%; padding: 0; min-width: 0; text-align: left; border: 0; background: none; }
 .film-card:hover .poster { transform: translateY(-3px); box-shadow: var(--shadow-lifted); }
-/* La place de deux lignes de titre est réservée sous chaque affiche :
-   un titre long ne déplace plus jamais la géométrie de la grille */
-.film-card-info { padding: var(--space-2-5) var(--space-0-5) 0; display: grid; gap: var(--space-1); }
+/* Texte de carte : trois faits serrés sous l'affiche — titre, signature et
+   état. Aucune hauteur de ligne n'est réservée : un titre sur une seule ligne
+   ne creuse plus de vide avant la signature (constat du 25 octobre 2026). */
+.film-card-info { padding: var(--space-2-5) var(--space-0-5) 0; display: grid; gap: var(--space-1); align-content: start; }
 .film-card-top { display: flex; min-width: 0; justify-content: space-between; align-items: start; gap: var(--space-1); }
-.film-card-info b { flex: 1 1 auto; min-width: 0; font-family: var(--font-ui); font-size: var(--text-lg); font-weight: 600; line-height: 1.2; letter-spacing: -.025em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: calc(2 * 1.2em); }
-.film-card-info i { flex: 0 0 auto; color: var(--color-accent); font-style: normal; font-size: var(--text-xs); }
-/* La ligne de faits (réalisation · année) est bornée à une ligne et sa hauteur
-   est réservée, comme celle du titre : une réalisation longue ne fait plus
-   grandir la carte ni descendre la pastille de statut (constat G1). */
+.film-card-info b { flex: 1 1 auto; min-width: 0; font-family: var(--font-ui); font-size: var(--text-lg); font-weight: 600; line-height: 1.2; letter-spacing: -.025em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.film-card-info i { flex: 0 0 auto; color: var(--color-accent); font-style: normal; font-size: var(--text-sm); line-height: 1.2; }
+/* Ligne de faits : la signature du médium à gauche, la note à droite — ou
+   l'année quand l'œuvre n'a pas de note (une œuvre pas encore vue n'en a pas).
+   Une seule ligne, jamais repliée, la signature cède la place en dernier. */
+.film-card-meta { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
 .film-card-info small {
+  flex: 0 1 auto;
   min-width: 0;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
@@ -1682,8 +1685,17 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: calc(1 * 1.2em);
 }
+.card-rating, .card-year {
+  flex: 0 0 auto;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.card-rating-star { margin-right: var(--space-0-5); color: var(--color-accent); }
 .status-line {
   justify-self: start;
   margin-top: var(--space-0-5);

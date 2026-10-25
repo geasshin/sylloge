@@ -50,12 +50,33 @@ comme avant : leur adresse locale est une affiche TMDB recopiée à la création
   celui de l'application.
 - La tuile « + » de la galerie envoyait le lien à la commande TMDB, qui le refusait.
 
+## Le visuel change sur la fiche, la grille suit (25 octobre 2026)
+
+Signalé par Aurélien sur un livre : un visuel remplacé au crayon de la fiche s'affichait bien dans la fiche,
+mais la carte de la bibliothèque gardait l'ancien — Séries, Animation japonaise, Livres, Mangas, Jeux et Art.
+
+**Cause.** Chaque bibliothèque n'affiche pas la collection tenue en mémoire mais le résultat de sa propre
+requête SQLite (`seriesSearchState`, `bookSearchState`, `gameSearchState`, `artworkSearchState`). Les
+écritures faites depuis une fiche — crayon du visuel, association à un fournisseur — mettaient à jour la
+base et la collection maître sans invalider cette requête : la grille gardait la ligne lue avant l'écriture.
+Les formulaires d'ajout et de modification, eux, relançaient déjà la requête ; les fiches ne le faisaient
+pas. Films n'était pas touché : sa grille lit directement la collection maître.
+
+**Correctif.** `refreshLibraryQuery(médium)` dans `src/main.tsx` invalide la requête de la bibliothèque
+concernée après l'écriture, aux sept endroits qui écrivaient depuis une fiche (visuel Séries, Livre, Jeu,
+Art ; association TMDB Séries, Open Library Livre, IGDB Jeu).
+
 ## Vérifications
 
 - `npm run test:covers` : la règle d'affichage, huit cas (fiche associée sans affiche locale, choix de la
   galerie, lien personnel, adresse TMDB oubliée par le cache, valeur invalide).
 - `scripts/qa-covers.js` : parcours film complet (associé, non associé, galerie, annulation, adresse invalide,
   aperçu) puis le même geste dans les sept autres bibliothèques.
+- `scripts/qa-work-cards.js` : pour les six bibliothèques qui lisent leur propre requête, le visuel changé
+  depuis la fiche arrive dans la grille et la colonne est écrite ; puis la ligne de faits de chaque médium
+  (signature, note ou année, coup de cœur, état, écart titre → faits ≤ 8 px, aucun débordement).
+  La recette échoue bien sur l'ancien comportement : 22 px de vide sous un titre d'une ligne quand la
+  hauteur de deux lignes est réservée.
 - Le simulateur du harnais (`src/qa/appBridge.ts`) applique le contrat de la commande native ; un simulateur
   plus souple avait masqué le troisième défaut.
 - Non couvert : un lien réellement distant. Le harnais sert des images `picsum.photos` ; l'application native
