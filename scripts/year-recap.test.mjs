@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  buildRecap, nextRecapYear, recapFileName, recapIsOpen, recapItems, recapYearFor, yearOfDate,
+  RECAP_STEPS, buildRecap, nextRecapYear, recapFileName, recapIsOpen, recapItems, recapYearFor, weekdayOfDate, yearOfDate,
 } from '../src/domain/yearRecap.ts'
 
 let n = 0
@@ -70,10 +70,10 @@ test('Le récapitulatif agrège l’année : total, bibliothèques, moyenne, fav
   assert.equal(recap.isEmpty, false)
 })
 
-test('Les mieux notées s’arrêtent à cinq, et une note sous quatre étoiles n’y entre pas', () => {
+test('Les mieux notées s’arrêtent à six, et une note sous quatre étoiles n’y entre pas', () => {
   const items = Array.from({ length: 8 }, (_, index) => entry('films', { doneOn: `2026-0${(index % 8) + 1}-10`, rating: index === 7 ? 3 : 5 }))
   const recap = buildRecap(items, 2026)
-  assert.equal(recap.topRated.length, 5)
+  assert.equal(recap.topRated.length, 6)
   assert.ok(recap.topRated.every(item => (item.rating ?? 0) >= 4))
 })
 
@@ -125,4 +125,114 @@ test('Le nom du fichier dit l’année, l’étape et le format, sans accent ni 
   assert.equal(recapFileName(2026, 'numbers', 'standard', day), 'sylloge-recap-2026-numbers-standard-2026-12-14.png')
   assert.equal(recapFileName(2026, 'discoveries', 'story', day), 'sylloge-recap-2026-discoveries-story-2026-12-14.png')
   assert.match(recapFileName(2025, 'top', 'standard', new Date('2026-01-02T10:00:00')), /-2026-01-02\.png$/)
+})
+
+test('Huit étapes, dans l’ordre de lecture', () => {
+  assert.deepEqual([...RECAP_STEPS], ['numbers', 'rhythm', 'palmares', 'top', 'notes', 'span', 'habits', 'discoveries'])
+})
+
+test('Le palmarès retient une œuvre par bibliothèque : le coup de cœur, puis la note, puis la date', () => {
+  const items = [
+    entry('films', { title: 'noté 5', doneOn: '2026-01-01', rating: 5 }),
+    entry('films', { title: 'coup de cœur noté 3', doneOn: '2026-01-02', rating: 3, isFavorite: true }),
+    entry('books', { title: 'seule', doneOn: '2026-02-01', rating: null }),
+    entry('games', { title: 'plus récent', doneOn: '2026-03-02', rating: 4 }),
+    entry('games', { title: 'plus ancien', doneOn: '2026-03-01', rating: 4 }),
+    entry('music', { title: 'hors base', doneOn: '2026-03-03', rating: 5 }),
+  ]
+  const palmares = buildRecap(items, 2026).palmares
+  assert.deepEqual(palmares.map(entry => [entry.library, entry.item.title]), [
+    ['films', 'coup de cœur noté 3'],
+    ['books', 'seule'],
+    ['games', 'plus récent'],
+  ], 'une œuvre par bibliothèque, dans l’ordre des bibliothèques')
+})
+
+test('Les notes : dix cases de 0,5 à 5, la médiane et le compte des cinq étoiles', () => {
+  const items = [
+    entry('films', { rating: 5, doneOn: '2026-01-01' }),
+    entry('films', { rating: 5, doneOn: '2026-01-02' }),
+    entry('films', { rating: 4, doneOn: '2026-01-03' }),
+    entry('films', { rating: 0.5, doneOn: '2026-01-04' }),
+    entry('films', { rating: null, doneOn: '2026-01-05' }),
+  ]
+  const recap = buildRecap(items, 2026)
+  assert.equal(recap.ratings.length, 10)
+  assert.deepEqual(recap.ratings.map(bucket => bucket.value), [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
+  assert.equal(recap.ratings[0].count, 1, 'une œuvre à 0,5')
+  assert.equal(recap.ratings[7].count, 1, 'une œuvre à 4')
+  assert.equal(recap.ratings[9].count, 2, 'deux œuvres à 5')
+  assert.equal(recap.fiveStars, 2)
+  assert.equal(recap.medianRating, 4.5, 'médiane de 0,5 ; 4 ; 5 ; 5')
+  assert.equal(recap.averageRating, 3.6)
+})
+
+test('Les jours : le jour de la semaine, la journée record et la plus longue série', () => {
+  assert.equal(weekdayOfDate('2026-01-05'), 1, 'un lundi')
+  assert.equal(weekdayOfDate('2026-01-11'), 7, 'un dimanche')
+  assert.equal(weekdayOfDate('n’importe quoi'), null)
+  const items = [
+    entry('films', { doneOn: '2026-03-02' }),
+    entry('films', { doneOn: '2026-03-02' }),
+    entry('films', { doneOn: '2026-03-02' }),
+    entry('books', { doneOn: '2026-03-03' }),
+    entry('books', { doneOn: '2026-03-04' }),
+    entry('games', { doneOn: '2026-03-09' }),
+  ]
+  const recap = buildRecap(items, 2026)
+  assert.deepEqual(recap.weekdays.map(day => day.count), [4, 1, 1, 0, 0, 0, 0], 'lundi à dimanche : 2, 3 et 9 mars sont des lundis')
+  assert.equal(recap.bestWeekday, 1)
+  assert.deepEqual(recap.bestDay, { date: '2026-03-02', count: 3 })
+  assert.deepEqual(recap.streak, { length: 3, from: '2026-03-02', to: '2026-03-04' })
+})
+
+test('Le temps long : les bornes des années de sortie, la médiane et un point par œuvre', () => {
+  const items = [
+    entry('films', { title: 'muet', year: 1927, doneOn: '2026-01-01' }),
+    entry('books', { title: 'moderne', year: 2026, doneOn: '2026-02-01' }),
+    entry('games', { title: 'milieu', year: 1998, doneOn: '2026-03-01' }),
+    entry('mangas', { title: 'sans année', year: null, doneOn: '2026-04-01' }),
+  ]
+  const span = buildRecap(items, 2026).span
+  assert.equal(span.minYear, 1927)
+  assert.equal(span.maxYear, 2026)
+  assert.equal(span.medianYear, 1998)
+  assert.equal(span.dated, 3)
+  assert.equal(span.oldest.title, 'muet')
+  assert.equal(span.newest.title, 'moderne')
+  assert.deepEqual(span.dots, [
+    { year: 1927, library: 'films' },
+    { year: 1998, library: 'games' },
+    { year: 2026, library: 'books' },
+  ])
+  assert.equal(buildRecap([entry('films', { year: null })], 2026).span, null)
+})
+
+test('La comparaison compte l’année précédente, et le créateur ne revient qu’à partir de deux œuvres', () => {
+  const items = [
+    entry('films', { creator: 'Solo', doneOn: '2026-01-01' }),
+    entry('films', { creator: 'Fidèle', doneOn: '2026-01-02' }),
+    entry('films', { creator: 'Fidèle', doneOn: '2026-01-03' }),
+    entry('films', { creator: 'Avant', doneOn: '2025-05-05' }),
+    entry('films', { creator: 'Avant', doneOn: '2025-06-05' }),
+  ]
+  const recap = buildRecap(items, 2026)
+  assert.equal(recap.previousTotal, 2)
+  assert.equal(recap.topCreator.name, 'Fidèle')
+  assert.equal(recap.topCreator.count, 2, 'le même auteur, deux fois dans la même bibliothèque')
+  const lonely = buildRecap([entry('films', { creator: 'Solo' })], 2026)
+  assert.equal(lonely.topCreator, null, 'un créateur vu une seule fois ne fait pas un palmarès')
+  assert.equal(lonely.previousTotal, 0)
+})
+
+test('Le temps long compte les décennies, de la plus récente à la plus ancienne, et la bibliothèque dominante', () => {
+  const items = [
+    entry('films', { year: 1927, doneOn: '2026-01-01' }),
+    entry('films', { year: 1929, doneOn: '2026-01-02' }),
+    entry('games', { year: 1998, doneOn: '2026-02-01' }),
+    entry('books', { year: 2026, doneOn: '2026-03-01' }),
+  ]
+  const span = buildRecap(items, 2026).span
+  assert.deepEqual(span.decades, [{ decade: 2020, count: 1 }, { decade: 1990, count: 1 }, { decade: 1920, count: 2 }])
+  assert.equal(span.dominant, 'films')
 })

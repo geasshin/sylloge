@@ -82,23 +82,22 @@ async page => {
   await canvas().waitFor()
   assert((await dialog().getByText('MON ANNÉE 2026').count()) === 1 || /MON ANNÉE 2026/i.test(await dialog().innerText()), 'La fenêtre s’intitule « Mon année 2026 »')
   const stepNames = (await dialog().locator('.share-steps button').allInnerTexts()).map(text => text.replace(/\s+/g, ' ').trim())
-  assert(JSON.stringify(stepNames) === JSON.stringify(['1 Chiffres', '2 Rythme', '3 Mieux notées', '4 Découvertes']), `Quatre étapes : ${stepNames.join(' | ')}`)
+  assert(JSON.stringify(stepNames) === JSON.stringify(['1 Chiffres', '2 Rythme', '3 Palmarès', '4 Mieux notées', '5 Vos notes', '6 Temps long', '7 Habitudes', '8 Découvertes']), `Huit étapes : ${stepNames.join(' | ')}`)
   const size = await canvas().evaluate(el => [el.width, el.height])
   assert(JSON.stringify(size) === '[1080,1350]', `Standard 4:5 : 1 080 × 1 350 (${size})`)
   assert(/37 œuvres datées de 2026/.test(await dialog().innerText()), 'Étape 1 : le décompte des œuvres datées')
 
   // ── 2. Chaque étape redessine son visuel ────────────────────────────────────────────────────────
-  const numbers = await fingerprint()
-  await step(/Rythme/).click()
-  await redrawn(numbers, 'le rythme')
-  const rhythm = await fingerprint()
-  await step(/Mieux notées/).click()
-  await redrawn(rhythm, 'les mieux notées')
-  const top = await fingerprint()
-  await step(/Découvertes/).click()
-  await redrawn(top, 'les découvertes')
-  const discoveries = await fingerprint()
-  assert(new Set([numbers, rhythm, top, discoveries]).size === 4, 'Les quatre visuels sont différents')
+  const seen = []
+  let previous = await fingerprint()
+  seen.push(previous)
+  for (const name of ['Rythme', 'Palmarès', 'Mieux notées', 'Vos notes', 'Temps long', 'Habitudes', 'Découvertes']) {
+    await step(new RegExp(name)).click()
+    await redrawn(previous, name.toLowerCase())
+    previous = await fingerprint()
+    seen.push(previous)
+  }
+  assert(new Set(seen).size === 8, 'Les huit visuels sont différents')
 
   // ── 3. Enregistrement : un vrai PNG, et un nom qui dit l'année, l'étape et le format ────────────
   await dialog().getByRole('button', { name: 'Enregistrer l’image', exact: true }).click()
@@ -146,8 +145,9 @@ async page => {
   await english.waitFor()
   await english.locator('canvas.share-card-canvas').waitFor()
   const englishText = await english.innerText()
-  assert(/Your year in four visuals/i.test(englishText) && /Numbers/.test(englishText) && /Pace/.test(englishText) && /Highest rated/.test(englishText) && /Discoveries/.test(englishText), 'Anglais : les quatre étapes et la description sont traduites')
-  assert(!/Chiffres|Rythme|Découvertes|œuvres|Enregistrer|Précédent/.test(englishText), 'Anglais : aucun reste de français')
+  const englishSteps = ['Numbers', 'Pace', 'Highlights', 'Highest rated', 'Your ratings', 'Long haul', 'Habits', 'Discoveries']
+  assert(/Your year in eight visuals/i.test(englishText) && englishSteps.every(name => englishText.includes(name)), `Anglais : les huit étapes et la description sont traduites (${englishSteps.filter(name => !englishText.includes(name)).join(', ') || 'toutes'})`)
+  assert(!/Chiffres|Rythme|Palmarès|Habitudes|Découvertes|œuvres|Enregistrer|Précédent/.test(englishText), 'Anglais : aucun reste de français')
   await page.keyboard.press('Escape')
   await english.waitFor({ state: 'hidden' })
   assert(true, 'Anglais : Échap ferme la fenêtre')

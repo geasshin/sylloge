@@ -94,7 +94,7 @@ export function TransferSettings({ library, onLibraryChanged }: Props) {
         </SettingsRow>
       </SettingsGroup>
 
-      <SettingsGroup id="transfer-recap-title" title={t('Récapitulatif de l’année')} description={t('Quatre visuels pour revoir votre année : les chiffres, le mois qui a rythmé l’année, vos mieux notées et vos découvertes. Chaque visuel s’enregistre en standard 4:5 ou en story 9:16. Rien n’est envoyé en ligne.')}>
+      <SettingsGroup id="transfer-recap-title" title={t('Récapitulatif de l’année')} description={t('Huit visuels pour revoir votre année : les chiffres, le rythme, votre palmarès, vos mieux notées, vos notes, le temps long, vos habitudes et vos découvertes. Chaque visuel s’enregistre en standard 4:5 ou en story 9:16. Rien n’est envoyé en ligne.')}>
         <SettingsRow
           label={t('Mon année {year}', { year: String(recapYear) })}
           detail={t('L’année en cours s’ouvre le 10 décembre ; avant, le récapitulatif montre l’année précédente.')}
