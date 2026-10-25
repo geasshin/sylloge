@@ -29,6 +29,7 @@ import { mockIPC, mockWindows } from '@tauri-apps/api/mocks'
 import type { NativeCustomEntryWritePayload } from '../data/nativeCustomEntries.ts'
 import type { CustomLibraryId } from '../domain/customLibraries.ts'
 import recettesNotion from '../../fixtures/recettes-notion.json'
+import { commonsSearchUrl } from '../domain/artImageSearch.ts'
 import {
   QA_PROFILE_ID,
   QA_PROFILE_NAME,
@@ -505,6 +506,7 @@ const windowThemes: Array<string | null> = []
 const savedImages: number[][] = []
 /** Les adresses d'images demandées à la commande native : la recette vérifie que la carte passe par elle. */
 const fetchedImages: string[] = []
+const searchedArtworks: string[] = []
 
 function handle(cmd: string, args: Args): unknown {
   switch (cmd) {
@@ -531,6 +533,19 @@ function handle(cmd: string, args: Args): unknown {
     }
     // Octets d'une affiche pour la carte : le vrai pont les demande à Rust (le canevas n'a alors besoin
     // d'aucune autorisation inter-sites) ; la recette les prend au serveur simulé, et échoue comme lui.
+    // La recherche d'images de l'Art : la vraie commande interroge Commons depuis Rust ; ici, le
+    // navigateur fait la même requête, que la recette intercepte.
+    case 'fetch_commons_search': {
+      const title = String(args.title ?? '').trim()
+      const artist = typeof args.artist === 'string' && args.artist.trim() !== '' ? args.artist.trim() : null
+      if (!title) throw new Error('Titre vide : aucune recherche possible.')
+      searchedArtworks.push([title, artist].filter(Boolean).join(' · '))
+      return fetch(commonsSearchUrl(title, artist)).then(async response => {
+        if (!response.ok) throw new Error(`Le serveur a refusé la recherche (${response.status}).`)
+        return await response.text()
+      })
+    }
+
     case 'fetch_remote_image': {
       const url = String(args.url ?? '')
       if (!/^https?:\/\//.test(url)) throw new Error('Adresse d’image invalide.')
@@ -712,6 +727,7 @@ Object.assign(window, {
     windowThemes: () => [...windowThemes],
     savedImages: () => savedImages.map(bytes => [...bytes]),
     fetchedImages: () => [...fetchedImages],
+    searchedArtworks: () => [...searchedArtworks],
   },
 })
 

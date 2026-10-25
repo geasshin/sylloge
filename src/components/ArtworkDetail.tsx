@@ -7,6 +7,7 @@ import {
 import { t, tc, formatDate, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
+import { searchArtworkImages } from '../data/artImageSearch.ts'
 import { StatusBadge } from './VerdictControls.tsx'
 import { icon } from '../main.tsx'
 
@@ -140,6 +141,7 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
         currentUrl={artwork.imageUrl}
         onClose={() => setPosterDialogOpen(false)}
         onSave={(url) => onImageEdit?.(url)}
+        suggest={() => searchArtworkImages(artwork.title, artwork.artist)}
       />
     </main>
   )

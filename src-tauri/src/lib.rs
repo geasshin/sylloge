@@ -1,3 +1,4 @@
+mod art_images;
 mod books;
 mod custom_entries;
 mod database;
@@ -36,6 +37,7 @@ pub fn run() {
             portability::save_export_csv,
             portability::save_share_image,
             share_images::fetch_remote_image,
+            art_images::fetch_commons_search,
             portability::get_backup_settings,
             portability::pick_backup_destination,
             portability::configure_backup_destination,

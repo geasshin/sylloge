@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ArtworkImageCandidate } from '../domain/artImageSearch.ts'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 
 type PosterEditorOptions = {
@@ -9,6 +10,8 @@ type PosterEditorOptions = {
   currentUrl?: string | null
   /** Reçoit l'URL validée (http/https) ou null si l'utilisateur a vidé le champ. */
   onSave: (url: string | null) => Promise<void> | void
+  /** Propose des images (Art : Commons) ; absent, le dialogue se limite à l'adresse collée. */
+  suggest?: () => Promise<ArtworkImageCandidate[]>
 }
 
 /**
@@ -17,7 +20,7 @@ type PosterEditorOptions = {
  * visuel d'œuvre. Le crayon sur le visuel ouvre le même dialogue d'URL
  * partout ; les formulaires et les fiches branchent leurs champs.
  */
-export function usePosterEditor({ title, label = 'Visuel', currentUrl = null, onSave }: PosterEditorOptions) {
+export function usePosterEditor({ title, label = 'Visuel', currentUrl = null, onSave, suggest }: PosterEditorOptions) {
   const [open, setOpen] = useState(false)
 
   const dialog = (
@@ -30,6 +33,7 @@ export function usePosterEditor({ title, label = 'Visuel', currentUrl = null, on
       onSave={async (url) => {
         await onSave(url)
       }}
+      suggest={suggest}
     />
   )
 

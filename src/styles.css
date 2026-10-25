@@ -4342,3 +4342,70 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   color: var(--color-text-muted);
   font-size: .875rem;
 }
+
+/* Propositions d'images pour l'Art (Wikimedia Commons) : une vignette se clique, l'adresse se pose. */
+.poster-suggest {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}
+.poster-suggest-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.poster-suggest-head .import-hint {
+  margin: 0;
+  flex: 1 1 220px;
+}
+.poster-suggest-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+.poster-suggest-grid button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+.poster-suggest-grid button:hover {
+  border-color: var(--color-border-strong);
+}
+.poster-suggest-grid button[aria-pressed='true'] {
+  border-color: var(--color-text);
+  box-shadow: 0 0 0 2px var(--color-focus);
+}
+.poster-suggest-grid button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.poster-suggest-grid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  background: var(--color-surface-muted);
+}
+.poster-suggest-grid span {
+  padding: 0 6px 6px;
+  font-size: .6875rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

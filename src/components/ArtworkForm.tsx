@@ -18,6 +18,7 @@ import {
 import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
 import { usePosterEditor } from './usePosterEditor.tsx'
+import { searchArtworkImages } from '../data/artImageSearch.ts'
 import { StatusSegmented, FavoriteHeart } from './VerdictControls.tsx'
 
 function previewableImageUrl(value: string): string | null {
@@ -53,6 +54,8 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
     label: 'Visuel',
     currentUrl: values.imageUrl,
     onSave: (url) => update('imageUrl', url ?? ''),
+    // L'Art est la seule bibliothèque sans source d'images : on propose des œuvres libres de Commons.
+    suggest: () => searchArtworkImages(values.title, values.artist),
   })
 
   const update = <Key extends keyof ArtworkFormValues>(key: Key, value: ArtworkFormValues[Key]) => {
