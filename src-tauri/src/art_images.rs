@@ -104,22 +104,37 @@ mod tests {
         let url = commons_search_url("La vague", Some("Courbet")).expect("adresse");
         assert!(url.starts_with("https://commons.wikimedia.org/w/api.php?"));
         assert!(url.contains("generator=search"));
-        assert!(url.contains("gsrnamespace=6"), "les fichiers, pas les articles");
+        assert!(
+            url.contains("gsrnamespace=6"),
+            "les fichiers, pas les articles"
+        );
         assert!(url.contains("iiprop=url%7Cextmetadata%7Csize%7Cmime"));
-        assert!(url.contains("La+vague+Courbet") || url.contains("La%20vague%20Courbet"), "{url}");
+        assert!(
+            url.contains("La+vague+Courbet") || url.contains("La%20vague%20Courbet"),
+            "{url}"
+        );
     }
 
     #[test]
     fn sans_artiste_la_requete_se_limite_au_titre() {
         let url = commons_search_url("  Les Nymphéas  ", None).expect("adresse");
-        assert!(url.contains("Les+Nymph%C3%A9as") || url.contains("Les%20Nymph%C3%A9as"), "{url}");
-        assert!(!url.contains("gsrsearch=Les+Nymph%C3%A9as+"), "aucun espace final");
+        assert!(
+            url.contains("Les+Nymph%C3%A9as") || url.contains("Les%20Nymph%C3%A9as"),
+            "{url}"
+        );
+        assert!(
+            !url.contains("gsrsearch=Les+Nymph%C3%A9as+"),
+            "aucun espace final"
+        );
     }
 
     #[test]
     fn un_titre_vide_ou_trop_long_est_refuse() {
         assert!(commons_search_url("   ", Some("Monet")).is_err());
-        assert!(commons_search_url("x", Some("  ")).is_ok(), "un artiste vide ne bloque pas");
+        assert!(
+            commons_search_url("x", Some("  ")).is_ok(),
+            "un artiste vide ne bloque pas"
+        );
         assert!(commons_search_url(&"a".repeat(MAX_QUERY_CHARS + 1), None).is_err());
         assert!(commons_search_url("ok", Some(&"b".repeat(MAX_QUERY_CHARS + 1))).is_err());
     }
