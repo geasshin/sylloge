@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { after, test } from 'node:test'
@@ -11,7 +11,7 @@ import react from '@vitejs/plugin-react'
 
 // L'annonce de mise à jour, rendue pour de vrai en français et en anglais, sans réseau ni pont natif.
 const root = fileURLToPath(new URL('..', import.meta.url))
-const scratch = process.env.TMPDIR ?? join(homedir(), '.hermes/profiles/promethee/cache/scratch')
+const scratch = process.env.TMPDIR ?? tmpdir()
 const cacheDir = mkdtempSync(join(scratch, 'sylloge-update-notice-'))
 const server = await createServer({
   root,
