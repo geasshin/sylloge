@@ -15,7 +15,7 @@ import type { ShareFormat, ShareFormatId } from '../domain/shareFormats.ts'
 // Le vrai logo : la tuile Σ de l'icône de l'application (celle du Dock et du site), recadrée sur la tuile.
 import logoUrl from '../assets/sylloge-mark.png'
 
-const COLOR = {
+export const COLOR = {
   base: `rgb(${AMBIENT_BASE.join(',')})`,
   surface: '#232326',
   text: '#EDEDEF',
@@ -24,8 +24,8 @@ const COLOR = {
   edge: 'rgba(255,255,255,0.16)',
 } as const
 
-const UI_FONT = 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
-const DISPLAY_FONT = `"Syne", ${UI_FONT}`
+export const UI_FONT = 'ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
+export const DISPLAY_FONT = `"Syne", ${UI_FONT}`
 
 /** Rend l'image chargée, ou `null` si elle est introuvable, trop lente ou sans autorisation inter-sites. */
 export type ImageLoader = (url: string) => Promise<CanvasImageSource | null>
@@ -114,7 +114,7 @@ export function shareCardFileName(scope: ShareScope, format: ShareFormatId, now:
   return `sylloge-carte-${name}-${format}-${day}.png`
 }
 
-async function loadDisplayFont(): Promise<void> {
+export async function loadDisplayFont(): Promise<void> {
   try {
     await Promise.all([document.fonts.load('700 40px "Syne"'), document.fonts.load('800 40px "Syne"')])
     await document.fonts.ready
@@ -186,7 +186,7 @@ function drawBlock(context: Context, block: LayoutBlock, model: ShareCardModel, 
 }
 
 /** Ligne de base qui centre visuellement un texte en capitales sur un axe horizontal. */
-function centeredBaseline(context: Context, text: string, centerY: number): number {
+export function centeredBaseline(context: Context, text: string, centerY: number): number {
   return centerY + context.measureText(text).actualBoundingBoxAscent / 2
 }
 
@@ -507,7 +507,7 @@ function drawPosterFallback(context: Context, rect: Rect, title: string) {
   context.textAlign = 'left'
 }
 
-function drawCover(context: Context, image: CanvasImageSource, rect: Rect) {
+export function drawCover(context: Context, image: CanvasImageSource, rect: Rect) {
   const source = image as { naturalWidth?: number; naturalHeight?: number; width: number; height: number }
   const width = source.naturalWidth ?? source.width
   const height = source.naturalHeight ?? source.height
@@ -519,7 +519,7 @@ function drawCover(context: Context, image: CanvasImageSource, rect: Rect) {
 }
 
 /** Cinq étoiles remplies à la demi-étoile, centrées dans la zone. */
-function drawStars(context: Context, area: Rect, rating: number) {
+export function drawStars(context: Context, area: Rect, rating: number) {
   const size = area.h
   const gap = Math.round(size * 0.16)
   const width = 5 * size + 4 * gap
@@ -530,7 +530,7 @@ function drawStars(context: Context, area: Rect, rating: number) {
 }
 
 /** Une étoile de côté `size`, remplie sur la fraction `fill` de sa largeur (0,5 = demi-étoile). */
-function drawStar(context: Context, left: number, top: number, size: number, fill: number, color: string) {
+export function drawStar(context: Context, left: number, top: number, size: number, fill: number, color: string) {
   starPath(context, left, top, size)
   context.fillStyle = 'rgba(255,255,255,0.28)'
   context.fill()
@@ -564,11 +564,11 @@ function starPath(context: Context, left: number, top: number, size: number) {
 
 // ── Utilitaires de texte ────────────────────────────────────────────────────────────────────────
 
-function setFont(context: Context, weight: number, size: number, family: string) {
+export function setFont(context: Context, weight: number, size: number, family: string) {
   context.font = `${weight} ${size}px ${family}`
 }
 
-function roundRect(context: Context, rect: Rect, radius: number) {
+export function roundRect(context: Context, rect: Rect, radius: number) {
   context.beginPath()
   context.roundRect(rect.x, rect.y, rect.w, rect.h, radius)
 }
@@ -577,7 +577,7 @@ function roundRect(context: Context, rect: Rect, radius: number) {
  * Texte en capitales espacées, lettre à lettre : `letterSpacing` du canevas n'existe pas dans tous les
  * moteurs web. Rend la largeur dessinée (sans l'espacement qui suit la dernière lettre).
  */
-function drawTracked(context: Context, text: string, x: number, y: number, tracking: number): number {
+export function drawTracked(context: Context, text: string, x: number, y: number, tracking: number): number {
   let cursor = x
   for (const char of text) {
     context.fillText(char, cursor, y)
@@ -587,7 +587,7 @@ function drawTracked(context: Context, text: string, x: number, y: number, track
 }
 
 /** Plus grande taille qui fait tenir le texte sur une ligne ; au-delà du minimum, il est écourté. */
-function fitSize(context: Context, text: string, maxWidth: number, weight: number, start: number, min: number, family: string): { size: number; text: string } {
+export function fitSize(context: Context, text: string, maxWidth: number, weight: number, start: number, min: number, family: string): { size: number; text: string } {
   for (let size = start; size >= min; size -= 2) {
     setFont(context, weight, size, family)
     if (context.measureText(text).width <= maxWidth) return { size, text }
@@ -596,13 +596,13 @@ function fitSize(context: Context, text: string, maxWidth: number, weight: numbe
   return { size: min, text: ellipsize(context, text, maxWidth) }
 }
 
-function fitted(context: Context, text: string, maxWidth: number, weight: number, start: number, min: number, family: string): string {
+export function fitted(context: Context, text: string, maxWidth: number, weight: number, start: number, min: number, family: string): string {
   const result = fitSize(context, text, maxWidth, weight, start, min, family)
   setFont(context, weight, result.size, family)
   return result.text
 }
 
-function ellipsize(context: Context, text: string, maxWidth: number): string {
+export function ellipsize(context: Context, text: string, maxWidth: number): string {
   if (context.measureText(text).width <= maxWidth) return text
   let cut = text
   while (cut.length > 1 && context.measureText(`${cut}…`).width > maxWidth) cut = cut.slice(0, -1)
@@ -610,7 +610,7 @@ function ellipsize(context: Context, text: string, maxWidth: number): string {
 }
 
 /** Découpe en lignes à la largeur donnée ; un mot plus large que la ligne est coupé par caractères. */
-function wrapLines(context: Context, text: string, maxWidth: number, maxLines: number): string[] {
+export function wrapLines(context: Context, text: string, maxWidth: number, maxLines: number): string[] {
   const words = text.split(/\s+/).filter(Boolean)
   const lines: string[] = []
   let current = ''

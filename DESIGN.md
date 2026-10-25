@@ -80,6 +80,16 @@ Décisions du 18 octobre 2026 : vues nettement distinctes et toutes visibles, ac
 - **Panneaux** : rayon `--radius-md`, ombre `--shadow-popover`, apparition `--duration-base` neutralisée en mouvement réduit. Filtres sur deux colonnes alignées (un champ resté seul et le texte libre prennent la ligne), case commune, « Réinitialiser » et « Fermer ». Tri : liste des colonnes à cocher, application immédiate, second clic qui inverse le sens, « Tri de la vue ». La date personnelle porte le nom du médium dans le filtre comme dans le tri : Visionnage, Début de visionnage, Début de lecture, Partie, Découverte.
 - **Liste déroulante** (`Select.tsx`) : bouton au gabarit des champs (`aria-haspopup="listbox"`), liste flottante qui reste dans la fenêtre, option cochée à l’encre, option active sur `--color-surface-muted`. Flèches, Début, Fin, Page, Entrée ou Espace, Échap qui rend le focus, saisie de lettres, clic extérieur. Elle reste dans le DOM de son panneau : focus et clic extérieur des fenêtres qui la contiennent sont préservés. Les formulaires d’ajout et de modification gardent encore leurs menus système.
 
+## Cartes d'œuvre
+
+Décision du 25 octobre 2026 : la carte d'une bibliothèque montre l'œuvre, pas seulement son titre.
+
+- Trois faits serrés sous le visuel, dans cet ordre : **titre** (deux lignes au plus) avec le coup de cœur à sa droite ; **signature** du médium à gauche et, à droite de la même ligne, la **note** ou l'**année** ; puis la **pastille d'état**, progression comprise (« En cours · 3 / 8 saisons »).
+- La signature est la personne du médium : réalisateur, showrunner, auteur, développeur (précédé de la plateforme pour un jeu), artiste (précédé de la forme pour une œuvre d'Art).
+- La note n'apparaît qu'une fois l'œuvre consommée et notée ; sinon l'année de sortie, de parution ou de création occupe cette place. Quand la note est affichée, l'année reste lisible dans la signature — jamais deux fois à droite. L'Art n'a pas de note : son année occupe toujours la droite. Séries et Animation japonaise n'ont pas d'année dans le modèle : une série « À voir » n'affiche rien à droite.
+- Aucune hauteur de ligne n'est réservée sous le titre : une œuvre au titre court remonte sa signature à `--space-1` du titre, sans le vide d'une ligne fantôme. Les cartes d'une même rangée peuvent donc décaler leur pastille quand un titre tient sur deux lignes.
+- La carte entière reste un seul bouton ; les faits sont du texte, jamais des commandes.
+
 ## Livres et Mangas
 
 Décision du 19 octobre 2026 : Mangas devient une bibliothèque distincte. Depuis le 20 octobre 2026, chaque bibliothèque possède sa propre table dans l’unique base `sylloge.db` (`books` pour Livres, `mangas` pour Mangas). Depuis le 22 octobre 2026, Comics est une bibliothèque personnalisée : Livres n’a plus de catégorie Comics.

@@ -1,10 +1,13 @@
-// Cartes à partager : les formats d'image et les destinations.
+// Cartes à partager : les formats d'image.
 //
 // Deux formats suffisent, parce que les réseaux se rangent en deux familles :
 //   - standard, 1 080 × 1 350 (4:5) : messages, WhatsApp, Messenger, X, fil Instagram ;
 //   - story, 1 080 × 1 920 (9:16) : stories Instagram et Facebook, statuts WhatsApp, Reels.
 // Une story est recouverte par l'interface du réseau (nom en haut, champ de réponse en bas) : le
 // contenu reste dans la zone sûre.
+//
+// Aucune destination n'est codée ici : décision d'Aurélien du 25 octobre 2026, le partage direct vers un
+// service est retiré. On enregistre ou on copie l'image, et on l'envoie soi-même.
 
 export type ShareFormatId = 'standard' | 'story'
 
@@ -23,25 +26,3 @@ export const SHARE_FORMATS: Record<ShareFormatId, ShareFormat> = {
 }
 
 export const SHARE_FORMAT_ORDER: readonly ShareFormatId[] = ['standard', 'story']
-
-export type ShareDestinationId = 'whatsapp' | 'messenger' | 'x' | 'instagram-story'
-
-export type ShareDestination = {
-  id: ShareDestinationId
-  /** Nom de marque : jamais traduit. */
-  name: string
-  /** Le format que ce réseau demande : choisi d'office quand on clique. */
-  format: ShareFormatId
-  /**
-   * Page du service à ouvrir après avoir copié l'image, ou `null` quand le service ne permet pas de
-   * publier depuis un ordinateur (une story Instagram ne se crée que depuis l'application mobile).
-   */
-  url: string | null
-}
-
-export const SHARE_DESTINATIONS: readonly ShareDestination[] = [
-  { id: 'whatsapp', name: 'WhatsApp', format: 'standard', url: 'https://web.whatsapp.com/' },
-  { id: 'messenger', name: 'Messenger', format: 'standard', url: 'https://www.messenger.com/' },
-  { id: 'x', name: 'X', format: 'standard', url: 'https://x.com/compose/post' },
-  { id: 'instagram-story', name: 'Story Instagram', format: 'story', url: null },
-]

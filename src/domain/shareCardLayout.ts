@@ -14,7 +14,7 @@
 //   - les chiffres, sur une seule rangée sous les affiches.
 // Le héros est aussi grand que la hauteur disponible le permet ; tout le reste s'y accorde.
 
-import type { ShareCardModel, ShareItem, ShareLimits, ShareScope } from './shareCard.ts'
+import { favoritesLimit, type ShareCardModel, type ShareItem, type ShareLimits, type ShareScope } from './shareCard.ts'
 import type { ShareCardPerson } from './sharePeople.ts'
 import type { ShareFormat } from './shareFormats.ts'
 
@@ -49,8 +49,9 @@ export const SHARE_CARD = {
   gapSection: 36,
   maxExtraGap: 24,
   /**
-   * Le héros ne dépasse pas cette hauteur. À 820 px, avec six voisins sur deux colonnes et trois rangées, la
-   * grille de droite épouse exactement la hauteur et la largeur de son panneau : tout s'aligne.
+   * Le héros ne dépasse pas cette hauteur. La grille de droite épouse la hauteur et la largeur de son
+   * panneau : avec six voisins (2 × 3) comme avec les neuf de la carte du profil (3 × 3, décision du
+   * 25 octobre 2026), tout s'aligne et les affiches restent au-dessus de 130 px.
    */
   heroMaxHeight: { standard: 820, story: 820 },
   /** Un coup de cœur seul à côté du héros ne le concurrence pas. */
@@ -58,10 +59,16 @@ export const SHARE_CARD = {
   tileRatio: 1.5,
   maxRunnerUpCols: 3,
   maxRunnerUpRows: 3,
-  /** Au plus sept coups de cœur : le héros et six autres. */
-  maxFavorites: 7,
+  /** Plafond absolu de la carte : dix coups de cœur ; une bibliothèque s'arrête à sept (voir `favoritesLimit`). */
+  maxFavorites: 10,
   /** Écart maximal entre deux colonnes d'affiches justifiées sur le panneau. */
   maxColumnGap: 60,
+  /** Largeur minimale d'un voisin : en dessous, mieux vaut que le héros cède de la place (profil à dix). */
+  minRunnerUpWidth: 130,
+  /** Le héros ne descend jamais sous cette largeur, même pour loger neuf voisins. */
+  minHeroWidth: 360,
+  /** Sous cette largeur, une affiche ne porte pas d'étoiles : à 130 px, elles ne se lisent plus. */
+  minStarWidth: 150,
   heroRadius: 20,
   tileRadius: 14,
 } as const
@@ -107,8 +114,8 @@ const contentWidth = (format: ShareFormat) => format.width - 2 * SHARE_CARD.marg
 const tileHeight = (width: number) => Math.round(width * SHARE_CARD.tileRatio)
 
 /** Ce que la carte demande à la sélection : exactement ce que la composition peut montrer. */
-export function shareLimitsFor(_format: ShareFormat, _scope: ShareScope): ShareLimits {
-  return { favorites: SHARE_CARD.maxFavorites }
+export function shareLimitsFor(_format: ShareFormat, scope: ShareScope): ShareLimits {
+  return { favorites: favoritesLimit(scope) }
 }
 
 export type RunnerUpGrid = { cols: number; rows: number; tileW: number }
@@ -155,7 +162,8 @@ export function arrangeRunnerUps(count: number, panelWidth: number, gridHeight: 
 }
 
 function starsFor(rect: Rect, item: ShareItem): Rect | null {
-  if (item.rating === null) return null
+  // Une affiche trop étroite ne porte pas d'étoiles : cinq notes illisibles valent moins que rien.
+  if (item.rating === null || rect.w < SHARE_CARD.minStarWidth) return null
   const size = Math.min(30, Math.max(12, Math.floor((rect.w - 24) / 5.8)))
   return { x: rect.x, y: rect.y + rect.h - size - 16, w: rect.w, h: size }
 }
@@ -180,8 +188,21 @@ export function layoutShareCard(model: ShareCardModel, format: ShareFormat): Sha
   const aboveSpread = SHARE_CARD.headerHeight + SHARE_CARD.gapHeader + titleHeight + SHARE_CARD.gapTitle
   const available = bottom - top - aboveSpread - statsBlock - peopleBlock
   const heroBound = heroItem ? Math.min(SHARE_CARD.heroMaxHeight[format.id], available - sectionLabel) : 0
-  const heroW = heroItem ? Math.floor(heroBound / SHARE_CARD.tileRatio) : 0
-  const heroH = heroItem ? tileHeight(heroW) : 0
+  let heroW = heroItem ? Math.floor(heroBound / SHARE_CARD.tileRatio) : 0
+  let heroH = heroItem ? tileHeight(heroW) : 0
+
+  // Neuf voisins (la carte du profil à dix coups de cœur) : trois colonnes ne tiennent à taille lisible que
+  // si le héros cède un peu de largeur. Il reste toujours au moins `minHeroWidth`.
+  if (heroItem && runnerUps.length > 6) {
+    while (heroW > SHARE_CARD.minHeroWidth) {
+      const panel = width - heroW - SHARE_CARD.panelGap
+      const grid = arrangeRunnerUps(runnerUps.length, panel, heroH, Math.floor(heroW * SHARE_CARD.runnerUpMaxRatio))
+      if (grid.tileW >= SHARE_CARD.minRunnerUpWidth) break
+      if (heroW <= SHARE_CARD.minHeroWidth) break
+      heroW = Math.max(SHARE_CARD.minHeroWidth, heroW - 4)
+      heroH = tileHeight(heroW)
+    }
+  }
   const spreadHeight = heroItem ? sectionLabel + heroH : 0
 
   // L'espace qui reste s'ajoute aux écarts (au plus 24 px chacun), le surplus centre le tout sous l'en-tête.

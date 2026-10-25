@@ -209,8 +209,18 @@ function balanced(favorites: ShareItem[], limit: number): ShareItem[] {
   return picked
 }
 
-/** Le héros et ses voisins : au plus sept coups de cœur sur une carte. */
-export const MAX_SHARE_FAVORITES = 7
+/** Le héros et ses voisins : au plus dix coups de cœur sur une carte (25 octobre 2026). */
+export const MAX_SHARE_FAVORITES = 10
+/** Une carte de bibliothèque garde sept coups de cœur : six voisins sur deux colonnes tiennent mieux. */
+export const LIBRARY_SHARE_FAVORITES = 7
+
+/**
+ * Le plafond de coups de cœur dépend de la portée : la carte du profil aligne le héros et neuf voisins
+ * en trois colonnes, celle d'une bibliothèque s'en tient à sept.
+ */
+export function favoritesLimit(scope: ShareScope): number {
+  return scope.kind === 'profile' ? MAX_SHARE_FAVORITES : LIBRARY_SHARE_FAVORITES
+}
 
 /** Les coups de cœur proposables dans la portée, du mieux noté au moins bien noté. */
 export function shareCandidates(items: readonly ShareItem[], scope: ShareScope): ShareItem[] {
@@ -223,7 +233,7 @@ export function shareCandidates(items: readonly ShareItem[], scope: ShareScope):
  * Le choix d'office : le mieux noté en héros, puis les suivants. Pour le profil, un favori de chaque
  * bibliothèque d'abord, puis un deuxième de chacune : la carte ne montre pas qu'un seul univers.
  */
-export function defaultShareSelection(candidates: readonly ShareItem[], scope: ShareScope, max = MAX_SHARE_FAVORITES): string[] {
+export function defaultShareSelection(candidates: readonly ShareItem[], scope: ShareScope, max = favoritesLimit(scope)): string[] {
   const picked = scope.kind === 'profile' ? balanced([...candidates], max) : candidates.slice(0, max)
   return picked.sort(byRatingThenDate).map(entry => entry.key)
 }

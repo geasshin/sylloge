@@ -7,13 +7,13 @@ import { resolveFilmDisplayPoster } from '../data/tmdbService.ts'
 import { saveShareImage } from '../data/nativePortability.ts'
 import { loadDirectorPortraits, loadFilmCredits } from '../data/sharePeopleSource.ts'
 import { loadShareCardImage } from '../data/shareImageSource.ts'
-import { openExternalUrl } from '../data/externalLinks.ts'
-import { copyCard, shareToDestination, type ShareDeps, type ShareResult } from '../data/shareActions.ts'
+import { copyCard, type ShareDeps, type ShareResult } from '../data/shareActions.ts'
 import {
   ALL_SHARE_STATS,
   buildShareCard,
   collectShareItems,
   defaultShareSelection,
+  favoritesLimit,
   MAX_SHARE_FAVORITES,
   setShareHero,
   shareCandidates,
@@ -31,7 +31,7 @@ import { shareLimitsFor } from '../domain/shareCardLayout.ts'
 import {
   defaultPeopleIds, normalizeCharacters, orderPeople, peopleOptionsFor, rankCreators, rankFilmPeople, rankProfileCreators, type SharePerson,
 } from '../domain/sharePeople.ts'
-import { SHARE_DESTINATIONS, SHARE_FORMATS, SHARE_FORMAT_ORDER, type ShareDestination, type ShareFormatId } from '../domain/shareFormats.ts'
+import { SHARE_FORMATS, SHARE_FORMAT_ORDER, type ShareFormatId } from '../domain/shareFormats.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import { ShareIcon } from './icons.tsx'
 import { SharePeopleStep } from './SharePeopleStep.tsx'
@@ -59,19 +59,14 @@ type StepId = 'hero' | 'others' | 'people' | 'stats' | 'share'
 const STEP_LABELS: Record<StepId, string> = { hero: 'Principal', others: 'Autres', people: 'Personnes', stats: 'Chiffres', share: 'Partage' }
 
 const FORMAT_COPY: Record<ShareFormatId, { name: string; ratio: string; hint: string }> = {
-  standard: { name: 'Standard', ratio: '4:5', hint: 'Messages, WhatsApp, Messenger, X' },
-  story: { name: 'Story', ratio: '9:16', hint: 'Stories Instagram et Facebook' },
+  standard: { name: 'Standard', ratio: '4:5', hint: 'Messages, fils et publications' },
+  story: { name: 'Story', ratio: '9:16', hint: 'Stories et statuts' },
 }
 
 function shareMessageText(result: ShareResult): string {
   switch (result.kind) {
-    case 'copied-opened': return t('Image copiée. {destination} s’ouvre dans votre navigateur : collez-la avec ⌘V (Ctrl+V sous Windows).', { destination: result.destination })
-    case 'copied-open-failed': return t('Image copiée, mais {destination} n’a pas pu s’ouvrir. Ouvrez-le vous-même et collez l’image.', { destination: result.destination })
-    case 'copy-failed-saved': return t('La copie n’a pas fonctionné : l’image est enregistrée dans « {file} ». Glissez-la dans {destination}, qui s’ouvre dans votre navigateur.', { file: result.file, destination: result.destination })
-    case 'saved-for-instagram': return t('Image au format story enregistrée dans « {file} ». Les stories Instagram se publient depuis le téléphone : envoyez-lui l’image (AirDrop, Photos iCloud, e-mail), puis ajoutez-la à votre story.', { file: result.file })
     case 'copied': return t('Image copiée dans le presse-papiers.')
     case 'copy-failed': return t('La copie n’a pas fonctionné dans cette fenêtre. Utilisez « Enregistrer l’image ».')
-    case 'cancelled': return t('Enregistrement annulé. Aucun fichier n’a été écrit.')
     case 'failed': return t('La carte n’a pas pu être produite ou partagée.')
   }
 }
@@ -91,8 +86,6 @@ function realDeps(): ShareDeps {
   return {
     clipboard: clipboard as ShareDeps['clipboard'],
     makeItem: png => new ClipboardItem({ 'image/png': png }),
-    open: openExternalUrl,
-    save: saveShareImage,
   }
 }
 
@@ -310,16 +303,12 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
     return saved ? { kind: 'saved', file: saved } : { kind: 'cancelled' }
   })
   const copy = () => run(async () => ({ kind: 'share', result: await copyCard(renderPng(format), realDeps()) }))
-  const share = (destination: ShareDestination) => {
-    setFormat(destination.format)
-    return run(async () => ({ kind: 'share', result: await shareToDestination(destination, renderPng(destination.format), realDeps(), fileNameFor(destination.format)) }))
-  }
 
   const missing = preview.status === 'ready' ? preview.rendered.missingImages.length : 0
   const ready = preview.status === 'ready' && !busy
   const heroItem = candidateByKey.get(selection[0] ?? '') ?? null
   const otherCount = Math.max(0, selection.length - 1)
-  const maxOthers = MAX_SHARE_FAVORITES - 1
+  const maxOthers = favoritesLimit(scope) - 1
   const thumb = (entry: ShareItem) => thumbs[entry.key] ?? entry.imageUrl
 
   // Les chiffres proposés, avec leurs valeurs : une carte complète les calcule toutes, le choix les filtre ensuite.
@@ -379,7 +368,7 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
                   )}
                   <div className="share-picker" role="radiogroup" aria-labelledby="share-step-title">
                     {candidates.map(entry => (
-                      <PosterChoice key={entry.key} item={entry} image={thumb(entry)} type="radio" name="share-hero" checked={entry.key === selection[0]} disabled={busy} showKind={scope.kind === 'profile'} onChange={() => setSelection(current => setShareHero(current, entry.key))} />
+                      <PosterChoice key={entry.key} item={entry} image={thumb(entry)} type="radio" name="share-hero" checked={entry.key === selection[0]} disabled={busy} showKind={scope.kind === 'profile'} onChange={() => setSelection(current => setShareHero(current, entry.key, favoritesLimit(scope)))} />
                     ))}
                   </div>
                   {heroItem && <p className="share-picked" role="status">{t('Mis en avant : {title}', { title: heroItem.title })}</p>}
@@ -394,7 +383,7 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
                     {candidates.filter(entry => entry.key !== selection[0]).map(entry => {
                       const checked = selection.includes(entry.key)
                       return (
-                        <PosterChoice key={entry.key} item={entry} image={thumb(entry)} type="checkbox" name="share-others" checked={checked} disabled={busy || (!checked && otherCount >= maxOthers)} showKind={scope.kind === 'profile'} onChange={() => setSelection(current => toggleShareOther(current, entry.key))} />
+                        <PosterChoice key={entry.key} item={entry} image={thumb(entry)} type="checkbox" name="share-others" checked={checked} disabled={busy || (!checked && otherCount >= maxOthers)} showKind={scope.kind === 'profile'} onChange={() => setSelection(current => toggleShareOther(current, entry.key, favoritesLimit(scope)))} />
                       )
                     })}
                   </div>
@@ -454,17 +443,6 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
                       {busy ? t('Enregistrement…') : t('Enregistrer l’image')}
                     </button>
                     <button className="secondary-button" type="button" disabled={!ready} onClick={() => void copy()}>{t('Copier l’image')}</button>
-                  </div>
-                  <div className="field share-destinations">
-                    <span className="field-label" id="share-card-destinations-label">{t('Partager vers')}</span>
-                    <div className="share-destination-buttons" role="group" aria-labelledby="share-card-destinations-label">
-                      {SHARE_DESTINATIONS.map(destination => (
-                        <button key={destination.id} className="secondary-button" type="button" disabled={!library || busy || preview.status === 'empty'} onClick={() => void share(destination)}>
-                          {destination.name}
-                        </button>
-                      ))}
-                    </div>
-                    <small className="field-hint">{t('Choisit le bon format, copie l’image et ouvre le service : il ne reste qu’à la coller.')}</small>
                   </div>
                 </section>
               )}

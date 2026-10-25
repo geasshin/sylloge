@@ -526,6 +526,7 @@ function handle(cmd: string, args: Args): unknown {
     case 'save_share_image': {
       const bytes = args instanceof ArrayBuffer ? new Uint8Array(args) : (args as unknown as Uint8Array)
       savedImages.push(Array.from(bytes))
+      // Le vrai pont propose un nom et rend celui du fichier choisi ; la recette ne choisit rien.
       return 'sylloge-carte-recette.png'
     }
     // Octets d'une affiche pour la carte : le vrai pont les demande à Rust (le canevas n'a alors besoin
