@@ -171,6 +171,17 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
   assert.ok(capabilities.permissions.includes('process:default'), 'La fenêtre principale doit pouvoir relancer l’application après installation')
   assert.match(cargoManifest, /^tauri-plugin-updater = "2"$/m, 'Le plugin updater Rust officiel doit être déclaré')
   assert.match(cargoManifest, /^tauri-plugin-process = "2"$/m, 'Le plugin process Rust officiel doit être déclaré')
+  assert.match(cargoManifest, /^tauri-plugin-single-instance = "2"$/m, 'Le plugin single-instance doit être déclaré')
+  assert.match(releaseWorkflow, /^permissions:\n(?:  #.*\n)*  contents: read$/m, 'La release doit lire le dépôt par défaut')
+  assert.match(releaseWorkflow, /^  verify:\n/m, 'Un job de vérification doit précéder les builds')
+  assert.match(releaseWorkflow, /needs: \[prepare, verify\]/u, 'Les builds doivent dépendre de la vérification')
+  assert.match(releaseWorkflow, /^      contents: write$/m, 'Seul le job de publication doit pouvoir écrire')
+  assert.doesNotMatch(releaseWorkflow, /uses: [^\n]+@v\d+/u, 'Les actions doivent être épinglées par SHA, pas par tag mutable')
+  assert.match(readFileSync('src-tauri/src/lib.rs', 'utf8'), /tauri_plugin_single_instance::init/u, 'La fenêtre doit réutiliser l’instance existante')
+  assert.match(readFileSync('src-tauri/src/navigation.rs', 'utf8'), /pub fn is_allowed/u, 'La navigation doit être filtrée côté natif')
+  assert.match(readFileSync('src/data/backupService.ts', 'utf8'), /tryAutomaticSnapshotIfDue/u, 'La sauvegarde automatique doit vérifier le réglage avant de sérialiser')
+  assert.match(readFileSync('src/components/CustomLibraryScreen.tsx', 'utf8'), /isHttpsSource/u, 'Seules les sources https doivent être cliquables')
+  assert.doesNotMatch(readFileSync('src/components/CustomLibraryScreen.tsx', 'utf8'), /isHttpSource/u, 'Aucune source http ne doit rester cliquable')
 }
 
 {
@@ -4622,7 +4633,8 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
 
   assert.match(verdictSource0624, /ariaLabel\?: string/, 'Le sélecteur segmenté partagé doit pouvoir annoncer un Type et pas seulement un Statut')
   assert.doesNotMatch(seriesSource0624, /<select[\s\S]*?id="series-category"/, 'Séries : le sélecteur Type natif doit disparaître')
-  assert.match(seriesSource0624, /statuses=\{SERIES_CATEGORIES\}[\s\S]*ariaLabel="Type de série"/, 'Séries : Série télé et Animation doivent devenir des boutons segmentés accessibles')
+  assert.doesNotMatch(seriesSource0624, /ariaLabel="Type de série"/, 'Séries : le formulaire ne doit plus proposer de catégorie')
+  assert.doesNotMatch(repositorySource0624, /targetLibrary/, 'Séries : une modification ne doit plus déplacer la fiche vers une autre table')
   assert.ok(
     seriesSource0624.indexOf('className="progress-fields verdict-progress"') < seriesSource0624.indexOf('id="series-personalNote"'),
     'Séries : la progression doit précéder l’avis personnel qui conclut le formulaire',

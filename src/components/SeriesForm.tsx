@@ -1,8 +1,6 @@
 import { t, tc, translateMessage } from '../i18n/core.ts'
 import { useState, type FormEvent } from 'react'
 import {
-  SERIES_CATEGORIES,
-  SERIES_CATEGORY_LABELS,
   SERIES_STATUSES,
   SERIES_STATUS_LABELS,
   type Series,
@@ -23,8 +21,6 @@ import { Poster } from './Poster.tsx'
 import { usePosterEditor } from './usePosterEditor.tsx'
 import { StatusSegmented, StarRating, FavoriteHeart } from './VerdictControls.tsx'
 import { Stepper } from './Stepper.tsx'
-
-const CATEGORY_LABELS = { ...SERIES_CATEGORY_LABELS, animation: 'Animation japonaise' }
 
 function previewablePosterUrl(value: string): string | null {
   try {
@@ -161,18 +157,6 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
             />
             {errors.title && <p className="field-error" id="series-title-error">{translateMessage(errors.title)}</p>}
           </div>
-
-          {(series || !creationCategory) && <div className="field category-segmented">
-            <span className="field-label">{t("Type")}</span>
-            <StatusSegmented
-              statuses={SERIES_CATEGORIES}
-              labels={CATEGORY_LABELS}
-              value={values.category}
-              onChange={(next) => update('category', next as SeriesFormValues['category'])}
-              ariaLabel={t("Type de série")}
-            />
-            {errors.category && <p className="field-error" id="series-category-error">{translateMessage(errors.category)}</p>}
-          </div>}
 
           {/* Le verdict personnel */}
           <div className="verdict-block medium-status-block">

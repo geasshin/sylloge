@@ -1,10 +1,13 @@
+mod app_data;
 mod art_images;
 mod books;
 mod custom_entries;
 mod database;
+mod http;
 mod igdb;
 mod installation;
 mod migration_backup;
+mod navigation;
 mod openlibrary;
 mod portability;
 mod profiles;
@@ -16,9 +19,21 @@ mod user_agent;
 
 use tauri::Manager;
 
+use crate::navigation::navigation_guard;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // En premier : une seconde instance doit rendre la main à la première
+        // avant d'ouvrir la base ou d'initialiser les autres greffons.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .plugin(navigation_guard())
         .manage(portability::BackupSnapshotLock::default())
         .manage(updater::PendingUpdate::default())
         .plugin(tauri_plugin_dialog::init())
@@ -33,6 +48,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            app_data::open_data_folder,
             portability::pick_import_any,
             portability::pick_import_container,
             portability::pick_import_json,

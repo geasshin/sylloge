@@ -1,7 +1,6 @@
 import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkCustomField, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
 import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, reconcileBookQuotes, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
-import { seriesLibraryForCategory } from '../domain/seriesLibraries.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
 import type { LibrarySort } from '../domain/libraryViews.ts'
 import type { LibraryFilters } from '../domain/libraryFilters.ts'
@@ -679,6 +678,7 @@ export class SqliteMediaRepository {
       id,
       profileId,
       ...input,
+      category: library === 'anime' ? 'animation' : 'série télé',
       progressUpdatedAt: resolveInitialProgress(input.seasonsSeen, now),
       createdAt: now,
       updatedAt: now,
@@ -713,35 +713,14 @@ export class SqliteMediaRepository {
     const updatedAt = this.now()
     const series = normalizeSeries({
       ...input,
+      category: library === 'anime' ? 'animation' : 'série télé',
       id,
       profileId,
       progressUpdatedAt: resolveProgressTimestamp(existing.seasonsSeen, input.seasonsSeen, existing.progressUpdatedAt, updatedAt),
-      // La date de création d'origine est conservée, y compris lors d'un déplacement.
+      // La date de création d'origine est conservée.
       createdAt: existing.createdAt,
       updatedAt,
     })
-
-    // Corriger le type déplace la même fiche : nouvel enregistrement dans la
-    // table cible, retrait de l'ancienne, identifiant et données préservés.
-    const targetLibrary = seriesLibraryForCategory(series.category)
-    if (targetLibrary !== library) {
-      const row = seriesRowPayload(series, targetLibrary)
-      await database.execute(
-        `INSERT INTO ${seriesTable(targetLibrary)} (${row.map(([column]) => column).join(', ')})
-         VALUES (${row.map((_, index) => `$${index + 1}`).join(', ')})`,
-        row.map(([, value]) => value),
-      )
-      await database.execute(
-        `UPDATE media_provider_links SET medium = $1
-         WHERE profile_id = $2 AND medium = $3 AND media_id = $4`,
-        [targetLibrary, profileId, library, id],
-      )
-      await database.execute(
-        `DELETE FROM ${seriesTable(library)} WHERE id = $1 AND profile_id = $2`,
-        [id, profileId],
-      )
-      return updatedAt
-    }
 
     const entries = seriesRowPayload(series, library).filter(([column]) => column !== 'id' && column !== 'profile_id' && column !== 'created_at')
     const assignments = entries.map(([column], index) => `${column} = $${index + 1}`)

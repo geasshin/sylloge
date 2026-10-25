@@ -31,7 +31,9 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  # Les jobs de construction n'ont besoin que de lire le dépôt. Seul le job
+  # de publication reçoit l'écriture, plus bas.
+  contents: read
 
 jobs:
   prepare:
@@ -42,11 +44,11 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -69,27 +71,77 @@ jobs:
           curl -fsS --max-time 25 -X POST https://sylloge.vercel.app/api/igdb/games \
             -H 'Content-Type: text/plain' --data 'fields name; where id = 1020;' | grep -q '"name"'
 
+  verify:
+    name: Vérifier le code
+    runs-on: macos-15-intel
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer Rust, rustfmt et clippy
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Installer les dépendances npm
+        run: npm ci
+
+      - name: TypeScript et recettes Node
+        run: |
+          npm run typecheck
+          npm run verify
+
+      - name: Construire le frontend pour les tests Rust
+        run: npm run build
+
+      - name: Format, lint et tests Rust
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Auditer les dépendances npm de production
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Signaler les avis Rust restants (informatif)
+        continue-on-error: true
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit --file src-tauri/Cargo.lock
+
   macos:
     name: Construire macOS (universel)
-    needs: prepare
+    needs: [prepare, verify]
     # Intel : les runners macOS arm64 hébergés manquent de capacité (jobs annulés sans runner).
     runs-on: macos-15-intel
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
 
       - name: Installer Rust et les cibles macOS
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
+          toolchain: stable
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Cache Cargo
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@e9d7b9f1e587218970671bac74e5511ed9506e6a # v2
         with:
           workspaces: ./src-tauri -> target
 
@@ -127,7 +179,7 @@ jobs:
           fi
           ls -l "$bundle/macos" "$bundle/dmg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: macos-bundle
           if-no-files-found: error
@@ -139,22 +191,24 @@ jobs:
 
   windows:
     name: Construire Windows (NSIS)
-    needs: prepare
+    needs: [prepare, verify]
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
 
       - name: Installer Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          toolchain: stable
 
       - name: Cache Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -199,7 +253,7 @@ jobs:
           fi
           ls -l src-tauri/target/release/bundle/nsis
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-bundle
           if-no-files-found: error
@@ -210,27 +264,30 @@ jobs:
 
   publish:
     name: Assembler le manifeste et publier
-    needs: [prepare, macos, windows]
+    needs: [prepare, verify, macos, windows]
     if: github.event_name == 'push' || inputs.mode != 'build'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      # L'écriture n'est accordée qu'ici, au job qui crée la release.
+      contents: write
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: ${{ needs.prepare.outputs.version }}
       TAG: ${{ needs.prepare.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: macos-bundle
           path: artifacts/macos
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: windows-bundle
           path: artifacts/windows

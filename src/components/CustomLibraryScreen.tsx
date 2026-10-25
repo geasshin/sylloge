@@ -17,6 +17,7 @@ import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { Select } from './Select.tsx'
 import { StatusBadge, statusTone } from './VerdictControls.tsx'
+import { useIncrementalList } from './useIncrementalList.ts'
 import { SearchIcon, ArrowLeftIcon, PencilIcon, TrashIcon } from './icons.tsx'
 
 type CustomSort = 'title' | 'recent' | 'rating' | 'year' | 'date'
@@ -65,17 +66,18 @@ function normalizedText(value: string): string {
 function sourceLabel(value: string): string {
   try {
     const url = new URL(value)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return value
+    // Une adresse non sécurisée reste un texte : elle ne devient jamais un
+    // lien cliquable dans la fenêtre de l'application.
+    if (url.protocol !== 'https:') return value
     return url.hostname.replace(/^www\./u, '')
   } catch {
     return value
   }
 }
 
-function isHttpSource(value: string): boolean {
+function isHttpsSource(value: string): boolean {
   try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
+    return new URL(value).protocol === 'https:'
   } catch {
     return false
   }
@@ -211,6 +213,10 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
   }, [entries, kindField, kindFilter, language, query, sort, statusFilter])
 
   const isFiltered = query.trim() !== '' || statusFilter !== 'all' || kindFilter !== 'all'
+  const { visibleItems, sentinelRef: incrementalSentinelRef } = useIncrementalList(
+    visible,
+    `${libraryId}|${query}|${statusFilter}|${kindFilter}|${sort}|${language}`,
+  )
   const favorites = entries.filter((entry) => entry.isFavorite).length
   const noun = new Intl.PluralRules(getLocale()).select(entries.length) === 'one' ? template.singular : template.plural
   const countLabel = `${formatNumber(entries.length)} ${t(noun)}`
@@ -420,11 +426,14 @@ export function CustomLibraryScreen({ libraryId, profileId, profileName, entryId
           )}
         </div>
       ) : (
-        <div className="film-grid custom-grid" aria-busy="false">
-          {visible.map((entry) => (
-            <CustomEntryCard libraryId={libraryId} entry={entry} key={entry.id} onOpen={() => onOpenEntry(entry.id)} />
-          ))}
-        </div>
+        <>
+          <div className="film-grid custom-grid" aria-busy="false">
+            {visibleItems.map((entry) => (
+              <CustomEntryCard libraryId={libraryId} entry={entry} key={entry.id} onOpen={() => onOpenEntry(entry.id)} />
+            ))}
+          </div>
+          <div ref={incrementalSentinelRef} className="incremental-sentinel" aria-hidden="true" />
+        </>
       )}
 
       {formDialog}
@@ -566,7 +575,7 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
               <div>
                 <dt>{label(template.creatorLabel)}</dt>
                 <dd>
-                  {isHttpSource(entry.creator)
+                  {isHttpsSource(entry.creator)
                     ? <a href={entry.creator}>{sourceLabel(entry.creator)}</a>
                     : entry.creator}
                 </dd>

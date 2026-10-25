@@ -94,10 +94,50 @@ export class BackupService {
   }
 
   async tryAutomaticSnapshot(library: FilmLibrary, experience?: ProfileExperience): Promise<BackupNotice | null> {
+    try {
+      return await this.tryAutomaticSnapshotAt(library, this.now(), experience)
+    } catch (error) {
+      console.error('Impossible de créer le snapshot JSON automatique.', error)
+      return {
+        kind: 'error',
+        message: 'La sauvegarde automatique JSON a échoué. Les données déjà enregistrées restent dans SQLite.',
+      }
+    }
+  }
+
+  /**
+   * Version appelée à chaque écriture : elle vérifie d'abord le réglage et le
+   * jour avant de charger la bibliothèque entière. Sans dossier configuré, ou
+   * si la copie du jour existe déjà, rien n'est sérialisé ni écrit.
+   */
+  async tryAutomaticSnapshotIfDue(
+    library: FilmLibrary,
+    loadExperience?: () => Promise<ProfileExperience | undefined>,
+  ): Promise<BackupNotice | null> {
+    try {
+      const now = this.now()
+      const settings = await this.native.getBackupSettings(library.profile.id)
+      if (!settings || !settings.directoryAvailable) return null
+      if (settings.lastAutomaticSnapshotDay === localToday(now)) return null
+      const experience = loadExperience ? await loadExperience() : undefined
+      return await this.tryAutomaticSnapshotAt(library, now, experience)
+    } catch (error) {
+      console.error('Impossible de préparer la sauvegarde automatique JSON.', error)
+      return {
+        kind: 'error',
+        message: 'La sauvegarde automatique JSON a échoué. Les données déjà enregistrées restent dans SQLite.',
+      }
+    }
+  }
+
+  private async tryAutomaticSnapshotAt(
+    library: FilmLibrary,
+    now: Date,
+    experience?: ProfileExperience,
+  ): Promise<BackupNotice | null> {
     let worksCount: number | null = null
 
     try {
-      const now = this.now()
       const snapshot = await this.createSnapshot(library, now, experience)
       worksCount = snapshot.worksCount
       const result = await this.native.saveAutomaticBackupSnapshot(

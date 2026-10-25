@@ -173,10 +173,10 @@ impl OpenLibraryClient {
             return Err(OpenLibraryError::ProviderError(response.status().as_u16()));
         }
 
-        response
-            .json::<T>()
+        let body = crate::http::read_body_capped(response, crate::http::MAX_PROVIDER_BYTES)
             .await
-            .map_err(|_| OpenLibraryError::InvalidProviderResponse)
+            .map_err(|_| OpenLibraryError::InvalidProviderResponse)?;
+        serde_json::from_slice(&body).map_err(|_| OpenLibraryError::InvalidProviderResponse)
     }
 
     pub async fn search_books(

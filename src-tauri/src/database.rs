@@ -142,12 +142,60 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0023_recipes_statuses.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 24,
+            description: "series_single_library",
+            sql: include_str!("../migrations/0024_series_single_library.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
 #[cfg(test)]
 mod tests {
+    use super::migrations;
     use sqlx::{Connection, SqliteConnection};
+
+    #[test]
+    fn series_single_library_migration_normalizes_animation_rows() {
+        tauri::async_runtime::block_on(async {
+            let mut connection = SqliteConnection::connect("sqlite::memory:")
+                .await
+                .expect("create in-memory SQLite database");
+
+            let all = migrations();
+            let (last, previous) = all.split_last().expect("at least one migration");
+            for migration in previous {
+                sqlx::raw_sql(migration.sql)
+                    .execute(&mut connection)
+                    .await
+                    .expect("apply Sylloge migration before 0024");
+            }
+
+            sqlx::query("INSERT INTO profiles (id, name) VALUES ('p1', 'Test')")
+                .execute(&mut connection)
+                .await
+                .expect("seed profile");
+            sqlx::query(
+                "INSERT INTO series (id, profile_id, title, category) VALUES ('legacy-anime', 'p1', 'Legacy', 'animation')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed a series still marked animation");
+
+            sqlx::raw_sql(last.sql)
+                .execute(&mut connection)
+                .await
+                .expect("apply series single-library migration");
+
+            let category: String =
+                sqlx::query_scalar("SELECT category FROM series WHERE id = 'legacy-anime'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read normalized category");
+            assert_eq!(category, "série télé");
+        });
+    }
 
     #[test]
     fn media_provider_links_migration_applies_after_the_complete_schema() {

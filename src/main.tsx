@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { t, tc, translateMessage, getLocale, formatNumber } from './i18n/core.ts'
 import { useLanguage } from './i18n/react.ts'
 import { FloatingSidebarFrame, readSidebarPinned, saveSidebarPinned } from './components/FloatingSidebarFrame.tsx'
+import { useIncrementalList } from './components/useIncrementalList.ts'
 import { AccessibleDialog } from './components/AccessibleDialog.tsx'
 import { FocusDialog } from './components/FocusDialog.tsx'
 import { ImportHint } from './components/ImportHint.tsx'
@@ -30,6 +31,9 @@ import { type AvailableUpdate } from './data/updaterService.ts'
 import { useAppUpdate } from './data/appUpdate.ts'
 import { UpdateNotice } from './components/UpdateNotice.tsx'
 import { backupService, type BackupNotice } from './data/backupService.ts'
+import { openDataFolder } from './data/appData.ts'
+import { RestoreProfileDialog } from './components/RestoreProfileButton.tsx'
+import { AppErrorBoundary } from './components/AppErrorBoundary.tsx'
 import { collectProfileExperience } from './data/profileExperienceService.ts'
 import { filmsRepository, type FilmLibrary } from './data/filmsRepository.ts'
 import { libraryRepository } from './data/libraryRepository.ts'
@@ -514,14 +518,55 @@ function LoadingState() {
   )
 }
 
-function ErrorState({ onRetry }: { onRetry: () => void }) {
+function ErrorState({
+  onRetry,
+  recoveryProfile,
+  onRestored,
+}: {
+  onRetry: () => void
+  recoveryProfile: ProfileSummary | null
+  onRestored: () => void
+}) {
+  const [restoreOpen, setRestoreOpen] = useState(false)
+  const [folderError, setFolderError] = useState<string | null>(null)
+
+  const revealDataFolder = () => {
+    setFolderError(null)
+    void openDataFolder().catch((error: unknown) => {
+      console.error('Impossible d’ouvrir le dossier des données.', error)
+      setFolderError(t('Le dossier des données n’a pas pu être ouvert.'))
+    })
+  }
+
   return (
-    <div className="library-state error-state" role="alert">
-      <p className="state-kicker">{t("Lecture impossible")}</p>
-      <h2>{t("La bibliothèque locale ne peut pas être ouverte.")}</h2>
-      <p>{t("Vérifiez que l’application dispose toujours de son accès SQLite, puis réessayez.")}</p>
-      <button className="state-action" type="button" onClick={onRetry}>{t("Réessayer")}</button>
-    </div>
+    <>
+      <div className="library-state error-state" role="alert">
+        <p className="state-kicker">{t("Lecture impossible")}</p>
+        <h2>{t("La bibliothèque locale ne peut pas être ouverte.")}</h2>
+        <p>{t("Vérifiez que l’application dispose toujours de son accès SQLite, puis réessayez.")}</p>
+        <div className="state-actions">
+          <button className="state-action" type="button" onClick={onRetry}>{t("Réessayer")}</button>
+          {recoveryProfile && (
+            <button className="state-action" type="button" onClick={() => setRestoreOpen(true)}>
+              {t('Restaurer une sauvegarde')}
+            </button>
+          )}
+          <button className="state-action" type="button" onClick={revealDataFolder}>
+            {t('Ouvrir le dossier des données')}
+          </button>
+        </div>
+        {folderError && <p className="inline-report error" role="alert">{folderError}</p>}
+      </div>
+      {restoreOpen && recoveryProfile && (
+        <RestoreProfileDialog
+          profile={recoveryProfile}
+          onClose={(restored) => {
+            setRestoreOpen(false)
+            if (restored) onRestored()
+          }}
+        />
+      )}
+    </>
   )
 }
 
@@ -619,6 +664,10 @@ function FilmsLibrary({
   const openingView = defaultBuiltinViewForMedium(RATED_BUILTIN_VIEWS, 'films')
   const isUnfiltered = context.query.trim() === '' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const { visibleItems: visibleFilms, sentinelRef: filmsSentinelRef } = useIncrementalList(
+    searchState.status === 'ready' ? searchState.films : [],
+    `films|${context.query}|${context.view.id}|${context.sortOverride ?? ''}|${JSON.stringify(context.extraFilters)}`,
+  )
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   return (
@@ -713,11 +762,14 @@ function FilmsLibrary({
               >{t("Afficher tous les films")}</button>
             </div>
           ) : (
-            <div className="film-grid" aria-busy="false">
-              {searchState.films.map((film) => (
-                <FilmCard film={film} key={film.id} onOpen={() => onOpen(film)} />
-              ))}
-            </div>
+            <>
+              <div className="film-grid" aria-busy="false">
+                {visibleFilms.map((film) => (
+                  <FilmCard film={film} key={film.id} onOpen={() => onOpen(film)} />
+                ))}
+              </div>
+              <div ref={filmsSentinelRef} className="incremental-sentinel" aria-hidden="true" />
+            </>
           )}
         </>
       )}
@@ -1100,6 +1152,10 @@ function SeriesLibrary({
   const openingView = defaultBuiltinViewForMedium(PROGRESS_BUILTIN_VIEWS, 'series')
   const isUnfiltered = context.query.trim() === '' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const { visibleItems: visibleSeries, sentinelRef: seriesSentinelRef } = useIncrementalList(
+    searchState.status === 'ready' ? searchState.series : [],
+    `${library}|${context.query}|${context.view.id}|${context.sortOverride ?? ''}|${JSON.stringify(context.extraFilters)}`,
+  )
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   const runSeriesAssociation = async ({ onProgress, isCancelled }: {
@@ -1233,11 +1289,14 @@ function SeriesLibrary({
               </button>
             </div>
           ) : (
-            <div className="film-grid" aria-busy="false">
-              {searchState.series.map((series) => (
-                <SeriesCard series={series} key={series.id} onOpen={() => onOpen(series)} />
-              ))}
-            </div>
+            <>
+              <div className="film-grid" aria-busy="false">
+                {visibleSeries.map((series) => (
+                  <SeriesCard series={series} key={series.id} onOpen={() => onOpen(series)} />
+                ))}
+              </div>
+              <div ref={seriesSentinelRef} className="incremental-sentinel" aria-hidden="true" />
+            </>
           )}
         </>
       )}
@@ -1330,6 +1389,10 @@ function GamesLibrary({
   const isUnfiltered = context.query.trim() === '' && context.platform === 'all' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const platforms = buildGamePlatformFilters(collection)
+  const { visibleItems: visibleGames, sentinelRef: gamesSentinelRef } = useIncrementalList(
+    searchState.status === 'ready' ? searchState.games : [],
+    `games|${context.query}|${context.platform}|${context.view.id}|${context.sortOverride ?? ''}|${JSON.stringify(context.extraFilters)}`,
+  )
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   const runGamesAssociation = async ({ onProgress, isCancelled }: {
@@ -1466,11 +1529,14 @@ function GamesLibrary({
               <button className="state-action" type="button" onClick={() => onContextChange({ query: '', platform: 'all', view: builtinViewById(RATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : WATCHLIST_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>{t("Afficher tous les jeux")}</button>
             </div>
           ) : (
-            <div className="film-grid" aria-busy="false">
-            {searchState.games.map((game) => (
-              <GameCard game={game} key={game.id} onOpen={() => onOpen(game)} />
-            ))}
-            </div>
+            <>
+              <div className="film-grid" aria-busy="false">
+                {visibleGames.map((game) => (
+                  <GameCard game={game} key={game.id} onOpen={() => onOpen(game)} />
+                ))}
+              </div>
+              <div ref={gamesSentinelRef} className="incremental-sentinel" aria-hidden="true" />
+            </>
           )}
         </>
       )}
@@ -1543,6 +1609,10 @@ function ArtworksLibrary({
   const openingView = defaultBuiltinViewForMedium(UNRATED_BUILTIN_VIEWS, 'artworks')
   const isUnfiltered = context.query.trim() === '' && context.form === 'all' && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
+  const { visibleItems: visibleArtworks, sentinelRef: artworksSentinelRef } = useIncrementalList(
+    searchState.status === 'ready' ? searchState.artworks : [],
+    `artworks|${context.query}|${context.form}|${context.view.id}|${context.sortOverride ?? ''}|${JSON.stringify(context.extraFilters)}`,
+  )
 
   return (
     <main className="main library-main artwork-library-main" aria-label={t`Bibliothèque Art du profil ${profileName}`}>
@@ -1621,11 +1691,14 @@ function ArtworksLibrary({
               <button className="state-action" type="button" onClick={() => onContextChange({ query: '', form: 'all', view: builtinViewById(UNRATED_BUILTIN_VIEWS, isUnfiltered ? ALL_VIEW.id : ARTWORKS_DEFAULT_VIEW_ID), extraFilters: EMPTY_LIBRARY_FILTERS, sortOverride: null })}>{t("Afficher toutes les œuvres")}</button>
             </div>
           ) : (
-            <div className="artwork-grid" aria-busy="false">
-            {searchState.artworks.map((artwork) => (
-              <ArtworkCard artwork={artwork} key={artwork.id} onOpen={() => onOpen(artwork)} />
-            ))}
-            </div>
+            <>
+              <div className="artwork-grid" aria-busy="false">
+                {visibleArtworks.map((artwork) => (
+                  <ArtworkCard artwork={artwork} key={artwork.id} onOpen={() => onOpen(artwork)} />
+                ))}
+              </div>
+              <div ref={artworksSentinelRef} className="incremental-sentinel" aria-hidden="true" />
+            </>
           )}
         </>
       )}
@@ -1676,6 +1749,10 @@ function BooksLibrary({
   const isUnfiltered = context.query.trim() === '' && context.category.length === categories.length && context.view.id === openingView.id && !hasActiveFilters(context.extraFilters) && context.sortOverride === null
   const resolved = resolveLibraryQuery(context.view, context.extraFilters, context.sortOverride)
   const storedCategory = bookLibraryStoredFilter(library, context.category)
+  const { visibleItems: visibleBooks, sentinelRef: booksSentinelRef } = useIncrementalList(
+    searchState.status === 'ready' ? searchState.books : [],
+    `${library}|${context.query}|${context.category.join(',')}|${context.view.id}|${context.sortOverride ?? ''}|${JSON.stringify(context.extraFilters)}`,
+  )
   const [autoAssociateOpen, setAutoAssociateOpen] = useState(false)
 
   const runBooksAssociation = async ({ onProgress, isCancelled }: {
@@ -1819,11 +1896,14 @@ function BooksLibrary({
               </button>
             </div>
           ) : (
-            <div className="film-grid" aria-busy="false">
-              {searchState.books.map((book) => (
-                <BookCard book={book} key={book.id} onOpen={() => onOpen(book)} />
-              ))}
-            </div>
+            <>
+              <div className="film-grid" aria-busy="false">
+                {visibleBooks.map((book) => (
+                  <BookCard book={book} key={book.id} onOpen={() => onOpen(book)} />
+                ))}
+              </div>
+              <div ref={booksSentinelRef} className="incremental-sentinel" aria-hidden="true" />
+            </>
           )}
         </>
       )}
@@ -2447,16 +2527,17 @@ function App() {
   }
 
   const requestAutomaticBackup = (library: FilmLibrary) => {
-    // Le snapshot porte l'expérience du profil : vues enregistrées et préférences d'affichage.
-    void collectProfileExperience(library.profile.id)
-      .catch((error) => {
+    // Le réglage et le jour sont vérifiés avant de charger ou de sérialiser
+    // quoi que ce soit : sans dossier, ou si la copie du jour existe déjà,
+    // cette écriture ne coûte rien.
+    void backupService.tryAutomaticSnapshotIfDue(library, () =>
+      collectProfileExperience(library.profile.id).catch((error) => {
         console.warn('Expérience du profil illisible pour la sauvegarde.', error)
         return undefined
-      })
-      .then((experience) => backupService.tryAutomaticSnapshot(library, experience))
-      .then((notice) => {
-        if (notice) setBackupNotice(notice)
-      })
+      }),
+    ).then((notice) => {
+      if (notice) setBackupNotice(notice)
+    })
   }
 
   const activeBookLibrary: BookLibraryKey = view.name === 'mangas' || (view.name === 'book-detail' && bookCollection.find((book) => book.id === view.bookId)?.category === 'manga') ? 'mangas' : 'books'
@@ -2741,7 +2822,11 @@ function App() {
         <header className="home-heading">
           <div><h1 className="display-title">{t('Accueil')}</h1></div>
         </header>
-        <ErrorState onRetry={() => setLoadAttempt((attempt) => attempt + 1)} />
+        <ErrorState
+          onRetry={() => setLoadAttempt((attempt) => attempt + 1)}
+          recoveryProfile={profiles[0] ?? null}
+          onRestored={() => setLoadAttempt((attempt) => attempt + 1)}
+        />
       </main>
     )
   } else if (libraryState.status === 'no-profile') {
@@ -3464,19 +3549,20 @@ function App() {
                   onCancel={() => setAddFlow(null)}
                   onSave={async (input: SeriesWriteInput) => {
                     const library = libraryState.library
+                    const seriesLibrary = addFlow.seriesLibrary ?? 'series'
                     let targetId = editSeriesId
                     if (editSeriesId) {
-                      await mediaRepository.updateSeries(library.profile.id, editSeriesId, input, addFlow.seriesLibrary ?? 'series')
-                      const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId, seriesLibraryForCategory(input.category))
+                      await mediaRepository.updateSeries(library.profile.id, editSeriesId, input, seriesLibrary)
+                      const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId, seriesLibrary)
                       if (!refreshed) throw new Error('La série enregistrée ne peut pas être relue depuis SQLite.')
                       setSeriesCollection((current) => current.map((entry) => entry.id === editSeriesId ? refreshed : entry))
                     } else {
-                      const series = await mediaRepository.createSeries(library.profile.id, input, addFlow.seriesLibrary ?? 'series')
+                      const series = await mediaRepository.createSeries(library.profile.id, input, seriesLibrary)
                       targetId = series.id
                       if (addFlow.providerLink) {
                         await mediaRepository.setMediaProviderLink({
                           profileId: library.profile.id,
-                          medium: seriesLibraryForCategory(input.category),
+                          medium: seriesLibrary,
                           mediaId: series.id,
                           ...addFlow.providerLink,
                         })
@@ -3729,4 +3815,4 @@ const root = existingRoot ?? createRoot(rootElement)
 ;(rootElement as unknown as { __reactRoot?: ReturnType<typeof createRoot> }).__reactRoot = root
 // Les liens https s'ouvrent dans le navigateur du système (rien ne se passait en natif).
 installExternalLinks()
-root.render(<App />)
+root.render(<AppErrorBoundary><App /></AppErrorBoundary>)
