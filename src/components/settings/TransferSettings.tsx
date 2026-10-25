@@ -6,6 +6,7 @@ import { libraryRepository, type CulturalLibrary } from '../../data/libraryRepos
 import { LibraryExportFlow } from '../LibraryExportFlow.tsx'
 import { LibraryImportButton } from '../LibraryImportButton.tsx'
 import { ShareCardLauncher } from '../ShareCardDialog.tsx'
+import { YearRecapLauncher, launcherYear } from '../YearRecapDialog.tsx'
 import { SettingsGroup, SettingsRow } from './SettingsLayout.tsx'
 
 type Props = {
@@ -18,6 +19,8 @@ export function TransferSettings({ library, onLibraryChanged }: Props) {
   const [full, setFull] = useState<CulturalLibrary | null>(null)
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
+  // Une seule année calculée ici : le libellé de la ligne et le bouton ne peuvent pas se contredire.
+  const recapYear = launcherYear(typeof location === 'undefined' ? '' : location.search)
   const fiches = (count: number) => count === 1
     ? t('{count} fiche', { count: formatNumber(count) })
     : t('{count} fiches', { count: formatNumber(count) })
@@ -85,9 +88,18 @@ export function TransferSettings({ library, onLibraryChanged }: Props) {
         )}
       </SettingsGroup>
 
-      <SettingsGroup id="transfer-share-title" title={t('Partage')} description={t('Une image PNG de vos coups de cœur, pour tout le profil ou une bibliothèque, aux formats standard et story. Vous choisissez les œuvres mises en avant, puis vous l’enregistrez, la copiez ou l’envoyez vers WhatsApp, Messenger ou X. Rien n’est envoyé en ligne.')}>
+      <SettingsGroup id="transfer-share-title" title={t('Partage')} description={t('Une image PNG de vos coups de cœur, pour tout le profil ou une bibliothèque, aux formats standard et story. Vous choisissez les œuvres mises en avant, puis vous enregistrez ou copiez l’image. Rien n’est envoyé en ligne.')}>
         <SettingsRow label={t('Partager mon profil')} detail={t('Choisir les coups de cœur à mettre en avant, voir l’aperçu, puis enregistrer l’image.')}>
           <ShareCardLauncher profileId={library.profile.id} />
+        </SettingsRow>
+      </SettingsGroup>
+
+      <SettingsGroup id="transfer-recap-title" title={t('Récapitulatif de l’année')} description={t('Quatre visuels pour revoir votre année : les chiffres, le mois qui a rythmé l’année, vos mieux notées et vos découvertes. Chaque visuel s’enregistre en standard 4:5 ou en story 9:16. Rien n’est envoyé en ligne.')}>
+        <SettingsRow
+          label={t('Mon année {year}', { year: String(recapYear) })}
+          detail={t('L’année en cours s’ouvre le 10 décembre ; avant, le récapitulatif montre l’année précédente.')}
+        >
+          <YearRecapLauncher profileId={library.profile.id} year={recapYear} />
         </SettingsRow>
       </SettingsGroup>
     </>
