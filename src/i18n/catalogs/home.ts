@@ -276,7 +276,6 @@ const messages: Record<string, string> = {
   "recettes": "recipes",
   "Ajouter une recette": "Add a recipe",
   "cette recette": "this recipe",
-  "Testée": "Tried",
   "À tester": "To try",
   "Maîtrisée": "Mastered",
   "Écartée": "Discarded",

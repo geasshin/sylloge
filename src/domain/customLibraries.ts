@@ -27,11 +27,13 @@ export type CustomLibraryId = (typeof CUSTOM_LIBRARY_IDS)[number]
 export const CUSTOM_STATUSES = ['à découvrir', 'en cours', 'terminé', 'abandonné'] as const
 
 /**
- * Recettes (24 octobre 2026) : une recette s'essaie, se teste puis se
- * maîtrise. `maîtrisée` n'existe que dans la table `recipes` (migration 0023),
- * jamais dans les huit autres.
+ * Recettes (25 octobre 2026) : deux états seulement — à tester, puis maîtrisée.
+ * « Testée » faisait doublon avec « Maîtrisée » (arbitrage d'Aurélien) : c'est le
+ * même moment, celui où la recette est faite, goûtée et retenue. `terminé` et
+ * `maîtrisée` ne se croisent jamais : `maîtrisée` n'existe que dans `recipes`,
+ * `terminé` n'y est plus proposé.
  */
-export const RECIPE_STATUSES = ['à découvrir', 'terminé', 'maîtrisée'] as const
+export const RECIPE_STATUSES = ['à découvrir', 'maîtrisée'] as const
 
 export type CustomStatus = (typeof CUSTOM_STATUSES)[number] | (typeof RECIPE_STATUSES)[number]
 
@@ -333,9 +335,9 @@ export const CUSTOM_LIBRARY_TEMPLATES: Record<CustomLibraryId, CustomLibraryTemp
     plural: 'recettes',
     addLabel: 'Ajouter une recette',
     thisLabel: 'cette recette',
-    // Une recette s'essaie, se teste, puis se maîtrise : ni « en cours » ni « écartée ».
+    // Une recette s'essaie, puis se maîtrise : deux états, pas trois.
     statuses: RECIPE_STATUSES,
-    statusLabels: statusLabels({ 'à découvrir': 'À tester', terminé: 'Testée', 'maîtrisée': 'Maîtrisée' }),
+    statusLabels: statusLabels({ 'à découvrir': 'À tester', 'maîtrisée': 'Maîtrisée' }),
     creatorLabel: 'Source',
     progress: null,
     dateLabel: 'Testée le',
@@ -373,11 +375,13 @@ export function isCustomStatus(value: unknown): value is CustomStatus {
 
 /**
  * Statut qu'une table peut réellement stocker : les statuts communs partout,
- * `maîtrisée` dans les seules recettes (contrainte CHECK de `recipes`).
+ * `maîtrisée` dans les seules recettes (contrainte CHECK de `recipes`), et
+ * `terminé` partout sauf dans les recettes, qui n'ont que deux états.
  */
 export function isStatusAllowedFor(libraryId: CustomLibraryId, status: unknown): status is CustomStatus {
   if (!isCustomStatus(status)) return false
-  return libraryId === 'recipes' || status !== 'maîtrisée'
+  if (libraryId === 'recipes') return status !== 'terminé' && status !== 'en cours' && status !== 'abandonné'
+  return status !== 'maîtrisée'
 }
 
 export type CustomQuote = {

@@ -172,7 +172,9 @@ export function CustomEntryForm({ libraryId, entry, initialQuoteDraft = false, o
   // L'avis conclut une lecture, une écoute, une partie. Les notes d'une recette, elles,
   // existent dès la fiche créée : elles arrivent même avec l'import.
   const noteVisible = started || template.noteLabel !== undefined
-  const dateVisible = values.status === 'terminé' || values.status === 'abandonné'
+  // La date de fin suit les états qui concluent : terminé, abandonné, et maîtrisée
+  // pour les recettes (c'est le jour où la recette a été faite et retenue).
+  const dateVisible = values.status === 'terminé' || values.status === 'abandonné' || values.status === 'maîtrisée'
   const idPrefix = `custom-${libraryId}`
 
   const posterEditor = usePosterEditor({

@@ -34,7 +34,7 @@ const recipe = (overrides = {}) => ({
   title: 'Tarte aux pommes',
   creator: 'Grand-mère',
   year: null,
-  status: 'terminé',
+  status: 'maîtrisée',
   rating: 4.5,
   isFavorite: true,
   progressCurrent: null,
@@ -106,13 +106,16 @@ test('Le modèle Recettes propose ingrédients et préparation en listes', () =>
   // Le texte libre d'une recette est un bloc de notes, pas un avis de lecture.
   assert.equal(template.noteLabel, 'Notes')
   assert.ok(template.notePlaceholder.length > 0)
-  assert.deepEqual(template.statuses, ['à découvrir', 'terminé', 'maîtrisée'])
-  assert.deepEqual([...RECIPE_STATUSES], ['à découvrir', 'terminé', 'maîtrisée'])
+  // Deux états : « Testée » doublonnait « Maîtrisée » (arbitrage du 25 octobre).
+  assert.deepEqual(template.statuses, ['à découvrir', 'maîtrisée'])
+  assert.deepEqual([...RECIPE_STATUSES], ['à découvrir', 'maîtrisée'])
   assert.deepEqual(
-    [template.statusLabels['à découvrir'], template.statusLabels.terminé, template.statusLabels['maîtrisée']],
-    ['À tester', 'Testée', 'Maîtrisée'],
+    [template.statusLabels['à découvrir'], template.statusLabels['maîtrisée']],
+    ['À tester', 'Maîtrisée'],
   )
-  // « Écartée » n'est plus proposé mais reste lisible sur une fiche importée d'avant.
+  // « Testée » et « Écartée » ne sont plus proposés ; leurs libellés restent lisibles
+  // sur une fiche enregistrée avant le changement.
+  assert.equal(template.statusLabels.terminé, 'Terminé')
   assert.equal(template.statusLabels.abandonné, 'Abandonné')
 })
 
@@ -122,6 +125,8 @@ test('« maîtrisée » n’appartient qu’aux recettes', () => {
     assert.equal(isStatusAllowedFor(id, 'maîtrisée'), false, id)
   }
   assert.equal(isStatusAllowedFor('comics', 'terminé'), true)
+  assert.equal(isStatusAllowedFor('recipes', 'terminé'), false)
+  assert.equal(isStatusAllowedFor('recipes', 'en cours'), false)
   assert.equal(isStatusAllowedFor('recipes', 'vinyles'), false)
 })
 

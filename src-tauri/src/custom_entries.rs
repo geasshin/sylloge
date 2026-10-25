@@ -66,11 +66,17 @@ fn validate_payload(payload: &CustomEntryWritePayload) -> Result<&'static Custom
     if entry.title.trim().is_empty() {
         return Err("Le titre est obligatoire.".into());
     }
-    // `maîtrisée` n'appartient qu'aux recettes (contrainte CHECK de `recipes`,
-    // migration 0023) : les huit autres tables gardent les quatre statuts communs.
-    let status_allowed = ["à découvrir", "en cours", "terminé", "abandonné"]
-        .contains(&entry.status.as_str())
-        || (library.id == "recipes" && entry.status == "maîtrisée");
+    // Deux contrats distincts : `maîtrisée` n'appartient qu'aux recettes, et une
+    // recette n'a que deux états — `terminé`, `en cours` et `abandonné` y sont
+    // refusés (arbitrage du 25 octobre : « Testée » doublonnait « Maîtrisée »).
+    let status_allowed = if library.id == "recipes" {
+        matches!(entry.status.as_str(), "à découvrir" | "maîtrisée")
+    } else {
+        matches!(
+            entry.status.as_str(),
+            "à découvrir" | "en cours" | "terminé" | "abandonné"
+        )
+    };
     if !status_allowed {
         return Err("Le statut de la fiche est invalide.".into());
     }

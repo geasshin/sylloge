@@ -37,9 +37,9 @@ async fn test_pool() -> SqlitePool {
 }
 
 fn payload(library: &str) -> CustomEntryWritePayload {
-    // Les recettes n'ont pas d'état « en cours » : leur fiche de contrôle part de « terminé ».
+    // Une recette n'a que deux états : sa fiche de contrôle part de « maîtrisée ».
     let status = if library == "recipes" {
-        "terminé"
+        "maîtrisée"
     } else {
         "en cours"
     };
@@ -145,10 +145,9 @@ fn every_custom_model_preserves_all_fields_statuses_optional_nulls_and_unknown_d
                 vec![expected_entry_row(&value.entry)],
                 "all initial fields for {model}"
             );
-            // Les recettes n'ont que trois états : « maîtrisée » remplace « en cours » et
-            // « abandonné », que la contrainte CHECK de `recipes` refuse (migration 0023).
+            // Une recette n'a que deux états : à tester, puis maîtrisée.
             let statuses: &[&str] = if model == "recipes" {
-                &["à découvrir", "terminé", "maîtrisée"]
+                &["à découvrir", "maîtrisée"]
             } else {
                 &["à découvrir", "en cours", "terminé", "abandonné"]
             };

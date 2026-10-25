@@ -1279,7 +1279,7 @@ fn whole_profile_import_keeps_every_line_of_a_recipe() {
         let pool = latest_pool().await;
         insert_profile(&pool, "vide").await;
         let mut recipe = custom_entry("vide", "recette-import", "Tarte de contrôle");
-        recipe["status"] = json!("terminé");
+        recipe["status"] = json!("maîtrisée");
         recipe["details"] = json!({
             "dish": "Dessert",
             "servings": "6 personnes",
@@ -1317,5 +1317,42 @@ fn whole_profile_import_keeps_every_line_of_a_recipe() {
                 .unwrap();
         assert_eq!(activated, vec![("recipes".to_string(), 0)]);
         assert_database_is_consistent(&pool).await;
+    });
+}
+
+/// Le document d'une sauvegarde ne porte que les deux états d'une recette :
+/// « testée » et « écartée » ont quitté le modèle (25 octobre 2026), et un
+/// document qui les garde est refusé avant toute écriture.
+#[test]
+fn recipe_document_accepts_only_its_two_states() {
+    tauri::async_runtime::block_on(async {
+        for (status, accepted) in [
+            ("à découvrir", true),
+            ("maîtrisée", true),
+            ("terminé", false),
+            ("en cours", false),
+        ] {
+            let pool = latest_pool().await;
+            insert_profile(&pool, "vide").await;
+            let mut recipe = custom_entry("vide", "recette-etat", "Tarte de contrôle");
+            recipe["status"] = json!(status);
+            let mut document = custom_document("vide");
+            document["customLibraries"] = json!([{
+                "libraryId": "recipes",
+                "position": 0,
+                "addedAt": "2026-10-25T08:00:00.000Z",
+                "entries": [recipe]
+            }]);
+            let payload = payload_from(document);
+            let outcome = write_library_document_import(&pool, &payload, false).await;
+            assert_eq!(outcome.is_ok(), accepted, "statut « {status} »");
+            if !accepted {
+                let message = outcome.expect_err("refus attendu");
+                assert!(
+                    message.contains("statut inconnu"),
+                    "message de refus inattendu : {message}"
+                );
+            }
+        }
     });
 }

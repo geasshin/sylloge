@@ -2996,8 +2996,19 @@ pub(crate) fn custom_entry_count_sql(profile: &str) -> String {
         .join(" + ")
 }
 
-/// Statuts stockés, communs aux neuf tables (contrainte CHECK de 0021 et 0022).
+/// Statuts qu'une table accepte : les quatre communs, et pour les recettes
+/// seulement « maîtrisée » — `terminé` n'y est plus qu'un vestige de schéma
+/// (migration 0023), le modèle n'offrant que deux états (25 octobre 2026).
 const CUSTOM_ENTRY_STATUSES: [&str; 4] = ["à découvrir", "en cours", "terminé", "abandonné"];
+const RECIPE_STATUSES: [&str; 2] = ["à découvrir", "maîtrisée"];
+
+fn status_allowed(library_id: &str, status: &str) -> bool {
+    if library_id == "recipes" {
+        RECIPE_STATUSES.contains(&status)
+    } else {
+        CUSTOM_ENTRY_STATUSES.contains(&status)
+    }
+}
 
 /// Refus d’un document qui garde des comics dans sa section Livres.
 const COMICS_IN_BOOKS_SECTION_ERROR: &str =
@@ -3031,7 +3042,7 @@ fn validate_custom_libraries(
             ));
         }
         for entry in &section.entries {
-            if !CUSTOM_ENTRY_STATUSES.contains(&entry.status.as_str()) {
+            if !status_allowed(library.id, &entry.status) {
                 return Err(format!(
                     "La fiche {} « {} » porte un statut inconnu : « {} ».",
                     library.label, entry.title, entry.status
