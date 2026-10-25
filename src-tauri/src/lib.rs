@@ -5,6 +5,7 @@ mod custom_entries;
 mod database;
 mod http;
 mod igdb;
+mod installation;
 mod migration_backup;
 mod navigation;
 mod openlibrary;
@@ -14,6 +15,7 @@ mod share_images;
 mod tmdb;
 mod updater;
 mod updater_preferences;
+mod user_agent;
 
 use tauri::Manager;
 
@@ -111,6 +113,11 @@ pub fn run() {
             tmdb::set_film_tmdb_poster,
         ])
         .setup(|app| {
+            // Identifiant anonyme de l’installation : il sert au relais à compter
+            // les requêtes par appareil. Absent, le relais compte par adresse IP.
+            if let Ok(directory) = app.path().app_data_dir() {
+                installation::initialize(&directory);
+            }
             // En mode dev, pas de bundle .app : le dock garde l'icône générique.
             // On applique donc explicitement l'icône de la marque via Cocoa
             // (sans effet sur les bundles signés, qui embarquent déjà icon.icns).

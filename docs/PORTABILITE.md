@@ -25,6 +25,7 @@ enregistrée est un travail de la personne, pas un réglage de cette machine.
 | Cache de métadonnées TMDB, affiches téléchargées | Caches : se reconstruisent à la demande. |
 | Version ignorée du vérificateur de mise à jour | Elle vaut pour une version publiée à un instant donné. La recopier masquerait une mise à jour attendue ailleurs. |
 | Taille et position des fenêtres | Sans intérêt d’une machine à l’autre. |
+| Identifiant d’installation (`installation.id`, hors base) | Il désigne un appareil, pas une personne : recopié ailleurs, deux machines compteraient pour une. Il se recrée au premier lancement et sert au relais à répartir la charge. |
 
 Les couvertures et photos sont des **adresses**, jamais des fichiers : la sauvegarde ne contient aucune image ([COUVERTURES.md](COUVERTURES.md)). Une sauvegarde qui contient des recettes n’est pas lisible par une version de l’application antérieure au 23 octobre 2026 (bibliothèque inconnue) ; le format reste en v5.
 

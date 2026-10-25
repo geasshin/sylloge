@@ -1,0 +1,65 @@
+name: Relais
+
+# Surveillance quotidienne du relais de métadonnées : les trois contrôles de la
+# porte de sortie des releases, rejoués sans construire. Une clé morte ou un
+# relais hors ligne se voit en un jour, au lieu d'attendre qu'une personne le
+# signale.
+#
+# Gratuit sur un dépôt public. GitHub désactive une planification après
+# soixante jours sans activité : relancer à la main, ou pousser un commit,
+# réactive le rendez-vous.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: sylloge-proxy-health
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: Relais, TMDB et IGDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Vérifier le relais
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl -fsS --max-time 20 https://sylloge.vercel.app/api/health)"
+          echo "$health"
+          grep -q '"tmdb":true' <<< "$health"
+          grep -q '"igdb":true' <<< "$health"
+          curl -fsS --max-time 25 "https://sylloge.vercel.app/api/tmdb/search/movie?query=Inception&language=fr-FR" | grep -q '"id"'
+          curl -fsS --max-time 25 -X POST https://sylloge.vercel.app/api/igdb/games \
+            -H 'Content-Type: text/plain' --data 'fields name; where id = 1020;' | grep -q '"name"'
+          echo "Relais en service."
+
+      - name: Signaler l’échec
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          title="Relais de métadonnées hors service"
+          body="$(printf '%s\n' \
+            "Le contrôle quotidien du $(date -u '+%Y-%m-%d %H:%M UTC') a échoué." \
+            "" \
+            "- Journal : https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            "- À vérifier : présence des variables TMDB et Twitch dans Vercel, état du déploiement du relais, offre de l’hébergeur." \
+            "" \
+            "Ce contrôle rejoue les trois vérifications de la porte de sortie des releases.")"
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi

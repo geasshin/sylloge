@@ -140,8 +140,6 @@ const NOT_DISPLAY = new Set([
   'abandonné',
   'écriture dans une chaîne',
   'la mise à jour vérifiée est présente',
-  'Sylloge/0.6 (personal local cultural library)',
-  'Sylloge/0.4 (personal local cultural library)',
   'Library/Mobile Documents/com~apple~CloudDocs',
   'Copie avant migration : {0}',
   'Copie avant migration : {}',

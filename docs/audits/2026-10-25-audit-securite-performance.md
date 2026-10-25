@@ -28,7 +28,7 @@ Le défaut d'intégrité Séries ↔ Animés est corrigé (4.5). Les P2 de sécu
 - **Secrets** : aucune clé dans le dépôt ni dans l'historique. Les clés TMDB et IGDB vivent dans l'environnement Vercel ; le binaire ne les contient pas.
 - **Updater** : URL fixe, signature minisign vérifiée avant extraction, version revérifiée avant installation, transport non sécurisé interdit.
 - **SQL** : valeurs toujours liées, identifiants de tables issus de constantes, pas de colonne contrôlée par l'utilisateur.
-- **Tests** : 185 tests Rust, 449 tests Node via `npm run verify`, `cargo clippy -D warnings`, `cargo fmt --check` et `npm run build` verts.
+- **Tests** : 191 tests Rust, 449 tests Node via `npm run verify`, `cargo clippy -D warnings`, `cargo fmt --check` et `npm run build` verts.
 
 ---
 
@@ -243,7 +243,7 @@ Mesures avant correction dans le harnais de recette (Chromium, SQLite en mémoir
 
 **Décision et correctif.** Décision d'Aurélien du 25 octobre 2026 : la bibliothèque Séries n'a plus de catégorie, et une fiche ne change plus de bibliothèque depuis le formulaire. Le champ Type a été retiré de `SeriesForm.tsx` ; `updateSeries` ne fait plus qu'un `UPDATE` dans la table de la bibliothèque courante ; la migration `0024_series_single_library.sql` remet à `série télé` toute fiche `series` encore marquée `animation`. Le chemin à trois écritures est supprimé, donc le risque de doublon disparaît à la source, sans transaction à ajouter.
 
-**Preuves.** Le formulaire d'édition ne contient plus le champ Type (vérifié dans le harnais), `npm run verify` passe 449 tests, `cargo test` passe 185 tests dont `series_single_library_migration_normalizes_animation_rows`, et typecheck, build, clippy et fmt sont verts.
+**Preuves.** Le formulaire d'édition ne contient plus le champ Type (vérifié dans le harnais), `npm run verify` passe 449 tests, `cargo test` passe 191 tests dont `series_single_library_migration_normalizes_animation_rows`, et typecheck, build, clippy et fmt sont verts.
 
 **Limite.** La colonne `category` reste un marqueur interne à une seule valeur (`série télé`) : elle n'est plus exposée ni modifiable, mais sa suppression physique demanderait une reconstruction de table et une version du document de portabilité. C'est un lot séparé, sans effet sur le risque actuel.
 
@@ -251,7 +251,7 @@ Mesures avant correction dans le harnais de recette (Chromium, SQLite en mémoir
 
 `tauri-plugin-single-instance` est maintenant déclaré dans `Cargo.toml` et enregistré en premier dans `lib.rs`, avant les greffons SQL et de migration. Une deuxième ouverture appelle la fenêtre existante (`unminimize`, `show`, `set_focus`) et quitte le nouveau processus avant qu'il n'ouvre SQLite.
 
-**Preuves.** `cargo check`, `cargo clippy -D warnings`, `cargo test` (185 tests) et le build passent avec le greffon. Le comportement de double lancement n'a pas été scénarisé dans un runner graphique ; c'est la limite de cette vérification.
+**Preuves.** `cargo check`, `cargo clippy -D warnings`, `cargo test` (191 tests) et le build passent avec le greffon. Le comportement de double lancement n'a pas été scénarisé dans un runner graphique ; c'est la limite de cette vérification.
 
 ### 4.7 Corrigé, avec une réserve — La release vérifie le code et limite les droits
 
@@ -280,7 +280,7 @@ Le workflow `release.yml` ne lançait aucun contrôle de code et donnait `conten
 
 `CustomLibraryScreen` n'affiche plus comme lien qu'une source `https://` (`isHttpsSource`) ; une adresse `http://` reste du texte. Côté natif, un greffon `navigation` refuse toute navigation hors des protocoles de l'application (`tauri`, `asset`, `ipc`, `http(s)://tauri.localhost`) et, en debug seulement, du serveur Vite local. Un lien externe qui échapperait à l'interception du frontend est bloqué au lieu de remplacer l'interface.
 
-**Preuves.** Trois tests Rust couvrent les protocoles acceptés, les adresses externes refusées et le serveur de développement limité aux builds debug. `cargo test` passe 185 tests.
+**Preuves.** Trois tests Rust couvrent les protocoles acceptés, les adresses externes refusées et le serveur de développement limité aux builds debug. `cargo test` passe 191 tests.
 
 ### 4.10 Corrigé, avec une limite — `fetch_remote_image` lit et redirige sous contrôle
 
@@ -294,13 +294,13 @@ La commande vérifiait la taille après `.bytes()`, suivait les redirections san
 
 `tmdb/client.rs`, `igdb/mod.rs` et `openlibrary.rs` utilisaient `.json::<T>()`, qui lit tout le corps. Ils passent maintenant par `http::read_body_capped`, qui refuse `Content-Length` au-delà de 8 Mo et plafonne aussi la lecture par morceaux, avant `serde_json::from_slice`.
 
-**Preuves.** `cargo check`, `cargo clippy -D warnings` et `cargo test` (185 tests) passent. Aucun test réseau n'a été ajouté : la limite est dans le chemin commun des trois clients.
+**Preuves.** `cargo check`, `cargo clippy -D warnings` et `cargo test` (191 tests) passent. Aucun test réseau n'a été ajouté : la limite est dans le chemin commun des trois clients.
 
 ### 4.12 Corrigé — Une barrière d'erreur React
 
 `AppErrorBoundary` enveloppe la racine. Une exception de rendu affiche un écran de secours avec « Recharger l'application » au lieu d'une fenêtre blanche ; l'erreur et la pile de composants sont journalisées, sans donnée de bibliothèque. Les données restent dans SQLite.
 
-**Preuves.** `npm run typecheck`, `npm run verify` (449 tests), `npm run build` et `cargo test` (185 tests) passent.
+**Preuves.** `npm run typecheck`, `npm run verify` (449 tests), `npm run build` et `cargo test` (191 tests) passent.
 
 ### 4.13 P2 — Pas de copie avant une action destructive
 
@@ -509,7 +509,7 @@ Le code du proxy, la gestion des clés Vercel, la limitation de débit réelle e
 | `npm run build` | OK, avertissement chunk > 500 Ko |
 | `cargo fmt --check` | OK |
 | `cargo clippy --all-targets -- -D warnings` | OK |
-| `cargo test` | 185 tests réussis, 0 échec |
+| `cargo test` | 191 tests réussis, 0 échec |
 | `npm audit` | 0 vulnérabilité |
 | `cargo audit` avant | 20 vulnérabilités, 14 avertissements |
 | `cargo audit` après | 13 vulnérabilités, 13 avertissements |
@@ -624,4 +624,4 @@ Les avertissements restants sont des crates non maintenues (`unic-*`, `zbus`, `z
 - `src/i18n/catalogs/shell.ts` : traductions des nouveaux écrans.
 - `docs/audits/2026-10-25-audit-securite-performance.md` : ce rapport.
 
-Les tests finaux : **185 tests Rust**, **449 tests Node**, `cargo fmt`, `cargo clippy -D warnings`, `npm run typecheck`, `npm run build` et `npm run verify` verts. `npm audit --omit=dev` : 0 vulnérabilité. `cargo audit` : 13 avis restants, documentés comme non atteignables ou limités à `extract()` sur archive signée, plus le DNS rebinding des images et la clé de signature dans les jobs de build. Le changement de configuration macOS a été vérifié par un build debug : `Info.plist` à `11.0`, binaire `minos 11.0`.
+Les tests finaux : **191 tests Rust**, **449 tests Node**, `cargo fmt`, `cargo clippy -D warnings`, `npm run typecheck`, `npm run build` et `npm run verify` verts. `npm audit --omit=dev` : 0 vulnérabilité. `cargo audit` : 13 avis restants, documentés comme non atteignables ou limités à `extract()` sur archive signée, plus le DNS rebinding des images et la clé de signature dans les jobs de build. Le changement de configuration macOS a été vérifié par un build debug : `Info.plist` à `11.0`, binaire `minos 11.0`.

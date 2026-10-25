@@ -74,7 +74,7 @@ pub async fn fetch_commons_search(title: String, artist: Option<String>) -> Resu
         .get(url)
         .header("Accept", "application/json")
         // Commons demande un agent identifiable pour les clients qui ne sont pas un navigateur.
-        .header("User-Agent", "Sylloge/0.6 (recherche de visuels)")
+        .header("User-Agent", crate::user_agent::APP_USER_AGENT)
         .send()
         .await
         .map_err(|_| "La recherche n’a pas pu aboutir.".to_string())?;

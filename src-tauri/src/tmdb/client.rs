@@ -224,6 +224,7 @@ impl ReqwestTmdbClient {
             .client
             .get(&url)
             .header("Accept", "application/json")
+            .headers(crate::installation::header_map())
             .query(query)
             .send()
             .await
@@ -686,6 +687,32 @@ fn validate_https_url(value: &str) -> Result<(), TmdbError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Les réponses brutes viennent d’un tiers, qui peut ajouter un champ sans
+    /// prévenir. La lecture reste tolérante : seuls nos propres formats (cache,
+    /// sauvegardes, imports) gardent `deny_unknown_fields`.
+    #[test]
+    fn un_champ_nouveau_du_fournisseur_ne_casse_pas_la_lecture() {
+        let payload = r#"{
+            "results": [
+                {
+                    "id": 550,
+                    "title": "Fight Club",
+                    "original_title": "Fight Club",
+                    "release_date": "1999-10-15",
+                    "overview": "Un employé de bureau insomniaque.",
+                    "poster_path": "/poster.jpg",
+                    "champ_ajoute_par_tmdb": { "imbrique": true },
+                    "autre_nouveaute": [1, 2, 3]
+                }
+            ],
+            "total_pages": 1
+        }"#;
+        let parsed: TmdbSearchResponse =
+            serde_json::from_str(payload).expect("un champ inconnu ne doit pas casser la lecture");
+        assert_eq!(parsed.results.len(), 1);
+        assert_eq!(parsed.results[0].id, 550);
+    }
 
     #[test]
     fn director_portrait_matches_the_credited_director_only() {
