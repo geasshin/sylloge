@@ -126,7 +126,7 @@ test('Sans choix, les favoris respectent le plafond du format ; aucune œuvre en
   const keys = card.sections.favorites.map(entry => entry.key)
   assert.equal(new Set(keys).size, keys.length)
   assert.equal(shareCandidates(sevenFavorites(), films()).length, 9, 'neuf favoris proposés au choix, pas le film vu sans cœur')
-  assert.equal(MAX_SHARE_FAVORITES, 7)
+  assert.equal(MAX_SHARE_FAVORITES, 10)
 })
 
 test('Le choix de la personne : le héros d’abord, puis les voisins par note décroissante, quel que soit l’ordre des clics', () => {

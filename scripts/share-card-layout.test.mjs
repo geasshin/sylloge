@@ -4,7 +4,7 @@
 // rien ne se chevauche, la zone sûre d'une story est respectée, les affiches restent lisibles.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { SHARE_FORMATS, SHARE_DESTINATIONS } from '../src/domain/shareFormats.ts'
+import { SHARE_FORMATS } from '../src/domain/shareFormats.ts'
 import { arrangeRunnerUps, layoutPeopleCells, layoutStatCells, layoutShareCard, shareLimitsFor, SHARE_CARD } from '../src/domain/shareCardLayout.ts'
 import { buildShareCard } from '../src/domain/shareCard.ts'
 
@@ -55,12 +55,10 @@ test('Deux formats : standard 1 080 × 1 350 et story 1 080 × 1 920, la toile a
   }
 })
 
-test('Chaque réseau demande son format : story pour Instagram, standard pour les messages et X', () => {
-  const byId = Object.fromEntries(SHARE_DESTINATIONS.map(destination => [destination.id, destination]))
-  assert.equal(byId['instagram-story'].format, 'story')
-  for (const id of ['whatsapp', 'messenger', 'x']) assert.equal(byId[id].format, 'standard')
-  assert.equal(byId['instagram-story'].url, null)
-  for (const destination of SHARE_DESTINATIONS) if (destination.url) assert.match(destination.url, /^https:\/\//)
+test('Deux formats, aucune destination codée : le partage direct vers un service est retiré (25 octobre 2026)', () => {
+  assert.deepEqual(Object.keys(SHARE_FORMATS).sort(), ['standard', 'story'])
+  assert.equal(SHARE_FORMATS.story.safeTop, 250)
+  assert.equal(SHARE_FORMATS.story.safeBottom, 340)
 })
 
 test('Les blocs, dans l’ordre : en-tête, titre, coups de cœur, chiffres (plus de « derniers terminés »)', () => {
@@ -96,7 +94,7 @@ test('Le héros est celui que la personne a choisi, même s’il n’est pas le 
   assert.equal(spreadOf(layout).tiles.length, 2)
 })
 
-test('Toutes les affiches sont en 2:3 et restent lisibles (au moins 130 px)', () => {
+test('Toutes les affiches sont en 2:3 et restent lisibles (au moins 130 px avec dix coups de cœur)', () => {
   for (const format of FORMATS) for (const scope of SCOPES) {
     const layout = layoutOf(scope, format)
     for (const tile of tilesOf(layout)) assert.equal(tile.rect.h, Math.round(tile.rect.w * SHARE_CARD.tileRatio), 'ratio 2:3')
@@ -104,15 +102,34 @@ test('Toutes les affiches sont en 2:3 et restent lisibles (au moins 130 px)', ()
   }
 })
 
-test('Plafond : sept coups de cœur (le héros et six autres), dans les deux formats', () => {
-  for (const scope of SCOPES) for (const format of FORMATS) assert.deepEqual(shareLimitsFor(format, scope), { favorites: 7 })
-  for (const format of FORMATS) for (const scope of SCOPES) {
-    assert.equal(1 + spreadOf(layoutOf(scope, format)).tiles.length, 7, `${format.id}/${scope.kind} : les sept tiennent`)
+test('Plafond : dix coups de cœur sur le profil, sept dans une bibliothèque (25 octobre 2026)', () => {
+  for (const format of FORMATS) {
+    assert.deepEqual(shareLimitsFor(format, PROFILE), { favorites: 10 })
+    assert.deepEqual(shareLimitsFor(format, LIBRARY), { favorites: 7 })
+  }
+  for (const format of FORMATS) {
+    assert.equal(1 + spreadOf(layoutOf(PROFILE, format)).tiles.length, 10, `${format.id} : les dix du profil tiennent`)
+    assert.equal(1 + spreadOf(layoutOf(LIBRARY, format)).tiles.length, 7, `${format.id} : les sept de la bibliothèque tiennent`)
   }
 })
 
-test('Les autres coups de cœur occupent toute la hauteur du héros à sa droite quand ils sont six', () => {
-  for (const format of FORMATS) for (const scope of SCOPES) {
+test('Profil : les neuf voisins forment trois colonnes sur trois rangées, dans la bande du héros', () => {
+  for (const format of FORMATS) {
+    const { hero, tiles } = spreadOf(layoutOf(PROFILE, format))
+    assert.equal(tiles.length, 9, `${format.id} : neuf voisins`)
+    assert.equal(new Set(tiles.map(tile => tile.rect.x)).size, 3, `${format.id} : trois colonnes`)
+    assert.equal(new Set(tiles.map(tile => tile.rect.y)).size, 3, `${format.id} : trois rangées`)
+    const top = Math.min(...tiles.map(tile => tile.rect.y))
+    const bottom = Math.max(...tiles.map(tile => tile.rect.y + tile.rect.h))
+    assert.ok(top >= hero.rect.y - 8 && bottom <= hero.rect.y + hero.rect.h + 8, `${format.id} : dans la bande du héros (${top}-${bottom} / ${hero.rect.y}-${hero.rect.y + hero.rect.h})`)
+    assert.ok(Math.abs((top + bottom) / 2 - (hero.rect.y + hero.rect.h / 2)) <= 8, `${format.id} : grille centrée sur le héros`)
+    assert.ok(tiles.every(tile => tile.rect.x >= hero.rect.x + hero.rect.w), `${format.id} : à droite du héros`)
+  }
+})
+
+test('Bibliothèque : les six voisins occupent toute la hauteur du héros à sa droite', () => {
+  for (const format of FORMATS) {
+    const scope = LIBRARY
     const { hero, tiles } = spreadOf(layoutOf(scope, format))
     const top = Math.min(...tiles.map(tile => tile.rect.y))
     const bottom = Math.max(...tiles.map(tile => tile.rect.y + tile.rect.h))
@@ -158,7 +175,7 @@ test('Chiffres retirés : la rangée se réduit, et sans aucun chiffre le bloc d
   for (const rect of rects) assert.ok(inSafeArea(rect, SHARE_FORMATS.standard))
 })
 
-test('Les étoiles se posent en bas de l’affiche, pour les coups de cœur notés seulement', () => {
+test('Les étoiles se posent en bas de l’affiche, pour les coups de cœur notés et assez larges', () => {
   for (const format of FORMATS) {
     const { hero, tiles } = spreadOf(layoutOf(LIBRARY, format))
     for (const tile of [hero, ...tiles]) {
@@ -231,15 +248,16 @@ test('arrangeRunnerUps : la plus grande affiche possible, rangées centrées, ja
 })
 function pick({ cols, rows, tileW }) { return { cols, rows, tileW } }
 
-test('Peu de coups de cœur : la composition reste valide pour 1 à 7 favoris', () => {
-  for (const format of FORMATS) for (const scope of SCOPES) for (const count of [1, 2, 3, 4, 5, 6, 7]) {
+test('Peu de coups de cœur : la composition reste valide de 1 au plafond de la portée', () => {
+  for (const format of FORMATS) for (const scope of SCOPES) for (const count of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
     const items = many(scope.kind === 'library' ? scope.library : 'films', count, { isFavorite: true })
     const layout = layoutOf(scope, format, items)
     const label = `${format.id}/${scope.kind}/${count} favoris`
     const rects = allRects(layout)
     for (const rect of rects) assert.ok(inSafeArea(rect, format), `${label} : dans les limites ${JSON.stringify(rect)}`)
     for (let i = 0; i < rects.length; i += 1) for (let j = i + 1; j < rects.length; j += 1) assert.ok(!overlap(rects[i], rects[j]), `${label} : chevauchement`)
-    assert.equal(1 + spreadOf(layout).tiles.length, count, `${label} : tous les favoris choisis sont montrés`)
+    const limit = scope.kind === 'profile' ? 10 : 7
+    assert.equal(1 + spreadOf(layout).tiles.length, Math.min(count, limit), `${label} : les favoris montrés suivent le plafond`)
     assert.ok(spreadOf(layout).hero.rect.w >= 400, `${label} : héros ≥ 400 px`)
   }
 })
@@ -259,7 +277,7 @@ test('Aucun coup de cœur : ni affiche ni section, seulement l’en-tête, le ti
 test('Les adresses d’image sont listées une fois chacune : le héros d’abord, puis les autres coups de cœur', () => {
   const layout = layoutOf(LIBRARY, SHARE_FORMATS.story)
   assert.equal(new Set(layout.imageUrls).size, layout.imageUrls.length)
-  assert.equal(layout.imageUrls.length, 7)
+  assert.equal(layout.imageUrls.length, 7, 'sept coups de cœur sur une carte de bibliothèque')
   assert.equal(layout.imageUrls[0], spreadOf(layout).hero.item.imageUrl)
 })
 
@@ -296,7 +314,7 @@ test('Profil : cinq personnes tiennent aussi, sans chevauchement ni sortie de la
     for (let i = 0; i < rects.length; i += 1) for (let j = i + 1; j < rects.length; j += 1) assert.ok(!overlap(rects[i], rects[j]), `${format.id} : chevauchement`)
     const { hero, tiles } = spreadOf(layout)
     // Le profil porte en plus la ligne de ses bibliothèques sous son nom : le héros cède un peu de largeur.
-    assert.ok(hero.rect.w >= 360 && tiles.every(tile => tile.rect.w >= 130), `${format.id} : affiches lisibles (${hero.rect.w}, ${tiles.map(tile => tile.rect.w)})`)
+    assert.ok(hero.rect.w >= 360 && tiles.every(tile => tile.rect.w >= 110), `${format.id} : affiches lisibles (${hero.rect.w}, ${tiles.map(tile => tile.rect.w)})`)
   }
 })
 
@@ -309,7 +327,7 @@ test('Les personnes : de 1 à 5, tout reste dans la zone sûre, sans chevaucheme
     for (let i = 0; i < rects.length; i += 1) for (let j = i + 1; j < rects.length; j += 1) assert.ok(!overlap(rects[i], rects[j]), `${label} : chevauchement`)
     const { hero, tiles } = spreadOf(layout)
     assert.ok(hero.rect.w >= 400, `${label} : héros ${hero.rect.w} px`)
-    for (const tile of tiles) assert.ok(tile.rect.w >= 130, `${label} : voisin ${tile.rect.w} px`)
+    for (const tile of tiles) assert.ok(tile.rect.w >= 110, `${label} : voisin ${tile.rect.w} px`)
     assert.equal(1 + tiles.length, 7, `${label} : les sept coups de cœur tiennent encore`)
   }
 })
