@@ -13,7 +13,7 @@ pub const MAX_SEARCH_RESULTS: usize = 20;
 const IGDB_API_BASE: &str = "https://sylloge.vercel.app/api/igdb";
 const IGDB_IMAGE_BASE: &str = "https://images.igdb.com/igdb/image/upload";
 const REQUEST_TIMEOUT_SECONDS: u64 = 10;
-const USER_AGENT: &str = "Sylloge/0.6 (personal local cultural library)";
+const USER_AGENT: &str = crate::user_agent::APP_USER_AGENT;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

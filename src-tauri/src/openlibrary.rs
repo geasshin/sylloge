@@ -13,7 +13,7 @@ pub const MAX_AUTHORS: usize = 5;
 const OPENLIBRARY_API_BASE: &str = "https://openlibrary.org";
 const OPENLIBRARY_COVERS_BASE: &str = "https://covers.openlibrary.org/b/id";
 const REQUEST_TIMEOUT_SECONDS: u64 = 10;
-const USER_AGENT: &str = "Sylloge/0.4 (personal local cultural library)";
+const USER_AGENT: &str = crate::user_agent::APP_USER_AGENT;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

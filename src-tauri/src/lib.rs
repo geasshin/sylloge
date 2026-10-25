@@ -11,6 +11,7 @@ mod share_images;
 mod tmdb;
 mod updater;
 mod updater_preferences;
+mod user_agent;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
