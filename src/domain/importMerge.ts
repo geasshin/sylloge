@@ -181,7 +181,11 @@ export function mergeGameKeepExisting(existing: Game, imported: Game): Game {
 }
 
 export function mergeArtworkKeepExisting(existing: Artwork, imported: Artwork): Artwork {
-  return fillEmptyFields(existing, imported, ARTWORK_MERGEABLE_KEYS)
+  const merged = fillEmptyFields(existing, imported, ARTWORK_MERGEABLE_KEYS)
+  // Champs de forme (v6) : même règle, clé par clé — un détail déjà saisi
+  // n'est jamais remplacé, un détail absent est comblé par l'import.
+  const details = { ...(imported.details ?? {}), ...(existing.details ?? {}) }
+  return { ...merged, details }
 }
 
 /** Prépare le plan de fusion Films : nouveautés d'un côté, doublons de l'autre. */

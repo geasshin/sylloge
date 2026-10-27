@@ -176,7 +176,7 @@ function importPortableProfile(payload: Row, create: boolean) {
         for (const [key, value] of Object.entries(entry)) {
           if (key === 'quotes' || ((table === 'anime' || table === 'mangas') && key === 'category')) continue
           const column = key.replace(/[A-Z]/gu, character => `_${character.toLowerCase()}`)
-          row[column] = key === 'customFields' ? JSON.stringify(value ?? []) : value
+          row[column] = key === 'customFields' ? JSON.stringify(value ?? []) : key === 'details' ? JSON.stringify(value ?? {}) : value
         }
         insert(table, row)
         if (table === 'books' || table === 'mangas') for (const quote of (entry.quotes ?? []) as Row[]) {

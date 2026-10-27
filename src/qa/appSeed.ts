@@ -11,7 +11,6 @@ export const QA_PROFILE_ID = 'qa-profile'
 export const QA_PROFILE_NAME = 'Aurélien'
 
 const poster = (slug: string) => `https://picsum.photos/seed/sylloge-${slug}/400/600`
-const landscape = (slug: string) => `https://picsum.photos/seed/sylloge-${slug}/900/650`
 const portrait = (slug: string) => `https://picsum.photos/seed/sylloge-cast-${slug}/200/260`
 
 /** Date ISO stable à `daysAgo` jours de la date de recette. */
@@ -281,22 +280,42 @@ export function seedGames(): Row[] {
 
 // ─── Art ────────────────────────────────────────────────────────────────────
 
-type ArtworkSeed = [title: string, artist: string, year: number | null, form: string, location: string | null, status: string, favorite: 0 | 1, addedDaysAgo: number, image: boolean]
+type ArtworkSeed = [title: string, artist: string, year: number | null, form: string, location: string | null, status: string, favorite: 0 | 1, addedDaysAgo: number, image: string | null, details?: Record<string, string>]
 
+/**
+ * Formats d'image variés (27 octobre 2026) : la grille Art suit le format
+ * réel de chaque visuel. `image` donne la taille du placeholder (« 900/650 »).
+ */
 const ARTWORKS: ArtworkSeed[] = [
-  ['Les Nymphéas', 'Claude Monet', 1926, 'peinture', 'Musée de l’Orangerie, Paris', 'découverte', 1, 13, true],
-  ['Nighthawks', 'Edward Hopper', 1942, 'peinture', 'Art Institute of Chicago', 'découverte', 1, 27, true],
-  ['Sous la vague au large de Kanagawa', 'Katsushika Hokusai', 1831, 'gravure', null, 'découverte', 0, 41, true],
-  ['Derrière la gare Saint-Lazare', 'Henri Cartier-Bresson', 1932, 'photographie', null, 'découverte', 0, 66, true],
-  ['Le Penseur', 'Auguste Rodin', 1904, 'sculpture', 'Musée Rodin, Paris', 'à découvrir', 0, 88, false],
-  ['L’Homme de Vitruve', 'Léonard de Vinci', 1490, 'dessin', 'Gallerie dell’Accademia, Venise', 'à découvrir', 0, 105, true],
-  ['Fontaine', 'Marcel Duchamp', 1917, 'art conceptuel', null, 'découverte', 0, 135, false],
-  ['The Artist Is Present', 'Marina Abramović', 2010, 'performance', 'MoMA, New York', 'à découvrir', 0, 180, false],
-  ['Le Pont Mirabeau', 'Guillaume Apollinaire', 1912, 'poésie', null, 'découverte', 1, 220, false],
+  ['Les Nymphéas', 'Claude Monet', 1926, 'peinture', 'Musée de l’Orangerie, Paris', 'découverte', 1, 13, '1200/520', { technique: 'Huile sur toile', dimensions: '200 × 1 275 cm', movement: 'Impressionnisme' }],
+  ['Nighthawks', 'Edward Hopper', 1942, 'peinture', 'Art Institute of Chicago', 'découverte', 1, 27, '900/490', { technique: 'Huile sur toile', dimensions: '84 × 152 cm' }],
+  ['Sous la vague au large de Kanagawa', 'Katsushika Hokusai', 1831, 'gravure', null, 'découverte', 0, 41, '900/610', { technique: 'Gravure sur bois (nishiki-e)', dimensions: '25,7 × 37,9 cm' }],
+  ['Derrière la gare Saint-Lazare', 'Henri Cartier-Bresson', 1932, 'photographie', null, 'découverte', 0, 66, '640/900', { process: 'Tirage gélatino-argentique' }],
+  ['Le Penseur', 'Auguste Rodin', 1904, 'sculpture', 'Musée Rodin, Paris', 'à découvrir', 0, 88, null, { material: 'Bronze' }],
+  ['L’Homme de Vitruve', 'Léonard de Vinci', 1490, 'dessin', 'Gallerie dell’Accademia, Venise', 'à découvrir', 0, 105, '700/960', { technique: 'Plume et encre sur papier', dimensions: '34,4 × 25,5 cm' }],
+  ['Fontaine', 'Marcel Duchamp', 1917, 'art conceptuel', null, 'découverte', 0, 135, null, { medium: 'Ready-made' }],
+  ['The Artist Is Present', 'Marina Abramović', 2010, 'performance', 'MoMA, New York', 'à découvrir', 0, 180, null, { duration: '736 heures' }],
+  ['Le Pont Mirabeau', 'Guillaume Apollinaire', 1912, 'poésie', null, 'découverte', 1, 220, null, {
+    collection: 'Alcools',
+    text: [
+      'Sous le pont Mirabeau coule la Seine',
+      '        Et nos amours',
+      '    Faut-il qu’il m’en souvienne',
+      'La joie venait toujours après la peine',
+      '',
+      '        Vienne la nuit sonne l’heure',
+      '        Les jours s’en vont je demeure',
+      '',
+      'Les mains dans les mains restons face à face',
+      '        Tandis que sous',
+      '    Le pont de nos bras passe',
+      'Des éternels regards l’onde si lasse',
+    ].join('\n'),
+  }],
 ]
 
 export function seedArtworks(): Row[] {
-  return ARTWORKS.map(([title, artist, year, form, location, status, favorite, addedDaysAgo, hasImage]) => ({
+  return ARTWORKS.map(([title, artist, year, form, location, status, favorite, addedDaysAgo, image, details]) => ({
     id: `artwork-${slugify(title)}`,
     profile_id: QA_PROFILE_ID,
     title,
@@ -308,9 +327,10 @@ export function seedArtworks(): Row[] {
     status,
     is_favorite: favorite,
     discovered_at: status === 'découverte' ? day(addedDaysAgo) : null,
-    image_url: hasImage ? landscape(`art-${slugify(title)}`) : null,
+    image_url: image ? `https://picsum.photos/seed/sylloge-art-${slugify(title)}/${image}` : null,
     personal_note: null,
     custom_fields: null,
+    details: JSON.stringify(details ?? {}),
     created_at: at(addedDaysAgo),
     updated_at: at(Math.max(0, addedDaysAgo - 1)),
   }))

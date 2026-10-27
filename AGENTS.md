@@ -30,7 +30,7 @@ Les documents sous docs/archive et les anciens plans sous docs/plans sont histor
 - Ne pas ouvrir, modifier, copier ou utiliser les données personnelles réelles pour les essais.
 - Garder les essais dans un dossier et un profil temporaires isolés.
 - Les clés fournisseur sont locales et ignorées par Git. Ne pas les afficher, les demander dans le chat, les copier dans des fichiers suivis ou envoyer des requêtes réelles pour une validation ordinaire.
-- Préserver les formats existants. Examiner le contrat concerné avant de changer un import, un export ou une migration SQLite. Le document de profil est en v5 depuis le 23 octobre 2026 (vues enregistrées et préférences d’affichage) ; les versions 1 à 4 restent lisibles. Ce qui voyage et ce qui reste sur la machine : docs/PORTABILITE.md.
+- Préserver les formats existants. Examiner le contrat concerné avant de changer un import, un export ou une migration SQLite. Le document de profil est en v6 depuis le 27 octobre 2026 (champs propres aux formes d’art, `artworks.details`, migration 0025) ; les versions 1 à 5 restent lisibles. Ce qui voyage et ce qui reste sur la machine : docs/PORTABILITE.md.
 - Ne jamais remplacer ou fusionner une bibliothèque sans choix explicite de la personne.
 - Liens externes : écrire un `<a href="https://…">` ordinaire. `installExternalLinks()` (src/data/externalLinks.ts) le confie au navigateur du système dans la fenêtre native, où un `target="_blank"` ne fait rien. Ne pas appeler `window.open`, et n'ouvrir que du `https`.
 - Champs de formulaire : l'anneau de focus se dessine dans la boîte (`inset`), jamais en débord, sinon un conteneur défilant le rogne.

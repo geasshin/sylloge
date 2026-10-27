@@ -1,5 +1,6 @@
 import { formatNumber, t, tc, translateMessage } from '../i18n/core.ts'
 import { useMemo, useState } from 'react'
+import { Select } from './Select.tsx'
 import type { Artwork } from '../domain/artwork.ts'
 import type { Book } from '../domain/book.ts'
 import {
@@ -67,26 +68,24 @@ export function CollectionCsvImportFlow({ kind, contents, onReady, onChooseAnoth
                           <b>{fieldLabel(fieldDefinition.label)}</b>
                           {fieldDefinition.key === 'title' && <small>{t("Obligatoire")}</small>}
                         </div>
-                        <label className="visually-hidden" htmlFor={`mapping-${fieldDefinition.key}`}>
+                        <span className="visually-hidden" id={`mapping-${fieldDefinition.key}-label`}>
                           {t("Colonne du fichier pour {field}", { field: fieldLabel(fieldDefinition.label) })}
-                        </label>
-                        <select
+                        </span>
+                        <Select
                           id={`mapping-${fieldDefinition.key}`}
-                          className="mapping-select"
+                          labelledBy={`mapping-${fieldDefinition.key}-label`}
+                          className="mapping-control"
                           value={destination ?? ''}
-                          onChange={(event) => setMapping((current) => setCollectionCsvSourceDestination(
+                          onChange={(next) => setMapping((current) => setCollectionCsvSourceDestination(
                             current,
                             fieldDefinition.key,
-                            event.target.value || null,
+                            next || null,
                           ))}
-                        >
-                          <option value="">{t("Ne pas importer")}</option>
-                          {session.table.headers.map((header) => (
-                            <option key={header} value={header}>
-                              {header}
-                            </option>
-                          ))}
-                        </select>
+                          options={[
+                            { value: '', label: t("Ne pas importer") },
+                            ...session.table.headers.map((header) => ({ value: header, label: header })),
+                          ]}
+                        />
                       </div>
                     )
                   })}

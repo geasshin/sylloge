@@ -136,12 +136,12 @@ test('Une vue impossible à créer est rapportée, jamais perdue en silence', as
 
 // ── Version plus récente que celle que l'application comprend ─────────────────────────────────────
 const NEWER = 'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.'
-const GENERIC = 'Les versions 1 à 5 du document sont prises en charge.'
+const GENERIC = 'Les versions 1 à 6 du document sont prises en charge.'
 const withVersion = version => JSON.stringify({ ...createLibraryDocument(library), version })
 const versionMessages = version => validateLibraryDocument(withVersion(version)).errors.map(error => error.message)
 
 test('Une sauvegarde d’une version future demande de mettre l’application à jour', () => {
-  for (const version of [SYLLOGE_LIBRARY_VERSION + 1, 6, 12]) {
+  for (const version of [SYLLOGE_LIBRARY_VERSION + 1, 7, 12]) {
     assert.deepEqual(versionMessages(version), [NEWER], `version ${version}`)
   }
 })

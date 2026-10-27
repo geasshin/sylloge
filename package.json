@@ -24,7 +24,7 @@
   "tauri:dev": "tauri dev",
   "tauri:build": "tauri build",
   "test:recap": "node --experimental-strip-types --test scripts/year-recap.test.mjs",
-    "test:art": "node --experimental-strip-types --test scripts/art-image-search.test.mjs"
+    "test:art": "node --experimental-strip-types --test scripts/art-image-search.test.mjs scripts/art-details.test.mjs"
  },
  "dependencies": {
   "@tauri-apps/api": "2.11.1",

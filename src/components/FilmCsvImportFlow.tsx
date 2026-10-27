@@ -1,5 +1,6 @@
 import { formatNumber, t, translateMessage } from '../i18n/core.ts'
 import { useMemo, useState } from 'react'
+import { Select } from './Select.tsx'
 import type { Film } from '../domain/film.ts'
 import {
   FILM_IMPORT_FIELD_LABELS,
@@ -126,13 +127,19 @@ export function FilmCsvImportFlow({
             </div>
           </dl>
           {sourceSelection.selectionRequired && (
-            <label className="films-import-profile-name">
-              <span>{t("Table à importer")}</span>
-              <select value={selectedCandidateId ?? ''} onChange={(event) => selectCandidate(event.target.value || null)}>
-                <option value="">{t("Choisir une table")}</option>
-                {sourceSelection.candidates.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
-              </select>
-            </label>
+            <div className="films-import-profile-name">
+              <span id="films-import-table-label">{t("Table à importer")}</span>
+              <Select
+                id="films-import-table"
+                labelledBy="films-import-table-label"
+                value={selectedCandidateId ?? ''}
+                onChange={(next) => selectCandidate(next || null)}
+                options={[
+                  { value: '', label: t("Choisir une table") },
+                  ...sourceSelection.candidates.map((candidate) => ({ value: candidate.id, label: candidate.label })),
+                ]}
+              />
+            </div>
           )}
           <p className="films-import-details">
             {sourceSelection.automaticSelectionMessage
@@ -225,7 +232,7 @@ function SourceToDestinationMapping({
   return (
     <div className="source-destination-mapping" aria-label={t('Mapping source vers Sylloge')}>
       <div className="source-destination-header" aria-hidden="true"><span>{t("Détecté dans votre fichier")}</span><span>→</span><span>{t("Importer dans Sylloge")}</span></div>
-      {sources.map(({ source: sourceValue, label, detail }) => {
+      {sources.map(({ source: sourceValue, label, detail }, sourceIndex) => {
         const destination = filmImportDestinationForSource(configuration, sourceValue)
         const isMarkdownNotes = sourceValue === NOTION_MARKDOWN_NOTES_SOURCE
         const isRatingSource = !isMarkdownNotes && isFilmImportRatingSource(sourceValue)
@@ -239,41 +246,44 @@ function SourceToDestinationMapping({
           <div className="source-destination-row" key={sourceValue}>
             <div><b>{label}</b><small>{detail}</small></div>
             <span className="mapping-arrow" aria-hidden="true">→</span>
-            <label>
-              <span className="visually-hidden">{t('Destination Sylloge de {column}', { column: label })}</span>
-              <select
+            <div>
+              <Select
+                id={`film-import-destination-${sourceIndex}`}
+                ariaLabel={t('Destination Sylloge de {column}', { column: label })}
                 value={fixedNotImported ? '' : destination ?? ''}
                 disabled={fixedNotImported}
-                onChange={(event) => onConfigurationChange((current) => setFilmImportSourceDestination(
+                onChange={(next) => onConfigurationChange((current) => setFilmImportSourceDestination(
                   current,
                   sourceValue,
-                  event.target.value === '' ? null : event.target.value as ImportableFilmField,
+                  next === '' ? null : next as ImportableFilmField,
                 ))}
-              >
-                <option value="">{t("Ne pas importer")}</option>
-                {availableDestinations.map((field) => <option key={field} value={field}>{t(FILM_IMPORT_FIELD_LABELS[field])}</option>)}
-              </select>
-            </label>
+                options={[
+                  { value: '', label: t("Ne pas importer") },
+                  ...availableDestinations.map((field) => ({ value: field, label: t(FILM_IMPORT_FIELD_LABELS[field]) })),
+                ]}
+              />
+            </div>
           </div>
         )
       })}
       {configuration.mapping.rating && preview.detectedRatingScale !== 'none' && (
-        <label className="films-import-rating-scale">
-          <span>{t('Évaluation : {scale}', { scale: detectedScaleLabel })}</span>
-          <select
-            value={configuration.ratingScale ?? ''}
-            onChange={(event) => onConfigurationChange((current) => ({
+        <div className="films-import-rating-scale">
+          <span id="films-import-rating-scale-label">{t('Évaluation : {scale}', { scale: detectedScaleLabel })}</span>
+          <Select
+            id="films-import-rating-scale"
+            labelledBy="films-import-rating-scale-label"
+            value={configuration.ratingScale === null || configuration.ratingScale === undefined ? '' : String(configuration.ratingScale)}
+            onChange={(next) => onConfigurationChange((current) => ({
               ...current,
-              ratingScale: event.target.value === '5' || event.target.value === '10'
-                ? Number(event.target.value) as 5 | 10
-                : null,
+              ratingScale: next === '5' || next === '10' ? Number(next) as 5 | 10 : null,
             }))}
-          >
-            <option value="">{t("Choisir l’échelle")}</option>
-            <option value="5">/5</option>
-            <option value="10">/10</option>
-          </select>
-        </label>
+            options={[
+              { value: '', label: t("Choisir l’échelle") },
+              { value: '5', label: '/5' },
+              { value: '10', label: '/10' },
+            ]}
+          />
+        </div>
       )}
       {preview.detectedRatingScale === 10 && (
         <p className="films-import-details"><b>{t("Conversion proposée :")}</b> {t("les évaluations /10 seront normalisées vers l’échelle Sylloge /5 par demi-points.")}</p>

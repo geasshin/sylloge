@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Select } from './Select.tsx'
 import { t, translateMessage } from '../i18n/core.ts'
 import { useLanguage } from '../i18n/react.ts'
 import { LanguageSelect } from '../i18n/LanguageSelect.tsx'
@@ -150,7 +151,7 @@ export function Onboarding({ themePreference, onThemePreferenceChange, onProfile
             ] as const).map(([id, label, detail]) => <button key={id} className={`onboarding-start-choice ${start === id ? 'active' : ''}`} type="button" role="radio" aria-checked={start === id} onClick={() => { setStart(id); setError(null) }}><span><b>{t(label)}</b><small>{t(detail)}</small></span></button>)}</div>
             {start === 'backup' && <BackupRestorePicker value={backup} onChange={setBackup} searchOnMount />}
             {start === 'collection' && <section className="onboarding-service-preparation">
-              <label htmlFor="onboarding-library">{t('Bibliothèque à préparer')}</label><select id="onboarding-library" className="mapping-select" value={selectedLibrary} onChange={event => setSelectedLibrary(event.target.value as ProfileLibrary)}>{PROFILE_LIBRARIES.map(key => <option key={key} value={key}>{t(PROFILE_LIBRARY_LABELS[key])}</option>)}</select>
+              <label id="onboarding-library-label" htmlFor="onboarding-library">{t('Bibliothèque à préparer')}</label><Select id="onboarding-library" labelledBy="onboarding-library-label" className="mapping-control" value={selectedLibrary} onChange={value => setSelectedLibrary(value as ProfileLibrary)} options={PROFILE_LIBRARIES.map(key => ({ value: key, label: t(PROFILE_LIBRARY_LABELS[key]) }))} />
               <CollectionPreparation key={selectedLibrary} library={selectedLibrary} name={name.trim()} onPrepared={prepared => { setSections(current => withPreparedCollection(current, prepared)); setSources(current => ({ ...current, [prepared.library]: prepared.fileName })) }} />
               {Object.keys(sources).length > 0 && <ul className="onboarding-prepared-files">{PROFILE_LIBRARIES.filter(key => sources[key]).map(key => <li key={key}><span><b>{t(PROFILE_LIBRARY_LABELS[key])}</b> · {t(sections[key].length === 1 ? '{count} fiche' : '{count} fiches', { count: sections[key].length })} · {sources[key]}</span><button className="text-button" type="button" onClick={() => { setSources(current => { const next = { ...current }; delete next[key]; return next }); setSections(current => withPreparedCollection(current, { library: key, items: [], fileName: '' })) }}>{t('Retirer {library}', { library: t(PROFILE_LIBRARY_LABELS[key]) })}</button></li>)}</ul>}
               <p className="import-contextual-hint">{t('Un fichier préparé par bibliothèque. Préparer un nouveau fichier pour la même bibliothèque remplace sa préparation précédente. Aucun profil ni aucune fiche n’est encore créé.')}</p>

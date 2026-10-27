@@ -450,8 +450,18 @@ fn io_artwork_value(id: &str, profile_id: &str) -> serde_json::Value {
         "isFavorite": true, "discoveredAt": "2026-10-01",
         "imageUrl": "https://example.test/art.jpg", "personalNote": "\t=Avis,\n\"conservé\"  ",
         "customFields": [{"name": "Technique", "value": "\t=Huile,\n\"sur toile\"  "}],
+        "details": {"text": "Sous le pont Mirabeau\n\n    Et nos amours", "collection": "Alcools 日本語"},
         "createdAt": "2026-10-01T08:00:00.000Z", "updatedAt": "2026-10-02T08:00:00.000Z"
     })
+}
+
+async fn stored_artwork_details(pool: &sqlx::SqlitePool, id: &str) -> serde_json::Value {
+    let stored: String = sqlx::query_scalar("SELECT details FROM artworks WHERE id = $1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .expect("relecture des champs de forme");
+    serde_json::from_str(&stored).expect("objet JSON stocké")
 }
 
 #[test]
@@ -479,6 +489,39 @@ fn portability_io_global_json_import_preserves_artwork_custom_fields() {
             fields, value["customFields"],
             "aucun champ personnel du JSON ne doit disparaître à la frontière native"
         );
+        assert_eq!(
+            stored_artwork_details(&pool, "art-io").await,
+            value["details"],
+            "le poème et son recueil doivent passer la frontière native intacts"
+        );
+    });
+}
+
+#[test]
+fn portability_io_artwork_without_details_gets_an_empty_object_and_the_column_refuses_other_json() {
+    tauri::async_runtime::block_on(async {
+        let pool = test_pool_with_tmdb_migrations().await;
+        let mut value = io_artwork_value("art-v5", "profile-v5");
+        value.as_object_mut().unwrap().remove("details");
+        let mut payload = empty_document("profile-v5");
+        payload
+            .artworks
+            .push(serde_json::from_value(value).expect("œuvre v5 sans détails"));
+        write_library_document_import(&pool, &payload, true)
+            .await
+            .expect("import d’un document v5");
+        assert_eq!(
+            stored_artwork_details(&pool, "art-v5").await,
+            serde_json::json!({}),
+            "une œuvre venue d’un document v5 reçoit un objet vide"
+        );
+        for invalid in ["[]", "\"texte\"", "pas du JSON"] {
+            let refused = sqlx::query("UPDATE artworks SET details = $1 WHERE id = 'art-v5'")
+                .bind(invalid)
+                .execute(&pool)
+                .await;
+            assert!(refused.is_err(), "la colonne doit refuser {invalid}");
+        }
     });
 }
 
@@ -493,6 +536,8 @@ fn portability_io_collection_import_preserves_artwork_custom_fields_on_insert_an
             } else {
                 "Valeur initiale"
             });
+            value["details"]["collection"] =
+                serde_json::json!(if is_update { "Calligrammes" } else { "Alcools" });
             let artwork = serde_json::from_value(value.clone()).expect("art JSON valide");
             let (inserts, updates) = if is_update {
                 (Vec::new(), vec![artwork])
@@ -520,6 +565,11 @@ fn portability_io_collection_import_preserves_artwork_custom_fields_on_insert_an
                     .unwrap(),
                 value["customFields"],
                 "les champs libres doivent suivre insert et update"
+            );
+            assert_eq!(
+                stored_artwork_details(&pool, "art-unit-io").await,
+                value["details"],
+                "les champs de forme doivent suivre insert et update"
             );
         }
     });

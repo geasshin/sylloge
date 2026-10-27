@@ -103,10 +103,13 @@ try {
     const game = render(GameForm, { platformSuggestions: ['En cours'], initialValues: { ...EMPTY_GAME_FORM, title: 'En cours', platform: 'En cours', status: 'joué', personalNote: 'En cours' } })
     assert.ok(game.includes('aria-label="Game title"') && game.includes('Studio or developer'))
     assert.ok(game.includes('value="En cours"') && game.includes('>En cours</textarea>'))
-    const artwork = { id: 'art', profileId: 'synthetic', title: 'En cours', artist: 'En cours', year: 2026, form: 'peinture', location: 'En cours', exhibition: 'En cours', status: 'découverte', isFavorite: false, discoveredAt: '2026-10-03', imageUrl: null, personalNote: 'En cours', customFields: [{ name: 'En cours', value: 'En cours' }], createdAt: '2026-10-03', updatedAt: '2026-10-03' }
+    const artwork = { id: 'art', profileId: 'synthetic', title: 'En cours', artist: 'En cours', year: 2026, form: 'peinture', location: 'En cours', exhibition: 'En cours', status: 'découverte', isFavorite: false, discoveredAt: '2026-10-03', imageUrl: null, personalNote: 'En cours', customFields: [{ name: 'En cours', value: 'En cours' }], details: { technique: 'En cours' }, createdAt: '2026-10-03', updatedAt: '2026-10-03' }
     const art = render(ArtworkForm, { artwork })
     assert.ok(art.includes('Date discovered') && art.includes('Custom field 1 name'))
-    assert.ok(art.includes('value="peinture" selected=""') && art.includes('Painting'), 'Option traduite sans modifier sa valeur')
+    // Liste déroulante Sylloge (27 octobre 2026) : la forme choisie s’affiche traduite, ses champs propres aussi.
+    assert.ok(art.includes('aria-haspopup="listbox"') && art.includes('>Painting<'), 'Option traduite dans le bouton de la liste')
+    assert.ok(art.includes('>Technique<') && art.includes('>Dimensions<') && art.includes('>Movement<'), 'Champs propres à la peinture traduits')
+    assert.ok(art.includes('placeholder="Oil on canvas"'), 'Exemple de saisie traduit')
     assert.ok(art.includes('value="En cours"') && art.includes('>En cours</textarea>'))
   })
   await test('Les huit formulaires personnalisés traduisent les modèles et gardent les options et champs libres stockés', async () => {
@@ -169,9 +172,9 @@ try {
       assert.ok(gameHtml.includes(copy), `Jeu: ${copy}`)
     }
 
-    const artwork = { ...stamp, id: 'qa-art', profileId: 'qa', title: 'En cours', artist: 'En cours', year: 2024, form: 'peinture', location: 'En cours', exhibition: 'En cours', status: 'découverte', isFavorite: false, discoveredAt: '2026-10-03', imageUrl: null, personalNote: null, customFields: [{ name: 'Champ français', value: 'Coups de cœur' }] }
+    const artwork = { ...stamp, id: 'qa-art', profileId: 'qa', title: 'En cours', artist: 'En cours', year: 2024, form: 'peinture', location: 'En cours', exhibition: 'En cours', status: 'découverte', isFavorite: false, discoveredAt: '2026-10-03', imageUrl: null, personalNote: null, customFields: [{ name: 'Champ français', value: 'Coups de cœur' }], details: { technique: 'En cours' } }
     const artHtml = render(ArtworkDetail, { artwork, ...base })
-    for (const copy of ['>Painting<', '>Artist<', '>Year<', '>Location<', '>Exhibition<', '>Date discovered<', 'No image', 'Champ français', 'Coups de cœur']) {
+    for (const copy of ['>Painting<', '>Artist<', '>Year<', '>Location<', '>Exhibition<', '>Date discovered<', 'No image', 'Champ français', 'Coups de cœur', '>Technique<', '>En cours<']) {
       assert.ok(artHtml.includes(copy), `Art: ${copy}`)
     }
   })

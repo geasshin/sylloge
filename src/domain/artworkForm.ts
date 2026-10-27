@@ -6,6 +6,7 @@ import {
   type ArtworkForm,
   type ArtworkStatus,
 } from './artwork.ts'
+import { normalizeArtworkDetails, type ArtworkDetails } from './artworkDetails.ts'
 
 export type ArtworkFormValues = {
   title: string
@@ -20,6 +21,7 @@ export type ArtworkFormValues = {
   imageUrl: string
   personalNote: string
   customFields: ArtworkCustomField[]
+  details: ArtworkDetails
 }
 
 export type ArtworkWriteInput = {
@@ -35,6 +37,7 @@ export type ArtworkWriteInput = {
   imageUrl: string | null
   personalNote: string | null
   customFields: ArtworkCustomField[]
+  details: ArtworkDetails
 }
 
 export type ArtworkFormErrors = Partial<Record<keyof ArtworkFormValues, string>>
@@ -58,6 +61,7 @@ export const EMPTY_ARTWORK_FORM: ArtworkFormValues = {
   imageUrl: '',
   personalNote: '',
   customFields: [],
+  details: {},
 }
 
 function optionalText(value: string): string | null {
@@ -102,6 +106,7 @@ export function artworkToFormValues(artwork: Artwork): ArtworkFormValues {
     imageUrl: artwork.imageUrl ?? '',
     personalNote: artwork.personalNote ?? '',
     customFields: artwork.customFields.map((field) => ({ ...field })),
+    details: { ...artwork.details },
   }
 }
 
@@ -167,6 +172,9 @@ export function validateArtworkForm(values: ArtworkFormValues): ArtworkValidatio
       imageUrl,
       personalNote: optionalText(values.personalNote),
       customFields,
+      // Les champs d'une autre forme sont conservés : changer de catégorie ne
+      // détruit rien (règle de artworkDetails.ts).
+      details: normalizeArtworkDetails(values.details ?? {}),
     },
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { getLocale } from '../i18n/core.ts'
 
 /**
@@ -19,18 +19,31 @@ import { getLocale } from '../i18n/core.ts'
  *
  * Le libellé visible appartient à l'appelant : il lui donne un id passé en
  * `labelledBy` (bouton et liste y sont associés par aria-labelledby).
+ *
+ * Options riches (27 octobre 2026) : une option peut porter un pictogramme
+ * et une courte description ; la liste les présente alors en tuiles, sur
+ * une ou plusieurs colonnes (`columns`). En colonnes, les flèches haut et
+ * bas changent de rangée, gauche et droite d'option.
  */
 export type SelectOption = {
   value: string
   label: string
   disabled?: boolean
+  /** Pictogramme décoratif, répété dans le bouton quand l'option est choisie. */
+  icon?: ReactNode
+  /** Précision sous le libellé, dans la liste seulement. */
+  description?: string
+  /** Langue du libellé quand elle diffère de l'interface (« English »). */
+  lang?: string
 }
 
 type SelectProps = {
   /** Identifiant du bouton ; la liste reçoit `${id}-listbox`. */
   id: string
   /** Identifiant du libellé visible associé. */
-  labelledBy: string
+  labelledBy?: string
+  /** Nom accessible quand aucun libellé visible n'existe. */
+  ariaLabel?: string
   value: string
   options: readonly SelectOption[]
   onChange: (value: string) => void
@@ -42,6 +55,8 @@ type SelectProps = {
   /** Nom de champ, pour un formulaire lu par FormData. */
   name?: string
   className?: string
+  /** Nombre de colonnes de la liste (options riches). */
+  columns?: number
 }
 
 /** Délai au-delà duquel une nouvelle lettre recommence la recherche. */
@@ -60,6 +75,7 @@ function comparable(text: string): string {
 export function Select({
   id,
   labelledBy,
+  ariaLabel,
   value,
   options,
   onChange,
@@ -69,6 +85,7 @@ export function Select({
   placeholder = '',
   name,
   className = '',
+  columns = 1,
 }: SelectProps) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
@@ -80,6 +97,8 @@ export function Select({
   const selectedIndex = options.findIndex((option) => option.value === value)
   const selected = selectedIndex >= 0 ? options[selectedIndex] : null
   const enabled = options.map((option, index) => (option.disabled ? -1 : index)).filter((index) => index >= 0)
+  const rich = options.some((option) => option.icon !== undefined || option.description !== undefined)
+  const step = Math.max(1, Math.floor(columns))
 
   const openList = (initialIndex?: number) => {
     if (disabled || enabled.length === 0) return
@@ -151,9 +170,19 @@ export function Select({
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault()
-        moveActive(activeIndex + 1, 1)
+        moveActive(activeIndex + step, 1)
         return
       case 'ArrowUp':
+        event.preventDefault()
+        moveActive(activeIndex - step, -1)
+        return
+      case 'ArrowRight':
+        if (step === 1) return
+        event.preventDefault()
+        moveActive(activeIndex + 1, 1)
+        return
+      case 'ArrowLeft':
+        if (step === 1) return
         event.preventDefault()
         moveActive(activeIndex - 1, -1)
         return
@@ -274,7 +303,7 @@ export function Select({
   }, [open, activeIndex])
 
   return (
-    <div className={`select ${open ? 'is-open' : ''} ${className}`.trim()} ref={rootRef}>
+    <div className={`select ${open ? 'is-open' : ''} ${className}`.replace(/\s+/g, ' ').trim()} ref={rootRef}>
       <button
         ref={buttonRef}
         id={id}
@@ -284,13 +313,16 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listboxId : undefined}
-        aria-labelledby={`${labelledBy} ${id}`}
+        aria-labelledby={labelledBy ? `${labelledBy} ${id}` : undefined}
+        aria-label={labelledBy ? undefined : ariaLabel}
+        data-value={value}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
         onClick={() => (open ? closeList(false) : openList())}
         onKeyDown={onButtonKeyDown}
       >
-        <span className={`select-value ${selected ? '' : 'is-placeholder'}`}>{selected?.label ?? (placeholder || value)}</span>
+        {selected?.icon !== undefined && <span className="select-value-icon" aria-hidden="true">{selected.icon}</span>}
+        <span className={selected ? 'select-value' : 'select-value is-placeholder'} lang={selected?.lang}>{selected?.label ?? (placeholder || value)}</span>
         <svg className="select-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <polyline points="6 9 12 15 18 9" />
         </svg>
@@ -300,10 +332,12 @@ export function Select({
         <ul
           ref={listRef}
           id={listboxId}
-          className="select-listbox"
+          className={`select-listbox ${rich ? 'select-listbox-rich' : ''} ${step > 1 ? 'select-listbox-columns' : ''}`.replace(/\s+/g, ' ').trim()}
+          style={step > 1 ? ({ '--select-columns': step } as CSSProperties) : undefined}
           role="listbox"
           tabIndex={-1}
           aria-labelledby={labelledBy}
+          aria-label={labelledBy ? undefined : ariaLabel}
           aria-activedescendant={activeIndex >= 0 ? `${id}-option-${activeIndex}` : undefined}
           onKeyDown={onListKeyDown}
           onBlur={(event) => {
@@ -324,10 +358,14 @@ export function Select({
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => choose(index)}
               >
+                {option.icon !== undefined && <span className="select-option-icon" aria-hidden="true">{option.icon}</span>}
+                <span className="select-option-text">
+                  <span className="select-option-label" lang={option.lang}>{option.label}</span>
+                  {option.description && <span className="select-option-description">{option.description}</span>}
+                </span>
                 <svg className="select-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   {isSelected && <polyline points="5 12.5 10 17.5 19 7" />}
                 </svg>
-                <span>{option.label}</span>
               </li>
             )
           })}

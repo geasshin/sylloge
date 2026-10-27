@@ -476,6 +476,9 @@ pub struct ImportArtwork {
     personal_note: Option<String>,
     #[serde(default)]
     custom_fields: Vec<ImportArtworkCustomField>,
+    /// Champs propres à la forme (migration 0025) ; absents avant le document v6.
+    #[serde(default)]
+    details: std::collections::BTreeMap<String, String>,
     created_at: String,
     updated_at: String,
 }
@@ -3617,12 +3620,14 @@ async fn write_library_document_import(
     for artwork in &payload.artworks {
         let custom_fields = serde_json::to_string(&artwork.custom_fields)
             .map_err(|error| format!("Impossible de conserver les champs de l’œuvre : {error}"))?;
+        let details = artwork_details_json(&artwork.details)?;
         sqlx::query(
             "INSERT INTO artworks (
                 id, profile_id, title, artist, year, form, location, exhibition, status,
-                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at, custom_fields
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at, custom_fields,
+                details
              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
              )",
         )
         .bind(&artwork.id)
@@ -3641,6 +3646,7 @@ async fn write_library_document_import(
         .bind(&artwork.created_at)
         .bind(&artwork.updated_at)
         .bind(custom_fields)
+        .bind(details)
         .execute(&mut *transaction)
         .await
         .map_err(|error| {
@@ -4755,6 +4761,15 @@ async fn upsert_game(
     Ok(())
 }
 
+/// Les détails d'une œuvre s'écrivent toujours comme un objet JSON, même
+/// vide : la colonne `details` (migration 0025) le contrôle.
+fn artwork_details_json(
+    details: &std::collections::BTreeMap<String, String>,
+) -> Result<String, String> {
+    serde_json::to_string(details)
+        .map_err(|error| format!("Impossible de conserver les détails de l’œuvre : {error}"))
+}
+
 async fn upsert_artwork(
     transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     artwork: &ImportArtwork,
@@ -4768,12 +4783,14 @@ async fn upsert_artwork(
     let personal_note = canonical_optional_text(&artwork.personal_note);
     let custom_fields = serde_json::to_string(&artwork.custom_fields)
         .map_err(|error| format!("Impossible de conserver les champs de l’œuvre : {error}"))?;
+    let details = artwork_details_json(&artwork.details)?;
     let result = if is_update {
         sqlx::query(
             "UPDATE artworks SET
                 title = $3, artist = $4, year = $5, form = $6, location = $7,
                 exhibition = $8, status = $9, is_favorite = $10, discovered_at = $11,
-                image_url = $12, personal_note = $13, updated_at = $14, custom_fields = $15
+                image_url = $12, personal_note = $13, updated_at = $14, custom_fields = $15,
+                details = $16
              WHERE id = $1 AND profile_id = $2",
         )
         .bind(&artwork.id)
@@ -4791,6 +4808,7 @@ async fn upsert_artwork(
         .bind(personal_note)
         .bind(&artwork.updated_at)
         .bind(&custom_fields)
+        .bind(&details)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -4803,8 +4821,9 @@ async fn upsert_artwork(
         sqlx::query(
             "INSERT INTO artworks (
                 id, profile_id, title, artist, year, form, location, exhibition, status,
-                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at, custom_fields
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
+                is_favorite, discovered_at, image_url, personal_note, created_at, updated_at, custom_fields,
+                details
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)",
         )
         .bind(&artwork.id)
         .bind(&artwork.profile_id)
@@ -4822,6 +4841,7 @@ async fn upsert_artwork(
         .bind(&artwork.created_at)
         .bind(&artwork.updated_at)
         .bind(&custom_fields)
+        .bind(&details)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -6026,6 +6046,7 @@ mod tests {
             include_str!("../migrations/0021_custom_libraries.sql"),
             include_str!("../migrations/0022_recipes_library.sql"),
             include_str!("../migrations/0023_recipes_statuses.sql"),
+            include_str!("../migrations/0025_artwork_details.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -6303,6 +6324,7 @@ mod tests {
                     image_url: None,
                     personal_note: None,
                     custom_fields: Vec::new(),
+                    details: Default::default(),
                     created_at: timestamp.clone(),
                     updated_at: timestamp.clone(),
                 }],
@@ -6669,6 +6691,7 @@ mod tests {
                 image_url: None,
                 personal_note: Some("Avis local".to_string()),
                 custom_fields: Vec::new(),
+                details: Default::default(),
                 created_at: timestamp.to_string(),
                 updated_at: timestamp.to_string(),
             };

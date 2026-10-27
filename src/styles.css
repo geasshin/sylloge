@@ -1251,23 +1251,27 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 :where(.field input, .field select, .field textarea, .select-trigger):disabled { opacity: .55; cursor: default; }
 
 /* Liste déroulante Sylloge (Select.tsx) : même gabarit que les champs, liste
-   d’options dans un panneau flottant ; l’option cochée est en encre, l’option
-   active (clavier ou survol) sur fond discret. */
+   d’options dans un panneau flottant. Refonte du 27 octobre 2026 : le
+   panneau se déroule depuis son bouton (rideau `clip-path`, qui ne fausse pas
+   la mesure de position), l’option choisie porte un filet d’encre à gauche et
+   sa coche à droite, l’option active passe sur fond discret. Les options
+   riches (pictogramme + description) se présentent en tuiles, en colonnes. */
 .select { position: relative; min-width: 0; }
 .select-trigger {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
   text-align: left;
   cursor: pointer;
 }
 .select.is-open .select-trigger { border-color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent); }
-.select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-value { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .select-value.is-placeholder { color: var(--color-placeholder); }
-.select-chevron { flex: none; color: var(--color-text-muted); transition: transform var(--duration-fast) var(--ease-out); }
-.select.is-open .select-chevron { transform: rotate(180deg); }
+.select-value-icon { flex: none; display: grid; place-items: center; color: var(--color-text); }
+.select-value-icon svg { display: block; width: 16px; height: 16px; }
+.select-chevron { flex: none; color: var(--color-text-muted); transition: transform var(--duration-base) var(--ease-out); }
+.select.is-open .select-chevron { transform: rotate(180deg); color: var(--color-text); }
 .select-listbox {
   position: fixed;
   top: 0;
@@ -1276,7 +1280,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   width: max-content;
   max-width: calc(100vw - 2 * var(--space-2));
   margin: 0;
-  padding: var(--space-1);
+  padding: var(--space-1-5);
   list-style: none;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1284,29 +1288,70 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-popover);
-  animation: select-listbox-in var(--duration-fast) var(--ease-out);
+  animation: select-listbox-unfold var(--duration-base) var(--ease-out);
 }
+.select-listbox[data-placement='top'] { animation-name: select-listbox-unfold-up; }
 .select-listbox:focus { outline: none; }
-@keyframes select-listbox-in { from { opacity: 0; } }
+@keyframes select-listbox-unfold { from { opacity: 0; clip-path: inset(0 0 72% 0 round var(--radius-md)); } }
+@keyframes select-listbox-unfold-up { from { opacity: 0; clip-path: inset(72% 0 0 0 round var(--radius-md)); } }
 .select-option {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  min-height: var(--control-sm);
-  padding: 0 var(--space-3) 0 var(--space-2);
+  gap: var(--space-2-5);
+  min-height: 32px;
+  padding: 0 var(--space-2) 0 var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--color-text);
   font-size: var(--text-md);
   white-space: nowrap;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
+.select-option::before {
+  content: '';
+  position: absolute;
+  left: var(--space-1);
+  top: 50%;
+  width: 2px;
+  height: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-text);
+  transform: translateY(-50%);
+  transition: height var(--duration-base) var(--ease-out);
+}
+.select-option[aria-selected='true']::before { height: 14px; }
+.select-option-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
 .select-option.is-active { background: var(--color-surface-muted); }
 .select-option[aria-selected='true'] { font-weight: 600; }
 .select-option[aria-disabled='true'] { color: var(--color-text-muted); cursor: default; }
-.select-check { flex: none; color: var(--color-text); }
+.select-check { flex: none; margin-left: var(--space-2); color: var(--color-text); }
+
+/* Options riches : tuile de pictogramme, libellé et description. */
+.select-listbox-rich { padding: var(--space-2); }
+.select-listbox-columns { display: grid; grid-template-columns: repeat(var(--select-columns), auto); gap: var(--space-1); }
+.select-listbox-rich .select-option { min-height: 52px; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-2); gap: var(--space-3); }
+.select-listbox-rich .select-option::before { display: none; }
+.select-option-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.select-option-icon svg { display: block; width: 18px; height: 18px; }
+.select-listbox-rich .select-option.is-active .select-option-icon { background: var(--color-surface); box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+.select-option[aria-selected='true'] .select-option-icon,
+.select-listbox-rich .select-option[aria-selected='true'].is-active .select-option-icon { background: var(--color-accent); color: var(--color-on-accent); box-shadow: none; }
+.select-option-label { font-weight: 600; }
+.select-option-description { color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 400; }
 @media (prefers-reduced-motion: reduce) {
   .select-listbox { animation: none; }
-  .select-chevron { transition: none; }
+  .select-chevron, .select-option, .select-option::before, .select-option-icon { transition: none; }
 }
 
 /* ==========================================================================
@@ -2531,18 +2576,65 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    définit la scène, la colonne droite absorbe les variations de contenu. */
 .editor-dialog.dialog-add-flow { max-height: calc(100vh - var(--space-8)); }
 
-/* Art suit le même rythme que les autres bibliothèques pour son visuel
-   (cartes larges en 16:10, pas un faux paysage 4:3) ; sa grille, elle, est
-   définie une seule fois avec les autres styles Art (section 0.6.17). */
-.library-main .artwork-card .poster {
-  aspect-ratio: 16 / 10;
-}
-/* Les œuvres d’art ont tous les formats (portrait, paysage, carré) : leur
-   visuel est montré entier, centré sur le fond neutre du cadre, au lieu
-   d’être rogné au format du cadre. Carte 16:10, fiche 3:4 et aperçu 2:3
-   gardent ainsi leur géométrie stable. */
+/* Les œuvres d’art ont tous les formats (portrait, paysage, carré). Depuis
+   le 27 octobre 2026, la carte et la fiche prennent le format réel de
+   l’image (`--ar`, mesuré au chargement, borné de 0,75 à 2,2) ; l’image reste
+   entière (`contain`) sur le fond neutre du cadre quand elle sort de ces
+   bornes. L’aperçu d’ajout garde son cadre 2:3 stable. */
 .poster.artwork-visual { background: var(--color-surface-muted); }
 .poster.artwork-visual img { object-fit: contain; }
+.library-main .artwork-card .poster { aspect-ratio: var(--ar, 16 / 10); }
+.detail-poster.artwork-visual { aspect-ratio: var(--ar, 3 / 4); max-height: 72vh; }
+
+/* Poème sans visuel : ses premiers vers sur une page, en serif (carte et
+   fiche ; le crayon de la fiche reste posé sur la page). */
+.poster.artwork-poem-page {
+  border: 1px solid var(--color-hairline);
+  background: var(--color-surface);
+}
+.artwork-poem-page .poster-fallback.poster-fallback-custom {
+  display: block;
+  place-items: normal;
+  padding: var(--space-5);
+  background: transparent;
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  mask-image: linear-gradient(to bottom, #000 72%, transparent);
+}
+/* La page et ses vers sont des <span> : la règle `.poster-fallback span`
+   (libellé « Sans visuel », capitales en chasse fixe) ne doit pas les toucher. */
+.poster-fallback .artwork-poem-page-text {
+  display: grid;
+  min-width: 0;
+  color: var(--color-personal);
+  font: 400 var(--text-sm) / 1.55 var(--font-personal);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.poster-fallback .artwork-poem-page-text span { font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.detail-poster .poster-fallback .artwork-poem-page-text { font-size: var(--text-md); }
+/* En carte, la page est étroite : les vers ne se replient pas, ils filent
+   vers le bord droit et s’y effacent, comme une page entrevue. */
+.artwork-card .poster-fallback .artwork-poem-page-text { white-space: pre; overflow: hidden; }
+.artwork-card .artwork-poem-page .poster-fallback.poster-fallback-custom {
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent), linear-gradient(to right, #000 78%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to bottom, #000 72%, transparent), linear-gradient(to right, #000 78%, transparent);
+  mask-composite: intersect;
+}
+.artwork-poem-page-gap { height: var(--space-2-5); }
+.poster-fallback.poster-fallback-custom { display: grid; place-items: center; padding: var(--space-4); }
+.artwork-visual-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-subtle);
+  font: 500 var(--text-2xs) var(--font-label);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.artwork-visual-empty svg { display: block; color: var(--color-text-muted); opacity: .7; }
 
 @media (max-width: 820px) {
   .editor-dialog.dialog-add-flow {
@@ -3776,13 +3868,49 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 /* Grille Art : pleine largeur garantie. Colonnes fluides ancrées sur le
    conteneur, jamais héritées d'une autre grille ; la largeur vient du
    conteneur lui-même (.library-main), sans limite intermédiaire. */
+/* Grille éditoriale (27 octobre 2026) : rangées justifiées. Chaque carte
+   part d’une hauteur de visuel commune (`--art-row`) et d’une largeur
+   proportionnelle au format de son image ; la croissance, elle aussi
+   proportionnelle au format, garde des visuels de même hauteur sur une
+   rangée qui remplit la ligne. La dernière rangée ne s’étire pas (le
+   pseudo-élément absorbe la place). L’ordre de lecture reste celui du tri. */
 .library-main .artwork-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+  --art-row: 200px;
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-8) var(--space-5);
   margin-top: var(--space-8);
-  align-items: start;
+  align-items: flex-start;
   width: 100%;
+}
+.library-main .artwork-grid::after { content: ''; flex: 1000000 1 0; }
+.library-main .artwork-grid > .artwork-card {
+  flex: var(--ar) 1 calc(var(--ar) * var(--art-row));
+  width: auto;
+  min-width: 0;
+}
+/* Une carte en portrait est étroite : la signature (forme · artiste) peut
+   prendre deux lignes plutôt que d’être coupée. */
+.library-main .artwork-card .film-card-info small { -webkit-line-clamp: 2; }
+
+/* Champs propres à la forme d’art : deux par ligne, poème en pleine largeur. */
+.artwork-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.field textarea.artwork-poem-input {
+  min-height: 220px;
+  font: var(--text-lg) / 1.75 var(--font-personal);
+  color: var(--color-personal);
+  resize: vertical;
+}
+.artwork-form-field .select-trigger { padding-left: var(--space-2-5); }
+
+/* Fiche : le poème entier, sous l’avis, comme les citations des livres. */
+.artwork-poem-text {
+  margin: var(--space-5) 0 0;
+  max-width: 62ch;
+  color: var(--color-personal);
+  font: var(--text-xl) / 1.8 var(--font-personal);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .custom-fields { display: grid; gap: var(--space-2); margin-top: var(--space-1); }
 .custom-field-row { display: flex; align-items: center; gap: var(--space-2-5); }
@@ -3983,9 +4111,9 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .library-tools .view-bar { grid-column: 1 / -1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); }
   .library-tools .view-bar-actions { margin-left: 0; }
   .library-tools .view-bar-action { min-height: 40px; }
-  .film-grid,
-  .library-main .artwork-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: var(--space-6) var(--space-3); margin-top: var(--space-6); }
-  .library-main .artwork-card .poster { aspect-ratio: 4 / 3; }
+  .film-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: var(--space-6) var(--space-3); margin-top: var(--space-6); }
+  .library-main .artwork-grid { --art-row: 150px; gap: var(--space-6) var(--space-3); margin-top: var(--space-6); }
+  .artwork-detail-grid { grid-template-columns: 1fr; }
   .film-card-info { padding-top: var(--space-2); }
   .film-card-info b { font-size: var(--text-md); }
   .library-state,

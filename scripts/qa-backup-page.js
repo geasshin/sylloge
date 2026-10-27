@@ -58,7 +58,7 @@ async page => {
   assert(sameRow, 'Les deux boutons sont sur une seule ligne')
   await page.screenshot({ path: 'qa/bk-1-picker.png' })
 
-  // ── 4. Un document v5 qui emporte deux vues et deux préférences ────────────────────────────────
+  // ── 4. Un document courant (v5 et plus) qui emporte deux vues et deux préférences ────────────────────────────────
   await page.evaluate(async () => {
     const { libraryRepository } = await import('/src/data/libraryRepository.ts')
     const { createLibraryDocument, serializeLibraryDocument } = await import('/src/domain/libraryDocument.ts')
@@ -71,8 +71,10 @@ async page => {
       { medium: 'films', name: 'À revoir', criteria, createdAt: at, updatedAt: at },
     ]
     const withExperience = serializeLibraryDocument(createLibraryDocument(library, undefined, buildExperience(views, { theme: 'dark', homeAutoplay: 'off' })))
-    const newer = JSON.stringify({ ...JSON.parse(withExperience), version: 6 })
-    const v4 = (() => { const d = JSON.parse(withExperience); d.version = 4; delete d.experience; return JSON.stringify(d) })()
+    // Version courante : 6 (champs de forme d’art, 27 octobre 2026) ; « plus récente » = 7.
+    const newer = JSON.stringify({ ...JSON.parse(withExperience), version: 7 })
+    // Un vrai v4 n’a ni expérience ni champs de forme sur ses œuvres.
+    const v4 = (() => { const d = JSON.parse(withExperience); d.version = 4; delete d.experience; d.artworks = d.artworks.map(({ details: _details, ...artwork }) => artwork); return JSON.stringify(d) })()
     const invoke = window.__TAURI_INTERNALS__.invoke
     window.__bk = { next: withExperience, withExperience, newer, v4 }
     window.__TAURI_INTERNALS__.invoke = async (cmd, args, ...rest) => {

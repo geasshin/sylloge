@@ -22,13 +22,14 @@ export const SYLLOGE_LIBRARY_FORMAT = 'sylloge-library' as const
 /**
  * Version écrite par l’application. La v4 (22 octobre 2026) ajoute les
  * bibliothèques personnalisées, la v5 (23 octobre 2026) l’expérience du
- * profil — vues enregistrées et préférences d’affichage. Les versions 1 à 4
- * restent lisibles : un document v4 s’importe sans experience, comme avant.
+ * profil — vues enregistrées et préférences d’affichage, la v6 (27 octobre
+ * 2026) les champs propres à chaque forme d’art (`details` d’une œuvre).
+ * Les versions 1 à 5 restent lisibles : une œuvre v5 s’importe sans détails.
  */
-export const SYLLOGE_LIBRARY_VERSION = 5 as const
-export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3, 4] as const
+export const SYLLOGE_LIBRARY_VERSION = 6 as const
+export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3, 4, 5] as const
 
-type DocumentVersion = 1 | 2 | 3 | 4 | 5
+type DocumentVersion = 1 | 2 | 3 | 4 | 5 | 6
 
 export type SyllogeLibraryDocument = {
   format: typeof SYLLOGE_LIBRARY_FORMAT
@@ -216,6 +217,8 @@ const ARTWORK_KEYS = [
   'createdAt',
   'updatedAt',
 ] as const
+/** v6 : chaque œuvre porte ses champs de forme, même vides (`{}`). */
+const ARTWORK_KEYS_V6 = [...ARTWORK_KEYS, 'details'] as const
 const CUSTOM_FIELD_KEYS = ['name', 'value'] as const
 
 export function createLibraryDocument(
@@ -315,6 +318,7 @@ function prepareArtwork(artwork: Artwork): Artwork {
   return {
     ...normalized,
     customFields: (normalized.customFields ?? []).map((field) => ({ name: field.name, value: field.value })),
+    details: { ...normalized.details },
   }
 }
 
@@ -358,7 +362,7 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
       '$.version',
       isNewerDocumentVersion(value.version)
         ? 'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.'
-        : 'Les versions 1 à 5 du document sont prises en charge.',
+        : 'Les versions 1 à 6 du document sont prises en charge.',
     )
     return { document: null, counts: emptyCounts, errors }
   }
@@ -500,7 +504,7 @@ const isNewerDocumentVersion = (value: unknown): boolean =>
   typeof value === 'number' && Number.isInteger(value) && value > SYLLOGE_LIBRARY_VERSION
 
 function libraryDocumentVersion(value: unknown): DocumentVersion | null {
-  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 ? value : null
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 ? value : null
 }
 
 function rootKeysFor(version: DocumentVersion): readonly string[] {
@@ -1062,7 +1066,7 @@ function validateArtwork(
   // œuvre v3 ou v4 l’exige. Dans les deux cas, il est validé quand il est présent.
   const optionalKeys = version === 2 ? ['customFields'] as const : []
   const identityValid = validateSharedIdentity(
-    value, path, ARTWORK_KEYS, version, profileId, ids, errors, 'Œuvre d’art', optionalKeys,
+    value, path, version >= 6 ? ARTWORK_KEYS_V6 : ARTWORK_KEYS, version, profileId, ids, errors, 'Œuvre d’art', optionalKeys,
   )
   validateOptionalString(value.artist, `${path}.artist`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
@@ -1080,8 +1084,9 @@ function validateArtwork(
   validateOptionalString(value.imageUrl, `${path}.imageUrl`, errors)
   validateOptionalString(value.personalNote, `${path}.personalNote`, errors)
   const customFields = validateCustomFields(value.customFields, `${path}.customFields`, errors)
+  const details = version >= 6 ? validateArtworkDetails(value.details, `${path}.details`, errors) : {}
 
-  const artwork = normalizeArtwork({ ...(value as Artwork), customFields })
+  const artwork = normalizeArtwork({ ...(value as Artwork), customFields, details })
   validateOptionalCalendarDate(artwork.discoveredAt, `${path}.discoveredAt`, errors, 'La date de découverte')
   validateOptionalHttpUrl(artwork.imageUrl, `${path}.imageUrl`, errors, 'L’URL du visuel')
 
@@ -1117,6 +1122,24 @@ function validateCustomFields(
       value: typeof field.value === 'string' ? field.value : '',
     }]
   })
+}
+
+/** Champs de forme d’une œuvre (v6) : un objet dont chaque valeur est une chaîne. */
+function validateArtworkDetails(
+  value: unknown,
+  path: string,
+  errors: LibraryImportValidationError[],
+): Artwork['details'] {
+  // Absent : l’erreur « champ obligatoire » est déjà relevée par les clés exactes.
+  if (value === undefined) return {}
+  if (!isRecord(value)) {
+    addError(errors, path, 'Les détails d’une œuvre doivent être un objet.')
+    return {}
+  }
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry !== 'string') addError(errors, `${path}.${key}`, 'La valeur d’un détail doit être une chaîne.')
+  }
+  return value as Artwork['details']
 }
 
 function hasPathError(errors: LibraryImportValidationError[], path: string): boolean {

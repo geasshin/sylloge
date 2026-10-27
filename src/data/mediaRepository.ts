@@ -1,4 +1,5 @@
 import { ARTWORK_FORMS, ARTWORK_STATUSES, normalizeArtwork, type Artwork, type ArtworkCustomField, type ArtworkForm, type ArtworkStatus } from '../domain/artwork.ts'
+import { parseArtworkDetails, serializeArtworkDetails } from '../domain/artworkDetails.ts'
 import { BOOK_CATEGORIES, BOOK_STATUSES, normalizeBook, reconcileBookQuotes, type Book, type BookCategory, type BookQuote, type BookStatus } from '../domain/book.ts'
 import { GAME_STATUSES, normalizeGame, type Game, type GameStatus } from '../domain/game.ts'
 import { SERIES_CATEGORIES, SERIES_STATUSES, normalizeSeries, type Series, type SeriesCategory, type SeriesStatus } from '../domain/series.ts'
@@ -122,6 +123,7 @@ type ArtworkRow = {
   image_url: string | null
   personal_note: string | null
   custom_fields?: string | null
+  details?: string | null
   created_at: string
   updated_at: string
 }
@@ -255,6 +257,7 @@ const ARTWORK_COLUMNS = `
   image_url,
   personal_note,
   custom_fields,
+  details,
   created_at,
   updated_at`
 
@@ -414,6 +417,7 @@ export function toArtwork(row: ArtworkRow): Artwork {
     imageUrl: row.image_url,
     personalNote: row.personal_note,
     customFields: parseArtworkCustomFields(row.custom_fields),
+    details: parseArtworkDetails(row.details),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })
@@ -1129,6 +1133,10 @@ export class SqliteMediaRepository {
         OR artist COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
         OR location COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
         OR exhibition COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        OR EXISTS (
+          SELECT 1 FROM json_each(artworks.details)
+          WHERE CAST(json_each.value AS TEXT) COLLATE NOCASE LIKE ${searchParameter} ESCAPE '\\'
+        )
       )`)
     }
 
@@ -1194,8 +1202,9 @@ export class SqliteMediaRepository {
          personal_note,
          custom_fields,
          created_at,
-         updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+         updated_at,
+         details
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         artwork.id,
         artwork.profileId,
@@ -1213,6 +1222,7 @@ export class SqliteMediaRepository {
         serializeArtworkCustomFields(artwork.customFields),
         artwork.createdAt,
         artwork.updatedAt,
+        serializeArtworkDetails(artwork.details),
       ],
     )
 
@@ -1252,7 +1262,8 @@ export class SqliteMediaRepository {
          image_url = $10,
          personal_note = $11,
          custom_fields = $12,
-         updated_at = $13
+         updated_at = $13,
+         details = $16
        WHERE id = $14 AND profile_id = $15`,
       [
         artwork.title,
@@ -1270,6 +1281,7 @@ export class SqliteMediaRepository {
         artwork.updatedAt,
         id,
         profileId,
+        serializeArtworkDetails(artwork.details),
       ],
     )
 

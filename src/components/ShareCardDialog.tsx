@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Select } from './Select.tsx'
 import { createPortal } from 'react-dom'
 import { formatNumber, t } from '../i18n/core.ts'
 import { useLanguage } from '../i18n/react.ts'
@@ -359,11 +360,18 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
                   <p className="field-hint">{t('C’est l’affiche en grand sur la carte.')}</p>
                   {!initialLibrary && choices.length > 1 && (
                     <div className="field">
-                      <label htmlFor="share-card-scope">{t('Contenu de la carte')}</label>
-                      <select id="share-card-scope" value={value} disabled={!library || busy} onChange={event => setValue(event.target.value)}>
-                        <option value={PROFILE_VALUE}>{t('Tout le profil')}</option>
-                        {choices.flatMap(choice => (choice.kind === 'library' ? [<option key={choice.library} value={choice.library}>{t(choice.label)}</option>] : []))}
-                      </select>
+                      <label id="share-card-scope-label" htmlFor="share-card-scope">{t('Contenu de la carte')}</label>
+                      <Select
+                        id="share-card-scope"
+                        labelledBy="share-card-scope-label"
+                        value={value}
+                        disabled={!library || busy}
+                        onChange={setValue}
+                        options={[
+                          { value: PROFILE_VALUE, label: t('Tout le profil') },
+                          ...choices.flatMap(choice => (choice.kind === 'library' ? [{ value: choice.library, label: t(choice.label) }] : [])),
+                        ]}
+                      />
                     </div>
                   )}
                   <div className="share-picker" role="radiogroup" aria-labelledby="share-step-title">

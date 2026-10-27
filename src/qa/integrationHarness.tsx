@@ -137,12 +137,12 @@ const artworks: Artwork[] = [
   {
     id: 'art-1', profileId, title: 'Nuit vacation', artist: 'Anonyme', year: 1890, form: 'peinture', location: 'Paris',
     exhibition: null, status: 'découverte', isFavorite: true, discoveredAt: '2021-09-23', imageUrl: null,
-    personalNote: 'Une œuvre sans visuel.', customFields: [], createdAt: timestamp('2021-09-23'), updatedAt: timestamp('2021-09-23'),
+    personalNote: 'Une œuvre sans visuel.', customFields: [], details: {}, createdAt: timestamp('2021-09-23'), updatedAt: timestamp('2021-09-23'),
   },
   {
     id: 'art-2', profileId, title: 'Le Jardin des délices', artist: 'Jérôme Bosch', year: 1490, form: 'peinture', location: null,
     exhibition: null, status: 'à découvrir', isFavorite: false, discoveredAt: null, imageUrl: null,
-    personalNote: null, customFields: [], createdAt: timestamp('2026-10-07'), updatedAt: timestamp('2026-10-07'),
+    personalNote: null, customFields: [], details: {}, createdAt: timestamp('2026-10-07'), updatedAt: timestamp('2026-10-07'),
   },
 ]
 

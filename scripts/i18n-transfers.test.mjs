@@ -98,9 +98,9 @@ try {
       assert.match(html, /aria-label="CSV import steps"/)
       assert.match(html, /Match the columns/)
       assert.match(html, /<b>Title<\/b>/)
-      assert.match(html, /<option value="Titre" selected="">Titre<\/option>/)
-      assert.match(html, /<option value="Note"/)
-      assert.match(html, /Colonne libre/)
+      // Liste déroulante Sylloge (27 octobre 2026) : fermée, elle ne montre que
+      // la colonne choisie, telle qu’écrite dans le fichier.
+      assert.match(html, /data-value="Titre"><span class="select-value">Titre<\/span>/)
       assert.match(html, /Do not import/)
       if (kind === 'series' || kind === 'anime') assert.match(html, /<b>Viewing start date<\/b>/)
       if (kind === 'books' || kind === 'mangas') assert.match(html, /<b>Reading start date<\/b>/)
@@ -168,9 +168,7 @@ try {
     assert.match(mapping, /Metadata retrieved later, not imported/)
     assert.match(mapping, /Column of the selected table/)
     assert.match(mapping, /Sylloge destination for Titre/)
-    assert.match(mapping, /<option value="title" selected="">Title<\/option>/)
-    assert.match(mapping, /<option value="rating">Rating<\/option>/)
-    assert.match(mapping, /<option value="personalNote">Personal note<\/option>/)
+    assert.match(mapping, /data-value="title"><span class="select-value">Title<\/span>/)
     assert.match(mapping, /Do not import/)
     assert.match(mapping, /Réalisateur/)
     assert.doesNotMatch(mapping, /Ne pas importer|Destination Sylloge de|Détecté dans votre fichier/)

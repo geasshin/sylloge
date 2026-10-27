@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, readFileSync as readRawFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync as readRawFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -2546,7 +2546,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
 
   const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
   assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format sylloge-library')
-  assert.equal(document.version, 5, 'Le document doit porter la version 5 (expérience du profil)')
+  assert.equal(document.version, 6, 'Le document doit porter la version 6 (champs propres aux formes d’art)')
 
   const serialized = serializeLibraryDocument(document)
   const preview = validateLibraryDocument(serialized)
@@ -3388,6 +3388,7 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     imageUrl: null,
     personalNote: null,
     customFields: [],
+    details: {},
   }, 'Une œuvre ajoutée est découverte, les champs facultatifs vides restent null')
 
   // 0.6.12 : les champs personnalisés nom → valeur sont normalisés (trim,
@@ -3508,7 +3509,13 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
   assert.equal(updatedAt, timestamp, 'La modification doit restituer son horodatage local')
   const update = calls.at(-1)
   assert.match(update.query, /WHERE id = \$14 AND profile_id = \$15/, 'La modification doit cibler l’œuvre et son profil (custom_fields ajouté en 0.6.12)')
-  assert.deepEqual(update.bindValues.slice(-2), ['artwork-local', 'default'], 'La modification doit rester isolée au profil courant')
+  assert.deepEqual(update.bindValues.slice(13, 15), ['artwork-local', 'default'], 'La modification doit rester isolée au profil courant')
+  // 27 octobre 2026 : les champs de forme suivent en $16, toujours un objet JSON.
+  assert.match(update.query, /details = \$16/, 'La modification doit écrire les champs de forme')
+  assert.equal(update.bindValues[15], '{}', 'Des champs de forme absents s’écrivent comme un objet vide')
+  const poemUpdate = await repository.updateArtwork('default', 'artwork-local', { ...input, details: { text: 'Vers un\n\n  Vers deux  ', collection: '  Alcools ', empty: '  ' } })
+  assert.equal(poemUpdate, timestamp)
+  assert.deepEqual(JSON.parse(calls.at(-1).bindValues[15]), { text: 'Vers un\n\n  Vers deux', collection: 'Alcools' }, 'Le poème garde ses strophes, les valeurs vides tombent')
 
   await repository.deleteArtwork('default', 'artwork-local')
   const deletion = calls.at(-1)
@@ -3570,6 +3577,7 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     imageUrl: null,
     personalNote: 'Souvenir personnel\nmultiligne.',
     customFields: [],
+    details: { process: 'Tirage argentique', series: 'Série d’été' },
     createdAt: timestamp,
     updatedAt: timestamp,
   }
@@ -4504,13 +4512,17 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(mainSource0619, /editBookId/, 'Modifier Livre doit réutiliser le formulaire intégré de la pop-up')
   assert.match(mainSource0619, /editGameId/, 'Modifier Jeu doit réutiliser le formulaire intégré de la pop-up')
   assert.match(mainSource0619, /editArtworkId/, 'Modifier Art doit réutiliser le formulaire intégré de la pop-up')
-  assert.match(stylesSource0619, /\.library-main \.artwork-card \.poster[\s\S]*?aspect-ratio: 16 \/ 10/, 'Les visuels Art doivent suivre le format 16:10')
+  // 27 octobre 2026 : la carte Art prend le format réel de son image (`--ar`),
+  // 16:10 ne reste que la valeur de repli avant la première mesure.
+  assert.match(stylesSource0619, /\.library-main \.artwork-card \.poster \{ aspect-ratio: var\(--ar, 16 \/ 10\); \}/, 'Les visuels Art doivent suivre le format de leur image')
   // Constat G3 (audit UX du 22/09/2026) : la grille Art est définie une seule
-  // fois, en colonnes fluides (auto-fill 240px) ; l'ancien bloc cinq colonnes
-  // et ses paliers morts ont été supprimés.
+  // fois et occupe toute la largeur. Depuis le 27 octobre 2026, ce sont des
+  // rangées justifiées : largeur et croissance proportionnelles au format.
   const defsArtworkGrid = (stylesSource0619.match(/\.library-main \.artwork-grid\s*\{/g) ?? []).length
   assert.ok(defsArtworkGrid >= 1, 'La grille Art doit être définie dans la feuille principale')
-  assert.match(stylesSource0619, /\.library-main \.artwork-grid\s*\{[^}]*repeat\(auto-fill, minmax\(240px, 1fr\)\)/, 'La grille Art doit occuper la largeur en colonnes fluides (auto-fill 240px)')
+  assert.match(stylesSource0619, /\.library-main \.artwork-grid\s*\{[^}]*display: flex;[^}]*flex-wrap: wrap;[^}]*width: 100%;/, 'La grille Art doit occuper la largeur en rangées qui se remplissent')
+  assert.match(stylesSource0619, /\.library-main \.artwork-grid > \.artwork-card \{[^}]*flex: var\(--ar\) 1 calc\(var\(--ar\) \* var\(--art-row\)\);/, 'Chaque carte Art grandit selon le format de son image')
+  assert.match(stylesSource0619, /\.library-main \.artwork-grid::after \{ content: ''; flex: 1000000 1 0; \}/, 'La dernière rangée Art ne s’étire pas')
 }
 
 // Jalon 0.6.20 — composition stable : l’avis remplit la colonne droite sous le
@@ -4831,8 +4843,12 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(stylesSourceArt, /\.poster\.artwork-visual \{ background: var\(--color-surface-muted\); \}/, 'Art : le visuel repose sur le fond neutre thémé')
   assert.match(stylesSourceArt, /\.poster\.artwork-visual img \{ object-fit: contain; \}/, 'Art : le visuel d’une œuvre n’est jamais rogné')
   assert.doesNotMatch(stylesSourceArt, /\.artwork-card \.poster img \{[^}]*object-fit: cover/, 'Art : aucune règle de carte ne doit rogner le visuel')
-  assert.match(mainSourceArt, /<Poster title=\{artwork\.title\} src=\{artwork\.imageUrl\} label="Visuel" className="artwork-visual" \/>/, 'Art : la carte utilise le visuel entier')
-  assert.match(artworkDetailSourceArt, /className="detail-poster artwork-visual"/, 'Art : la fiche utilise le visuel entier')
+  // 27 octobre 2026 : carte et fiche passent par ArtworkVisual, qui garde la
+  // classe artwork-visual et donne au cadre le format de l'image.
+  const artworkVisualSourceArt = readFileSync(new URL('../src/components/ArtworkVisual.tsx', import.meta.url), 'utf8')
+  assert.match(artworkVisualSourceArt, /className=\{`artwork-visual \$\{poem \? 'artwork-poem-page' : ''\} \$\{className\}`/, 'Art : le visuel partagé garde la classe du visuel entier')
+  assert.match(mainSourceArt, /<ArtworkVisual artwork=\{artwork\} frame=\{frame\} \/>/, 'Art : la carte utilise le visuel entier')
+  assert.match(artworkDetailSourceArt, /<ArtworkVisual artwork=\{artwork\} frame=\{frame\} className="detail-poster"/, 'Art : la fiche utilise le visuel entier')
   assert.match(artworkFormSourceArt, /className="form-poster-preview-lg artwork-visual"/, 'Art : l’aperçu d’ajout utilise le visuel entier')
 
   // Formulaire Art : Année et Exposition ne débordent plus de leur colonne.
@@ -4849,7 +4865,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   const stylesSourceBar = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
 
   // Liste déroulante accessible : bouton listbox, options sélectionnées, clavier complet.
-  assert.match(selectSource, /aria-haspopup="listbox"[\s\S]*?aria-expanded=\{open\}[\s\S]*?aria-controls=\{open \? listboxId : undefined\}[\s\S]*?aria-labelledby=\{`\$\{labelledBy\} \$\{id\}`\}/, 'Select : le bouton annonce sa liste, son état et son libellé associé')
+  assert.match(selectSource, /aria-haspopup="listbox"[\s\S]*?aria-expanded=\{open\}[\s\S]*?aria-controls=\{open \? listboxId : undefined\}[\s\S]*?aria-labelledby=\{labelledBy \? `\$\{labelledBy\} \$\{id\}` : undefined\}[\s\S]*?aria-label=\{labelledBy \? undefined : ariaLabel\}/, 'Select : le bouton annonce sa liste, son état et son libellé associé (ou son nom quand aucun libellé n’est visible)')
   assert.match(selectSource, /role="listbox"[\s\S]*?aria-labelledby=\{labelledBy\}[\s\S]*?aria-activedescendant=/, 'Select : la liste est étiquetée et annonce l’option active')
   assert.match(selectSource, /role="option"[\s\S]*?aria-selected=\{isSelected\}/, 'Select : chaque option expose son état sélectionné')
   for (const key of ["'ArrowDown'", "'ArrowUp'", "'Home'", "'End'", "'Enter'", "' '", "'Escape'", "'Tab'"]) {
@@ -4860,6 +4876,13 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(selectSource, /document\.addEventListener\('pointerdown'/, 'Select : un clic à l’extérieur ferme la liste')
   assert.match(selectSource, /window\.innerHeight - anchor\.bottom[\s\S]*?const openUp[\s\S]*?window\.innerWidth - VIEWPORT_MARGIN - width/, 'Select : la liste reste dans la fenêtre et s’ouvre vers le haut si la place manque')
   assert.doesNotMatch(viewBarSource, /<select\b/, 'Barre de vues : plus aucun menu système dans les panneaux')
+  // 27 octobre 2026 : toutes les listes déroulantes de l'application passent
+  // par Select.tsx — formulaires, imports, partage, langue compris.
+  for (const file of readdirSync(new URL('../src/', import.meta.url), { recursive: true })) {
+    if (!String(file).endsWith('.tsx')) continue
+    const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8')
+    assert.doesNotMatch(source, /<select\b/, `${file} : aucune liste déroulante système`)
+  }
   assert.ok((viewBarSource.match(/<Select\b/g) ?? []).length >= 3, 'Barre de vues : statut, note et filtre du médium passent par la liste Sylloge')
   assert.match(stylesSourceBar, /\.select-listbox \{[^}]*position: fixed;[^}]*background: var\(--color-surface\);[^}]*box-shadow: var\(--shadow-popover\);/, 'Select : la liste flottante reprend surface et ombre communes')
   assert.match(stylesSourceBar, /:where\(\.field input, \.field select, \.field textarea, \.search, \.view-bar-form-input, \.select-trigger,/, 'Select : le bouton reprend exactement le gabarit des champs')

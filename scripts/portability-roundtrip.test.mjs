@@ -32,7 +32,7 @@ const library = {
     rating: 0.5, isFavorite: true, playedAt: '2026-10-01', coverUrl: 'https://example.test/game.jpg', personalNote: text }],
   artworks: [{ ...identity('artwork'), artist: text, year: 2024, form: 'peinture', location: text,
     exhibition: text, status: 'à découvrir', isFavorite: true, discoveredAt: '2026-10-01',
-    imageUrl: 'https://example.test/art.jpg', personalNote: text, customFields: [{ name: 'Technique', value: text }] }],
+    imageUrl: 'https://example.test/art.jpg', personalNote: text, customFields: [{ name: 'Technique', value: text }], details: { text: 'Vers un\n\n    Vers deux', collection: 'Recueil 日本語' } }],
 }
 
 function importCsv(kind, contents) {
@@ -54,8 +54,12 @@ function represented(item, kind) {
   delete result.id
   delete result.profileId
   if (kind === 'books' || kind === 'mangas') result.quotes = result.quotes.map((quote) => quote.body)
-  // Art CSV v1 ne possède pas de colonne de champs libres ; JSON les conserve.
-  if (kind === 'artworks') delete result.customFields
+  // Art CSV v1 ne possède ni colonne de champs libres ni champs de forme ;
+  // JSON les conserve.
+  if (kind === 'artworks') {
+    delete result.customFields
+    delete result.details
+  }
   return result
 }
 
@@ -158,7 +162,7 @@ const customLibraries = [
 
 test('JSON v5 : les sept bibliothèques, les bibliothèques personnalisées et chaque champ personnel restent identiques', () => {
   const document = createLibraryDocument({ ...library, customLibraries }, timestamp)
-  assert.equal(document.version, 5)
+  assert.equal(document.version, 6)
   const result = validateLibraryDocument(serializeLibraryDocument(document))
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.document, document)
@@ -172,6 +176,8 @@ test('JSON v3 : des comics rangés dans Livres rejoignent la bibliothèque Comic
   // Un document v3 ne connaît ni les bibliothèques personnalisées ni l'expérience : le fixtures
   // doit retirer les deux, sinon la clé en trop est — à juste titre — refusée.
   delete legacy.experience
+  // Ni les champs de forme des œuvres, apparus en v6.
+  legacy.artworks = legacy.artworks.map(({ details: _details, ...artwork }) => artwork)
   const result = validateLibraryDocument(JSON.stringify(legacy))
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.document.books.map((entry) => entry.id), ['book'])

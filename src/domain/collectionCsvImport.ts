@@ -373,7 +373,9 @@ function parseSyllogeRow(
   }
   if (kind === 'anime') item.category = 'animation'
   if (kind === 'mangas') item.category = 'manga'
-  if (kind === 'artworks') item.customFields = [] // Aucun champ libre dans le contrat CSV v1.
+  // Aucun champ libre dans le contrat CSV v1, ni champ de forme : la ligne est
+  // validée comme une œuvre v3, `normalizeArtwork` lui donne des détails vides.
+  if (kind === 'artworks') item.customFields = []
   if (item.progressUpdatedAt !== undefined && item.progressUpdatedAt !== null && !isIsoUtc(String(item.progressUpdatedAt))) {
     errors.push({ path: `Ligne ${line}.${prefix}_progress_updated_at`, message: 'Un horodatage UTC ISO 8601 est attendu.' })
   }
@@ -503,6 +505,7 @@ function parseGenericRow(
     // une œuvre importée est découverte (0.6.17).
     status: 'découverte' as ArtworkFormValues['status'],
     customFields: [],
+    details: {},
   } satisfies ArtworkFormValues)
   if (!result.success) return formFailure(line, result.errors, errors)
   for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })

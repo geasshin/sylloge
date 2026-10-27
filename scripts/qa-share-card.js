@@ -302,7 +302,7 @@ async page => {
   await page.getByRole('dialog', { name: /Exporter/ }).getByRole('radio', { name: /Tout le profil/ }).check()
   await page.getByRole('dialog', { name: /Exporter/ }).getByRole('button', { name: /Image à partager/ }).click()
   await dialog().waitFor()
-  assert(await page.locator('#share-card-scope').inputValue() === 'profile', 'Export (tout le profil) › Image à partager : la carte s’ouvre sur le profil')
+  assert(await page.locator('#share-card-scope').getAttribute('data-value') === 'profile', 'Export (tout le profil) › Image à partager : la carte s’ouvre sur le profil')
   await closeDialog()
 
   // ── 9 bis. Réglages : portée au choix ; sur le profil, le choix d'office mêle les bibliothèques ──
@@ -312,8 +312,13 @@ async page => {
   await page.getByRole('button', { name: 'Partager mon profil', exact: true }).click()
   await dialog().waitFor()
   await canvas().waitFor()
-  assert(await page.locator('#share-card-scope').inputValue() === 'profile', 'Réglages : portée par défaut, tout le profil')
-  const options = await page.locator('#share-card-scope option').allInnerTexts()
+  assert(await page.locator('#share-card-scope').getAttribute('data-value') === 'profile', 'Réglages : portée par défaut, tout le profil')
+  // Liste déroulante Sylloge (27 octobre 2026) : on l’ouvre pour lire ses options, Échap ne ferme qu’elle.
+  await page.locator('#share-card-scope').click()
+  const options = await page.getByRole('listbox').locator('.select-option-label').allInnerTexts()
+  await page.keyboard.press('Escape')
+  await page.getByRole('listbox').waitFor({ state: 'detached' })
+  assert(await dialog().count() === 1, 'Échap dans la liste de portée ne ferme pas la carte')
   assert(JSON.stringify(options) === JSON.stringify(['Tout le profil', 'Films', 'Séries', 'Animation japonaise', 'Livres', 'Mangas', 'Jeux', 'Art']), `Portées : profil puis bibliothèques de base seulement (${options.join(', ')})`)
   const profileFavorites = await dialog().locator('.share-picker input[name="share-hero"]').count()
   assert(profileFavorites > favorites, `Le profil propose les coups de cœur de toutes les bibliothèques (${profileFavorites} > ${favorites})`)

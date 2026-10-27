@@ -98,7 +98,7 @@ try {
       [main.SeriesCard, 'series', { ...base, status: 'en cours', category: 'animation' }, '1 / 2 seasons'],
       [main.BookCard, 'book', { ...base, status: 'à lire', category: 'livre' }, '2 / 3 volumes'],
       [main.GameCard, 'game', { ...base, status: 'joué' }, 'Played'],
-      [main.ArtworkCard, 'artwork', { ...base, status: 'découverte', form: 'peinture' }, 'Painting'],
+      [main.ArtworkCard, 'artwork', { ...base, status: 'découverte', form: 'peinture', details: {} }, 'Painting'],
     ]
     for (const [Component, prop, record] of cases) Object.freeze(record)
     for (const [Component, prop, record, translated] of cases) {

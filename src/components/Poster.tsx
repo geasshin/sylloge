@@ -1,5 +1,5 @@
 import { t } from '../i18n/core.ts'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
 export type PosterLabel = 'Affiche' | 'Couverture' | 'Visuel'
 
@@ -46,9 +46,15 @@ type PosterProps = {
   label?: PosterLabel
   /** Présent → un bouton crayon apparaît au survol de l'affiche. */
   onEdit?: () => void
+  /** Image chargée : permet de lire son format réel (grille Art). */
+  onImageLoad?: (image: HTMLImageElement) => void
+  /** Style du cadre (format d'un visuel d'Art). */
+  style?: CSSProperties
+  /** Contenu de l'état « sans visuel » à la place du libellé et du titre. */
+  fallback?: ReactNode
 }
 
-export function Poster({ title, src, className = '', label = 'Affiche', onEdit }: PosterProps) {
+export function Poster({ title, src, className = '', label = 'Affiche', onEdit, onImageLoad, style, fallback }: PosterProps) {
   const [missing, setMissing] = useState(false)
 
   useEffect(() => {
@@ -61,14 +67,25 @@ export function Poster({ title, src, className = '', label = 'Affiche', onEdit }
   // Le crayon est positionné par le visuel lui-même (poster-editable) : il ne
   // dépend plus d'un conteneur ajouté ou oublié par chaque écran.
   return (
-    <div className={`poster ${onEdit ? 'poster-editable' : ''} ${className}`.replace(/\s+/g, ' ').trim()}>
+    <div className={`poster ${onEdit ? 'poster-editable' : ''} ${className}`.replace(/\s+/g, ' ').trim()} style={style}>
       {showFallback ? (
-        <div className="poster-fallback" role="img" aria-label={t(copy.unavailable, { title })}>
-          <span>{t(copy.empty)}</span>
-          <b>{title}</b>
+        <div className={fallback ? 'poster-fallback poster-fallback-custom' : 'poster-fallback'} role="img" aria-label={t(copy.unavailable, { title })}>
+          {fallback ?? (
+            <>
+              <span>{t(copy.empty)}</span>
+              <b>{title}</b>
+            </>
+          )}
         </div>
       ) : (
-        <img src={src} alt={t(copy.alt, { title })} loading="lazy" decoding="async" onError={() => setMissing(true)} />
+        <img
+          src={src}
+          alt={t(copy.alt, { title })}
+          loading="lazy"
+          decoding="async"
+          onError={() => setMissing(true)}
+          onLoad={onImageLoad ? (event) => onImageLoad(event.currentTarget) : undefined}
+        />
       )}
       {onEdit && (
         <button type="button" className="poster-edit-overlay" onClick={onEdit} aria-label={t(copy.editFor, { title })} title={posterEditTitle(label)}>

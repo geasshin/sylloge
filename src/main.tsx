@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from 'react'
 import { createRoot } from 'react-dom/client'
 import { t, tc, translateMessage, getLocale, formatNumber } from './i18n/core.ts'
 import { useLanguage } from './i18n/react.ts'
@@ -9,6 +9,7 @@ import { FocusDialog } from './components/FocusDialog.tsx'
 import { ImportHint } from './components/ImportHint.tsx'
 import { ArtworkDetail } from './components/ArtworkDetail.tsx'
 import { ArtworkForm } from './components/ArtworkForm.tsx'
+import { ArtworkVisual, useArtworkFrame } from './components/ArtworkVisual.tsx'
 import { FilmDetail } from './components/FilmDetail.tsx'
 import { FilmForm } from './components/FilmForm.tsx'
 import { BookDetail } from './components/BookDetail.tsx'
@@ -1557,10 +1558,13 @@ function ArtworkCard({ artwork, onOpen }: { artwork: Artwork; onOpen: () => void
   // L'Art n'a pas de note : la forme reste devant l'artiste, l'année occupe la
   // place que les autres médiums donnent à la note.
   const creator = [t(ARTWORK_FORM_LABELS[artwork.form]), artwork.artist].filter(Boolean).join(' · ')
+  // Grille éditoriale (27 octobre 2026) : la carte prend la largeur que lui
+  // donne le format de son image dans la rangée (`--ar`).
+  const frame = useArtworkFrame(artwork)
 
   return (
-    <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${artwork.title}`}>
-      <Poster title={artwork.title} src={artwork.imageUrl} label="Visuel" className="artwork-visual" />
+    <button className="film-card artwork-card" type="button" onClick={onOpen} aria-label={t`Ouvrir la fiche de ${artwork.title}`} style={{ '--ar': frame.ratio } as CSSProperties}>
+      <ArtworkVisual artwork={artwork} frame={frame} />
       <WorkCardFacts
         title={artwork.title}
         isFavorite={artwork.isFavorite}

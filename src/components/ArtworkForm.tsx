@@ -3,10 +3,16 @@ import { useState, type FormEvent } from 'react'
 import {
   ARTWORK_FORMS,
   ARTWORK_FORM_LABELS,
-  ARTWORK_STATUSES,
-  ARTWORK_STATUS_LABELS,
   type Artwork,
+  type ArtworkForm as ArtworkFormValue,
 } from '../domain/artwork.ts'
+import {
+  ARTWORK_DETAIL_LIMITS,
+  ARTWORK_FORM_PROFILES,
+  artworkDetailFieldsFor,
+  artworkShowsPlace,
+  type ArtworkDetailField,
+} from '../domain/artworkDetails.ts'
 import {
   EMPTY_ARTWORK_FORM,
   artworkToFormValues,
@@ -19,7 +25,9 @@ import { localToday } from '../domain/filmForm.ts'
 import { Poster } from './Poster.tsx'
 import { usePosterEditor } from './usePosterEditor.tsx'
 import { searchArtworkImages } from '../data/artImageSearch.ts'
-import { StatusSegmented, FavoriteHeart } from './VerdictControls.tsx'
+import { FavoriteHeart } from './VerdictControls.tsx'
+import { Select } from './Select.tsx'
+import { ArtFormIcon } from './ArtFormIcon.tsx'
 
 function previewableImageUrl(value: string): string | null {
   try {
@@ -73,6 +81,36 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
     }))
     setSaveError(null)
   }
+
+  const updateDetail = (key: string, value: string) => {
+    setValues((current) => ({ ...current, details: { ...current.details, [key]: value } }))
+    setSaveError(null)
+  }
+
+  const profile = ARTWORK_FORM_PROFILES[values.form]
+  const detailFields = artworkDetailFieldsFor(values.form, values.details)
+  const shortFields = detailFields.filter((field) => field.kind === 'text')
+  const longFields = detailFields.filter((field) => field.kind === 'poem')
+  const showsPlace = artworkShowsPlace(values.form, values.location, values.exhibition)
+  const formOptions = ARTWORK_FORMS.map((form) => ({
+    value: form,
+    label: t(ARTWORK_FORM_LABELS[form]),
+    description: t(ARTWORK_FORM_PROFILES[form].hint),
+    icon: <ArtFormIcon form={form} />,
+  }))
+
+  const detailInput = (field: ArtworkDetailField) => (
+    <div className="field" key={field.key}>
+      <label htmlFor={`artwork-detail-${field.key}`}>{tc('artworks', field.label)}</label>
+      <input
+        id={`artwork-detail-${field.key}`}
+        value={values.details[field.key] ?? ''}
+        maxLength={ARTWORK_DETAIL_LIMITS.text}
+        placeholder={field.placeholder ? t(field.placeholder) : undefined}
+        onChange={(event) => updateDetail(field.key, event.target.value)}
+      />
+    </div>
+  )
 
   const removeCustomField = (index: number) => {
     setValues((current) => ({
@@ -169,20 +207,19 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               pop-up, même logique que les autres médiums. */}
           <div className="secondary-fields editorial-open">
             <div className="form-row">
-              <div className="field">
-                <label htmlFor="artwork-form">{t("Catégorie")}</label>
-                <select
+              <div className="field artwork-form-field">
+                <label id="artwork-form-label" htmlFor="artwork-form">{t("Catégorie")}</label>
+                <Select
                   id="artwork-form"
-                  name="form"
+                  labelledBy="artwork-form-label"
+                  className="art-form-select"
                   value={values.form}
-                  onChange={(event) => update('form', event.target.value as ArtworkFormValues['form'])}
-                  aria-invalid={Boolean(errors.form)}
-                  aria-describedby={errors.form ? 'artwork-form-error' : undefined}
-                >
-                  {ARTWORK_FORMS.map((form) => (
-                    <option value={form} key={form}>{t(ARTWORK_FORM_LABELS[form])}</option>
-                  ))}
-                </select>
+                  options={formOptions}
+                  columns={2}
+                  onChange={(next) => update('form', next as ArtworkFormValue)}
+                  invalid={Boolean(errors.form)}
+                  describedBy={errors.form ? 'artwork-form-error' : undefined}
+                />
                 {errors.form && <p className="field-error" id="artwork-form-error">{translateMessage(errors.form)}</p>}
               </div>
               <div className="field field-year">
@@ -199,19 +236,45 @@ export function ArtworkForm({ artwork, embeddedInDialog = false, onCancel, onSav
               </div>
             </div>
             <div className="field">
-              <label htmlFor="artwork-artist">{t("Artiste")}</label>
+              {/* Le libellé suit la forme : Poète, Photographe ou Artiste. */}
+              <label htmlFor="artwork-artist">{tc('artworks', profile.creatorLabel)}</label>
               <input id="artwork-artist" value={values.artist} onChange={(event) => update('artist', event.target.value)} />
             </div>
-            <div className="form-row form-row-halves">
-              <div className="field">
-                <label htmlFor="artwork-location">{t("Lieu")}</label>
-                <input id="artwork-location" value={values.location} onChange={(event) => update('location', event.target.value)} />
+            {/* Champs propres à la forme (27 octobre 2026), deux par ligne ;
+                ceux d’une autre forme restent visibles tant qu’ils portent une valeur. */}
+            {shortFields.length > 0 && (
+              <div className="artwork-detail-grid">
+                {shortFields.map(detailInput)}
               </div>
-              <div className="field">
-                <label htmlFor="artwork-exhibition">{t("Exposition")}</label>
-                <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
+            )}
+            {longFields.map((field) => (
+              <div className="field artwork-poem-field" key={field.key}>
+                <label htmlFor={`artwork-detail-${field.key}`}>{tc('artworks', field.label)}</label>
+                <textarea
+                  id={`artwork-detail-${field.key}`}
+                  className="artwork-poem-input"
+                  rows={10}
+                  value={values.details[field.key] ?? ''}
+                  maxLength={ARTWORK_DETAIL_LIMITS.poem}
+                  placeholder={field.placeholder ? t(field.placeholder) : undefined}
+                  onChange={(event) => updateDetail(field.key, event.target.value)}
+                  spellCheck={false}
+                  autoCorrect="off"
+                />
               </div>
-            </div>
+            ))}
+            {showsPlace && (
+              <div className="form-row form-row-halves">
+                <div className="field">
+                  <label htmlFor="artwork-location">{t("Lieu")}</label>
+                  <input id="artwork-location" value={values.location} onChange={(event) => update('location', event.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="artwork-exhibition">{tc('artworks', profile.exhibitionLabel)}</label>
+                  <input id="artwork-exhibition" value={values.exhibition} onChange={(event) => update('exhibition', event.target.value)} />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Champs personnalisés nom → valeur (0.6.12) : autant de lignes

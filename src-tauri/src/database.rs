@@ -148,6 +148,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0024_series_single_library.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 25,
+            description: "artwork_details",
+            sql: include_str!("../migrations/0025_artwork_details.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -164,8 +170,11 @@ mod tests {
                 .expect("create in-memory SQLite database");
 
             let all = migrations();
-            let (last, previous) = all.split_last().expect("at least one migration");
-            for migration in previous {
+            let last = all
+                .iter()
+                .find(|migration| migration.version == 24)
+                .expect("migration 0024");
+            for migration in all.iter().filter(|migration| migration.version < 24) {
                 sqlx::raw_sql(migration.sql)
                     .execute(&mut connection)
                     .await
@@ -194,6 +203,73 @@ mod tests {
                     .await
                     .expect("read normalized category");
             assert_eq!(category, "série télé");
+        });
+    }
+
+    #[test]
+    fn artwork_details_migration_keeps_existing_artworks_and_guards_the_json_object() {
+        tauri::async_runtime::block_on(async {
+            let mut connection = SqliteConnection::connect("sqlite::memory:")
+                .await
+                .expect("create in-memory SQLite database");
+            let all = migrations();
+            for migration in all.iter().filter(|migration| migration.version < 25) {
+                sqlx::raw_sql(migration.sql)
+                    .execute(&mut connection)
+                    .await
+                    .expect("apply Sylloge migration before 0025");
+            }
+            sqlx::query("INSERT INTO profiles (id, name) VALUES ('p1', 'Test')")
+                .execute(&mut connection)
+                .await
+                .expect("seed profile");
+            sqlx::query(
+                "INSERT INTO artworks (id, profile_id, title, form, location, custom_fields)
+                 VALUES ('poeme', 'p1', 'Le Pont Mirabeau', 'poésie', 'Paris', '[{\"name\":\"Note\",\"value\":\"x\"}]')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed an artwork written before 0025");
+
+            let artwork_details = all
+                .iter()
+                .find(|migration| migration.version == 25)
+                .expect("migration 0025");
+            sqlx::raw_sql(artwork_details.sql)
+                .execute(&mut connection)
+                .await
+                .expect("apply artwork details migration");
+
+            let (title, location, custom_fields, details): (String, String, String, String) =
+                sqlx::query_as(
+                    "SELECT title, location, custom_fields, details FROM artworks WHERE id = 'poeme'",
+                )
+                .fetch_one(&mut connection)
+                .await
+                .expect("read migrated artwork");
+            assert_eq!(title, "Le Pont Mirabeau");
+            assert_eq!(location, "Paris");
+            assert_eq!(custom_fields, r#"[{"name":"Note","value":"x"}]"#);
+            assert_eq!(
+                details, "{}",
+                "an existing artwork receives an empty object"
+            );
+
+            sqlx::query("UPDATE artworks SET details = $1 WHERE id = 'poeme'")
+                .bind(r#"{"text":"Sous le pont Mirabeau coule la Seine"}"#)
+                .execute(&mut connection)
+                .await
+                .expect("a JSON object is accepted");
+            for invalid in ["[]", "null", "not json"] {
+                assert!(
+                    sqlx::query("UPDATE artworks SET details = $1 WHERE id = 'poeme'")
+                        .bind(invalid)
+                        .execute(&mut connection)
+                        .await
+                        .is_err(),
+                    "details must refuse {invalid}"
+                );
+            }
         });
     }
 

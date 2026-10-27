@@ -139,7 +139,7 @@ describe('Messages du domaine : document de bibliothèque v1–v5', () => {
     expectIn(validateLibraryDocument('pas du json').errors, 'Le fichier ne contient pas un JSON valide.', 'The file does not contain valid JSON.')
     expectIn(validateLibraryDocument('[]').errors, 'La racine du fichier doit être un objet JSON.', 'The file root must be a JSON object.')
     expectIn(errorsOf(document({ format: 'autre' })), 'Le format attendu est « sylloge-library ».', 'The expected format is “sylloge-library”.')
-    expectIn(errorsOf(document({ version: 0 })), 'Les versions 1 à 5 du document sont prises en charge.', 'Document versions 1 to 5 are supported.')
+    expectIn(errorsOf(document({ version: 0 })), 'Les versions 1 à 6 du document sont prises en charge.', 'Document versions 1 to 6 are supported.')
     expectIn(errorsOf(document({ version: 9 })), 'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.', 'This backup was created by a newer version of Sylloge. Update the app to restore it.')
   })
 
@@ -175,11 +175,13 @@ describe('Messages du domaine : document de bibliothèque v1–v5', () => {
     expectIn(errorsOf(document({ mangas: [{ ...book, category: 'manga', volumesRead: 4, volumesTotal: 2 }] })), 'Les tomes lus ne peuvent pas dépasser le total de tomes.', 'Read volumes cannot exceed the total number of volumes.')
     const game = { id: 'g1', profileId: 'profil-1', title: 'Jeu', developer: null, platform: null, year: null, status: 'à jouer', rating: null, isFavorite: false, playedAt: null, coverUrl: null, personalNote: null, createdAt: ISO, updatedAt: ISO }
     expectIn(errorsOf(document({ games: [{ ...game, status: 'inconnu' }] })), 'Le statut Jeu est inconnu.', 'The game status is unknown.')
-    const artwork = { id: 'a1', profileId: 'profil-1', title: 'Œuvre', artist: null, year: null, form: 'peinture', location: null, exhibition: null, status: 'découverte', isFavorite: false, discoveredAt: null, imageUrl: null, personalNote: null, customFields: [], createdAt: ISO, updatedAt: ISO }
+    const artwork = { id: 'a1', profileId: 'profil-1', title: 'Œuvre', artist: null, year: null, form: 'peinture', location: null, exhibition: null, status: 'découverte', isFavorite: false, discoveredAt: null, imageUrl: null, personalNote: null, customFields: [], details: {}, createdAt: ISO, updatedAt: ISO }
     expectIn(errorsOf(document({ artworks: [{ ...artwork, form: 'inconnue' }] })), 'La forme d’art est inconnue.', 'The art form is unknown.')
     expectIn(errorsOf(document({ artworks: [{ ...artwork, status: 'inconnu' }] })), 'Le statut Œuvre d’art est inconnu.', 'The artwork status is unknown.')
     expectIn(errorsOf(document({ artworks: [{ ...artwork, customFields: 'non' }] })), 'Les champs personnalisés doivent être un tableau.', 'Custom fields must be an array.')
     expectIn(errorsOf(document({ artworks: [{ ...artwork, customFields: ['non'] }] })), 'Ce champ personnalisé doit être un objet.', 'This custom field must be an object.')
+    expectIn(errorsOf(document({ artworks: [{ ...artwork, details: [] }] })), 'Les détails d’une œuvre doivent être un objet.', 'An artwork’s details must be an object.')
+    expectIn(errorsOf(document({ artworks: [{ ...artwork, details: { text: 3 } }] })), 'La valeur d’un détail doit être une chaîne.', 'A detail value must be a string.')
   })
 
   test('les messages de date et d’URL portent le libellé exact du champ', () => {
@@ -193,7 +195,7 @@ describe('Messages du domaine : document de bibliothèque v1–v5', () => {
     expectIn(errorsOf(document({ books: [book] })), 'L’URL de couverture doit être nulle ou commencer par http:// ou https://.', 'The cover URL must be null or start with http:// or https://.')
     const game = { id: 'g1', profileId: 'profil-1', title: 'Jeu', developer: null, platform: null, year: null, status: 'à jouer', rating: null, isFavorite: false, playedAt: '2026-13-01', coverUrl: null, personalNote: null, createdAt: ISO, updatedAt: ISO }
     expectIn(errorsOf(document({ games: [game] })), 'La date de jeu doit être nulle ou au format AAAA-MM-JJ.', 'The play date must be null or in YYYY-MM-DD format.')
-    const artwork = { id: 'a1', profileId: 'profil-1', title: 'Œuvre', artist: null, year: null, form: 'peinture', location: null, exhibition: null, status: 'découverte', isFavorite: false, discoveredAt: '2026-13-01', imageUrl: 'ftp://x', personalNote: null, customFields: [], createdAt: ISO, updatedAt: ISO }
+    const artwork = { id: 'a1', profileId: 'profil-1', title: 'Œuvre', artist: null, year: null, form: 'peinture', location: null, exhibition: null, status: 'découverte', isFavorite: false, discoveredAt: '2026-13-01', imageUrl: 'ftp://x', personalNote: null, customFields: [], details: {}, createdAt: ISO, updatedAt: ISO }
     expectIn(errorsOf(document({ artworks: [artwork] })), 'La date de découverte doit être nulle ou au format AAAA-MM-JJ.', 'The discovery date must be null or in YYYY-MM-DD format.')
     expectIn(errorsOf(document({ artworks: [artwork] })), 'L’URL du visuel doit être nulle ou commencer par http:// ou https://.', 'The image URL must be null or start with http:// or https://.')
   })

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -33,16 +34,17 @@ try {
     const html = render(GeneralSettings, generalProps)
     assert.match(html, /Langue/)
     assert.match(html, /Français/)
-    assert.match(html, /English/)
-    assert.match(html, /<select[^>]+aria-label="Langue de l’application"/)
+    assert.match(html, /data-value=\"fr\"/, 'La langue active est celle du bouton ; English reste dans la liste (voir plus bas)')
+    // Liste déroulante Sylloge (27 octobre 2026) : un bouton étiqueté qui ouvre la liste.
+    assert.match(html, /<button[^>]+aria-haspopup="listbox"[^>]+aria-label="Langue de l’application"/)
   })
   const i18n = await server.ssrLoadModule('/src/i18n/core.ts')
   const { Onboarding } = await server.ssrLoadModule('/src/components/Onboarding.tsx')
   await test('Le premier écran propose le choix de langue avant la création d’un profil', () => {
     i18n.setLanguage('en')
     const html = render(Onboarding, { themePreference: 'system', onThemePreferenceChange: noop, onProfileReady: noop })
-    assert.match(html, /<select[^>]+aria-label="Application language"/)
-    assert.match(html, /<option[^>]*value="en"[^>]*selected=""[^>]*>English<\/option>/)
+    assert.match(html, /<button[^>]+aria-haspopup="listbox"[^>]+aria-label="Application language"[^>]+data-value="en"/)
+    assert.match(html, /<span class="select-value" lang="en">English<\/span>/)
     assert.match(html, /value=""/)
     i18n.setLanguage('fr')
   })
@@ -258,24 +260,24 @@ try {
   })
 
   const { LanguageSelect } = await server.ssrLoadModule('/src/i18n/LanguageSelect.tsx')
-  await test('Le sélecteur de langue reste un contrôle natif étiqueté, et la langue ne recrée pas le formulaire', () => {
+  await test('Le sélecteur de langue reste un contrôle étiqueté, et la langue ne recrée pas le formulaire', () => {
+    // Liste déroulante Sylloge (27 octobre 2026) au lieu du menu système : le
+    // bouton porte le nom accessible et la langue choisie, écrite dans sa langue.
     i18n.setLanguage('en')
     try {
       const html = render(LanguageSelect)
-      assert.match(html, /^<select[^>]*aria-label="Application language"/)
+      assert.match(html, /^<div class="select language-select"><button[^>]*aria-haspopup="listbox"/)
       assert.match(html, /aria-label="Application language"/)
-      assert.doesNotMatch(html, /tabindex="-1"|aria-hidden="true"|disabled/)
-      const french = html.match(/<option[^>]*value="fr"[^>]*>Français<\/option>/)
-      const english = html.match(/<option[^>]*value="en"[^>]*>English<\/option>/)
-      assert.ok(french && english, 'Les deux langues restent proposées, dans leur propre langue')
-      assert.match(english[0], /lang="en"/)
-      assert.match(english[0], /selected=""/)
-      assert.match(french[0], /lang="fr"/)
-      assert.doesNotMatch(french[0], /selected=""/)
+      assert.match(html, /data-value="en"/)
+      assert.doesNotMatch(html, /tabindex="-1"|aria-hidden="true"[^>]*>English|disabled/)
+      assert.match(html, /<span class="select-value" lang="en">English<\/span>/)
     } finally { i18n.setLanguage('fr') }
     const french = render(LanguageSelect)
-    const selected = french.match(/<option[^>]*value="fr"[^>]*>Français<\/option>/)[0]
-    assert.match(selected, /selected=""/)
+    assert.match(french, /data-value="fr"/)
+    assert.match(french, /<span class="select-value" lang="fr">Français<\/span>/)
+    const source = readFileSync(new URL('../src/i18n/LanguageSelect.tsx', import.meta.url), 'utf8')
+    assert.match(source, /\{ value: 'fr', label: 'Français', lang: 'fr' \}/, 'Français reste proposé, écrit en français')
+    assert.match(source, /\{ value: 'en', label: 'English', lang: 'en' \}/, 'English reste proposé, écrit en anglais')
     // Même arbre, même champ : seul le texte change d’une langue à l’autre.
     const nameField = html => html.match(/<input[^>]*autoComplete="nickname"[^>]*\/>/)[0].replace(/ placeholder="[^"]*"/, '')
     i18n.setLanguage('en')

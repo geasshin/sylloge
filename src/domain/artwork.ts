@@ -1,3 +1,5 @@
+import { normalizeArtworkDetails, type ArtworkDetails } from './artworkDetails.ts'
+
 export const ARTWORK_FORMS = [
   'peinture',
   'sculpture',
@@ -49,6 +51,8 @@ export type Artwork = {
   personalNote: string | null
   /** Champs libres « nom → valeur » (0.6.12), ordre de saisie conservé. */
   customFields: ArtworkCustomField[]
+  /** Champs propres à la forme (27 octobre 2026) : texte du poème, recueil, technique… */
+  details: ArtworkDetails
   createdAt: string
   updatedAt: string
 }
@@ -73,6 +77,8 @@ export function normalizeArtwork(artwork: Artwork): Artwork {
     discoveredAt: emptyOptionalTextToNull(artwork.discoveredAt),
     imageUrl: emptyOptionalTextToNull(artwork.imageUrl),
     personalNote: emptyOptionalTextToNull(artwork.personalNote),
+    // Une œuvre lue d'un document v1 à v5 n'a pas encore de détails.
+    details: normalizeArtworkDetails(artwork.details ?? {}),
   }
 }
 

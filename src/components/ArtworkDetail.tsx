@@ -4,8 +4,9 @@ import {
   ARTWORK_STATUS_LABELS,
   type Artwork,
 } from '../domain/artwork.ts'
+import { ARTWORK_FORM_PROFILES, artworkDetailFieldsFor } from '../domain/artworkDetails.ts'
 import { t, tc, formatDate, translateMessage } from '../i18n/core.ts'
-import { Poster } from './Poster.tsx'
+import { ArtworkVisual, useArtworkFrame } from './ArtworkVisual.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { searchArtworkImages } from '../data/artImageSearch.ts'
 import { StatusBadge } from './VerdictControls.tsx'
@@ -26,6 +27,11 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [posterDialogOpen, setPosterDialogOpen] = useState(false)
+  const frame = useArtworkFrame(artwork)
+  const profile = ARTWORK_FORM_PROFILES[artwork.form]
+  const detailFields = artworkDetailFieldsFor(artwork.form, artwork.details)
+  const factFields = detailFields.filter((field) => field.kind === 'text' && artwork.details[field.key])
+  const poem = artwork.details.text
 
   const deleteArtwork = async () => {
     setDeleting(true)
@@ -63,7 +69,8 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
       <article className="detail-layout">
         <div className="detail-side">
           <div className="poster-container detail-poster-wrap">
-            <Poster title={artwork.title} src={artwork.imageUrl} className="detail-poster artwork-visual" label="Visuel" onEdit={onImageEdit ? () => setPosterDialogOpen(true) : undefined} />
+            {/* Le visuel garde le format de son image (27 octobre 2026). */}
+            <ArtworkVisual artwork={artwork} frame={frame} className="detail-poster" excerptLines={16} onEdit={onImageEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
           <div className="detail-status">
             <StatusBadge status={artwork.status} labels={ARTWORK_STATUS_LABELS} />
@@ -86,7 +93,7 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
 
           <dl className="detail-facts">
             {artwork.artist && (
-              <div><dt>{t("Artiste")}</dt><dd>{artwork.artist}</dd></div>
+              <div><dt>{tc('artworks', profile.creatorLabel)}</dt><dd>{artwork.artist}</dd></div>
             )}
             {artwork.year !== null && (
               <div><dt>{t("Année")}</dt><dd>{artwork.year}</dd></div>
@@ -95,8 +102,12 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
               <div><dt>{t("Lieu")}</dt><dd>{artwork.location}</dd></div>
             )}
             {artwork.exhibition && (
-              <div><dt>{t("Exposition")}</dt><dd>{artwork.exhibition}</dd></div>
+              <div><dt>{tc('artworks', profile.exhibitionLabel)}</dt><dd>{artwork.exhibition}</dd></div>
             )}
+            {/* Champs propres à la forme : technique, dimensions, recueil… */}
+            {factFields.map((field) => (
+              <div key={field.key}><dt>{tc('artworks', field.label)}</dt><dd>{artwork.details[field.key]}</dd></div>
+            ))}
             {artwork.discoveredAt && (
               <div><dt>{tc('artworks', "Date de découverte")}</dt><dd>{formatDate(artwork.discoveredAt, { dateStyle: 'long' })}</dd></div>
             )}
@@ -116,6 +127,14 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
               <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
             )}
           </section>
+
+          {/* Le poème se lit en entier, vers et strophes conservés. */}
+          {poem && (
+            <section className="quotes-section artwork-poem" aria-labelledby="artwork-poem-title">
+              <h2 id="artwork-poem-title">{tc('artworks', 'Poème')}</h2>
+              <blockquote className="artwork-poem-text">{poem}</blockquote>
+            </section>
+          )}
         </div>
       </article>
 

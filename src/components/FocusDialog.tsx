@@ -25,6 +25,10 @@ export function useDialogFocus(
     })
     const keepFocusInDialog = (event: KeyboardEvent) => {
       if (!isTopDialog()) return
+      // Une liste déroulante ouverte dans la fenêtre (Select.tsx) garde son
+      // clavier : Échap ne ferme qu'elle, Tab la referme. Cet écouteur en
+      // capture passerait sinon avant elle et fermerait toute la fenêtre.
+      if (event.target instanceof Element && event.target.closest('[role="listbox"]') && dialog.contains(event.target)) return
       const { onClose } = callbacksRef.current
       const closeDisabled = callbacksRef.current.closeDisabled || Boolean(dialog.querySelector('button[type="submit"]:disabled'))
       if (event.key === 'Escape') {

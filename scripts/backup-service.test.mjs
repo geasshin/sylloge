@@ -48,7 +48,7 @@ const library = {
     rating: 0.5, isFavorite: true, playedAt: '2026-10-01', coverUrl: 'https://example.invalid/game.jpg', personalNote: text }],
   artworks: [{ ...identity('artwork'), artist: text, year: 2024, form: 'peinture', location: text,
     exhibition: text, status: 'à découvrir', isFavorite: true, discoveredAt: '2026-10-01',
-    imageUrl: 'https://example.invalid/art.jpg', personalNote: text, customFields: [{ name: 'Technique', value: text }] }],
+    imageUrl: 'https://example.invalid/art.jpg', personalNote: text, customFields: [{ name: 'Technique', value: text }], details: { text: 'Vers un\n\n    Vers deux', collection: 'Recueil 日本語' } }],
   // Bibliothèques personnalisées (v4) : une avec citations, une avec champs propres.
   customLibraries: [
     { libraryId: 'comics', position: 0, addedAt: timestamp, entries: [custom('comic', { format: 'Bande dessinée', artist: text }, [
@@ -88,7 +88,7 @@ function harness({ loadLibrary = async () => structuredClone(library), now = () 
 function assertSevenSections(contents, expected = library, exportedAt = timestamp) {
   const document = JSON.parse(contents)
   assert.equal(document.format, 'sylloge-library')
-  assert.equal(document.version, 5)
+  assert.equal(document.version, 6)
   assert.equal(document.exportedAt, exportedAt)
   assert.deepEqual(document.profile, expected.profile)
   // v5 : le bloc experience est toujours écrit, même vide — il ne dépend pas de l'appelant.
