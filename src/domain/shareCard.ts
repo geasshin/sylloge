@@ -81,7 +81,7 @@ export type ShareCardModel = {
   titles: { favorites: string }
   /** Le héros en premier, puis les autres coups de cœur choisis. */
   sections: { favorites: ShareItem[] }
-  /** Les personnes mises en avant sous les affiches (réalisateur, acteurs, auteur, studio, personnages) ; souvent aucune. */
+  /** Les personnes mises en avant sous les affiches (réalisateur, acteurs, auteur, studio) ; souvent aucune. */
   people: ShareCardPerson[]
   /** Rien à montrer : aucun coup de cœur. */
   isEmpty: boolean
@@ -291,10 +291,10 @@ export function buildShareCard(items: readonly ShareItem[], scope: ShareScope, p
       .sort((a, b) => orderOf(a.library) - orderOf(b.library))
   }
 
-  // Seules les personnes que la portée propose sont reprises (rien sur l'art). Sur le profil, la légende suit la
-  // bibliothèque de chaque personne ; sur une bibliothèque, c'est la sienne.
+  // Seules les personnes que la portée propose sont reprises (rien sur les séries, l'animation et l'art). Sur le
+  // profil, la légende suit la bibliothèque de chaque personne ; sur une bibliothèque, c'est la sienne.
   const offered = peopleOptionsFor(scope)
-  const people = orderPeople((options.people ?? []).filter(person => (person.role === 'character' ? offered.characters : offered.roles.includes(person.role))))
+  const people = orderPeople((options.people ?? []).filter(person => offered.includes(person.role)))
     .slice(0, MAX_SHARE_PEOPLE)
     .map(person => ({ ...person, caption: personCaption(person, scope.kind === 'library' ? scope.library : 'books') }))
 

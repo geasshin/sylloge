@@ -57,6 +57,38 @@ const FILMS: FilmSeed[] = [
   ['Le Mépris', 'Jean-Luc Godard', 1963, 'terminé', 4, 0, 320, true],
 ]
 
+// ─── Récapitulatif de l'année : une année calibrée ──────────────────────────
+
+/**
+ * `count` films terminés, tous datés de l'année 2026, sans visuel ni note. La recette de la proposition
+ * du récapitulatif s'en sert pour franchir — ou non — le seuil de vingt œuvres datées : dates fixes,
+ * donc stables quelle que soit la date de la machine.
+ */
+export function seedRecapFilms(count: number): Row[] {
+  return Array.from({ length: count }, (_, index) => {
+    const watched = new Date(Date.UTC(2026, 1, 1 + index)).toISOString().slice(0, 10)
+    return {
+      id: `film-recap-${index + 1}`,
+      profile_id: QA_PROFILE_ID,
+      title: `Film de recette ${index + 1}`,
+      original_title: null,
+      year: 2026,
+      status: 'terminé',
+      is_favorite: 0,
+      rating: null,
+      watched_at: watched,
+      personal_note: null,
+      director: 'Réalisation de recette',
+      summary: null,
+      provider_name: null,
+      provider_id: null,
+      poster_url: null,
+      created_at: `${watched}T09:00:00.000Z`,
+      updated_at: `${watched}T20:00:00.000Z`,
+    }
+  })
+}
+
 /** Films rattachés à une fiche TMDB factice (cache local simulé). */
 const TMDB_FILMS = new Set(['Anatomie d’une chute', 'Perfect Days', 'Aftersun', 'In the Mood for Love', 'Mulholland Drive', 'Drive My Car'])
 

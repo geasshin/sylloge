@@ -52,6 +52,11 @@ const recap: Readonly<Record<string, string>> = {
   "Récapitulatif de l’année": "Year in review",
   "Huit visuels pour revoir votre année : les chiffres, le rythme, votre palmarès, vos mieux notées, vos notes, le temps long, vos habitudes et vos découvertes. Chaque visuel s’enregistre en standard 4:5 ou en story 9:16. Rien n’est envoyé en ligne.": "Eight visuals to look back on your year: the numbers, the pace, your highlights, your highest rated, your ratings, the long haul, your habits and your discoveries. Each visual saves in 4:5 standard or 9:16 story. Nothing is sent online.",
   "L’année en cours s’ouvre le 10 décembre ; avant, le récapitulatif montre l’année précédente.": "The current year opens on 10 December; before that, the recap shows the previous year.",
+  // La proposition automatique de décembre-janvier (src/components/YearRecapOffer.tsx).
+  "Votre année {year} dans Sylloge": "Your {year} in Sylloge",
+  "{count} œuvres terminées en {year} : votre récapitulatif est prêt.": "{count} works finished in {year}: your year in review is ready.",
+  "Voir mon récapitulatif": "See my year in review",
+  "Il reste disponible dans Paramètres › Récapitulatif de l’année.": "It stays available in Settings › Year in review.",
 }
 
 export default recap

@@ -4,6 +4,17 @@ import type { SavedView } from './savedViews.ts'
 /** Deux bibliothèques d’interface, une table series et ses catégories inchangées. */
 export type SeriesLibraryKey = 'series' | 'anime'
 
+/**
+ * Les deux bibliothèques d’une fiche, dans l’ordre du choix affiché au
+ * formulaire. Le libellé reste en français ici : il est traduit au rendu.
+ */
+export const SERIES_LIBRARIES: readonly SeriesLibraryKey[] = ['series', 'anime']
+
+export const SERIES_LIBRARY_LABELS: Record<SeriesLibraryKey, string> = {
+  series: 'Séries',
+  anime: 'Animation japonaise',
+}
+
 /** Toutes les anciennes fiches animation rejoignent Animation japonaise. */
 export function seriesLibraryForCategory(category: SeriesCategory): SeriesLibraryKey {
   return category === 'animation' ? 'anime' : 'series'

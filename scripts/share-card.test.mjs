@@ -313,13 +313,12 @@ test('Pastille de bibliothèque : un nom au singulier pour chacune des sept, pou
   assert.equal(shareLibraryKind('music'), 'Musique', 'une bibliothèque ajoutée reprend son nom')
 })
 
-test('Profil : les personnes choisies sont reprises avec la légende de leur bibliothèque, dans l’ordre réalisateur → auteur → studio → personnage', () => {
+test('Profil : les personnes choisies sont reprises avec la légende de leur bibliothèque, dans l’ordre réalisateur → auteur → studio', () => {
   const library = emptyLibrary()
   library.films = [film('f1', { isFavorite: true, rating: 5 })]
   const person = (role, name, extra = {}) => ({ id: `${role}:${name}`, role, name, count: 2, portraitUrl: null, ...extra })
   const card = build(collectShareItems(library), { kind: 'profile' }, {
     people: [
-      person('character', 'Jo March'),
       person('studio', 'Nintendo', { library: 'games' }),
       person('author', 'Ursula Le Guin', { library: 'books' }),
       person('author', 'Eiichiro Oda', { library: 'mangas' }),
@@ -331,7 +330,6 @@ test('Profil : les personnes choisies sont reprises avec la légende de leur bib
     ['Ursula Le Guin', 'Auteur · {count} livres'],
     ['Eiichiro Oda', 'Auteur · {count} mangas'],
     ['Nintendo', 'Studio · {count} jeux'],
-    ['Jo March', 'Personnage préféré'],
   ])
 })
 

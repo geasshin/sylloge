@@ -11,6 +11,7 @@ mod navigation;
 mod openlibrary;
 mod portability;
 mod profiles;
+mod series;
 mod share_images;
 mod tmdb;
 mod updater;
@@ -87,6 +88,7 @@ pub fn run() {
             books::create_book_atomically,
             books::update_book_atomically,
             books::delete_book_atomically,
+            series::move_series_library,
             custom_entries::create_custom_entry_atomically,
             custom_entries::update_custom_entry_atomically,
             custom_entries::delete_custom_entry_atomically,

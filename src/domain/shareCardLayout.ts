@@ -9,7 +9,7 @@
 //   - le titre (bibliothèque ou profil), avec pour un profil la ligne « terminés par bibliothèque » ;
 //   - les coups de cœur : l'œuvre mise en avant en grande affiche (le héros), et à sa droite les autres,
 //     en grille sur toute la hauteur du héros ;
-//   - les personnes mises en avant (réalisateur, acteurs, auteur, studio, personnages), en une rangée de
+//   - les personnes mises en avant (réalisateur, acteurs, auteur, studio), en une rangée de
 //     portraits ronds, quand il y en a ;
 //   - les chiffres, sur une seule rangée sous les affiches.
 // Le héros est aussi grand que la hauteur disponible le permet ; tout le reste s'y accorde.

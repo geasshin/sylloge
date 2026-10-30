@@ -21,6 +21,15 @@ export const RECAP_LIBRARIES: readonly ShareLibraryKey[] = ['films', 'series', '
 /** Jour d'ouverture du récapitulatif (mois 12 = décembre, indexé à partir de 0). */
 export const RECAP_OPENS_ON = { month: 11, day: 10 } as const
 
+/** Dernier jour de la fenêtre de proposition (mois 1 = janvier, indexé à partir de 0). */
+export const RECAP_OFFER_CLOSES_ON = { month: 0, day: 31 } as const
+
+/**
+ * Le seuil d'une année qui mérite un bilan : vingt œuvres datées. En dessous, un profil ouvert depuis
+ * trois semaines, ou une année presque vide, n'a rien à raconter — décision d'Aurélien, 30 octobre 2026.
+ */
+export const RECAP_MIN_ITEMS = 20
+
 /**
  * Les étapes du récapitulatif, dans l'ordre de lecture : l'ouverture par les chiffres, l'année qui
  * s'écoule, le palmarès, les mieux notées, la façon de noter, le temps long, les habitudes, les découvertes.
@@ -375,6 +384,39 @@ export function recapYearFor(now: Date): number {
 /** L'année est-elle ouverte à la consultation pour cette date ? */
 export function recapIsOpen(year: number, now: Date): boolean {
   return year <= recapYearFor(now)
+}
+
+export type RecapOfferInput = {
+  /** Tout ce que le profil a enregistré, aplati (voir `collectShareItems`). */
+  items: readonly ShareItem[]
+  now: Date
+  /** L'année déjà proposée sur cet appareil pour ce profil, ou `null`. */
+  lastOfferedYear: number | null
+}
+
+/**
+ * La fenêtre où le récapitulatif se propose de lui-même : du 10 décembre de l'année au 31 janvier
+ * suivant, inclus. En mars, le bilan de l'an passé ne se propose plus : la fenêtre est passée.
+ */
+export function recapOfferIsOpen(year: number, now: Date): boolean {
+  const calendarYear = now.getFullYear()
+  if (now.getMonth() === RECAP_OPENS_ON.month) return calendarYear === year && now.getDate() >= RECAP_OPENS_ON.day
+  if (now.getMonth() === RECAP_OFFER_CLOSES_ON.month) return calendarYear === year + 1
+  return false
+}
+
+/**
+ * L'année que la petite fenêtre d'ouverture propose, ou `null`. Trois conditions, toutes nécessaires :
+ * la fenêtre décembre-janvier est ouverte, au moins `RECAP_MIN_ITEMS` œuvres sont datées de cette
+ * année-là (exactement ce que compte le récapitulatif), et elle n'a pas déjà été proposée sur cet
+ * appareil. Le seuil suffit à écarter un nouvel arrivant : aucune ancienneté ne s'y ajoute, car un
+ * historique importé mérite aussi son bilan.
+ */
+export function recapOfferFor({ items, now, lastOfferedYear }: RecapOfferInput): number | null {
+  const year = recapYearFor(now)
+  if (lastOfferedYear === year) return null
+  if (!recapOfferIsOpen(year, now)) return null
+  return recapItems(items, year).length >= RECAP_MIN_ITEMS ? year : null
 }
 
 /** Nom de fichier d'un visuel : ASCII seul, daté, sans accent ni espace. */

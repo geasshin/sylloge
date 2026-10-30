@@ -1,19 +1,19 @@
 // Cartes à partager : les personnes mises en avant sous les affiches.
 //
 // Selon la bibliothèque : le réalisateur et les acteurs les plus vus (films), l'auteur le plus lu (livres,
-// mangas), le studio le plus joué (jeux), et pour toutes sauf l'art les personnages préférés, saisis à la main.
+// mangas), le studio le plus joué (jeux). Rien ne se saisit à la main : seules les fiches proposent.
 // Logique pure : elle compte sur des données déjà lues (fiches, distribution du cache TMDB) et ne lit ni
 // n'écrit rien. Les noms de personnes sont des données personnelles ou fournisseur : jamais traduits.
 import type { ShareItem, ShareLibraryKey, ShareScope } from './shareCard.ts'
 
-export type PersonRole = 'director' | 'actor' | 'author' | 'studio' | 'character'
+export type PersonRole = 'director' | 'actor' | 'author' | 'studio'
 
 export type SharePerson = {
   /** `rôle:nom normalisé`, unique pour une personne et un rôle. */
   id: string
   role: PersonRole
   name: string
-  /** Nombre d'œuvres terminées où la personne figure ; 0 pour un personnage. */
+  /** Nombre d'œuvres terminées où la personne figure. */
   count: number
   /** Photo fournie par TMDB (acteurs, réalisateurs) ; absente : la carte dessine les initiales. */
   portraitUrl: string | null
@@ -32,27 +32,24 @@ export const MAX_SHARE_PEOPLE = 5
 const MAX_DIRECTORS = 3
 const MAX_ACTORS = 6
 const MAX_CREATORS = 3
-const MAX_NAME_LENGTH = 40
-const ROLE_ORDER: readonly PersonRole[] = ['director', 'actor', 'author', 'studio', 'character']
+const ROLE_ORDER: readonly PersonRole[] = ['director', 'actor', 'author', 'studio']
 /** Combien de propositions sont cochées d'office, par rôle. */
-const DEFAULT_PER_ROLE: Record<PersonRole, number> = { director: 1, actor: 3, author: 1, studio: 1, character: 0 }
+const DEFAULT_PER_ROLE: Record<PersonRole, number> = { director: 1, actor: 3, author: 1, studio: 1 }
 
 const collapse = (name: string) => name.trim().replace(/\s+/g, ' ')
 const keyOf = (name: string) => collapse(name).toLocaleLowerCase('fr')
 const byCountThenName = (a: SharePerson, b: SharePerson) => b.count - a.count || a.name.localeCompare(b.name, 'fr')
 
-/** Ce que chaque bibliothèque propose : des personnes à compter, et des personnages à saisir. */
-export function peopleOptionsFor(scope: ShareScope): { roles: PersonRole[]; characters: boolean } {
-  // Le profil réunit tout : un réalisateur, des auteurs, un studio, et les personnages de n'importe quelle œuvre.
-  if (scope.kind === 'profile') return { roles: ['director', 'actor', 'author', 'studio'], characters: true }
+/** Ce que chaque bibliothèque propose, dans l'ordre où la carte les montre ; aucune ne demande de saisie. */
+export function peopleOptionsFor(scope: ShareScope): PersonRole[] {
+  // Le profil réunit tout : un réalisateur, des auteurs, un studio.
+  if (scope.kind === 'profile') return ['director', 'actor', 'author', 'studio']
   switch (scope.library) {
-    case 'films': return { roles: ['director', 'actor'], characters: true }
-    case 'series':
-    case 'anime': return { roles: [], characters: true }
+    case 'films': return ['director', 'actor']
     case 'books':
-    case 'mangas': return { roles: ['author'], characters: true }
-    case 'games': return { roles: ['studio'], characters: true }
-    default: return { roles: [], characters: false }
+    case 'mangas': return ['author']
+    case 'games': return ['studio']
+    default: return []
   }
 }
 
@@ -153,7 +150,7 @@ export function defaultPeopleIds(candidates: readonly SharePerson[], spread = fa
     }
     return ids
   }
-  const taken: Record<PersonRole, number> = { director: 0, actor: 0, author: 0, studio: 0, character: 0 }
+  const taken: Record<PersonRole, number> = { director: 0, actor: 0, author: 0, studio: 0 }
   const ids: string[] = []
   for (const person of candidates) {
     if (taken[person.role] >= DEFAULT_PER_ROLE[person.role]) continue
@@ -163,21 +160,7 @@ export function defaultPeopleIds(candidates: readonly SharePerson[], spread = fa
   return ids
 }
 
-/** Les personnages saisis : espaces nettoyés, vides et doublons écartés, quarante signes, cinq au plus. */
-export function normalizeCharacters(names: readonly string[]): SharePerson[] {
-  const seen = new Set<string>()
-  const people: SharePerson[] = []
-  for (const raw of names) {
-    const name = collapse(raw).slice(0, MAX_NAME_LENGTH).trim()
-    const key = keyOf(name)
-    if (name === '' || seen.has(key)) continue
-    seen.add(key)
-    people.push({ id: `character:${key}`, role: 'character', name, count: 0, portraitUrl: null })
-  }
-  return people.slice(0, MAX_SHARE_PEOPLE)
-}
-
-/** L'ordre sur la carte : réalisateur, acteurs, auteur ou studio, puis personnages ; cinq au plus. */
+/** L'ordre sur la carte : réalisateur, acteurs, auteur ou studio ; cinq au plus. */
 export function orderPeople(people: readonly SharePerson[]): SharePerson[] {
   return people
     .map((person, index) => ({ person, index }))
@@ -196,7 +179,6 @@ const COUNT_CAPTIONS = {
 
 /** La légende d'une personne : son rôle et son nombre d'œuvres (clé française, traduite au rendu). */
 export function personCaption(person: SharePerson, fallbackLibrary: ShareLibraryKey): ShareCardPerson['caption'] {
-  if (person.role === 'character') return { key: 'Personnage préféré' }
   const library = person.library ?? fallbackLibrary
   const words = person.role === 'director' ? COUNT_CAPTIONS.director
     : person.role === 'actor' ? COUNT_CAPTIONS.actor

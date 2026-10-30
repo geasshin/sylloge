@@ -6,6 +6,7 @@ import {
   type Series,
   type SeriesCategory,
 } from '../domain/series.ts'
+import { seriesLibraryForCategory, SERIES_LIBRARIES, SERIES_LIBRARY_LABELS } from '../domain/seriesLibraries.ts'
 import {
   EMPTY_SERIES_FORM,
   resolveSeriesStatusForTotalChange,
@@ -157,6 +158,22 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
             />
             {errors.title && <p className="field-error" id="series-title-error">{translateMessage(errors.title)}</p>}
           </div>
+
+          {/* La bibliothèque se choisit à la modification : elle décide de la
+              table qui porte la fiche (Séries ou Animation japonaise). */}
+          {series && (
+            <div className="field category-segmented">
+              <span className="field-label">{t("Bibliothèque")}</span>
+              <StatusSegmented
+                statuses={SERIES_LIBRARIES}
+                labels={SERIES_LIBRARY_LABELS}
+                value={seriesLibraryForCategory(values.category)}
+                onChange={(next) => update('category', next === 'anime' ? 'animation' : 'série télé')}
+                ariaLabel={t("Bibliothèque de la fiche")}
+              />
+              <p className="field-help">{t("Animation japonaise : les séries animées produites au Japon.")}</p>
+            </div>
+          )}
 
           {/* Le verdict personnel */}
           <div className="verdict-block medium-status-block">

@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  RECAP_STEPS, buildRecap, nextRecapYear, recapFileName, recapIsOpen, recapItems, recapYearFor, weekdayOfDate, yearOfDate,
+  RECAP_MIN_ITEMS, RECAP_STEPS, buildRecap, nextRecapYear, recapFileName, recapIsOpen, recapItems, recapOfferFor, recapYearFor,
+  weekdayOfDate, yearOfDate,
 } from '../src/domain/yearRecap.ts'
 
 let n = 0
@@ -235,4 +236,68 @@ test('Le temps long compte les décennies, de la plus récente à la plus ancien
   const span = buildRecap(items, 2026).span
   assert.deepEqual(span.decades, [{ decade: 2020, count: 1 }, { decade: 1990, count: 1 }, { decade: 1920, count: 2 }])
   assert.equal(span.dominant, 'films')
+})
+
+
+// ─── Proposition automatique (décembre-janvier) ───────────────────────────────
+
+/** `count` films terminés, tous datés de février 2026 : de quoi franchir le seuil. */
+const many = (count, over = {}) => Array.from({ length: count }, (_, index) =>
+  entry('films', { doneOn: `2026-02-${String((index % 28) + 1).padStart(2, '0')}`, ...over }))
+
+test('La proposition attend vingt œuvres datées de l’année, pas dix-neuf', () => {
+  const now = new Date('2026-12-12T12:00:00')
+  assert.equal(RECAP_MIN_ITEMS, 20)
+  assert.equal(recapOfferFor({ items: many(19), now, lastOfferedYear: null }), null)
+  assert.equal(recapOfferFor({ items: many(20), now, lastOfferedYear: null }), 2026)
+  assert.equal(recapOfferFor({ items: many(24), now, lastOfferedYear: null }), 2026)
+})
+
+test('La proposition vit du 10 décembre au 31 janvier : ni avant, ni après', () => {
+  const items = many(20)
+  assert.equal(recapOfferFor({ items, now: new Date('2026-12-09T23:59:00'), lastOfferedYear: null }), null)
+  assert.equal(recapOfferFor({ items, now: new Date('2026-12-10T00:00:00'), lastOfferedYear: null }), 2026)
+  assert.equal(recapOfferFor({ items, now: new Date('2026-12-31T23:00:00'), lastOfferedYear: null }), 2026)
+  assert.equal(recapOfferFor({ items, now: new Date('2027-01-01T09:00:00'), lastOfferedYear: null }), 2026)
+  assert.equal(recapOfferFor({ items, now: new Date('2027-01-31T23:59:00'), lastOfferedYear: null }), 2026)
+  assert.equal(recapOfferFor({ items, now: new Date('2027-02-01T00:00:00'), lastOfferedYear: null }), null)
+  assert.equal(recapOfferFor({ items, now: new Date('2027-03-15T12:00:00'), lastOfferedYear: null }), null)
+})
+
+test('En janvier, la proposition porte sur l’année qui vient de s’achever', () => {
+  const items = many(20)
+  assert.equal(recapOfferFor({ items, now: new Date('2027-01-04T10:00:00'), lastOfferedYear: null }), 2026)
+  // Vingt œuvres datées de la nouvelle année ne font pas encore un bilan.
+  assert.equal(recapOfferFor({ items: items.map(item => ({ ...item, doneOn: '2027-01-02' })), now: new Date('2027-01-04T10:00:00'), lastOfferedYear: null }), null)
+})
+
+test('Une proposition déjà faite pour l’année ne revient pas ; une autre année reste possible', () => {
+  const items = many(20)
+  const now = new Date('2026-12-12T12:00:00')
+  assert.equal(recapOfferFor({ items, now, lastOfferedYear: 2026 }), null)
+  assert.equal(recapOfferFor({ items, now, lastOfferedYear: 2025 }), 2026)
+  assert.equal(recapOfferFor({ items: many(20), now, lastOfferedYear: null }), 2026)
+})
+
+test('Le seuil compte exactement ce que compte le récapitulatif, et rien d’autre', () => {
+  const now = new Date('2026-12-12T12:00:00')
+  // Vingt œuvres d'une autre année ne font pas une année.
+  assert.equal(recapOfferFor({ items: many(20).map(item => ({ ...item, doneOn: '2025-03-03' })), now, lastOfferedYear: null }), null)
+  // Ni une œuvre non terminée, ni une bibliothèque ajoutée.
+  const partly = [
+    ...many(18),
+    entry('films', { doneAt: '2026-04-04', doneOn: null }),
+    entry('music', { doneOn: '2026-04-05' }),
+    entry('films', { done: false, doneOn: '2026-04-06' }),
+  ]
+  assert.equal(recapItems(partly, 2026).length, 19, 'le récapitulatif compte bien dix-neuf œuvres')
+  assert.equal(recapOfferFor({ items: partly, now, lastOfferedYear: null }), null)
+  const enough = [...partly, entry('books', { doneOn: '2026-04-07' })]
+  assert.equal(recapItems(enough, 2026).length, 20)
+  assert.equal(recapOfferFor({ items: enough, now, lastOfferedYear: null }), 2026)
+})
+
+test('Sans rien de daté dans l’année, aucune proposition', () => {
+  assert.equal(recapOfferFor({ items: [], now: new Date('2026-12-12T12:00:00'), lastOfferedYear: null }), null)
+  assert.equal(recapOfferFor({ items: [entry('films', { done: false, doneOn: null })], now: new Date('2026-12-12T12:00:00'), lastOfferedYear: null }), null)
 })

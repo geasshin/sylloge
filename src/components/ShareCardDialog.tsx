@@ -30,7 +30,7 @@ import {
 } from '../domain/shareCard.ts'
 import { shareLimitsFor } from '../domain/shareCardLayout.ts'
 import {
-  defaultPeopleIds, normalizeCharacters, orderPeople, peopleOptionsFor, rankCreators, rankFilmPeople, rankProfileCreators, type SharePerson,
+  defaultPeopleIds, orderPeople, peopleOptionsFor, rankCreators, rankFilmPeople, rankProfileCreators, type SharePerson,
 } from '../domain/sharePeople.ts'
 import { SHARE_FORMATS, SHARE_FORMAT_ORDER, type ShareFormatId } from '../domain/shareFormats.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
@@ -131,13 +131,12 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
   const [format, setFormat] = useState<ShareFormatId>('standard')
   const [selection, setSelection] = useState<string[]>([])
   const [statsChoice, setStatsChoice] = useState<ShareStatsChoice>(ALL_SHARE_STATS)
-  // Les personnes : propositions calculées (réalisateur, acteurs, auteur, studio), cases cochées, personnages saisis.
+  // Les personnes : propositions calculées (réalisateur, acteurs, auteur, studio) et cases cochées.
   const [suggestions, setSuggestions] = useState<SharePerson[]>([])
   const [loadingPeople, setLoadingPeople] = useState(false)
   const [missingTmdb, setMissingTmdb] = useState(false)
   const [portraits, setPortraits] = useState<Record<string, string | null>>({})
   const [chosenIds, setChosenIds] = useState<string[]>([])
-  const [characters, setCharacters] = useState<string[]>([])
   const [step, setStep] = useState<StepId>('hero')
   const [thumbs, setThumbs] = useState<Record<string, string | null>>({})
   const [preview, setPreview] = useState<Preview>({ status: 'loading' })
@@ -176,21 +175,20 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
   }, [candidates])
 
   // Les propositions de personnes suivent la portée : tout se recompose quand elle change.
-  const peopleOptions = useMemo(() => peopleOptionsFor(scope), [scope])
+  const peopleRoles = useMemo(() => peopleOptionsFor(scope), [scope])
   useEffect(() => {
     let alive = true
     setSuggestions([])
     setChosenIds([])
-    setCharacters([])
     setPortraits({})
     setMissingTmdb(false)
     const spread = scope.kind === 'profile'
     const apply = (list: SharePerson[]) => { if (alive) { setSuggestions(list); setChosenIds(defaultPeopleIds(list, spread)) } }
     if (items.length === 0) { setLoadingPeople(false); return () => { alive = false } }
     // Auteurs et studios se lisent sur les fiches, sans attente ; sur le profil, ils suivent le réalisateur et les acteurs.
-    const creatorRole = peopleOptions.roles.includes('studio') ? 'studio' : peopleOptions.roles.includes('author') ? 'author' : null
+    const creatorRole = peopleRoles.includes('studio') ? 'studio' : peopleRoles.includes('author') ? 'author' : null
     const creators = spread ? rankProfileCreators(items) : creatorRole && scope.kind === 'library' ? rankCreators(items, scope, creatorRole) : []
-    if (peopleOptions.roles.includes('director')) {
+    if (peopleRoles.includes('director')) {
       setLoadingPeople(true)
       loadFilmCredits(items.filter(entry => entry.library === 'films' && entry.done))
         .then(credits => {
@@ -214,16 +212,15 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
       apply(creators)
     }
     return () => { alive = false }
-  }, [items, scope, peopleOptions])
+  }, [items, scope, peopleRoles])
 
-  /** Les personnes que la carte montre : les cases cochées avec leur photo, puis les personnages saisis. */
-  const cardPeople = useMemo(() => orderPeople([
-    ...suggestions.filter(person => chosenIds.includes(person.id)).map(person => ({ ...person, portraitUrl: portraits[person.id] ?? person.portraitUrl })),
-    ...normalizeCharacters(characters),
-  ]), [suggestions, chosenIds, portraits, characters])
+  /** Les personnes que la carte montre : les cases cochées avec leur photo. */
+  const cardPeople = useMemo(() => orderPeople(
+    suggestions.filter(person => chosenIds.includes(person.id)).map(person => ({ ...person, portraitUrl: portraits[person.id] ?? person.portraitUrl })),
+  ), [suggestions, chosenIds, portraits])
   const peopleKey = cardPeople.map(person => `${person.id}|${person.portraitUrl ?? ''}`).join(',')
 
-  const hasPeopleStep = peopleOptions.roles.length > 0 || peopleOptions.characters
+  const hasPeopleStep = peopleRoles.length > 0
   const steps = useMemo<StepId[]>(() => [
     'hero',
     ...(candidates.length > 1 ? ['others' as const] : []),
@@ -404,15 +401,11 @@ export function ShareCardDialog({ profileId, initialLibrary, onClose }: Props) {
                   library={scope.kind === 'library' ? scope.library : 'books'}
                   suggestions={suggestions}
                   loading={loadingPeople}
-                  needsTmdbHint={peopleOptions.roles.includes('actor') && missingTmdb}
+                  needsTmdbHint={peopleRoles.includes('actor') && missingTmdb}
                   portraits={portraits}
                   chosenIds={chosenIds}
-                  characters={normalizeCharacters(characters).map(person => person.name)}
-                  allowCharacters={peopleOptions.characters}
                   disabled={busy}
                   onToggle={id => setChosenIds(current => (current.includes(id) ? current.filter(other => other !== id) : [...current, id]))}
-                  onAddCharacter={name => setCharacters(current => normalizeCharacters([...current, name]).map(person => person.name))}
-                  onRemoveCharacter={name => setCharacters(current => current.filter(other => other !== name))}
                 />
               )}
 

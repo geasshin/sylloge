@@ -1,10 +1,10 @@
 // Cartes à partager : les personnes mises en avant sous les affiches (réalisateur et acteurs les plus vus,
-// auteur le plus lu, studio le plus joué, personnages préférés). Logique pure : le calcul se fait sur les
-// fiches et sur la distribution déjà conservée dans le cache TMDB, rien n'est lu ni écrit ici.
+// auteur le plus lu, studio le plus joué). Logique pure : le calcul se fait sur les fiches et sur la
+// distribution déjà conservée dans le cache TMDB, rien n'est lu ni écrit ici.
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  defaultPeopleIds, MAX_SHARE_PEOPLE, normalizeCharacters, orderPeople, peopleOptionsFor, personCaption, personInitials, rankCreators, rankFilmPeople, rankProfileCreators, splitDirectors,
+  defaultPeopleIds, MAX_SHARE_PEOPLE, orderPeople, peopleOptionsFor, personCaption, personInitials, rankCreators, rankFilmPeople, rankProfileCreators, splitDirectors,
 } from '../src/domain/sharePeople.ts'
 import { buildShareCard } from '../src/domain/shareCard.ts'
 
@@ -80,15 +80,15 @@ test('Auteur le plus lu, studio le plus joué : seulement les œuvres terminées
   assert.deepEqual(rankCreators(items, { kind: 'profile' }, 'author'), [], 'rien pour tout le profil')
 })
 
-test('Ce que chaque bibliothèque propose : réalisateur et acteurs, auteur, studio, personnages ; rien pour l’art', () => {
+test('Ce que chaque bibliothèque propose : réalisateur et acteurs, auteur, studio ; rien pour les séries, l’animation et l’art', () => {
   const options = key => peopleOptionsFor(key === 'profile' ? { kind: 'profile' } : { kind: 'library', library: key })
-  assert.deepEqual(options('films'), { roles: ['director', 'actor'], characters: true })
-  assert.deepEqual(options('series'), { roles: [], characters: true })
-  assert.deepEqual(options('anime'), { roles: [], characters: true })
-  assert.deepEqual(options('books'), { roles: ['author'], characters: true })
-  assert.deepEqual(options('mangas'), { roles: ['author'], characters: true })
-  assert.deepEqual(options('games'), { roles: ['studio'], characters: true })
-  assert.deepEqual(options('artworks'), { roles: [], characters: false })
+  assert.deepEqual(options('films'), ['director', 'actor'])
+  assert.deepEqual(options('series'), [], 'aucune personne à proposer : pas d’étape « Personnes »')
+  assert.deepEqual(options('anime'), [])
+  assert.deepEqual(options('books'), ['author'])
+  assert.deepEqual(options('mangas'), ['author'])
+  assert.deepEqual(options('games'), ['studio'])
+  assert.deepEqual(options('artworks'), [])
 })
 
 test('Choix d’office : le réalisateur le plus vu, ses trois acteurs, l’auteur ou le studio le plus fréquent', () => {
@@ -103,21 +103,10 @@ test('Choix d’office : le réalisateur le plus vu, ses trois acteurs, l’aute
   assert.deepEqual(defaultPeopleIds([]), [])
 })
 
-test('Personnages : espaces nettoyés, doublons et vides écartés, quarante signes, cinq au plus', () => {
-  assert.deepEqual(normalizeCharacters(['  Walter   White ', 'walter white', '', '   ', 'Arya Stark']).map(entry => entry.name), ['Walter White', 'Arya Stark'])
-  const long = normalizeCharacters(['x'.repeat(80)])
-  assert.equal(long[0].name.length, 40)
-  assert.equal(normalizeCharacters(Array.from({ length: 9 }, (_, i) => `Perso ${i}`)).length, MAX_SHARE_PEOPLE)
-  const [walter] = normalizeCharacters(['Walter White'])
-  assert.equal(walter.role, 'character')
-  assert.equal(walter.portraitUrl, null)
-  assert.equal(walter.count, 0)
-})
-
-test('Ordre sur la carte : réalisateur, acteurs, auteur ou studio, puis personnages ; au plus cinq', () => {
+test('Ordre sur la carte : réalisateur, acteurs, auteur ou studio ; au plus cinq', () => {
   const person = (role, name) => ({ id: `${role}:${name}`, role, name, count: 1, portraitUrl: null })
-  const ordered = orderPeople([person('character', 'C1'), person('actor', 'A1'), person('director', 'D1'), person('actor', 'A2'), person('character', 'C2'), person('actor', 'A3')])
-  assert.deepEqual(ordered.map(entry => entry.name), ['D1', 'A1', 'A2', 'A3', 'C1'], 'cinq au plus, les personnages en dernier')
+  const ordered = orderPeople([person('studio', 'S1'), person('actor', 'A1'), person('director', 'D1'), person('actor', 'A2'), person('author', 'B1'), person('actor', 'A3')])
+  assert.deepEqual(ordered.map(entry => entry.name), ['D1', 'A1', 'A2', 'A3', 'B1'], 'cinq au plus, dans l’ordre des rôles')
 })
 
 test('Légendes : le rôle et le nombre, au singulier ou au pluriel, avec le vocabulaire de la bibliothèque', () => {
@@ -129,7 +118,6 @@ test('Légendes : le rôle et le nombre, au singulier ou au pluriel, avec le voc
   assert.deepEqual(cap('author', 1, 'mangas'), { key: 'Auteur · {count} manga', params: { count: '1' } })
   assert.deepEqual(cap('author', 4, 'mangas'), { key: 'Auteur · {count} mangas', params: { count: '4' } })
   assert.deepEqual(cap('studio', 3, 'games'), { key: 'Studio · {count} jeux', params: { count: '3' } })
-  assert.deepEqual(cap('character', 0, 'books'), { key: 'Personnage préféré' })
 })
 
 test('Initiales : les deux premières lettres significatives, majuscules, accents conservés', () => {
@@ -149,16 +137,18 @@ test('Sur la carte : les personnes choisies sont reprises avec leur légende ; s
   assert.equal(card.people[0].name, 'Annie Ernaux')
   assert.deepEqual(card.people[0].caption, { key: 'Auteur · {count} livres', params: { count: '3' } })
   assert.deepEqual(buildShareCard(items, scope, 'A', { limits: { favorites: 7 }, now: NOW }).people, [])
-  const six = Array.from({ length: 6 }, (_, i) => ({ id: `c${i}`, role: 'character', name: `P${i}`, count: 0, portraitUrl: null }))
-  assert.equal(buildShareCard(items, scope, 'A', { limits: { favorites: 7 }, now: NOW, people: six }).people.length, MAX_SHARE_PEOPLE)
-  const art = buildShareCard([item('artworks', { isFavorite: true })], { kind: 'library', library: 'artworks' }, 'A', { limits: { favorites: 7 }, now: NOW, people: [author, ...six] })
-  assert.deepEqual(art.people, [], 'l’art ne propose aucune personne, pas même un personnage')
+  const six = Array.from({ length: 6 }, (_, i) => ({ id: `actor:${i}`, role: 'actor', name: `P${i}`, count: 2, portraitUrl: null }))
+  assert.equal(buildShareCard([item('films', { isFavorite: true })], { kind: 'library', library: 'films' }, 'A', { limits: { favorites: 7 }, now: NOW, people: six }).people.length, MAX_SHARE_PEOPLE, 'cinq au plus')
+  const art = buildShareCard([item('artworks', { isFavorite: true })], { kind: 'library', library: 'artworks' }, 'A', { limits: { favorites: 7 }, now: NOW, people: [author] })
+  assert.deepEqual(art.people, [], 'l’art ne propose aucune personne')
+  const series = buildShareCard([item('series', { isFavorite: true })], { kind: 'library', library: 'series' }, 'A', { limits: { favorites: 7 }, now: NOW, people: [author] })
+  assert.deepEqual(series.people, [], 'les séries ne proposent aucune personne')
 })
 
 const PROFILE = { kind: 'profile' }
 
-test('Profil : tout est proposé (réalisateur, acteurs, auteur, studio) et les personnages se saisissent', () => {
-  assert.deepEqual(peopleOptionsFor(PROFILE), { roles: ['director', 'actor', 'author', 'studio'], characters: true })
+test('Profil : tout est proposé (réalisateur, acteurs, auteur, studio)', () => {
+  assert.deepEqual(peopleOptionsFor(PROFILE), ['director', 'actor', 'author', 'studio'])
 })
 
 test('Profil : auteurs des livres et des mangas, studios des jeux, chacun classé dans sa bibliothèque, avec un identifiant distinct', () => {

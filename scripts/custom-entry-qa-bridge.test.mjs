@@ -121,3 +121,75 @@ test('comic QA preserves duplicate identities and rolls back native create/updat
   assert.equal(bridge.select('SELECT * FROM comic_quotes').length, 0)
   assert.equal(bridge.select('SELECT * FROM profile_libraries').length, 0)
 })
+
+// ─── Séries ↔ Animation japonaise : même contrat que la commande Rust ───────
+
+const seriesValue = (library = 'series', category = library === 'series' ? 'série télé' : 'animation') => ({
+  library,
+  series: {
+    id: 'entry-1', profileId: 'reader', title: 'Fixture', showrunner: text, casting: text, summary: text,
+    category, status: 'en cours', rating: 4.5, isFavorite: true, seasonsSeen: 1, seasonsTotal: 3,
+    progressUpdatedAt: stamp, startedAt: '2026-01-05', posterUrl: 'https://example.test/affiche.jpg',
+    personalNote: text, createdAt: stamp, updatedAt: stamp,
+  },
+})
+
+function seedSeries(bridge, library) {
+  bridge.execute(
+    `INSERT INTO ${library} (id, profile_id, title, showrunner, casting, summary, ${library === 'series' ? 'category, ' : ''}status, rating, is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at, poster_url, personal_note, created_at, updated_at)
+     VALUES ('entry-1', 'reader', 'Fixture', $1, $1, $1, ${library === 'series' ? "'série télé', " : ''}'en cours', 4.5, 1, 1, 3, $2, '2026-01-05', 'https://example.test/affiche.jpg', $1, $2, $2)`,
+    [text, stamp],
+  )
+  bridge.execute(
+    "INSERT INTO media_provider_links (profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at) VALUES ('reader', $1, 'entry-1', 'TMDB', '95396', $2, $2)",
+    [library, stamp],
+  )
+}
+
+test('series QA moves Séries → Animation japonaise with every field and the provider link', t => {
+  const bridge = harness(t)
+  seedSeries(bridge, 'series')
+  assert.equal(invokeWrite(bridge, 'move_series_library', seriesValue('series', 'animation')), null)
+  assert.equal(bridge.select('SELECT id FROM series').length, 0, 'aucune copie résiduelle dans series')
+  const [moved] = bridge.select('SELECT * FROM anime')
+  assert.equal(moved.title, 'Fixture')
+  assert.equal(moved.showrunner, text)
+  assert.equal(moved.rating, 4.5)
+  assert.equal(moved.is_favorite, 1)
+  assert.equal(moved.seasons_seen, 1)
+  assert.equal(moved.poster_url, 'https://example.test/affiche.jpg')
+  assert.equal(moved.personal_note, text)
+  assert.equal(moved.created_at, stamp)
+  assert.equal(bridge.select('SELECT medium FROM media_provider_links')[0].medium, 'anime')
+
+  // Retour : la catégorie interne de series est forcée, le lien revient aussi.
+  assert.equal(invokeWrite(bridge, 'move_series_library', seriesValue('anime', 'série télé')), null)
+  assert.equal(bridge.select('SELECT id FROM anime').length, 0, 'aucune copie résiduelle dans anime')
+  const [returned] = bridge.select('SELECT * FROM series')
+  assert.equal(returned.category, 'série télé')
+  assert.equal(returned.rating, 4.5)
+  assert.equal(bridge.select('SELECT medium FROM media_provider_links')[0].medium, 'series')
+})
+
+test('series QA refuses a missing sheet, an identical library and an unknown category', t => {
+  const bridge = harness(t)
+  assert.throws(() => invokeWrite(bridge, 'move_series_library', seriesValue('series', 'animation')), /introuvable/u)
+  seedSeries(bridge, 'series')
+  assert.throws(() => invokeWrite(bridge, 'move_series_library', seriesValue('series', 'série télé')), /déjà dans la bibliothèque/u)
+  assert.throws(() => invokeWrite(bridge, 'move_series_library', seriesValue('series', 'documentaire')), /Catégorie de série inconnue/u)
+  assert.throws(() => invokeWrite(bridge, 'move_series_library', { library: 'films', series: seriesValue().series }), /Bibliothèque de séries inconnue/u)
+  assert.equal(bridge.select('SELECT id FROM series').length, 1)
+  assert.equal(bridge.select('SELECT id FROM anime').length, 0)
+  assert.equal(bridge.select('SELECT medium FROM media_provider_links')[0].medium, 'series')
+})
+
+test('series QA rolls the move back when the target already holds the identifier', t => {
+  const bridge = harness(t)
+  seedSeries(bridge, 'series')
+  seedSeries(bridge, 'anime')
+  const before = bridge.select('SELECT * FROM series')
+  assert.throws(() => invokeWrite(bridge, 'move_series_library', seriesValue('series', 'animation')))
+  assert.deepEqual(bridge.select('SELECT * FROM series'), before)
+  assert.equal(bridge.select('SELECT * FROM anime').length, 1)
+  assert.equal(bridge.select('SELECT medium FROM media_provider_links WHERE medium = $1', ['series']).length, 1, 'le lien de la source reste en place')
+})

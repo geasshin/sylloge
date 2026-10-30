@@ -31,6 +31,7 @@ import { ShareCardLink } from './components/ShareCardDialog.tsx'
 import { type AvailableUpdate } from './data/updaterService.ts'
 import { useAppUpdate } from './data/appUpdate.ts'
 import { UpdateNotice } from './components/UpdateNotice.tsx'
+import { YearRecapOffer } from './components/YearRecapOffer.tsx'
 import { backupService, type BackupNotice } from './data/backupService.ts'
 import { openDataFolder } from './data/appData.ts'
 import { RestoreProfileDialog } from './components/RestoreProfileButton.tsx'
@@ -3556,8 +3557,11 @@ function App() {
                     const seriesLibrary = addFlow.seriesLibrary ?? 'series'
                     let targetId = editSeriesId
                     if (editSeriesId) {
+                      // La fiche peut changer de bibliothèque : le repository la
+                      // déplace alors de table, et on la relit dans la table cible.
+                      const targetLibrary = seriesLibraryForCategory(input.category)
                       await mediaRepository.updateSeries(library.profile.id, editSeriesId, input, seriesLibrary)
-                      const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId, seriesLibrary)
+                      const refreshed = await mediaRepository.getSeries(library.profile.id, editSeriesId, targetLibrary)
                       if (!refreshed) throw new Error('La série enregistrée ne peut pas être relue depuis SQLite.')
                       setSeriesCollection((current) => current.map((entry) => entry.id === editSeriesId ? refreshed : entry))
                     } else {
@@ -3786,6 +3790,12 @@ function App() {
             })()}
           </FocusDialog>
         </div>
+      )}
+      {/* Proposition du récapitulatif : une seule fois par année, après la première peinture, et
+          seulement pour un profil chargé. La fenêtre s'ouvre par-dessus l'accueil ; les annonces de
+          la pile gardent leur coin. */}
+      {libraryState.status === 'ready' && (
+        <YearRecapOffer key={libraryState.library.profile.id} profileId={libraryState.library.profile.id} />
       )}
       <div className="notice-stack">
         {appUpdate.update && (

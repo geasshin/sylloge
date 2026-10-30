@@ -165,6 +165,10 @@ async page => {
   const checkedNames = await personRows.evaluateAll(rows => rows.filter(row => row.querySelector('input').checked).map(row => row.querySelector('b').textContent))
   assert(checkedNames.length === 4 && checkedNames[0] === 'Céline Sciamma', `Étape 3 : un réalisateur et trois acteurs cochés d'office (${checkedNames.join(', ')})`)
   assert(await dialog().getByText('4 sur 5 choisis').count() === 1, 'Étape 3 : compteur « 4 sur 5 choisis »')
+  // Décision du 30 octobre 2026 : les personnages préférés ne se saisissent plus, sur aucune bibliothèque.
+  assert(await dialog().getByRole('textbox', { name: 'Ajouter un personnage' }).count() === 0, 'Étape 3 : aucun champ de personnage')
+  assert(await dialog().locator('.share-character-form, .share-character-list').count() === 0, 'Étape 3 : ni formulaire ni liste de personnages')
+  assert(await dialog().getByText('Vos personnages préférés').count() === 0 && await dialog().getByText('Personnage préféré').count() === 0, 'Étape 3 : plus de légende de personnage')
   const sciammaCaption = await personRows.filter({ hasText: 'Céline Sciamma' }).locator('.share-person-text span').innerText()
   assert(sciammaCaption === 'Réalisateur · 2 films', `Étape 3 : la légende compte les films (${sciammaCaption})`)
   const wendersImage = await personRows.filter({ hasText: 'Wim Wenders' }).locator('img').getAttribute('src')
@@ -175,29 +179,15 @@ async page => {
   await redrawn(beforePerson, 'un réalisateur décoché')
   await personRows.filter({ hasText: 'Wim Wenders' }).locator('input').check()
   assert(await dialog().getByText('4 sur 5 choisis').count() === 1, 'Étape 3 : décocher puis cocher garde le compte')
-  // Personnages : Entrée ajoute, doublon et vide ignorés, quarante signes, cinq au plus en tout.
-  const characterInput = dialog().getByRole('textbox', { name: 'Ajouter un personnage' })
-  const beforeCharacter = await fingerprint()
-  await characterInput.fill('  Jo   March ')
-  await characterInput.press('Enter')
-  await redrawn(beforeCharacter, 'un personnage ajouté')
-  assert(await dialog().locator('.share-character-list li').allInnerTexts().then(list => list.map(text => text.replace('×', '').trim()).join('|')) === 'Jo March', 'Personnages : espaces nettoyés')
-  assert(await dialog().getByText('5 sur 5 choisis').count() === 1, 'Personnages : le compte monte à 5 sur 5')
-  assert(await characterInput.isDisabled() && await personRows.evaluateAll(rows => rows.filter(row => !row.querySelector('input').checked).every(row => row.querySelector('input').disabled)), 'Cinq atteint : le champ et les propositions non cochées sont désactivés')
-  await dialog().getByRole('button', { name: 'Retirer Jo March', exact: true }).click()
-  assert(await characterInput.isEnabled(), 'Retirer un personnage libère une place')
-  await personRows.filter({ hasText: 'Au casting' }).first().locator('input').uncheck()
-  await characterInput.fill('jo march')
-  await characterInput.press('Enter')
-  await characterInput.fill('jo MARCH')
-  await characterInput.press('Enter')
-  assert(await dialog().locator('.share-character-list li').count() === 1, 'Personnages : un doublon (casse différente) est ignoré')
-  await characterInput.fill('x'.repeat(60))
-  assert(await dialog().getByRole('button', { name: 'Ajouter', exact: true }).isEnabled(), 'Personnages : « Ajouter » disponible avec un nom saisi')
-  assert((await characterInput.inputValue()).length === 40, 'Personnages : le champ s’arrête à quarante signes')
-  await characterInput.fill('')
-  assert(await dialog().getByRole('button', { name: 'Ajouter', exact: true }).isDisabled(), 'Personnages : champ vide, « Ajouter » désactivé')
-  while (await dialog().locator('.share-character-list li').count() > 0) await dialog().locator('.share-character-list button').first().click()
+  // Cinq au plus : une cinquième case cochée atteint le plafond, les propositions restantes se désactivent.
+  const fifthIndex = await personRows.evaluateAll(rows => rows.findIndex(row => !row.querySelector('input').checked))
+  const fifthName = await personRows.nth(fifthIndex).locator('b').innerText()
+  await personRows.nth(fifthIndex).locator('input').check()
+  await dialog().getByText('5 sur 5 choisis').waitFor()
+  assert(await personRows.evaluateAll(rows => rows.filter(row => !row.querySelector('input').checked).every(row => row.querySelector('input').disabled)), 'Cinq atteint : les propositions non cochées sont désactivées')
+  await personRows.nth(fifthIndex).locator('input').uncheck()
+  await dialog().getByText('4 sur 5 choisis').waitFor()
+  assert(await personRows.evaluateAll(rows => rows.filter(row => !row.querySelector('input').checked).every(row => !row.querySelector('input').disabled)), `Retirer « ${fifthName} » libère une place`)
 
   // Étape 4 : les chiffres. Trois, chacun se retire.
   await next()
@@ -415,8 +405,7 @@ async page => {
         person('director', 'Céline Sciamma', 2, 'Réalisateur · {count} films', { count: '2' }),
         person('actor', 'Celia Rowlson-Hall', 1, 'Au casting · {count} film', { count: '1' }),
         person('actor', 'Jo', 4, 'Au casting · {count} films', { count: '4' }),
-        person('character', 'Walter White', 0, 'Personnage préféré'),
-        person('character', 'Éric Rohmer-Wang Kar-wai Jr.', 0, 'Personnage préféré'),
+        person('actor', 'Éric Rohmer-Wang Kar-wai Jr.', 1, 'Au casting · {count} film', { count: '1' }),
       ],
     }
     const format = SHARE_FORMATS.standard
@@ -476,15 +465,24 @@ async page => {
     assert(expectedCaption.test(await rows.first().locator('.share-person-text span').innerText()), `${label} : légende « ${await rows.first().locator('.share-person-text span').innerText()} »`)
     assert(await rows.first().locator('input').isChecked() && (await rows.evaluateAll(list => list.filter(row => row.querySelector('input').checked).length)) === 1, `${label} : le plus fréquent est coché d'office, lui seul`)
     assert(await rows.first().locator('img').count() === 0, `${label} : pas de photo d'auteur ou de studio, les initiales`)
-    assert(await dialog().getByRole('textbox', { name: 'Ajouter un personnage' }).count() === 1, `${label} : les personnages se saisissent`)
+    assert(await dialog().getByRole('textbox', { name: 'Ajouter un personnage' }).count() === 0 && await dialog().locator('.share-character-form').count() === 0, `${label} : aucun personnage à saisir`)
     assert(await dialog().getByText(/Les acteurs viennent des films associés/).count() === 0, `${label} : pas de mention TMDB`)
     await closeDialog()
   }
+  // Séries et Animation japonaise : plus aucune personne proposée, donc plus d'étape « Personnes » du tout.
   for (const label of ['Séries', 'Animation japonaise']) {
     await openLibraryCard(label)
-    await dialog().locator('.share-steps').getByRole('button', { name: /Personnes/ }).click()
-    await dialog().getByRole('heading', { name: 'Les personnes à mettre en avant' }).waitFor()
-    assert(await dialog().locator('.share-person-option').count() === 0 && await dialog().getByRole('textbox', { name: 'Ajouter un personnage' }).count() === 1, `${label} : aucune personne proposée, seulement les personnages`)
+    const names = await stepTexts()
+    assert(!names.includes('Personnes'), `${label} : pas d’étape « Personnes » (aucune personne calculée, aucun personnage à saisir)`)
+    // « Autres » n'existe qu'avec plus d'un coup de cœur ; les chiffres suivent toujours directement.
+    assert(names[0] === 'Principal' && names.slice(-2).join('|') === 'Chiffres|Partage' && names.length <= 4, `${label} : la fenêtre passe des coups de cœur aux chiffres (${names.join('|')})`)
+    assert(await dialog().getByText('Personnes', { exact: true }).count() === 0, `${label} : le mot « Personnes » n’apparaît nulle part dans la fenêtre`)
+    assert(await dialog().getByRole('textbox', { name: 'Ajouter un personnage' }).count() === 0 && await dialog().locator('.share-character-form, .share-character-list').count() === 0, `${label} : aucun champ de personnage dans la fenêtre`)
+    // Continuer depuis le principal mène aux chiffres, sans étape intercalée.
+    let guard = 0
+    while (await dialog().getByRole('heading', { name: 'Les chiffres sous les affiches' }).count() === 0 && guard < 4) { await next(); guard += 1 }
+    assert(await dialog().getByRole('heading', { name: 'Les chiffres sous les affiches' }).count() === 1, `${label} : « Continuer » mène aux chiffres`)
+    assert(await dialog().getByRole('heading', { name: 'Les personnes à mettre en avant' }).count() === 0, `${label} : aucune étape de personnes traversée`)
     await closeDialog()
   }
   await openLibraryCard('Art')
@@ -516,15 +514,12 @@ async page => {
   assert(captions.some(text => /^Réalisateur/.test(text)) && captions.some(text => /^Au casting/.test(text)) && captions.some(text => /^Auteur · \d+ livres?$/.test(text)) && captions.some(text => /^Auteur · \d+ mangas?$/.test(text)) && captions.some(text => /^Studio/.test(text)), `Profil : réalisateur, acteurs, auteurs de livres et de mangas, studio proposés (${captions.join(' | ')})`)
   const chosenCaptions = await profileRows.evaluateAll(rows => rows.filter(row => row.querySelector('input').checked).map(row => row.querySelector('.share-person-text span').textContent))
   assert(chosenCaptions.length === 5 && new Set(chosenCaptions.map(text => text.split(' · ')[0] + (/manga/.test(text) ? 'm' : ''))).size === 5, `Profil : cinq personnes cochées d’office, une par rôle et bibliothèque (${chosenCaptions.join(' | ')})`)
-  assert(await dialog().getByText('5 sur 5 choisis').count() === 1 && await dialog().getByRole('textbox', { name: 'Ajouter un personnage' }).isDisabled(), 'Profil : plafond de cinq atteint, le champ des personnages attend')
+  assert(await dialog().getByText('5 sur 5 choisis').count() === 1, 'Profil : cinq personnes cochées d’office, plafond atteint')
+  assert(await dialog().getByRole('textbox', { name: 'Ajouter un personnage' }).count() === 0 && await dialog().locator('.share-character-form, .share-character-list').count() === 0, 'Profil : aucun personnage à saisir')
   const beforeProfilePerson = await fingerprint()
   await profileRows.filter({ hasText: 'Au casting' }).first().locator('input').uncheck()
   await redrawn(beforeProfilePerson, 'un acteur décoché sur le profil')
-  const profileCharacter = dialog().getByRole('textbox', { name: 'Ajouter un personnage' })
-  const beforeProfileCharacter = await fingerprint()
-  await profileCharacter.fill('Link')
-  await profileCharacter.press('Enter')
-  await redrawn(beforeProfileCharacter, 'un personnage ajouté sur le profil')
+  assert(await dialog().getByText('4 sur 5 choisis').count() === 1, 'Profil : un acteur décoché laisse une place libre')
   await closeDialog()
   // Films : les acteurs ne viennent que des films associés à TMDB, et le dit.
   await start()
@@ -584,7 +579,8 @@ async page => {
   const stepOthers = await english.innerText()
   assert(/Your other favourites/i.test(stepOthers) && /of 6 chosen/.test(stepOthers), 'Anglais : étape 2 traduite')
   await english.getByRole('button', { name: 'Continue', exact: true }).click()
-  assert(/The people to feature/i.test(await english.innerText()) && /Your favourite characters/i.test(await english.innerText()) && /Director · \d+ films?/.test(await english.innerText()) && /In the cast ·/.test(await english.innerText()) && /Looking up|Most frequent/i.test(await english.innerText()), 'Anglais : étape des personnes traduite (' + (await english.innerText()).replace(/\s+/g, ' ').slice(0, 260) + ')')
+  assert(/The people to feature/i.test(await english.innerText()) && /Director · \d+ films?/.test(await english.innerText()) && /In the cast ·/.test(await english.innerText()) && /Looking up|Most frequent/i.test(await english.innerText()), 'Anglais : étape des personnes traduite (' + (await english.innerText()).replace(/\s+/g, ' ').slice(0, 260) + ')')
+  assert(!/favourite characters|Add a character|Remove /i.test(await english.innerText()), 'Anglais : plus aucun personnage à saisir (' + (await english.innerText()).replace(/\s+/g, ' ').slice(0, 260) + ')')
   await english.getByRole('button', { name: 'Continue', exact: true }).click()
   const stepStats = await english.innerText()
   assert(/The numbers under the posters/i.test(stepStats) && /average rating/.test(stepStats) && /films watched/.test(stepStats) && /watched in 2026/.test(stepStats), 'Anglais : étape 3 traduite')

@@ -4646,7 +4646,10 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(verdictSource0624, /ariaLabel\?: string/, 'Le sélecteur segmenté partagé doit pouvoir annoncer un Type et pas seulement un Statut')
   assert.doesNotMatch(seriesSource0624, /<select[\s\S]*?id="series-category"/, 'Séries : le sélecteur Type natif doit disparaître')
   assert.doesNotMatch(seriesSource0624, /ariaLabel="Type de série"/, 'Séries : le formulaire ne doit plus proposer de catégorie')
-  assert.doesNotMatch(repositorySource0624, /targetLibrary/, 'Séries : une modification ne doit plus déplacer la fiche vers une autre table')
+  // Décision du 30 octobre 2026 : la modification peut désormais déplacer la
+  // fiche entre Séries et Animation japonaise. Le déplacement n’est plus un
+  // UPDATE déguisé : il est délégué à la commande native transactionnelle.
+  assert.match(repositorySource0624, /moveSeriesNative/, 'Séries : un changement de bibliothèque passe par la commande native de déplacement')
   assert.ok(
     seriesSource0624.indexOf('className="progress-fields verdict-progress"') < seriesSource0624.indexOf('id="series-personalNote"'),
     'Séries : la progression doit précéder l’avis personnel qui conclut le formulaire',
@@ -5020,6 +5023,37 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.ok(ownLine['.view-bar'] < ownLine['.category-switch ~ .view-bar'], 'Seuils : une ligne qui porte aussi les catégories passe plus tôt sur deux lignes')
   assert.doesNotMatch(stylesSourceLight, /\.auto-associate-button ~ \.(?:view-bar|search)/, 'Seuils : plus aucun seuil ne dépend de « Tout associer » dans la ligne')
   assert.match(viewBarSourceLight, /new ResizeObserver\(\(\) => \{[\s\S]*?revealRef\.current\('auto'\)/, 'Vues : une rangée qui rétrécit ramène la vue active dans le champ')
+}
+
+// Déplacement Séries ↔ Animation japonaise (30 octobre 2026) : le modèle exact
+// de Livres ↔ Mangas — une fiche change de bibliothèque en changeant de table,
+// avec le même identifiant et son lien fournisseur, dans une transaction native.
+{
+  const seriesFormSourceMove = readFileSync(new URL('../src/components/SeriesForm.tsx', import.meta.url), 'utf8')
+  const seriesLibrariesSourceMove = readFileSync(new URL('../src/domain/seriesLibraries.ts', import.meta.url), 'utf8')
+  const mediaRepositorySourceMove = readFileSync(new URL('../src/data/mediaRepository.ts', import.meta.url), 'utf8')
+  const nativeSeriesSourceMove = readFileSync(new URL('../src/data/nativeSeries.ts', import.meta.url), 'utf8')
+  const rustSeriesSourceMove = readFileSync(new URL('../src-tauri/src/series.rs', import.meta.url), 'utf8')
+  const rustLibSourceMove = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
+  const mainSourceMove = readFileSync(new URL('../src/main.tsx', import.meta.url), 'utf8')
+  const bridgeSourceMove = readFileSync(new URL('../src/qa/appBridge.ts', import.meta.url), 'utf8')
+
+  assert.match(seriesLibrariesSourceMove, /SERIES_LIBRARIES[\s\S]*?'series'[\s\S]*?'anime'/, 'Le choix de bibliothèque vient du domaine, Séries puis Animation japonaise')
+  assert.match(seriesFormSourceMove, /\{series && \([\s\S]*?statuses=\{SERIES_LIBRARIES\}[\s\S]*?ariaLabel="Bibliothèque de la fiche"/, 'Séries : le choix n’apparaît qu’à la modification et réutilise le sélecteur segmenté de Livres')
+  assert.match(seriesFormSourceMove, /Animation japonaise : les séries animées produites au Japon\./, 'Séries : une phrase d’aide explique ce que couvre Animation japonaise')
+
+  assert.match(nativeSeriesSourceMove, /move_series_library/, 'Le déplacement Séries ↔ Animation japonaise doit passer par une commande native')
+  assert.match(rustLibSourceMove, /series::move_series_library/, 'La commande de déplacement doit être enregistrée dans lib.rs')
+  assert.match(rustSeriesSourceMove, /pool\s*\.begin\(\)/, 'Le déplacement Séries doit ouvrir une transaction SQLite native')
+  assert.match(rustSeriesSourceMove, /UPDATE media_provider_links[\s\S]*?DELETE FROM \{\}/, 'Le lien fournisseur doit être déplacé avant la suppression de la ligne source')
+  assert.match(rustSeriesSourceMove, /fn move_series_to_anime_keeps_every_field_and_the_provider_link/, 'Une preuve Rust doit couvrir Séries → Animation japonaise, champs et lien conservés')
+  assert.match(rustSeriesSourceMove, /fn move_anime_to_series_sets_the_series_category_and_keeps_the_link/, 'Une preuve Rust doit couvrir Animation japonaise → Séries et sa catégorie rétablie')
+  assert.match(rustSeriesSourceMove, /fn move_refuses_the_same_library_as_source_and_target/, 'Une preuve Rust doit couvrir le refus d’une source égale à la cible')
+  assert.match(rustSeriesSourceMove, /fn move_rolls_back_when_the_target_rejects_the_row/, 'Une preuve Rust doit couvrir le retour arrière complet')
+
+  assert.match(mediaRepositorySourceMove, /targetLibrary !== library[\s\S]*?this\.moveSeriesNative\(\{ series, library \}\)/, 'Le repository doit déléguer le déplacement à la commande native, jamais un UPDATE dans la même table')
+  assert.match(mainSourceMove, /getSeries\(library\.profile\.id, editSeriesId, targetLibrary\)/, 'Après un déplacement, la fiche doit être relue dans sa nouvelle bibliothèque')
+  assert.match(bridgeSourceMove, /case 'move_series_library'/, 'Le harnais de recette doit simuler la commande de déplacement, refus compris')
 }
 
 await import('./verify-book-libraries.mjs')

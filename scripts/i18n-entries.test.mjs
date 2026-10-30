@@ -100,6 +100,19 @@ try {
       assert.ok(html.includes('Seasons watched') && html.includes('Total seasons'))
       assert.ok(html.includes('>En cours</textarea>'))
     }
+    // Modification d'une fiche : le choix de bibliothèque Séries / Animation
+    // japonaise est traduit, avec sa phrase d'aide.
+    const editedSeries = {
+      id: 'series-i18n', profileId: 'synthetic', title: 'En cours', showrunner: null, casting: null,
+      summary: null, category: 'série télé', status: 'en cours', rating: null, isFavorite: false,
+      seasonsSeen: 1, seasonsTotal: 2, progressUpdatedAt: null, startedAt: null, posterUrl: null,
+      personalNote: null, createdAt: '2026-10-03', updatedAt: '2026-10-03',
+    }
+    const libraryChoice = render(SeriesForm, { series: editedSeries })
+    assert.ok(libraryChoice.includes('aria-label="Entry library"'), 'Le groupe du choix de bibliothèque est nommé en anglais')
+    assert.ok(libraryChoice.includes('>Series<') && libraryChoice.includes('>Anime<'), 'Les deux bibliothèques sont traduites')
+    assert.ok(libraryChoice.includes('Anime: animated series produced in Japan.'), 'La phrase d’aide est traduite')
+    assert.ok(!libraryChoice.includes('>Bibliothèque<'), 'Le libellé français du choix ne reste pas visible')
     const game = render(GameForm, { platformSuggestions: ['En cours'], initialValues: { ...EMPTY_GAME_FORM, title: 'En cours', platform: 'En cours', status: 'joué', personalNote: 'En cours' } })
     assert.ok(game.includes('aria-label="Game title"') && game.includes('Studio or developer'))
     assert.ok(game.includes('value="En cours"') && game.includes('>En cours</textarea>'))

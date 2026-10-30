@@ -19,6 +19,13 @@
  *   recettes       un profil ne contenant que la bibliothèque Recettes, importée
  *                  de Notion par scripts/import-notion-recipes.mjs
  *                  (fixtures/recettes-notion.json)
+ *   recap          une seule bibliothèque Films, avec un nombre d'œuvres datées de
+ *                  2026 choisi par ?recapWorks= (20 par défaut) : de quoi éprouver
+ *                  le seuil de la proposition du récapitulatif de l'année
+ *
+ * Proposition du récapitulatif : ?recapOffer=AAAA-MM-JJ force la date « maintenant » de la petite
+ * fenêtre de décembre (voir src/components/YearRecapOffer.tsx) ; sans ce paramètre, l'appareil de
+ * recette a déjà reçu la sienne pour l'année, et les autres recettes ne la voient jamais.
  *
  * Langue, via ?lang= : fr (défaut), en, auto (détection réelle) — voir qaLanguage.ts.
  */
@@ -30,6 +37,8 @@ import type { NativeCustomEntryWritePayload } from '../data/nativeCustomEntries.
 import type { CustomLibraryId } from '../domain/customLibraries.ts'
 import recettesNotion from '../../fixtures/recettes-notion.json'
 import { commonsSearchUrl } from '../domain/artImageSearch.ts'
+import { recapYearFor } from '../domain/yearRecap.ts'
+import { rememberRecapOfferedYear } from '../data/recapOfferStorage.ts'
 import {
   QA_PROFILE_ID,
   QA_PROFILE_NAME,
@@ -39,10 +48,11 @@ import {
   seedCustomLibraries,
   seedFilms,
   seedGames,
+  seedRecapFilms,
   seedSeries,
 } from './appSeed.ts'
 
-type Scenario = 'full' | 'empty' | 'onboarding' | 'recettes'
+type Scenario = 'full' | 'empty' | 'onboarding' | 'recettes' | 'recap'
 
 /** Tables des bibliothèques personnalisées (migration 0021). */
 const CUSTOM_TABLES = ['comics', 'magazines', 'audiobooks', 'music', 'podcasts', 'documentaries', 'shows', 'board_games', 'recipes'] as const
@@ -51,7 +61,7 @@ type Row = Record<string, unknown>
 
 const scenario: Scenario = (() => {
   const value = new URLSearchParams(window.location.search).get('scenario')
-  return value === 'empty' || value === 'onboarding' || value === 'recettes' ? value : 'full'
+  return value === 'empty' || value === 'onboarding' || value === 'recettes' || value === 'recap' ? value : 'full'
 })()
 
 const migrations = import.meta.glob('../../src-tauri/migrations/*.sql', {
@@ -117,6 +127,9 @@ const now = () => new Date().toISOString()
 if (scenario !== 'onboarding') {
   insert('profiles', { id: QA_PROFILE_ID, name: QA_PROFILE_NAME, avatar_data_url: null, created_at: '2025-03-02T09:00:00.000Z', updated_at: QA_RECETTE_NOW })
   execute('UPDATE current_profile SET profile_id = $1 WHERE singleton = 1', [QA_PROFILE_ID])
+  // La proposition du récapitulatif ne doit pas surgir au milieu des autres recettes : sauf quand une
+  // recette la demande par ?recapOffer=, l'appareil de recette a déjà reçu la sienne pour l'année.
+  if (!new URLSearchParams(window.location.search).has('recapOffer')) rememberRecapOfferedYear(QA_PROFILE_ID, recapYearFor(new Date()))
 }
 
 if (scenario === 'full') {
@@ -137,6 +150,13 @@ if (scenario === 'full') {
   custom.libraries.forEach((row) => insert('profile_libraries', row))
   custom.entries.forEach(([table, row]) => insert(table, row))
   custom.quotes.forEach((row) => insert('comic_quotes', row))
+}
+
+if (scenario === 'recap') {
+  // Une année calibrée : vingt œuvres datées par défaut, ou le nombre demandé par ?recapWorks=19.
+  const requested = Number(new URLSearchParams(window.location.search).get('recapWorks') ?? 20)
+  const count = Number.isInteger(requested) && requested >= 0 && requested <= 60 ? requested : 20
+  seedRecapFilms(count).forEach((row) => insert('films', row))
 }
 
 if (scenario === 'recettes') {
@@ -358,6 +378,50 @@ function deleteBook(profileId: unknown, bookId: unknown, library: unknown): void
   try {
     const [affected] = execute(`DELETE FROM ${table} WHERE id = $1 AND profile_id = $2`, [bookId, profileId])
     if (affected !== 1) fail('Le livre à supprimer est introuvable dans le profil courant.')
+    db.exec('COMMIT')
+  } catch (error) { db.exec('ROLLBACK'); throw error }
+}
+
+type SeriesPayload = { library: string; series: Row }
+
+type SeriesTable = 'series' | 'anime'
+function seriesTable(value: unknown): SeriesTable {
+  const table = typeof value === 'string' ? value.trim() : ''
+  if (table !== 'series' && table !== 'anime') fail(`Bibliothèque de séries inconnue : « ${String(value)} ».`)
+  return table as SeriesTable
+}
+function seriesCategoryTable(value: unknown): SeriesTable {
+  const category = String(value).trim()
+  if (category === 'animation') return 'anime'
+  if (category === 'série télé') return 'series'
+  return fail(`Catégorie de série inconnue : « ${category} ».`)
+}
+
+/** Déplacement Séries ↔ Animation japonaise : même transaction que Rust, lien
+ * fournisseur déplacé avant la suppression de la source (déclencheur). */
+function moveSeries(payload: SeriesPayload): void {
+  const series = payload.series
+  const source = seriesTable(payload.library)
+  const target = seriesCategoryTable(series.category)
+  if (!String(series.id ?? '').trim() || !String(series.profileId ?? '').trim()) fail('La fiche ou son profil possède un identifiant invalide.')
+  if (!String(series.title ?? '').trim()) fail('Le titre est obligatoire.')
+  if (source === target) fail(`La fiche est déjà dans la bibliothèque ${target === 'anime' ? 'Animation japonaise' : 'Séries'} : aucun déplacement à faire.`)
+  const columns: Row = {
+    title: series.title, showrunner: series.showrunner, casting: series.casting, summary: series.summary,
+    // La colonne category de series ne reçoit jamais animation : la table est la partition.
+    ...(target === 'series' ? { category: 'série télé' } : {}),
+    status: series.status, rating: series.rating, is_favorite: series.isFavorite,
+    seasons_seen: series.seasonsSeen, seasons_total: series.seasonsTotal,
+    progress_updated_at: series.progressUpdatedAt, started_at: series.startedAt,
+    poster_url: series.posterUrl, personal_note: series.personalNote, updated_at: series.updatedAt,
+  }
+  db.exec('BEGIN')
+  try {
+    if (select(`SELECT id FROM ${source} WHERE id = $1 AND profile_id = $2`, [series.id, series.profileId]).length !== 1) fail('La fiche à déplacer est introuvable dans le profil courant.')
+    insert(target, { id: series.id, profile_id: series.profileId, ...columns, created_at: series.createdAt })
+    execute('UPDATE media_provider_links SET medium = $1, updated_at = $2 WHERE profile_id = $3 AND medium = $4 AND media_id = $5', [target, series.updatedAt, series.profileId, source, series.id])
+    const [affected] = execute(`DELETE FROM ${source} WHERE id = $1 AND profile_id = $2`, [series.id, series.profileId])
+    if (affected !== 1) fail('La fiche à déplacer est introuvable dans le profil courant.')
     db.exec('COMMIT')
   } catch (error) { db.exec('ROLLBACK'); throw error }
 }
@@ -605,6 +669,9 @@ function handle(cmd: string, args: Args): unknown {
     case 'create_book_atomically': writeBook(args.payload as BookPayload, 'create'); return null
     case 'update_book_atomically': writeBook(args.payload as BookPayload, 'update'); return null
     case 'delete_book_atomically': deleteBook(args.profileId, args.bookId, args.library); return null
+
+    // Séries ↔ Animation japonaise : une table par bibliothèque, déplacement natif.
+    case 'move_series_library': moveSeries(args.payload as SeriesPayload); return null
 
     // Bibliothèques personnalisées : mêmes transactions et contrats void que Rust.
     case 'create_custom_entry_atomically': writeCustomEntry(args.payload as NativeCustomEntryWritePayload, 'create'); return null

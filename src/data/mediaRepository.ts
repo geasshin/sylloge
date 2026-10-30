@@ -15,6 +15,8 @@ import {
   type NativeBookDeleter,
   type NativeBookWriter,
 } from './nativeBooks.ts'
+import { moveSeriesLibraryAtomically, type NativeSeriesMover } from './nativeSeries.ts'
+import { seriesLibraryForCategory } from '../domain/seriesLibraries.ts'
 
 export type MediaProviderMedium = 'series' | 'anime' | 'books' | 'mangas' | 'games'
 
@@ -532,6 +534,7 @@ export class SqliteMediaRepository {
   private readonly createBookNative: NativeBookWriter
   private readonly updateBookNative: NativeBookWriter
   private readonly deleteBookNative: NativeBookDeleter
+  private readonly moveSeriesNative: NativeSeriesMover
 
   constructor(
     loadDatabase: DatabaseLoader = loadSyllogeDatabase,
@@ -540,6 +543,7 @@ export class SqliteMediaRepository {
     createBookNative: NativeBookWriter = createBookAtomically,
     updateBookNative: NativeBookWriter = updateBookAtomically,
     deleteBookNative: NativeBookDeleter = deleteBookAtomically,
+    moveSeriesNative: NativeSeriesMover = moveSeriesLibraryAtomically,
   ) {
     this.loadDatabase = loadDatabase
     this.createId = createId
@@ -547,6 +551,7 @@ export class SqliteMediaRepository {
     this.createBookNative = createBookNative
     this.updateBookNative = updateBookNative
     this.deleteBookNative = deleteBookNative
+    this.moveSeriesNative = moveSeriesNative
   }
 
   async getMediaProviderLink(
@@ -702,6 +707,12 @@ export class SqliteMediaRepository {
     return series
   }
 
+  /**
+   * Une fiche change de bibliothèque en changeant de table : l'écriture
+   * ordinaire reste un UPDATE, le déplacement passe par la commande native
+   * transactionnelle (même identifiant, lien fournisseur déplacé, source
+   * retirée). `library` désigne la table qui contient la fiche avant l'appel.
+   */
   async updateSeries(
     profileId: string,
     id: string,
@@ -715,9 +726,10 @@ export class SqliteMediaRepository {
     }
 
     const updatedAt = this.now()
+    const targetLibrary = seriesLibraryForCategory(input.category)
     const series = normalizeSeries({
       ...input,
-      category: library === 'anime' ? 'animation' : 'série télé',
+      category: targetLibrary === 'anime' ? 'animation' : 'série télé',
       id,
       profileId,
       progressUpdatedAt: resolveProgressTimestamp(existing.seasonsSeen, input.seasonsSeen, existing.progressUpdatedAt, updatedAt),
@@ -725,6 +737,11 @@ export class SqliteMediaRepository {
       createdAt: existing.createdAt,
       updatedAt,
     })
+
+    if (targetLibrary !== library) {
+      await this.moveSeriesNative({ series, library })
+      return updatedAt
+    }
 
     const entries = seriesRowPayload(series, library).filter(([column]) => column !== 'id' && column !== 'profile_id' && column !== 'created_at')
     const assignments = entries.map(([column], index) => `${column} = $${index + 1}`)

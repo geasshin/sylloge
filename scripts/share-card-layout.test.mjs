@@ -294,7 +294,7 @@ const FILM_PEOPLE = [
   person('actor', 'Saoirse Ronan', { portraitUrl: 'https://image.tmdb.org/t/p/w185/sr.jpg' }),
   person('actor', 'Florence Pugh', { portraitUrl: 'https://image.tmdb.org/t/p/w185/fp.jpg' }),
   person('actor', 'Timothée Chalamet', { portraitUrl: null }),
-  person('character', 'Jo March'),
+  person('actor', 'Zendaya', { portraitUrl: null }),
 ]
 
 test('Les personnes : une rangée entre les coups de cœur et les chiffres, absente quand il n’y en a pas', () => {
