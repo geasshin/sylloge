@@ -139,7 +139,7 @@ describe('Messages du domaine : document de bibliothèque v1–v5', () => {
     expectIn(validateLibraryDocument('pas du json').errors, 'Le fichier ne contient pas un JSON valide.', 'The file does not contain valid JSON.')
     expectIn(validateLibraryDocument('[]').errors, 'La racine du fichier doit être un objet JSON.', 'The file root must be a JSON object.')
     expectIn(errorsOf(document({ format: 'autre' })), 'Le format attendu est « sylloge-library ».', 'The expected format is “sylloge-library”.')
-    expectIn(errorsOf(document({ version: 0 })), 'Les versions 1 à 7 du document sont prises en charge.', 'Document versions 1 to 7 are supported.')
+    expectIn(errorsOf(document({ version: 0 })), 'Les versions 1 à 8 du document sont prises en charge.', 'Document versions 1 to 8 are supported.')
     expectIn(errorsOf(document({ version: 9 })), 'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.', 'This backup was created by a newer version of Sylloge. Update the app to restore it.')
   })
 

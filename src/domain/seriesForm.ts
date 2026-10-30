@@ -13,6 +13,9 @@ export type SeriesFormValues = {
   seasonsTotal: string
   startedAt: string
   posterUrl: string
+  /** Période de diffusion (30 octobre 2026) : deux années saisies en texte. */
+  firstAirYear: string
+  lastAirYear: string
   personalNote: string
 }
 
@@ -29,6 +32,8 @@ export type SeriesWriteInput = {
   seasonsTotal: number | null
   startedAt: string | null
   posterUrl: string | null
+  firstAirYear: number | null
+  lastAirYear: number | null
   personalNote: string | null
 }
 
@@ -51,6 +56,8 @@ export const EMPTY_SERIES_FORM: SeriesFormValues = {
   seasonsTotal: '',
   startedAt: '',
   posterUrl: '',
+  firstAirYear: '',
+  lastAirYear: '',
   personalNote: '',
 }
 
@@ -80,6 +87,11 @@ function isHttpUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Bornes d'une année de diffusion : la même règle que la contrainte SQLite. */
+function isAirYear(value: number): boolean {
+  return Number.isInteger(value) && value >= 1900 && value <= 2100
 }
 
 /**
@@ -117,6 +129,8 @@ export function seriesToFormValues(series: Series): SeriesFormValues {
     seasonsTotal: series.seasonsTotal?.toString() ?? '',
     startedAt: series.startedAt ?? '',
     posterUrl: series.posterUrl ?? '',
+    firstAirYear: series.firstAirYear?.toString() ?? '',
+    lastAirYear: series.lastAirYear?.toString() ?? '',
     personalNote: series.personalNote ?? '',
   }
 }
@@ -187,6 +201,30 @@ export function validateSeriesForm(rawValues: SeriesFormValues): SeriesValidatio
     errors.startedAt = 'Saisissez une date valide.'
   }
 
+  // Période de diffusion (30 octobre 2026) : deux années facultatives, bornées,
+  // la fin jamais avant le début.
+  let firstAirYear: number | null = null
+  const firstAirYearText = values.firstAirYear.trim()
+  if (firstAirYearText) {
+    firstAirYear = Number(firstAirYearText)
+    if (!isAirYear(firstAirYear)) {
+      errors.firstAirYear = 'Saisissez une année entre 1900 et 2100.'
+    }
+  }
+
+  let lastAirYear: number | null = null
+  const lastAirYearText = values.lastAirYear.trim()
+  if (lastAirYearText) {
+    lastAirYear = Number(lastAirYearText)
+    if (!isAirYear(lastAirYear)) {
+      errors.lastAirYear = 'Saisissez une année entre 1900 et 2100.'
+    }
+  }
+
+  if (firstAirYear !== null && lastAirYear !== null && lastAirYear < firstAirYear) {
+    errors.lastAirYear = 'La fin de diffusion ne peut pas précéder le début.'
+  }
+
   if (posterUrl && !isHttpUrl(posterUrl)) {
     errors.posterUrl = 'Utilisez une URL complète commençant par http:// ou https://.'
   }
@@ -215,6 +253,8 @@ export function validateSeriesForm(rawValues: SeriesFormValues): SeriesValidatio
       seasonsTotal,
       startedAt: optionalText(values.startedAt),
       posterUrl,
+      firstAirYear,
+      lastAirYear,
       personalNote: optionalText(values.personalNote),
     },
   }

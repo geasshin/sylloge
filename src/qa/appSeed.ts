@@ -22,6 +22,17 @@ const portrait = (slug: string) => `https://picsum.photos/seed/sylloge-cast-${sl
 const FILMS_WITH_BANNER = new Set(['Portrait de la jeune fille en feu'])
 const SERIES_WITH_BANNER = new Set(['Succession'])
 
+/**
+ * Période de diffusion des fiches de démonstration (30 octobre 2026) : une
+ * série terminée, une en cours (pas de fin connue) et une qui tient dans une
+ * seule année, pour que les captures montrent les trois écritures.
+ */
+const SERIES_AIR_YEARS: Record<string, [number | null, number | null]> = {
+  'Le Bureau des légendes': [2017, 2020],
+  Severance: [2022, null],
+  'Cowboy Bebop': [1998, 1998],
+}
+
 /** Date ISO stable à `daysAgo` jours de la date de recette. */
 const RECETTE_NOW = Date.parse('2026-10-16T10:00:00.000Z')
 const at = (daysAgo: number) => new Date(RECETTE_NOW - daysAgo * 86_400_000).toISOString()
@@ -252,6 +263,8 @@ export function seedSeries(): { series: Row[]; anime: Row[] } {
       started_at: status === 'à voir' ? null : day(addedDaysAgo + 10),
       poster_url: hasPoster ? poster(`series-${slugify(title)}`) : null,
       banner_url: SERIES_WITH_BANNER.has(title) ? banner(`series-${slugify(title)}`) : null,
+      first_air_year: SERIES_AIR_YEARS[title]?.[0] ?? null,
+      last_air_year: SERIES_AIR_YEARS[title]?.[1] ?? null,
       personal_note: null,
       created_at: at(addedDaysAgo),
       updated_at: at(Math.max(0, addedDaysAgo - 1)),

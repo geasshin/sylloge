@@ -61,6 +61,8 @@ type SeriesRow = {
   started_at: string | null
   poster_url: string | null
   banner_url: string | null
+  first_air_year: number | null
+  last_air_year: number | null
   personal_note: string | null
   created_at: string
   updated_at: string
@@ -164,6 +166,8 @@ const seriesColumns = (library: SeriesTableLibrary): string => library === 'anim
   started_at,
   poster_url,
   banner_url,
+  first_air_year,
+  last_air_year,
   personal_note,
   created_at,
   updated_at`
@@ -209,6 +213,8 @@ const SERIES_COLUMNS = `
   started_at,
   poster_url,
   banner_url,
+  first_air_year,
+  last_air_year,
   personal_note,
   created_at,
   updated_at`
@@ -327,6 +333,8 @@ export function toSeries(row: SeriesRow): Series {
     startedAt: row.started_at,
     posterUrl: row.poster_url,
     bannerUrl: row.banner_url,
+    firstAirYear: row.first_air_year,
+    lastAirYear: row.last_air_year,
     personalNote: row.personal_note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -351,6 +359,8 @@ function seriesRowPayload(series: Series, library: SeriesTableLibrary): Array<[s
     ['progress_updated_at', series.progressUpdatedAt],
     ['started_at', series.startedAt],
     ['poster_url', series.posterUrl],
+    ['first_air_year', series.firstAirYear],
+    ['last_air_year', series.lastAirYear],
     ['personal_note', series.personalNote],
     ['created_at', series.createdAt],
     ['updated_at', series.updatedAt],

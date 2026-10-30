@@ -2256,6 +2256,20 @@ assert.match(databaseMigrationSource, /version: 8/, 'La migration de cache TMDB 
   assert.match(databaseMigrationSource, /version: 26,[\s\S]{0,200}media_banner_url/, 'La migration 0026 doit être enregistrée')
   assert.match(tauriLibrarySource, /banners::fetch_banner_candidates/, 'La commande des images de bannière doit être enregistrée')
 }
+// Années de diffusion (30 octobre 2026) : ajout pur sur series et anime, document v8.
+{
+  const airYearsMigration = readFileSync(new URL('../src-tauri/migrations/0027_series_air_years.sql', import.meta.url), 'utf8')
+  for (const table of ['series', 'anime']) {
+    for (const column of ['first_air_year', 'last_air_year']) {
+      assert.match(airYearsMigration, new RegExp(`ALTER TABLE ${table} ADD COLUMN ${column} INTEGER`), `${column} doit être ajoutée à ${table}`)
+    }
+  }
+  assert.match(airYearsMigration, /CHECK \(first_air_year IS NULL OR first_air_year BETWEEN 1900 AND 2100\)/, 'Le début de diffusion doit rester borné')
+  assert.match(airYearsMigration, /CHECK \(last_air_year IS NULL OR last_air_year BETWEEN 1900 AND 2100\)/, 'La fin de diffusion doit rester bornée')
+  assert.doesNotMatch(airYearsMigration, /\b(UPDATE|DELETE|DROP)\b/, 'La migration des années de diffusion reste additive : aucune ligne réécrite')
+  assert.doesNotMatch(airYearsMigration, /ALTER TABLE (films|books|mangas|games|artworks)/, 'Seules les séries et les animés portent une période de diffusion')
+  assert.match(databaseMigrationSource, /version: 27,[\s\S]{0,200}series_air_years/, 'La migration 0027 doit être enregistrée')
+}
 assert.match(tmdbCacheMigration, /CREATE TABLE film_tmdb_cache/, 'Le cache TMDB doit vivre dans une table séparée')
 assert.match(tmdbCacheMigration, /REFERENCES films\(id\) ON DELETE CASCADE/, 'La suppression d’un Film doit supprimer son cache TMDB')
 assert.match(tmdbCacheMigration, /film_tmdb_cache_refresh_idx/, 'Le cache TMDB doit indexer son échéance de rafraîchissement')
@@ -2564,7 +2578,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
 
   const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
   assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format sylloge-library')
-  assert.equal(document.version, 7, 'Le document doit porter la version 7 (bannière 16:9)')
+  assert.equal(document.version, 8, 'Le document doit porter la version 8 (années de diffusion)')
 
   const serialized = serializeLibraryDocument(document)
   const preview = validateLibraryDocument(serialized)
@@ -2647,6 +2661,8 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
     progress_updated_at: '2026-07-18T10:00:00.000Z',
     started_at: '2024-01-01',
     poster_url: null,
+    first_air_year: 2017,
+    last_air_year: 2020,
     personal_note: null,
     created_at: '2026-07-18T10:00:00.000Z',
     updated_at: '2026-07-18T10:00:00.000Z',
@@ -2667,13 +2683,15 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
     },
     async execute(query, bindValues) {
       if (query.includes('UPDATE series')) {
-        const updatedAt = bindValues[14]
+        const updatedAt = bindValues[16]
         const progressUpdatedAt = bindValues[10]
-        const row = this.series.find((value) => value.id === bindValues[15])
+        const row = this.series.find((value) => value.id === bindValues[17])
         if (!row) return { rowsAffected: 0 }
         row.seasons_seen = bindValues[8]
         row.progress_updated_at = progressUpdatedAt
         row.updated_at = updatedAt
+        row.first_air_year = bindValues[13]
+        row.last_air_year = bindValues[14]
         return { rowsAffected: 1 }
       }
       throw new Error(`Écriture inattendue dans la vérification : ${query}`)
@@ -2690,6 +2708,8 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
   const loaded = await repository.getSeries('default', 'series-1')
   assert.equal(loaded?.category, 'série télé', 'Le repository doit mapper la catégorie Série')
   assert.equal(loaded?.progressUpdatedAt, '2026-07-18T10:00:00.000Z', 'L’horodatage de progression doit être lu')
+  assert.equal(loaded?.firstAirYear, 2017, 'Le début de diffusion doit être lu')
+  assert.equal(loaded?.lastAirYear, 2020, 'La fin de diffusion doit être lue')
 
   clock = 1
   await repository.updateSeries('default', 'series-1', {
@@ -2705,6 +2725,8 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
     seasonsTotal: loaded.seasonsTotal,
     startedAt: loaded.startedAt,
     posterUrl: loaded.posterUrl,
+    firstAirYear: loaded.firstAirYear,
+    lastAirYear: loaded.lastAirYear,
     personalNote: loaded.personalNote,
   })
   assert.equal(database.series[0].progress_updated_at, '2026-07-18T10:00:00.000Z', 'Une modification sans progression ne doit pas rafraîchir l’horodatage interne')
@@ -2723,6 +2745,8 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
     seasonsTotal: loaded.seasonsTotal,
     startedAt: loaded.startedAt,
     posterUrl: loaded.posterUrl,
+    firstAirYear: loaded.firstAirYear,
+    lastAirYear: loaded.lastAirYear,
     personalNote: loaded.personalNote,
   })
   assert.equal(database.series[0].progress_updated_at, '2026-07-19T12:00:02.000Z', 'Une saison supplémentaire doit rafraîchir l’horodatage interne de progression')
@@ -2888,6 +2912,23 @@ assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_
   const badPoster = validateSeriesForm({ ...base, posterUrl: 'ftp://affiche.jpg' })
   assert.equal(badPoster.success, false, 'L’affiche doit rester une URL http(s)')
 
+  // Période de diffusion (30 octobre 2026) : deux années bornées, fin ≥ début.
+  const airYears = validateSeriesForm({ ...base, firstAirYear: '2017', lastAirYear: '2020' })
+  assert.equal(airYears.success, true, 'Une période de diffusion complète est valide')
+  assert.equal(airYears.data.firstAirYear, 2017, 'Le début de diffusion est enregistré')
+  assert.equal(airYears.data.lastAirYear, 2020, 'La fin de diffusion est enregistrée')
+  const openAir = validateSeriesForm({ ...base, firstAirYear: '2022' })
+  assert.equal(openAir.success, true, 'Une série en cours n’a pas besoin de fin')
+  assert.equal(openAir.data.lastAirYear, null, 'La fin absente reste nulle')
+  const endedBeforeStart = validateSeriesForm({ ...base, firstAirYear: '2020', lastAirYear: '2017' })
+  assert.equal(endedBeforeStart.success, false, 'La fin ne peut pas précéder le début')
+  assert.ok(endedBeforeStart.errors.lastAirYear, 'L’erreur doit cibler la fin de diffusion')
+  for (const invalidYear of ['1899', '2101', '20x7', '2017.5']) {
+    const rejected = validateSeriesForm({ ...base, firstAirYear: invalidYear })
+    assert.equal(rejected.success, false, `L’année « ${invalidYear} » doit être refusée`)
+    assert.ok(rejected.errors.firstAirYear, `L’erreur doit cibler le début pour « ${invalidYear} »`)
+  }
+
   // 0.6.13 : retour en « à voir » = purge du verdict personnel.
   const purgedSeries = validateSeriesForm({
     ...base,
@@ -2907,6 +2948,18 @@ assert.match(mediaRepositorySource, /librarySortOrderBy\(criteria\.sort, SERIES_
     assert.equal(purgedSeries.data.startedAt, null, 'La date de début est purgée')
     assert.equal(purgedSeries.data.personalNote, null, "L'avis est purgé")
   }
+}
+
+// Période de diffusion (30 octobre 2026) : fonction pure d'affichage.
+{
+  const { formatAirPeriod } = await import('../src/domain/series.ts')
+  assert.equal(formatAirPeriod(null, null), '', 'Sans année connue, rien ne s’affiche')
+  assert.equal(formatAirPeriod(2022, null), '2022–', 'Une série en cours s’écrit « 2022– »')
+  assert.equal(formatAirPeriod(2017, 2017), '2017', 'Une seule année s’écrit une fois')
+  assert.equal(formatAirPeriod(2017, 2020), '2017–2020', 'Une période terminée s’écrit « début–fin »')
+  assert.match(formatAirPeriod(2017, 2020), /\u2013/, 'Le séparateur est le tiret demi-cadratin')
+  assert.equal(formatAirPeriod(null, 2020), '2020', 'Une fin sans début montre la seule année connue')
+  assert.equal(formatAirPeriod(2020, 2017), '2020–', 'Une fin incohérente se lit comme une fin inconnue')
 }
 
 {
@@ -4298,6 +4351,7 @@ assert.match(seriesTmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche Sér
     title: 'Game of Thrones',
     originalTitle: 'Game of Thrones',
     firstAirYear: 2011,
+    lastAirYear: 2019,
     synopsis: 'Des intrigues de pouvoir à Westeros.',
     showrunners: ['David Benioff', 'D. B. Weiss'],
     cast: ['Emilia Clarke', 'Peter Dinklage'],
@@ -4309,6 +4363,8 @@ assert.match(seriesTmdbSearchFlowSource, /autoCorrect="off"/, 'La recherche Sér
   assert.equal(initial.casting, 'Emilia Clarke, Peter Dinklage', 'Le casting doit être joint lisiblement')
   assert.equal(initial.seasonsTotal, '8', 'Le total de saisons connu doit être proposé')
   assert.equal(initial.posterUrl, 'https://image.tmdb.org/t/p/w500/got.jpg', 'L’affiche doit être préremplie')
+  assert.equal(initial.firstAirYear, '2011', 'Le début de diffusion doit être prérempli')
+  assert.equal(initial.lastAirYear, '2019', 'La fin de diffusion doit être préremplie')
   assert.equal(initial.status, 'à voir', 'Le statut personnel doit rester au neutre')
   assert.equal(initial.rating, '', 'La note personnelle ne doit jamais être préremplie')
   assert.equal(initial.seasonsSeen, '', 'Les saisons vues ne doivent jamais être préremplies')
@@ -4434,14 +4490,20 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
 
 {
   const { seriesWithPresentation, bookWithPresentation, gameWithPresentation } = await import('../src/domain/autoAssociateMedia.ts')
-  const series = { status: 'en cours', rating: 4, isFavorite: true, seasonsSeen: 3, showrunner: null, summary: null }
-  const mergedSeries = seriesWithPresentation(series, { showrunners: ['S. Knight'], cast: [], synopsis: null, seasonsTotal: 8, posterUrl: 'https://x/p.jpg' })
+  const series = { status: 'en cours', rating: 4, isFavorite: true, seasonsSeen: 3, showrunner: null, summary: null, firstAirYear: null, lastAirYear: null }
+  const mergedSeries = seriesWithPresentation(series, { showrunners: ['S. Knight'], cast: [], synopsis: null, seasonsTotal: 8, posterUrl: 'https://x/p.jpg', firstAirYear: 2019, lastAirYear: 2022 })
   assert.equal(mergedSeries.status, 'en cours', 'L’association ne touche jamais le statut personnel')
   assert.equal(mergedSeries.rating, 4, 'L’association ne touche jamais la note personnelle')
   assert.equal(mergedSeries.isFavorite, true, 'L’association ne touche jamais le coup de cœur')
   assert.equal(mergedSeries.seasonsSeen, 3, 'L’association ne touche jamais la progression personnelle')
   assert.equal(mergedSeries.showrunner, 'S. Knight', 'Le champ éditorial vide est enrichi')
   assert.equal(mergedSeries.summary, null, 'Un résumé absent côté fournisseur ne remplace pas la valeur existante')
+  assert.equal(mergedSeries.firstAirYear, 2019, 'Le début de diffusion du fournisseur est repris')
+  assert.equal(mergedSeries.lastAirYear, 2022, 'La fin de diffusion du fournisseur est reprise')
+  // Une série que TMDB annonce en cours arrive sans fin : la valeur locale reste.
+  const ongoing = seriesWithPresentation({ ...series, firstAirYear: 2019, lastAirYear: 2021 }, { showrunners: [], cast: [], synopsis: null, seasonsTotal: null, posterUrl: null, firstAirYear: 2019, lastAirYear: null })
+  assert.equal(ongoing.firstAirYear, 2019, 'Une année connue est conservée')
+  assert.equal(ongoing.lastAirYear, 2021, 'Une fin inconnue du fournisseur n’efface pas la valeur locale')
   const book = { status: 'à lire', rating: null, quotes: [{ body: 'citation' }] }
   const mergedBook = bookWithPresentation(book, { author: 'A. Christie', firstPublishYear: 1939, synopsis: 'Dix petits indiens.', coverUrl: 'https://x/c.jpg' })
   assert.deepEqual(mergedBook.quotes, [{ body: 'citation' }], 'Les citations personnelles traversent la réassociation intactes')

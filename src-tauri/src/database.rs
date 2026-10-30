@@ -160,6 +160,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0026_media_banner_url.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 27,
+            description: "series_air_years",
+            sql: include_str!("../migrations/0027_series_air_years.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -565,6 +571,130 @@ mod tests {
             assert_eq!(
                 written.as_deref(),
                 Some("https://image.tmdb.org/t/p/w1280/fond.jpg")
+            );
+        });
+    }
+
+    /// Années de diffusion (migration 0027) : un ajout pur, borné. Les fiches
+    /// écrites avant la migration gardent toutes leurs valeurs et reçoivent
+    /// deux colonnes vides — aucune période inventée.
+    #[test]
+    fn air_years_migration_is_additive_and_bounded() {
+        tauri::async_runtime::block_on(async {
+            let mut connection = SqliteConnection::connect("sqlite::memory:")
+                .await
+                .expect("create in-memory SQLite database");
+            let all = migrations();
+            for migration in all.iter().filter(|migration| migration.version < 27) {
+                sqlx::raw_sql(migration.sql)
+                    .execute(&mut connection)
+                    .await
+                    .expect("apply Sylloge migration before 0027");
+            }
+
+            sqlx::query("INSERT INTO profiles (id, name) VALUES ('p1', 'Test')")
+                .execute(&mut connection)
+                .await
+                .expect("seed profile");
+            sqlx::query(
+                "INSERT INTO series (id, profile_id, title, seasons_total)
+                 VALUES ('serie', 'p1', 'Série existante', 4)",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed series");
+            sqlx::query(
+                "INSERT INTO anime (id, profile_id, title) VALUES ('anime', 'p1', 'Animé existant')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed anime");
+
+            let air_years = all
+                .iter()
+                .find(|migration| migration.version == 27)
+                .expect("migration 0027");
+            sqlx::raw_sql(air_years.sql)
+                .execute(&mut connection)
+                .await
+                .expect("apply air years migration");
+
+            for table in ["series", "anime"] {
+                for column in ["first_air_year", "last_air_year"] {
+                    let column_count: i64 = sqlx::query_scalar(&format!(
+                        "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = '{column}'"
+                    ))
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read air year column");
+                    assert_eq!(column_count, 1, "la table `{table}` doit porter `{column}`");
+
+                    let stored: Option<i64> =
+                        sqlx::query_scalar(&format!("SELECT {column} FROM {table}"))
+                            .fetch_one(&mut connection)
+                            .await
+                            .expect("read air year value");
+                    assert_eq!(stored, None, "aucune période par défaut dans `{table}`");
+                }
+            }
+
+            let seasons_total: Option<i64> =
+                sqlx::query_scalar("SELECT seasons_total FROM series WHERE id = 'serie'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read preserved seasons");
+            assert_eq!(
+                seasons_total,
+                Some(4),
+                "les valeurs existantes sont intactes"
+            );
+
+            // Les deux années s'écrivent, et les bornes refusent l'absurde.
+            sqlx::query("UPDATE series SET first_air_year = 2017, last_air_year = 2020")
+                .execute(&mut connection)
+                .await
+                .expect("write an air period on an existing series");
+            let stored: (Option<i64>, Option<i64>) = sqlx::query_as(
+                "SELECT first_air_year, last_air_year FROM series WHERE id = 'serie'",
+            )
+            .fetch_one(&mut connection)
+            .await
+            .expect("read written air period");
+            assert_eq!(stored, (Some(2017), Some(2020)));
+
+            // Une série en cours n'a pas de fin : `last_air_year` reste NULL.
+            sqlx::query("UPDATE anime SET first_air_year = 2022")
+                .execute(&mut connection)
+                .await
+                .expect("write an open air period");
+            let stored: Option<i64> =
+                sqlx::query_scalar("SELECT last_air_year FROM anime WHERE id = 'anime'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read open air period");
+            assert_eq!(stored, None, "une série en cours n’a pas de fin");
+
+            for out_of_range in [1899_i64, 2101] {
+                let error = sqlx::query("UPDATE series SET first_air_year = $1 WHERE id = 'serie'")
+                    .bind(out_of_range)
+                    .execute(&mut connection)
+                    .await
+                    .expect_err("une année hors bornes doit être refusée");
+                assert!(
+                    error.to_string().contains("CHECK"),
+                    "la contrainte doit refuser {out_of_range} : {error}"
+                );
+            }
+
+            let untouched: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'first_air_year'",
+            )
+            .fetch_one(&mut connection)
+            .await
+            .expect("read book columns");
+            assert_eq!(
+                untouched, 0,
+                "les livres ne portent pas d’année de diffusion"
             );
         });
     }

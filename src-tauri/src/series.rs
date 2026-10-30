@@ -58,6 +58,9 @@ struct SeriesWriteInput {
     personal_note: Option<String>,
     created_at: String,
     updated_at: String,
+    /// Période de diffusion (migration 0027) : deux années, `null` si inconnues.
+    first_air_year: Option<i64>,
+    last_air_year: Option<i64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -152,10 +155,10 @@ async fn insert_series_row(
                id, profile_id, title, showrunner, casting, summary, category,
                status, rating, is_favorite, seasons_seen, seasons_total,
                progress_updated_at, started_at, poster_url, banner_url,
-               personal_note, created_at, updated_at
+               personal_note, created_at, updated_at, first_air_year, last_air_year
              ) VALUES (
                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-               $15, $16, $17, $18, $19
+               $15, $16, $17, $18, $19, $20, $21
              )",
             )
             .bind(&series.id)
@@ -177,6 +180,8 @@ async fn insert_series_row(
             .bind(&series.personal_note)
             .bind(&series.created_at)
             .bind(&series.updated_at)
+            .bind(series.first_air_year)
+            .bind(series.last_air_year)
             .execute(&mut **transaction)
             .await
         }
@@ -187,10 +192,10 @@ async fn insert_series_row(
                id, profile_id, title, showrunner, casting, summary, status,
                rating, is_favorite, seasons_seen, seasons_total,
                progress_updated_at, started_at, poster_url, banner_url,
-               personal_note, created_at, updated_at
+               personal_note, created_at, updated_at, first_air_year, last_air_year
              ) VALUES (
                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-               $15, $16, $17, $18
+               $15, $16, $17, $18, $19, $20
              )",
             )
             .bind(&series.id)
@@ -211,6 +216,8 @@ async fn insert_series_row(
             .bind(&series.personal_note)
             .bind(&series.created_at)
             .bind(&series.updated_at)
+            .bind(series.first_air_year)
+            .bind(series.last_air_year)
             .execute(&mut **transaction)
             .await
         }
@@ -344,6 +351,8 @@ mod tests {
                personal_note TEXT,
                created_at TEXT NOT NULL,
                updated_at TEXT NOT NULL,
+               first_air_year INTEGER CHECK (first_air_year IS NULL OR first_air_year BETWEEN 1900 AND 2100),
+               last_air_year INTEGER CHECK (last_air_year IS NULL OR last_air_year BETWEEN 1900 AND 2100),
                CHECK (seasons_seen IS NULL OR seasons_total IS NULL OR seasons_seen <= seasons_total),
                FOREIGN KEY (profile_id) REFERENCES profiles(id)
              );
@@ -366,6 +375,8 @@ mod tests {
                personal_note TEXT,
                created_at TEXT NOT NULL,
                updated_at TEXT NOT NULL,
+               first_air_year INTEGER CHECK (first_air_year IS NULL OR first_air_year BETWEEN 1900 AND 2100),
+               last_air_year INTEGER CHECK (last_air_year IS NULL OR last_air_year BETWEEN 1900 AND 2100),
                CHECK (seasons_seen IS NULL OR seasons_total IS NULL OR seasons_seen <= seasons_total),
                FOREIGN KEY (profile_id) REFERENCES profiles(id)
              );
@@ -420,6 +431,8 @@ mod tests {
             personal_note: Some("Avis personnel conservé.".to_string()),
             created_at: "2026-07-22T10:00:00.000Z".to_string(),
             updated_at: "2026-07-23T09:00:00.000Z".to_string(),
+            first_air_year: Some(2017),
+            last_air_year: Some(2020),
         }
     }
 
@@ -492,7 +505,8 @@ mod tests {
             let row = sqlx::query(
                 "SELECT title, showrunner, casting, summary, status, rating, is_favorite,
                         seasons_seen, seasons_total, progress_updated_at, started_at,
-                        poster_url, banner_url, personal_note, created_at, updated_at
+                        poster_url, banner_url, personal_note, created_at, updated_at,
+                        first_air_year, last_air_year
                  FROM anime WHERE id = 'series-1' AND profile_id = 'default'",
             )
             .fetch_one(&pool)
@@ -528,6 +542,16 @@ mod tests {
             assert_eq!(
                 row.get::<String, _>("personal_note"),
                 "Avis personnel conservé."
+            );
+            assert_eq!(
+                row.get::<i64, _>("first_air_year"),
+                2017,
+                "le début de diffusion suit la fiche déplacée"
+            );
+            assert_eq!(
+                row.get::<i64, _>("last_air_year"),
+                2020,
+                "la fin de diffusion suit la fiche déplacée"
             );
             assert_eq!(
                 row.get::<String, _>("created_at"),
@@ -566,7 +590,7 @@ mod tests {
 
             let row = sqlx::query(
                 "SELECT category, title, rating, is_favorite, seasons_seen, poster_url,
-                        banner_url, personal_note, created_at
+                        banner_url, personal_note, created_at, first_air_year, last_air_year
                  FROM series WHERE id = 'series-1' AND profile_id = 'default'",
             )
             .fetch_one(&pool)
@@ -577,6 +601,8 @@ mod tests {
             assert_eq!(row.get::<f64, _>("rating"), 4.5);
             assert_eq!(row.get::<i64, _>("is_favorite"), 1);
             assert_eq!(row.get::<i64, _>("seasons_seen"), 2);
+            assert_eq!(row.get::<i64, _>("first_air_year"), 2017);
+            assert_eq!(row.get::<i64, _>("last_air_year"), 2020);
             assert_eq!(
                 row.get::<String, _>("banner_url"),
                 "https://image.tmdb.org/t/p/w1280/fond.jpg",
@@ -693,7 +719,7 @@ mod tests {
     }
 
     /// Colonnes que `insert_series_row` recopie, dans l'ordre du schéma.
-    const MOVED_COLUMNS: [&str; 18] = [
+    const MOVED_COLUMNS: [&str; 20] = [
         "id",
         "profile_id",
         "title",
@@ -712,6 +738,8 @@ mod tests {
         "personal_note",
         "created_at",
         "updated_at",
+        "first_air_year",
+        "last_air_year",
     ];
 
     /// Garde de maintenance : le schéma de test ci-dessus est recopié à la main.

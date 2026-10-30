@@ -101,7 +101,7 @@ test('Le format affiché suit l’image, borné, et retombe sur celui de la form
 test('Document v6 : les champs de forme voyagent ; v5 s’importe sans eux ; un format mal formé est refusé', () => {
   const library = { profile, films: [], series: [], books: [], games: [], artworks: [artwork({ details: { text: POEM, collection: 'Alcools' } })] }
   const current = createLibraryDocument(library, ISO)
-  assert.equal(current.version, 7)
+  assert.equal(current.version, 8)
   const read = validateLibraryDocument(JSON.stringify(current))
   assert.deepEqual(read.errors, [])
   assert.deepEqual(read.document.artworks[0].details, { text: POEM, collection: 'Alcools' })

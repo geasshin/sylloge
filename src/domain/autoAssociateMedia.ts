@@ -56,7 +56,16 @@ export const MATCH_THRESHOLD = 0.8
 /** Fusion présentation → fiche : seuls les champs éditoriaux changent. */
 export function seriesWithPresentation(
   series: Series,
-  presentation: { showrunners: string[]; cast: string[]; synopsis: string | null; seasonsTotal: number | null; posterUrl: string | null },
+  presentation: {
+    showrunners: string[]
+    cast: string[]
+    synopsis: string | null
+    seasonsTotal: number | null
+    posterUrl: string | null
+    /** Période de diffusion : `null` quand le fournisseur ne la connaît pas. */
+    firstAirYear?: number | null
+    lastAirYear?: number | null
+  },
 ): Series {
   return {
     ...series,
@@ -65,6 +74,10 @@ export function seriesWithPresentation(
     summary: presentation.synopsis ?? series.summary,
     seasonsTotal: presentation.seasonsTotal ?? series.seasonsTotal,
     posterUrl: presentation.posterUrl ?? series.posterUrl,
+    // Une année inconnue du fournisseur ne remplace pas la valeur de la fiche ;
+    // une fin absente (série en cours) laisse la fiche telle quelle.
+    firstAirYear: presentation.firstAirYear ?? series.firstAirYear,
+    lastAirYear: presentation.lastAirYear ?? series.lastAirYear,
   }
 }
 

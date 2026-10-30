@@ -2,9 +2,10 @@
 
 ## Ce que l’application sauvegarde
 
-Un seul fichier JSON par profil, `sylloge-library`, version **7** depuis le 30 octobre 2026.
-Les versions 1 à 6 restent lisibles : un document plus ancien s’importe, sans expérience
-(avant la v5), sans champs de forme d’art (avant la v6) et sans bannière (avant la v7).
+Un seul fichier JSON par profil, `sylloge-library`, version **8** depuis le 30 octobre 2026.
+Les versions 1 à 7 restent lisibles : un document plus ancien s’importe, sans expérience
+(avant la v5), sans champs de forme d’art (avant la v6), sans bannière (avant la v7) et sans
+années de diffusion (avant la v8).
 
 | Contenu | Porté depuis |
 | --- | --- |
@@ -14,6 +15,7 @@ Les versions 1 à 6 restent lisibles : un document plus ancien s’importe, sans
 | Recettes de cuisine (`customLibraries`, identifiant `recipes`) : ingrédients et étapes en textes longs conservés ligne pour ligne, photo en lien | v5, ajoutées le 23 octobre 2026 |
 | Champs propres à chaque forme d’art (`details` d’une œuvre) : texte d’un poème vers pour vers, recueil, traduction, technique, dimensions, matériau, tirage… | **v6**, 27 octobre 2026 |
 | Bannière 16:9 des films, séries, animés et jeux (`bannerUrl`) : l’adresse d’une image paysage, `null` quand aucune n’est choisie | **v7**, 30 octobre 2026 |
+| Période de diffusion des séries et animés (`firstAirYear`, `lastAirYear`) : deux années, `null` quand elles ne sont pas connues | **v8**, 30 octobre 2026 |
 
 Le brief 0.4.21 gardait les vues locales, hors des copies et des exports. L’objectif
 « portabilité intégrale de l’expérience » l’a renversé le 23 octobre 2026 : une vue
@@ -39,6 +41,11 @@ Une sauvegarde v7 n’est pas lisible par une version antérieure au 30 octobre 
 l’annonce comme venant d’une version plus récente. Le CSV v1 de l’Art ne porte ni les champs
 personnalisés ni les champs de forme : seul le JSON les fait voyager. À l’import avec fusion,
 un détail déjà saisi n’est jamais remplacé, un détail absent est comblé.
+
+Période de diffusion (v8) : séries et animés portent `firstAirYear` et `lastAirYear`
+(colonnes `first_air_year` / `last_air_year`, migration 0027). Un document v1 à v7 les
+importe à `null` ; une fusion qui ne les porte pas ne les efface jamais. Une sauvegarde v8
+n’est pas lisible par une version antérieure à la 0.6.21.
 
 Un document v5 écrit par un chemin qui ne collecte rien (export d’une seule collection)
 porte `"experience": { "version": 1, "savedViews": [], "preferences": {} }` : cela se lit
@@ -113,8 +120,9 @@ l’Art et les bibliothèques personnalisées n’en ont pas.
 ## Vérifications
 
 - `npm run test:portability` : aller-retour des sept bibliothèques et des champs personnels,
-  v1 à v6, bannière v7 comprise (document v6 relu avec `bannerUrl: null`, bannière non https
-  refusée, clé de bannière refusée dans un document v6), et `scripts/profile-experience.test.mjs`
+  v1 à v7, bannière v7 et période v8 comprises (document v6 relu avec `bannerUrl: null`,
+  bannière non https refusée, clé de bannière refusée dans un document v6, document v7 relu
+  sans années, années hors 1900–2100 ou fin avant début refusées), et `scripts/profile-experience.test.mjs`
   pour l’expérience (document v5, document v4 sans experience, préférence abîmée écartée sans
   perte, conflit de nom, restauration dans un profil vide, texte du bilan et de l’aperçu,
   version future).

@@ -95,13 +95,13 @@ const series: Series[] = [
     id: 'series-1', profileId, title: 'Le Bureau des Légendes', showrunner: 'Eric Kandel', casting: 'Dagane, Caroline Proust',
     summary: 'Une série à reprendre.', category: 'série télé', status: 'en cours', rating: 5, isFavorite: true,
     seasonsSeen: 3, seasonsTotal: 5, progressUpdatedAt: timestamp('2026-09-23'), startedAt: '2024-01-10',
-    posterUrl: null, bannerUrl: null, personalNote: 'Une saison à reprendre avec calme.', createdAt: timestamp('2024-01-10'), updatedAt: timestamp('2026-09-23'),
+    posterUrl: null, bannerUrl: null, firstAirYear: 2015, lastAirYear: 2020, personalNote: 'Une saison à reprendre avec calme.', createdAt: timestamp('2024-01-10'), updatedAt: timestamp('2026-09-23'),
   },
   {
     id: 'series-2', profileId, title: 'Dark', showrunner: 'Baran bo Odar', casting: null, summary: null,
     category: 'série télé', status: 'à voir', rating: null, isFavorite: false,
     seasonsSeen: null, seasonsTotal: 3, progressUpdatedAt: null, startedAt: null,
-    posterUrl: null, bannerUrl: null, personalNote: null, createdAt: timestamp('2026-10-03'), updatedAt: timestamp('2026-10-03'),
+    posterUrl: null, bannerUrl: null, firstAirYear: 2017, lastAirYear: 2020, personalNote: null, createdAt: timestamp('2026-10-03'), updatedAt: timestamp('2026-10-03'),
   },
 ]
 

@@ -56,6 +56,8 @@ export type TmdbSeriesPresentation = {
   title: string
   originalTitle: string | null
   firstAirYear: number | null
+  /** Fin de diffusion ; `null` tant que TMDB annonce une production en cours. */
+  lastAirYear: number | null
   synopsis: string | null
   showrunners: string[]
   cast: string[]

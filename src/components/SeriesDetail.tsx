@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  formatAirPeriod,
   SERIES_STATUS_LABELS,
   type Series,
 } from '../domain/series.ts'
@@ -46,6 +47,11 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
       ? t(series.seasonsSeen === 1 ? '{count} saison sur {total}' : '{count} saisons sur {total}', { count: series.seasonsSeen, total: series.seasonsTotal })
       : t(series.seasonsSeen === 1 ? '{count} saison vue' : '{count} saisons vues', { count: series.seasonsSeen })
     : null
+
+  // Sous le titre : qui, et quand la série a été diffusée. L'avancement et le
+  // casting vivent dans la grille juste en dessous, sans rien y répéter.
+  const airPeriod = formatAirPeriod(series.firstAirYear, series.lastAirYear)
+  const factline = [series.showrunner, airPeriod].filter(Boolean).join(' · ')
 
   const deleteSeries = async () => {
     setDeleting(true)
@@ -131,8 +137,8 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
           <>
             <p className="eyebrow">{t(series.category === 'animation' ? "Animation japonaise" : "Série télé")}</p>
             <h1 className="display-title">{series.title}</h1>
-            {/* Sous le titre : qui. L'avancement vit dans la grille. */}
-            {series.showrunner && <p className="detail-factline">{series.showrunner}</p>}
+            {/* Sous le titre : qui et quand. L'avancement vit dans la grille. */}
+            {factline !== '' && <p className="detail-factline">{factline}</p>}
           </>
         )}
         facts={(

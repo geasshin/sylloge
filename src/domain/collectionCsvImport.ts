@@ -455,6 +455,9 @@ function parseGenericRow(
       rating: rating()?.toString() ?? '',
       isFavorite: favorite(), seasonsSeen: count('seasonsSeen', 'Saisons vues :'), seasonsTotal: count('seasonsTotal', 'Saisons au total :'),
       startedAt: date('startedAt', 'Début de visionnage :'), posterUrl: value('posterUrl'), personalNote: value('personalNote'),
+      // Le CSV Sylloge ne porte pas la période de diffusion (v8) : elle ne
+      // voyage que par la sauvegarde JSON, comme la bannière 16:9.
+      firstAirYear: '', lastAirYear: '',
     } satisfies SeriesFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)
     for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })

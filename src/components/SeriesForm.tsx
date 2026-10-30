@@ -217,6 +217,41 @@ export function SeriesForm({ series, creationCategory, initialValues, providerLi
             </section>
           )}
 
+          {/* Période de diffusion (30 octobre 2026) : deux années éditoriales,
+              comme l'année d'un film. Elles ne touchent jamais le verdict. */}
+          <fieldset className="progress-fields broadcast-fields">
+            <legend>{t("Période de diffusion")}</legend>
+            <div className="form-row form-row-halves">
+              <div className="field">
+                <label htmlFor="series-firstAirYear">{t("Début de diffusion")}</label>
+                <input
+                  id="series-firstAirYear"
+                  name="firstAirYear"
+                  inputMode="numeric"
+                  value={values.firstAirYear}
+                  onChange={(event) => update('firstAirYear', event.target.value)}
+                  aria-invalid={Boolean(errors.firstAirYear)}
+                  aria-describedby={errors.firstAirYear ? 'series-firstAirYear-error' : undefined}
+                />
+                {errors.firstAirYear && <p className="field-error" id="series-firstAirYear-error">{translateMessage(errors.firstAirYear)}</p>}
+              </div>
+              <div className="field">
+                <label htmlFor="series-lastAirYear">{t("Fin de diffusion")}</label>
+                <input
+                  id="series-lastAirYear"
+                  name="lastAirYear"
+                  inputMode="numeric"
+                  value={values.lastAirYear}
+                  onChange={(event) => update('lastAirYear', event.target.value)}
+                  aria-invalid={Boolean(errors.lastAirYear)}
+                  aria-describedby={errors.lastAirYear ? 'series-lastAirYear-error' : undefined}
+                />
+                {errors.lastAirYear && <p className="field-error" id="series-lastAirYear-error">{translateMessage(errors.lastAirYear)}</p>}
+              </div>
+            </div>
+            <p className="field-help">{t("Laisser la fin vide si la série continue.")}</p>
+          </fieldset>
+
           {/* La progression factuelle précède la conclusion personnelle. */}
           {verdictVisible && progressVisible && (
             <fieldset className="progress-fields verdict-progress">

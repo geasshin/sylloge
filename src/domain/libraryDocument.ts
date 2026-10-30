@@ -26,13 +26,14 @@ export const SYLLOGE_LIBRARY_FORMAT = 'sylloge-library' as const
  * profil — vues enregistrées et préférences d’affichage, la v6 (27 octobre
  * 2026) les champs propres à chaque forme d’art (`details` d’une œuvre),
  * la v7 (30 octobre 2026) la bannière 16:9 des films, séries, animés et jeux
- * (`bannerUrl`).
- * Les versions 1 à 6 restent lisibles : une fiche v6 s’importe sans bannière.
+ * (`bannerUrl`), la v8 (30 octobre 2026) les années de diffusion des séries et
+ * des animés (`firstAirYear`, `lastAirYear`).
+ * Les versions 1 à 7 restent lisibles : une fiche v7 s’importe sans période.
  */
-export const SYLLOGE_LIBRARY_VERSION = 7 as const
-export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3, 4, 5, 6] as const
+export const SYLLOGE_LIBRARY_VERSION = 8 as const
+export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3, 4, 5, 6, 7] as const
 
-type DocumentVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7
+type DocumentVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 
 export type SyllogeLibraryDocument = {
   format: typeof SYLLOGE_LIBRARY_FORMAT
@@ -228,6 +229,12 @@ const ARTWORK_KEYS_V6 = [...ARTWORK_KEYS, 'details'] as const
  */
 const FILM_KEYS_V7 = [...FILM_KEYS, 'bannerUrl'] as const
 const SERIES_KEYS_V7 = [...SERIES_KEYS, 'bannerUrl'] as const
+/**
+ * v8 : séries et animés portent leur période de diffusion (`null` quand elle
+ * n'est pas connue). Les films, les livres et les autres bibliothèques n'en ont
+ * pas.
+ */
+const SERIES_KEYS_V8 = [...SERIES_KEYS_V7, 'firstAirYear', 'lastAirYear'] as const
 const GAME_KEYS_V7 = [...GAME_KEYS, 'bannerUrl'] as const
 const CUSTOM_FIELD_KEYS = ['name', 'value'] as const
 
@@ -372,7 +379,7 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
       '$.version',
       isNewerDocumentVersion(value.version)
         ? 'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.'
-        : 'Les versions 1 à 7 du document sont prises en charge.',
+        : 'Les versions 1 à 8 du document sont prises en charge.',
     )
     return { document: null, counts: emptyCounts, errors }
   }
@@ -514,7 +521,7 @@ const isNewerDocumentVersion = (value: unknown): boolean =>
   typeof value === 'number' && Number.isInteger(value) && value > SYLLOGE_LIBRARY_VERSION
 
 function libraryDocumentVersion(value: unknown): DocumentVersion | null {
-  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 || value === 7
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 || value === 7 || value === 8
     ? value
     : null
 }
@@ -809,6 +816,20 @@ function validateOptionalYear(value: unknown, path: string, errors: LibraryImpor
   }
 }
 
+/**
+ * Année de diffusion (v8) : `null` quand elle n'est pas connue, sinon un
+ * entier dans les bornes de la contrainte SQLite (1900 à 2100). Une année
+ * hors bornes vient d'un document abîmé, jamais de l'application.
+ */
+function validateOptionalAirYear(value: unknown, path: string, errors: LibraryImportValidationError[]) {
+  if (
+    value !== null
+    && (!Number.isInteger(value) || (value as number) < 1900 || (value as number) > 2100)
+  ) {
+    addError(errors, path, 'L’année de diffusion doit être nulle ou comprise entre 1900 et 2100.')
+  }
+}
+
 function validateOptionalProgress(
   value: unknown,
   path: string,
@@ -910,7 +931,8 @@ function validateSeries(
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, version >= 7 ? SERIES_KEYS_V7 : SERIES_KEYS, version, profileId, ids, errors, 'Série')
+  const seriesKeys = version >= 8 ? SERIES_KEYS_V8 : version >= 7 ? SERIES_KEYS_V7 : SERIES_KEYS
+  const identityValid = validateSharedIdentity(value, path, seriesKeys, version, profileId, ids, errors, 'Série')
   validateOptionalString(value.showrunner, `${path}.showrunner`, errors)
   validateOptionalString(value.casting, `${path}.casting`, errors)
   validateOptionalString(value.summary, `${path}.summary`, errors)
@@ -939,12 +961,24 @@ function validateSeries(
   }
   validateOptionalString(value.posterUrl, `${path}.posterUrl`, errors)
   if (version >= 7) validateOptionalString(value.bannerUrl, `${path}.bannerUrl`, errors)
+  if (version >= 8) {
+    validateOptionalAirYear(value.firstAirYear, `${path}.firstAirYear`, errors)
+    validateOptionalAirYear(value.lastAirYear, `${path}.lastAirYear`, errors)
+  }
   validateOptionalString(value.personalNote, `${path}.personalNote`, errors)
 
   const series = normalizeSeries(value as Series)
   validateOptionalCalendarDate(series.startedAt, `${path}.startedAt`, errors, 'La date de début de visionnage')
   validateOptionalHttpUrl(series.posterUrl, `${path}.posterUrl`, errors, 'L’URL d’affiche')
   if (version >= 7) validateOptionalBannerUrl(series.bannerUrl, `${path}.bannerUrl`, errors)
+  if (
+    version >= 8
+    && typeof series.firstAirYear === 'number'
+    && typeof series.lastAirYear === 'number'
+    && series.lastAirYear < series.firstAirYear
+  ) {
+    addError(errors, `${path}.lastAirYear`, 'La fin de diffusion ne peut pas précéder le début.')
+  }
 
   if (!identityValid || hasPathError(errors, path)) return null
 

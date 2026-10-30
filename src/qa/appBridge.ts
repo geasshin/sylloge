@@ -426,6 +426,7 @@ function moveSeries(payload: SeriesPayload): void {
     seasons_seen: series.seasonsSeen, seasons_total: series.seasonsTotal,
     progress_updated_at: series.progressUpdatedAt, started_at: series.startedAt,
     poster_url: series.posterUrl, banner_url: series.bannerUrl,
+    first_air_year: series.firstAirYear, last_air_year: series.lastAirYear,
     personal_note: series.personalNote, updated_at: series.updatedAt,
   }
   db.exec('BEGIN')
@@ -822,7 +823,7 @@ function handle(cmd: string, args: Args): unknown {
       return /sans photo/i.test(name) ? null : `https://picsum.photos/seed/sylloge-director-${encodeURIComponent(name)}/200/260`
     }
     case 'preview_tmdb_series':
-      return { tmdbId: args.tmdbId, title: `Série ${args.tmdbId}`, originalTitle: null, firstAirYear: 2019, synopsis: 'Synopsis factice de recette.', showrunners: ['Showrunner de recette'], cast: ['Interprète A', 'Interprète B'], seasonsTotal: 3, posterUrl: fakePoster(`series-${args.tmdbId}`) }
+      return { tmdbId: args.tmdbId, title: `Série ${args.tmdbId}`, originalTitle: null, firstAirYear: 2019, lastAirYear: 2022, synopsis: 'Synopsis factice de recette.', showrunners: ['Showrunner de recette'], cast: ['Interprète A', 'Interprète B'], seasonsTotal: 3, posterUrl: fakePoster(`series-${args.tmdbId}`) }
     case 'associate_film_with_tmdb': return associateFilm(args.filmId, Number(args.tmdbId))
     case 'refresh_film_tmdb_cache': return cachedFilm(args.filmId)
     case 'remove_tmdb_association':

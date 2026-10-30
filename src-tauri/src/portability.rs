@@ -351,6 +351,11 @@ pub struct ImportSeries {
     #[serde(default)]
     banner_url: Option<String>,
     personal_note: Option<String>,
+    /// Années de diffusion (document v8, migration 0027) : absentes avant la v8.
+    #[serde(default)]
+    first_air_year: Option<i64>,
+    #[serde(default)]
+    last_air_year: Option<i64>,
     created_at: String,
     updated_at: String,
 }
@@ -380,6 +385,11 @@ pub struct ImportAnime {
     #[serde(default)]
     banner_url: Option<String>,
     personal_note: Option<String>,
+    /// Années de diffusion (document v8, migration 0027) : absentes avant la v8.
+    #[serde(default)]
+    first_air_year: Option<i64>,
+    #[serde(default)]
+    last_air_year: Option<i64>,
     created_at: String,
     updated_at: String,
 }
@@ -2786,6 +2796,8 @@ struct AnimeRecord<'a> {
     personal_note: Option<&'a str>,
     created_at: &'a str,
     updated_at: &'a str,
+    first_air_year: Option<i64>,
+    last_air_year: Option<i64>,
 }
 
 impl<'a> From<&'a ImportSeries> for AnimeRecord<'a> {
@@ -2809,6 +2821,8 @@ impl<'a> From<&'a ImportSeries> for AnimeRecord<'a> {
             personal_note: canonical_optional_text(&series.personal_note),
             created_at: &series.created_at,
             updated_at: &series.updated_at,
+            first_air_year: series.first_air_year,
+            last_air_year: series.last_air_year,
         }
     }
 }
@@ -2834,6 +2848,8 @@ impl<'a> From<&'a ImportAnime> for AnimeRecord<'a> {
             personal_note: canonical_optional_text(&anime.personal_note),
             created_at: &anime.created_at,
             updated_at: &anime.updated_at,
+            first_air_year: anime.first_air_year,
+            last_air_year: anime.last_air_year,
         }
     }
 }
@@ -3250,9 +3266,11 @@ async fn insert_anime_row(
         "INSERT INTO anime (
             id, profile_id, title, showrunner, casting, summary, status, rating,
             is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
-            poster_url, banner_url, personal_note, created_at, updated_at
+            poster_url, banner_url, personal_note, created_at, updated_at,
+            first_air_year, last_air_year
          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+            $19, $20
          )",
     )
     .bind(anime.id)
@@ -3273,6 +3291,8 @@ async fn insert_anime_row(
     .bind(anime.personal_note)
     .bind(anime.created_at)
     .bind(anime.updated_at)
+    .bind(anime.first_air_year)
+    .bind(anime.last_air_year)
     .execute(&mut **transaction)
     .await
     .map_err(|error| {
@@ -3293,9 +3313,11 @@ async fn insert_series_row(
         "INSERT INTO series (
             id, profile_id, title, showrunner, casting, summary, category, status, rating,
             is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
-            poster_url, banner_url, personal_note, created_at, updated_at
+            poster_url, banner_url, personal_note, created_at, updated_at,
+            first_air_year, last_air_year
          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+            $19, $20, $21
          )",
     )
     .bind(&series.id)
@@ -3317,6 +3339,8 @@ async fn insert_series_row(
     .bind(canonical_optional_text(&series.personal_note))
     .bind(&series.created_at)
     .bind(&series.updated_at)
+    .bind(series.first_air_year)
+    .bind(series.last_air_year)
     .execute(&mut **transaction)
     .await
     .map_err(|error| {
@@ -4443,7 +4467,8 @@ async fn upsert_series(
                 status = $8, rating = $9, is_favorite = $10, seasons_seen = $11,
                 seasons_total = $12, progress_updated_at = $13, started_at = $14,
                 poster_url = $15, banner_url = COALESCE($16, banner_url),
-                personal_note = $17, updated_at = $18
+                personal_note = $17, first_air_year = COALESCE($18, first_air_year),
+                last_air_year = COALESCE($19, last_air_year), updated_at = $20
              WHERE id = $1 AND profile_id = $2",
         )
         .bind(&series.id)
@@ -4463,6 +4488,8 @@ async fn upsert_series(
         .bind(poster_url)
         .bind(banner_url)
         .bind(personal_note)
+        .bind(series.first_air_year)
+        .bind(series.last_air_year)
         .bind(&series.updated_at)
         .execute(&mut **transaction)
         .await
@@ -4477,9 +4504,11 @@ async fn upsert_series(
             "INSERT INTO series (
                 id, profile_id, title, showrunner, casting, summary, category, status, rating,
                 is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
-                poster_url, personal_note, created_at, updated_at
+                poster_url, banner_url, personal_note, created_at, updated_at,
+                first_air_year, last_air_year
              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+                $19, $20, $21
              )",
         )
         .bind(&series.id)
@@ -4501,6 +4530,8 @@ async fn upsert_series(
         .bind(personal_note)
         .bind(&series.created_at)
         .bind(&series.updated_at)
+        .bind(series.first_air_year)
+        .bind(series.last_air_year)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -4535,7 +4566,9 @@ async fn upsert_anime(
             title = $3, showrunner = $4, casting = $5, summary = $6, status = $7,
             rating = $8, is_favorite = $9, seasons_seen = $10, seasons_total = $11,
             progress_updated_at = $12, started_at = $13, poster_url = $14,
-            banner_url = COALESCE($15, banner_url), personal_note = $16, updated_at = $17
+            banner_url = COALESCE($15, banner_url), personal_note = $16,
+            first_air_year = COALESCE($17, first_air_year),
+            last_air_year = COALESCE($18, last_air_year), updated_at = $19
          WHERE id = $1 AND profile_id = $2",
     )
     .bind(anime.id)
@@ -4554,6 +4587,8 @@ async fn upsert_anime(
     .bind(anime.poster_url)
     .bind(anime.banner_url)
     .bind(anime.personal_note)
+    .bind(anime.first_air_year)
+    .bind(anime.last_air_year)
     .bind(anime.updated_at)
     .execute(&mut **transaction)
     .await
@@ -6131,6 +6166,7 @@ mod tests {
             include_str!("../migrations/0023_recipes_statuses.sql"),
             include_str!("../migrations/0025_artwork_details.sql"),
             include_str!("../migrations/0026_media_banner_url.sql"),
+            include_str!("../migrations/0027_series_air_years.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -6349,6 +6385,8 @@ mod tests {
                     poster_url: None,
                     personal_note: None,
                     banner_url: None,
+                    first_air_year: Some(2019),
+                    last_air_year: Some(2023),
                     created_at: timestamp.clone(),
                     updated_at: timestamp.clone(),
                 }],
@@ -6934,6 +6972,8 @@ mod tests {
             poster_url: None,
             personal_note: Some("Note de série.".to_string()),
             banner_url: None,
+            first_air_year: Some(2017),
+            last_air_year: Some(2020),
             created_at: "2026-01-01T00:00:00.000Z".to_string(),
             updated_at: "2026-07-20T10:00:00.000Z".to_string(),
         }
@@ -6963,6 +7003,8 @@ mod tests {
             poster_url: Some("https://example.test/anime.jpg".to_string()),
             personal_note: Some("Note animé.".to_string()),
             banner_url: None,
+            first_air_year: Some(2022),
+            last_air_year: None,
             created_at: "2026-01-02T00:00:00.000Z".to_string(),
             updated_at: "2026-07-21T10:00:00.000Z".to_string(),
         }
@@ -7737,6 +7779,17 @@ mod tests {
                     .expect("compte animations");
             assert_eq!(series_count, 1, "seule la fiche télé reste dans series");
             assert_eq!(anime_count, 1, "la fiche animation est routée vers anime");
+
+            // Les années de diffusion suivent la fiche, dans sa table.
+            for table in ["series", "anime"] {
+                let period: (Option<i64>, Option<i64>) = sqlx::query_as(&format!(
+                    "SELECT first_air_year, last_air_year FROM {table}"
+                ))
+                .fetch_one(&pool)
+                .await
+                .expect("période de diffusion importée");
+                assert_eq!(period, (Some(2017), Some(2020)), "{table}");
+            }
         });
     }
 

@@ -14,7 +14,7 @@ const series = (id, category = 'série télé') => ({
   ...identity(id), showrunner: text, casting: text, summary: text, category,
   status: 'à voir', rating: 0.5, isFavorite: true, seasonsSeen: 0, seasonsTotal: 12,
   progressUpdatedAt: timestamp, startedAt: '2026-10-01', posterUrl: 'https://example.test/image.jpg',
-  bannerUrl: 'https://example.test/banner.jpg', personalNote: text,
+  bannerUrl: 'https://example.test/banner.jpg', firstAirYear: 2017, lastAirYear: 2020, personalNote: text,
 })
 const book = (id, category = 'livre') => ({
   ...identity(id), author: text, year: 2024, summary: text, category, status: 'à lire',
@@ -63,8 +63,11 @@ function represented(item, kind) {
     delete result.customFields
     delete result.details
   }
-  // Le CSV ne porte pas la bannière 16:9 (v7) : elle ne voyage que par le JSON.
+  // Le CSV ne porte ni la bannière 16:9 (v7) ni la période de diffusion (v8) :
+  // elles ne voyagent que par la sauvegarde JSON.
   if ('bannerUrl' in result) delete result.bannerUrl
+  if ('firstAirYear' in result) delete result.firstAirYear
+  if ('lastAirYear' in result) delete result.lastAirYear
   return result
 }
 
@@ -167,7 +170,7 @@ const customLibraries = [
 
 test('JSON v5 : les sept bibliothèques, les bibliothèques personnalisées et chaque champ personnel restent identiques', () => {
   const document = createLibraryDocument({ ...library, customLibraries }, timestamp)
-  assert.equal(document.version, 7)
+  assert.equal(document.version, 8)
   const result = validateLibraryDocument(serializeLibraryDocument(document))
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.document, document)
@@ -175,17 +178,57 @@ test('JSON v5 : les sept bibliothèques, les bibliothèques personnalisées et c
   assert.deepEqual(result.counts, { films: 1, series: 1, anime: 1, books: 1, mangas: 1, games: 1, artworks: 1, custom: 2 })
 })
 
-test('JSON v7 : la bannière 16:9 des films, séries, animés et jeux survit à l’aller-retour, et les livres n’en portent pas', () => {
+test('JSON v8 : la bannière 16:9 et la période de diffusion survivent à l’aller-retour, et les livres n’en portent pas', () => {
   const document = createLibraryDocument(library, timestamp)
-  assert.equal(document.version, 7)
+  assert.equal(document.version, 8)
   const result = validateLibraryDocument(serializeLibraryDocument(document))
   assert.deepEqual(result.errors, [])
   assert.equal(result.document?.films[0].bannerUrl, 'https://example.test/film-banner.jpg')
   assert.equal(result.document?.series[0].bannerUrl, 'https://example.test/banner.jpg')
   assert.equal(result.document?.anime[0].bannerUrl, 'https://example.test/banner.jpg')
   assert.equal(result.document?.games[0].bannerUrl, 'https://example.test/game-banner.jpg')
+  assert.equal(result.document?.series[0].firstAirYear, 2017)
+  assert.equal(result.document?.series[0].lastAirYear, 2020)
+  assert.equal(result.document?.anime[0].firstAirYear, 2017)
+  assert.equal(result.document?.anime[0].lastAirYear, 2020)
   assert.equal('bannerUrl' in (result.document?.books[0] ?? {}), false, 'un livre ne porte pas de bannière')
   assert.equal('bannerUrl' in (result.document?.artworks[0] ?? {}), false, 'une œuvre ne porte pas de bannière')
+  assert.equal('firstAirYear' in (result.document?.films[0] ?? {}), false, 'un film ne porte pas de période de diffusion')
+  assert.equal('lastAirYear' in (result.document?.books[0] ?? {}), false, 'un livre ne porte pas de période de diffusion')
+})
+
+test('JSON v7 : un document sans période de diffusion reste lisible, chaque série reçoit null', () => {
+  const current = createLibraryDocument(library, timestamp)
+  const legacy = { ...current, version: 7 }
+  for (const section of ['series', 'anime']) {
+    legacy[section] = legacy[section].map(({ firstAirYear: _first, lastAirYear: _last, ...entry }) => entry)
+  }
+  const result = validateLibraryDocument(JSON.stringify(legacy))
+  assert.deepEqual(result.errors, [])
+  assert.equal(result.document?.series[0].firstAirYear, null)
+  assert.equal(result.document?.series[0].lastAirYear, null)
+  assert.equal(result.document?.anime[0].firstAirYear, null)
+  // La bannière, elle, reste portée : elle est née en v7.
+  assert.equal(result.document?.series[0].bannerUrl, 'https://example.test/banner.jpg')
+  const reexported = validateLibraryDocument(serializeLibraryDocument(result.document))
+  assert.deepEqual(reexported.errors, [])
+  assert.equal(reexported.document?.series[0].firstAirYear, null)
+})
+
+test('JSON v8 : une année hors bornes, une fin avant le début ou une clé manquante sont refusées', () => {
+  const base = createLibraryDocument(library, timestamp)
+  const cases = [
+    ['année trop ancienne', { ...base, series: [{ ...base.series[0], firstAirYear: 1899 }] }, '$.series[0].firstAirYear'],
+    ['année trop lointaine', { ...base, anime: [{ ...base.anime[0], lastAirYear: 2101 }] }, '$.anime[0].lastAirYear'],
+    ['année décimale', { ...base, series: [{ ...base.series[0], firstAirYear: 2017.5 }] }, '$.series[0].firstAirYear'],
+    ['fin avant le début', { ...base, series: [{ ...base.series[0], firstAirYear: 2020, lastAirYear: 2017 }] }, '$.series[0].lastAirYear'],
+    ['période absente', { ...base, series: [{ ...base.series[0], firstAirYear: undefined }] }, '$.series[0].firstAirYear'],
+  ]
+  for (const [label, document, path] of cases) {
+    const result = validateLibraryDocument(JSON.stringify(document))
+    assert.equal(result.document, null, label)
+    assert.ok(result.errors.some((error) => error.path === path), `${label} : ${JSON.stringify(result.errors)}`)
+  }
 })
 
 test('JSON v6 : un document sans bannière reste lisible, chaque fiche reçoit null', () => {
@@ -194,13 +237,19 @@ test('JSON v6 : un document sans bannière reste lisible, chaque fiche reçoit n
   for (const section of ['films', 'series', 'anime', 'games']) {
     legacy[section] = legacy[section].map(({ bannerUrl: _banner, ...entry }) => entry)
   }
+  // Une période de diffusion est apparue en v8 : un document v6 ne la connaît pas.
+  for (const section of ['series', 'anime']) {
+    legacy[section] = legacy[section].map(({ firstAirYear: _first, lastAirYear: _last, ...entry }) => entry)
+  }
   const result = validateLibraryDocument(JSON.stringify(legacy))
   assert.deepEqual(result.errors, [])
   assert.equal(result.document?.films[0].bannerUrl, null)
   assert.equal(result.document?.series[0].bannerUrl, null)
   assert.equal(result.document?.anime[0].bannerUrl, null)
   assert.equal(result.document?.games[0].bannerUrl, null)
-  // Réexporté en v7, le document porte la clé avec null : il reste valide.
+  assert.equal(result.document?.series[0].firstAirYear, null)
+  assert.equal(result.document?.anime[0].lastAirYear, null)
+  // Réexporté en v8, le document porte la clé avec null : il reste valide.
   const reexported = validateLibraryDocument(serializeLibraryDocument(result.document))
   assert.deepEqual(reexported.errors, [])
   assert.equal(reexported.document?.films[0].bannerUrl, null)
@@ -240,6 +289,10 @@ test('JSON v3 : des comics rangés dans Livres rejoignent la bibliothèque Comic
   // Ni la bannière 16:9, apparue en v7 : le validateur v3 refuse une clé inconnue.
   for (const section of ['films', 'series', 'anime', 'games']) {
     legacy[section] = legacy[section].map(({ bannerUrl: _banner, ...entry }) => entry)
+  }
+  // Ni la période de diffusion, apparue en v8.
+  for (const section of ['series', 'anime']) {
+    legacy[section] = legacy[section].map(({ firstAirYear: _first, lastAirYear: _last, ...entry }) => entry)
   }
   const result = validateLibraryDocument(JSON.stringify(legacy))
   assert.deepEqual(result.errors, [])

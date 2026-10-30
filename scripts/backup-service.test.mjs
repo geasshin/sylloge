@@ -20,7 +20,8 @@ const series = (id, category = 'série télé') => ({
   ...identity(id), showrunner: text, casting: text, summary: text, category,
   status: 'à voir', rating: 0.5, isFavorite: true, seasonsSeen: 0, seasonsTotal: 12,
   progressUpdatedAt: timestamp, startedAt: '2026-10-01', posterUrl: 'https://example.invalid/series.jpg',
-  bannerUrl: 'https://example.invalid/series-banner.jpg', personalNote: text,
+  bannerUrl: 'https://example.invalid/series-banner.jpg',
+  firstAirYear: 2017, lastAirYear: 2020, personalNote: text,
 })
 const book = (id, category = 'livre') => ({
   ...identity(id), author: text, year: 2024, summary: text, category, status: 'à lire',
@@ -91,7 +92,7 @@ function harness({ loadLibrary = async () => structuredClone(library), now = () 
 function assertSevenSections(contents, expected = library, exportedAt = timestamp) {
   const document = JSON.parse(contents)
   assert.equal(document.format, 'sylloge-library')
-  assert.equal(document.version, 7)
+  assert.equal(document.version, 8)
   assert.equal(document.exportedAt, exportedAt)
   assert.deepEqual(document.profile, expected.profile)
   // v5 : le bloc experience est toujours écrit, même vide — il ne dépend pas de l'appelant.

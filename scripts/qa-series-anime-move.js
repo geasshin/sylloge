@@ -51,6 +51,9 @@ async (page) => {
   assert(await libraryGroup.count() === 1, 'Le formulaire de modification doit proposer le choix de bibliothèque.')
   assert(await dialog.getByText('Animation japonaise : les séries animées produites au Japon.').count() === 1, 'La phrase d’aide du choix doit être visible.')
   await dialog.locator('textarea#series-personalNote').fill(NOTE)
+  // La période saisie dans le même formulaire doit suivre la fiche.
+  await dialog.locator('#series-firstAirYear').fill('2022')
+  await dialog.locator('#series-lastAirYear').fill('2025')
   await dialog.getByRole('radio', { name: 'Animation japonaise', exact: true }).click()
   await dialog.getByRole('button', { name: 'Enregistrer les modifications', exact: true }).click()
   await dialog.waitFor({ state: 'hidden' })
@@ -63,6 +66,7 @@ async (page) => {
     assert(moved[field] === fixture[field], `Le déplacement a perdu ou réécrit le champ ${field}.`)
   }
   assert(moved.personal_note === NOTE, 'L’avis personnel saisi doit suivre la fiche.')
+  assert(moved.first_air_year === 2022 && moved.last_air_year === 2025, `La période de diffusion doit suivre la fiche (${moved.first_air_year}–${moved.last_air_year}).`)
   assert(moved.updated_at !== fixture.updated_at, 'La modification doit rafraîchir updated_at.')
   assert((await db("SELECT COUNT(*) AS n FROM pragma_table_info('anime') WHERE name = 'category'"))[0].n === 0, 'La table anime ne porte pas de catégorie.')
   const links = await db(`SELECT medium, provider_name, provider_id FROM media_provider_links WHERE media_id = '${original.id}'`)

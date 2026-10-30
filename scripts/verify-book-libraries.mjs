@@ -103,7 +103,7 @@ for (const scope of ['books', 'mangas']) {
   const json = serializeLibraryDocument(createLibraryDocument(scoped))
   const validated = validateLibraryDocument(json)
   assert.ok(validated.document, JSON.stringify(validated.errors))
-  assert.equal(validated.document.version, 7)
+  assert.equal(validated.document.version, 8)
   const imported = kind === 'mangas' ? parseMangasCollectionJson(json) : parseBooksCollectionJson(json)
   assert.ok(imported.items, imported.error)
   assert.deepEqual(imported.items.map((entry) => entry.category), scoped.books.map((entry) => entry.category))

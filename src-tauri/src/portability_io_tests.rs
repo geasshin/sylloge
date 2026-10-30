@@ -163,7 +163,8 @@ fn io_complete_document_value(profile_id: &str) -> serde_json::Value {
                 "status": "à voir", "rating": 0.5, "isFavorite": true, "seasonsSeen": 0,
                 "seasonsTotal": 12, "progressUpdatedAt": timestamp, "startedAt": "2026-10-01",
                 "posterUrl": "https://example.test/series.jpg",
-                "bannerUrl": "https://example.test/series-banner.jpg", "personalNote": note
+                "bannerUrl": "https://example.test/series-banner.jpg", "personalNote": note,
+                "firstAirYear": 2017, "lastAirYear": 2020
             })
             .as_object()
             .unwrap()
@@ -418,6 +419,162 @@ fn banner_url_travels_with_a_document_and_survives_a_merge_without_one() {
                 stored.as_deref(),
                 Some(banner),
                 "une fusion sans bannière ne doit pas effacer {table}.banner_url"
+            );
+        }
+    });
+}
+
+/// Années de diffusion (v8) : elles voyagent avec le document, une fusion qui
+/// n'en porte pas ne les efface pas, et un document d'avant la v8 s'importe
+/// avec deux colonnes vides — la même règle que la bannière en v7.
+#[test]
+fn air_years_travel_with_a_document_and_survive_a_merge_without_them() {
+    tauri::async_runtime::block_on(async {
+        let pool = test_pool_with_tmdb_migrations().await;
+        let expected = io_complete_document_value("air-io");
+        let payload = serde_json::from_value(expected.clone()).unwrap();
+        write_library_document_import(&pool, &payload, true)
+            .await
+            .unwrap();
+
+        async fn read_period(
+            pool: &sqlx::SqlitePool,
+            table: &str,
+            id: &str,
+        ) -> (Option<i64>, Option<i64>) {
+            sqlx::query_as(&format!(
+                "SELECT first_air_year, last_air_year FROM {table} WHERE id = $1"
+            ))
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+        }
+
+        for table in ["series", "anime"] {
+            assert_eq!(
+                read_period(&pool, table, &format!("{table}-io")).await,
+                (Some(2017), Some(2020)),
+                "{table} porte la période du document"
+            );
+        }
+
+        // Import d'une collection sans années (le cas d'un document v1 à v7) :
+        // la fusion ne les efface pas.
+        let mut without_years = io_complete_document_value("air-io");
+        for section in ["series", "anime"] {
+            for key in ["firstAirYear", "lastAirYear"] {
+                without_years[section][0].as_object_mut().unwrap().remove(key);
+            }
+        }
+        fn empty_plan<T>(profile_id: &str) -> CollectionImportPlan<T> {
+            CollectionImportPlan {
+                profile_id: profile_id.to_string(),
+                replace_existing: false,
+                inserts: Vec::new(),
+                updates: Vec::new(),
+            }
+        }
+        let mut series = empty_plan::<ImportSeries>("air-io");
+        series.updates = vec![serde_json::from_value(without_years["series"][0].clone()).unwrap()];
+        write_series_import_plan(&pool, &series).await.unwrap();
+        let mut anime = empty_plan::<ImportAnime>("air-io");
+        anime.updates = vec![serde_json::from_value(without_years["anime"][0].clone()).unwrap()];
+        write_anime_import_plan(&pool, &anime).await.unwrap();
+
+        for table in ["series", "anime"] {
+            assert_eq!(
+                read_period(&pool, table, &format!("{table}-io")).await,
+                (Some(2017), Some(2020)),
+                "une fusion sans années ne doit pas effacer {table}.first_air_year"
+            );
+        }
+
+        // Un document d'avant la v8 (clés absentes) s'importe dans un profil
+        // neuf avec deux années nulles, jamais inventées.
+        let legacy_pool = test_pool_with_tmdb_migrations().await;
+        let mut legacy = io_complete_document_value("air-legacy-io");
+        for section in ["series", "anime"] {
+            for key in ["firstAirYear", "lastAirYear"] {
+                legacy[section][0].as_object_mut().unwrap().remove(key);
+            }
+        }
+        let payload = serde_json::from_value(legacy).unwrap();
+        write_library_document_import(&legacy_pool, &payload, true)
+            .await
+            .unwrap();
+        for (table, id) in [("series", "series-io"), ("anime", "anime-io")] {
+            let stored: (Option<i64>, Option<i64>) = sqlx::query_as(&format!(
+                "SELECT first_air_year, last_air_year FROM {table} WHERE id = $1"
+            ))
+            .bind(id)
+            .fetch_one(&legacy_pool)
+            .await
+            .unwrap();
+            assert_eq!(stored, (None, None), "{table} sans années dans le document");
+        }
+    });
+}
+
+/// Régression v0.6.20 : l'ajout d'une série par import (fusion) liait la
+/// bannière sans déclarer sa colonne ; la note personnelle recevait l'adresse
+/// de la bannière et les dates glissaient d'un rang. Chaque colonne doit
+/// arriver à sa place, en séries comme en animés.
+#[test]
+fn a_merged_new_series_keeps_its_note_banner_and_dates_in_place() {
+    tauri::async_runtime::block_on(async {
+        let pool = test_pool_with_tmdb_migrations().await;
+        let base = io_complete_document_value("merge-cols");
+        let payload = serde_json::from_value(base.clone()).unwrap();
+        write_library_document_import(&pool, &payload, true)
+            .await
+            .unwrap();
+
+        for section in ["series", "anime"] {
+            let mut entry = base[section][0].clone();
+            let object = entry.as_object_mut().unwrap();
+            let id = format!("{section}-merge-new");
+            object.insert("id".into(), serde_json::json!(id));
+            object.insert("personalNote".into(), serde_json::json!("Ma note"));
+            object.insert(
+                "bannerUrl".into(),
+                serde_json::json!("https://image.tmdb.org/t/p/original/fond.jpg"),
+            );
+            object.insert("createdAt".into(), serde_json::json!("2026-01-02T03:04:05.000Z"));
+            object.insert("updatedAt".into(), serde_json::json!("2026-02-03T04:05:06.000Z"));
+            if section == "series" {
+                let plan = CollectionImportPlan::<ImportSeries> {
+                    profile_id: "merge-cols".to_string(),
+                    replace_existing: false,
+                    inserts: vec![serde_json::from_value(entry).unwrap()],
+                    updates: Vec::new(),
+                };
+                write_series_import_plan(&pool, &plan).await.unwrap();
+            } else {
+                let plan = CollectionImportPlan::<ImportAnime> {
+                    profile_id: "merge-cols".to_string(),
+                    replace_existing: false,
+                    inserts: vec![serde_json::from_value(entry).unwrap()],
+                    updates: Vec::new(),
+                };
+                write_anime_import_plan(&pool, &plan).await.unwrap();
+            }
+            let stored: (Option<String>, Option<String>, String, String) = sqlx::query_as(&format!(
+                "SELECT personal_note, banner_url, created_at, updated_at FROM {section} WHERE id = $1"
+            ))
+            .bind(&id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert_eq!(
+                stored,
+                (
+                    Some("Ma note".to_string()),
+                    Some("https://image.tmdb.org/t/p/original/fond.jpg".to_string()),
+                    "2026-01-02T03:04:05.000Z".to_string(),
+                    "2026-02-03T04:05:06.000Z".to_string(),
+                ),
+                "{section} : chaque colonne à sa place après une fusion"
             );
         }
     });

@@ -55,6 +55,10 @@ pub struct TmdbSeriesPresentationDto {
     pub title: String,
     pub original_title: Option<String>,
     pub first_air_year: Option<i32>,
+    /// Fin de diffusion : l'année de `last_air_date`, sauf quand TMDB annonce
+    /// une production en cours (`in_production`) — la série n'a alors pas de
+    /// fin connue et la fiche affiche « 2022– ».
+    pub last_air_year: Option<i32>,
     pub synopsis: Option<String>,
     pub showrunners: Vec<String>,
     pub cast: Vec<String>,
@@ -190,6 +194,12 @@ struct TmdbTvDetailsResponse {
     name: Option<String>,
     original_name: Option<String>,
     first_air_date: Option<String>,
+    /// Dernière date de diffusion publiée : `null` pour une série dont aucune
+    /// fin n'est encore connue.
+    last_air_date: Option<String>,
+    /// `true` tant que TMDB produit de nouveaux épisodes. Absent des réponses
+    /// anciennes ou tronquées : la date de fin fait alors foi.
+    in_production: Option<bool>,
     overview: Option<String>,
     poster_path: Option<String>,
     number_of_seasons: Option<u32>,
@@ -341,11 +351,7 @@ impl TmdbClient for ReqwestTmdbClient {
             .into_iter()
             .take(MAX_SEARCH_RESULTS)
             .map(|result| {
-                let release_year = result
-                    .release_date
-                    .as_deref()
-                    .and_then(|date| date.split('-').next())
-                    .and_then(|year| year.parse().ok());
+                let release_year = date_year(result.release_date.as_deref());
 
                 TmdbSearchCandidateDto {
                     tmdb_id: result.id,
@@ -484,11 +490,7 @@ impl TmdbClient for ReqwestTmdbClient {
             .into_iter()
             .take(MAX_SEARCH_RESULTS)
             .map(|result| {
-                let release_year = result
-                    .first_air_date
-                    .as_deref()
-                    .and_then(|date| date.split('-').next())
-                    .and_then(|year| year.parse().ok());
+                let release_year = date_year(result.first_air_date.as_deref());
 
                 TmdbSearchCandidateDto {
                     tmdb_id: result.id,
@@ -545,17 +547,14 @@ impl TmdbClient for ReqwestTmdbClient {
             .map(|member| member.name.clone().unwrap_or_default())
             .collect();
 
-        let first_air_year = details
-            .first_air_date
-            .as_deref()
-            .and_then(|date| date.split('-').next())
-            .and_then(|year| year.parse().ok());
+        let (first_air_year, last_air_year) = air_years(&details);
 
         Ok(TmdbSeriesPresentationDto {
             tmdb_id: details.id,
             title: details.name.unwrap_or_default(),
             original_title: details.original_name,
             first_air_year,
+            last_air_year,
             synopsis: details.overview,
             showrunners,
             cast,
@@ -566,6 +565,26 @@ impl TmdbClient for ReqwestTmdbClient {
                 .map(|path| Self::image_url(path, "w500")),
         })
     }
+}
+
+/// Année d'une date TMDB (`AAAA-MM-JJ`) : la première composante, jamais la
+/// date complète. Une valeur illisible vaut une absence, pas une erreur.
+fn date_year(date: Option<&str>) -> Option<i32> {
+    date.and_then(|date| date.split('-').next())
+        .and_then(|year| year.parse().ok())
+}
+
+/// Années de diffusion d'une série : le début et la fin. TMDB renseigne
+/// `last_air_date` même pour une série encore en production ; `in_production`
+/// fait alors autorité, et la fin reste inconnue (« 2022– »).
+fn air_years(details: &TmdbTvDetailsResponse) -> (Option<i32>, Option<i32>) {
+    let first = date_year(details.first_air_date.as_deref());
+    let last = if details.in_production == Some(true) {
+        None
+    } else {
+        date_year(details.last_air_date.as_deref())
+    };
+    (first, last)
 }
 
 // --- Validation ---
@@ -843,6 +862,7 @@ mod tests {
                 title: "Série factice".to_string(),
                 original_title: None,
                 first_air_year: Some(2026),
+                last_air_year: None,
                 synopsis: Some("Une intrigue factice.".to_string()),
                 showrunners: vec!["Showrunner Factice".to_string()],
                 cast: vec!["Acteur Factice".to_string()],
@@ -932,12 +952,77 @@ mod tests {
             poster_path: Some("/poster.jpg".to_string()),
         };
 
-        let release_year = result
-            .release_date
-            .as_deref()
-            .and_then(|date| date.split('-').next())
-            .and_then(|year| year.parse().ok());
+        assert_eq!(date_year(result.release_date.as_deref()), Some(2024));
+        assert_eq!(date_year(None), None);
+        assert_eq!(date_year(Some("")), None);
+        assert_eq!(date_year(Some("inconnue")), None);
+    }
 
-        assert_eq!(release_year, Some(2024));
+    /// La période de diffusion vient de `first_air_date` et `last_air_date` ;
+    /// une production encore en cours n'a pas de fin connue, même quand TMDB
+    /// publie une dernière date (celle du dernier épisode diffusé).
+    #[test]
+    fn series_presentation_reads_the_air_period_and_ignores_the_end_while_in_production() {
+        let details = |payload: &str| -> TmdbTvDetailsResponse {
+            serde_json::from_str(payload).expect("réponse TV TMDB lisible")
+        };
+
+        let finished = details(
+            r#"{"id": 1, "name": "Série terminée", "first_air_date": "2017-02-19",
+                "last_air_date": "2020-05-31", "in_production": false,
+                "created_by": [], "number_of_seasons": 4}"#,
+        );
+        assert_eq!(air_years(&finished), (Some(2017), Some(2020)));
+
+        let ongoing = details(
+            r#"{"id": 2, "name": "Série en cours", "first_air_date": "2022-02-18",
+                "last_air_date": "2024-12-06", "in_production": true,
+                "created_by": []}"#,
+        );
+        assert_eq!(
+            air_years(&ongoing),
+            (Some(2022), None),
+            "une production en cours n’annonce aucune fin"
+        );
+
+        // Réponse tronquée : sans `in_production`, la date de fin fait foi.
+        let without_flag = details(
+            r#"{"id": 3, "name": "Sans indicateur", "first_air_date": "2019-03-01",
+                "last_air_date": "2019-11-22", "created_by": []}"#,
+        );
+        assert_eq!(air_years(&without_flag), (Some(2019), Some(2019)));
+
+        // Aucune date : aucune période inventée.
+        let unknown = details(r#"{"id": 4, "name": "Sans date", "created_by": []}"#);
+        assert_eq!(air_years(&unknown), (None, None));
+        let empty = details(
+            r#"{"id": 5, "name": "Dates vides", "first_air_date": "", "last_air_date": "",
+                "in_production": false, "created_by": []}"#,
+        );
+        assert_eq!(air_years(&empty), (None, None));
+    }
+
+    /// Le DTO traverse l'IPC en camelCase : le front lit `lastAirYear` à côté de
+    /// `firstAirYear`, sans autre transformation.
+    #[test]
+    fn series_presentation_serializes_the_air_years_in_camel_case() {
+        let presentation = TmdbSeriesPresentationDto {
+            tmdb_id: 1399,
+            title: "Game of Thrones".to_string(),
+            original_title: None,
+            first_air_year: Some(2011),
+            last_air_year: Some(2019),
+            synopsis: None,
+            showrunners: Vec::new(),
+            cast: Vec::new(),
+            seasons_total: None,
+            poster_url: None,
+        };
+        let serialized = serde_json::to_value(&presentation).expect("DTO sérialisable");
+        assert_eq!(serialized["firstAirYear"], 2011);
+        assert_eq!(serialized["lastAirYear"], 2019);
+        let round_trip: TmdbSeriesPresentationDto =
+            serde_json::from_value(serialized).expect("DTO relu");
+        assert_eq!(round_trip, presentation);
     }
 }
