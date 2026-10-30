@@ -61,7 +61,7 @@ import { CollectionCsvImportFlow } from './CollectionCsvImportFlow.tsx'
 import { FilmCsvImportFlow } from './FilmCsvImportFlow.tsx'
 import { ImportSourceChooser } from './ImportSourceChooser.tsx'
 import { ThirdPartyImportReview } from './ThirdPartyImportReview.tsx'
-import { previewThirdPartyImport, recognizeThirdPartyImport, type ThirdPartyImportPreview } from '../domain/thirdPartyImport.ts'
+import { previewThirdPartyImport, recognizeThirdPartyImport, type ThirdPartyImportPreview, type ThirdPartyImportService } from '../domain/thirdPartyImport.ts'
 
 type ImportStep = 'third-party-preview' | 'choose-file' | 'container-source' | 'external-preview' | 'json-preview' | 'mode' | 'duplicates' | 'confirm' | 'working' | 'done'
 
@@ -575,7 +575,10 @@ export function LibraryImportButton(props: FilmsImportProps | SeriesImportProps 
                 const { items, errors } = thirdParty.preview
                 if (!items || errors.length > 0) return
                 if (props.kind === 'films') acceptExternalFilms(items as Film[])
-                else if (props.kind === 'books') {
+                else if (props.kind === 'series') {
+                  buildFinalSummary(items as Series[], [])
+                  acceptExternalCollectionCsv(items as Series[])
+                } else if (props.kind === 'books') {
                   buildFinalSummary(items as Book[], [])
                   acceptExternalCollectionCsv(items as Book[])
                 }
@@ -898,6 +901,11 @@ function ImportConfirmPanel({
 
 type ImportFinalSummary = { skippedLines: string[]; emptyFields: Array<{ title: string; fields: string[] }> }
 
+const THIRD_PARTY_SERVICE_NAMES: Record<ThirdPartyImportService, string> = {
+  letterboxd: 'Letterboxd', goodreads: 'Goodreads', imdb: 'IMDb', storygraph: 'The StoryGraph',
+  simkl: 'Simkl', hardcover: 'Hardcover', myanimelist: 'MyAnimeList',
+}
+
 /** Bilan de fin d'import : les rapports du domaine y arrivent déjà interpolés. */
 function ImportDonePanel({
   fileName,
@@ -910,7 +918,7 @@ function ImportDonePanel({
   fileName: string | null
   report: { kind: ImportKind; result: { inserted: number; updated: number; removed: number } } | null
   finalSummary: ImportFinalSummary
-  thirdPartyService: 'letterboxd' | 'goodreads' | null
+  thirdPartyService: ThirdPartyImportService | null
   thirdPartyWarningCount: number
   onClose: () => void
 }) {
@@ -937,7 +945,7 @@ function ImportDonePanel({
           {thirdPartyService !== null && <li>{t(thirdPartyWarningCount === 1
             ? '{service} : {count} avertissement présenté avant import ; le fichier original est à conserver pour les colonnes exclues.'
             : '{service} : {count} avertissements présentés avant import ; le fichier original est à conserver pour les colonnes exclues.', {
-            service: thirdPartyService === 'letterboxd' ? 'Letterboxd' : 'Goodreads',
+            service: THIRD_PARTY_SERVICE_NAMES[thirdPartyService],
             count: formatNumber(thirdPartyWarningCount),
           })}</li>}
         </ul>

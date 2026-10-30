@@ -66,6 +66,11 @@ porte `"experience": { "version": 1, "savedViews": [], "preferences": {} }` : ce
 
 ## Ce que l’écran dit
 
+- Le bouton **Exporter** d’une bibliothèque ouvre une fenêtre en deux groupes : « Sauvegarde
+  complète » (JSON Sylloge, CSV) et « Exporter vers un service » (fichiers au format d’import de
+  Letterboxd, SensCritique, Simkl, The StoryGraph, Hardcover selon la bibliothèque). Un fichier de
+  service ne contient qu’un médium ; l’option disparaît pour « Tout le profil ». Détail des formats
+  et de leurs limites : [EXPORTS_SERVICES.md](EXPORTS_SERVICES.md).
 - **Avant** la restauration, l’aperçu annonce ce que le document emporte (« Elle contient aussi
   2 vues enregistrées et 2 préférences d’affichage »), ou dit qu’un document v4 ou vide n’en
   contient pas. L’ancienne phrase « les réglages et vues ne font pas partie de ce format » était

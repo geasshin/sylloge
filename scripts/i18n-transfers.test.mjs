@@ -128,7 +128,7 @@ try {
         assert.notEqual(t(source), source, `Traduction manquante : ${guide.id} · ${source}`)
       }
     }
-    assert.match(t(IMPORT_GUIDES.find(guide => guide.id === 'myanimelist').limitations), /not.*directly importable/)
+    assert.match(t(IMPORT_GUIDES.find(guide => guide.id === 'myanimelist').limitations), /decompressed before importing/)
     assert.equal(JSON.stringify(IMPORT_GUIDES), before)
   })
 
@@ -358,6 +358,30 @@ try {
     assert.match(profilePanel, /JSON export saved to “sylloge-sauvegarde-2026-10-23\.json” · 12 entries · whole profile\./)
     assert.doesNotMatch(profilePanel, /<b>CSV<\/b>/, 'Le CSV seul n’est pas proposé pour tout le profil')
 
+    // Les deux groupes du dialogue et les services sont traduits au rendu ; les adresses d’import
+    // restent des liens https ordinaires, jamais traduits.
+    const { exportServicesFor } = await server.ssrLoadModule('/src/domain/exportServices.ts')
+    const filmsPanel = renderToStaticMarkup(createElement(ExportDialogContent, {
+      mediumLabel: 'Films', scope: 'collection', saving: null, message: null,
+      services: exportServicesFor('films'),
+      onScope() {}, onExport() {}, onService() {}, onClose() {},
+    }))
+    assert.match(filmsPanel, /Full backup/)
+    assert.match(filmsPanel, /Export to a service/)
+    assert.match(filmsPanel, /Letterboxd · watched films/)
+    assert.match(filmsPanel, /href="https:\/\/letterboxd\.com\/import\/"/)
+    assert.match(filmsPanel, /Import on SensCritique/)
+    assert.match(filmsPanel, /Import on Simkl/)
+    assert.doesNotMatch(filmsPanel, /Sauvegarde complète|Exporter vers un service|Importer sur|Letterboxd · films vus/)
+    const booksPanel = renderToStaticMarkup(createElement(ExportDialogContent, {
+      mediumLabel: 'Livres', scope: 'collection', saving: null, message: null,
+      services: exportServicesFor('books'),
+      onScope() {}, onExport() {}, onService() {}, onClose() {},
+    }))
+    assert.match(booksPanel, /For The StoryGraph \(Goodreads format\)/)
+    assert.match(booksPanel, /href="https:\/\/app\.thestorygraph\.com\/import-goodreads"/)
+    assert.match(booksPanel, /Import on Hardcover/)
+
     assert.equal(exportMessageText({ kind: 'saved-json', file: 'sylloge-films-2026-10-23.json', count: 1, scope: 'collection', medium: 'films' }),
       'JSON export saved to “sylloge-films-2026-10-23.json” · 1 entry · Films.')
     // « série » est aussi une clé partagée (vue « TV series ») : les deux
@@ -482,6 +506,7 @@ try {
   await test('Chaque clé construite dynamiquement existe au catalogue', async () => {
     const film = await server.ssrLoadModule('/src/components/FilmCsvImportFlow.tsx')
     const exportFlow = await server.ssrLoadModule('/src/components/LibraryExportFlow.tsx')
+    const { exportServicesFor } = await server.ssrLoadModule('/src/domain/exportServices.ts')
     const importButton = await server.ssrLoadModule('/src/components/LibraryImportButton.tsx')
     const thirdParty = await server.ssrLoadModule('/src/components/ThirdPartyImportReview.tsx')
     const { FILM_IMPORT_FIELD_LABELS } = await server.ssrLoadModule('/src/domain/filmCsvImport.ts')
@@ -493,6 +518,9 @@ try {
       'champs Films': Object.values(FILM_IMPORT_FIELD_LABELS),
       'bibliothèques export': Object.values(exportFlow.MEDIUM_LABELS),
       'noms export': Object.values(exportFlow.MEDIUM_NOUNS).flat(),
+      'services d’export': ['films', 'series', 'anime', 'books', 'mangas']
+        .flatMap(medium => exportServicesFor(medium))
+        .flatMap(service => [service.label, service.help, service.linkLabel]),
       'pluriels de bibliothèque': Object.values(importButton.LIBRARY_PLURALS),
       'bilan d’import': Object.values(importButton.IMPORT_RESULT_WORDS).flatMap(words => Object.values(words).flat()),
       'champs vides': Object.values(importButton.EMPTY_FIELD_LABELS),

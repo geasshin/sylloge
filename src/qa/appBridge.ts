@@ -434,6 +434,59 @@ function moveSeries(payload: SeriesPayload): void {
   } catch (error) { db.exec('ROLLBACK'); throw error }
 }
 
+/**
+ * Import d’une collection dans la base de recette : même contrat observable
+ * que les commandes Rust (plan, remplacement optionnel, mises à jour), assez
+ * pour vérifier les valeurs réellement écrites par un parcours d’import.
+ */
+function writeCollectionPlan(table: string, plan: Row) {
+  const profileId = String(plan.profileId ?? '')
+  if (profileId === '') fail('Le plan d’import ne porte aucun profil.')
+  const inserts = (plan.inserts ?? []) as Row[]
+  const updates = (plan.updates ?? []) as Row[]
+  const removed = plan.replaceExisting
+    ? Number(select(`SELECT COUNT(*) AS n FROM ${table} WHERE profile_id = $1`, [profileId])[0].n)
+    : 0
+  const rowFor = (entry: Row): Row => {
+    const row: Row = {}
+    for (const [key, value] of Object.entries(entry)) {
+      if (key === 'quotes') continue
+      if ((table === 'anime' || table === 'mangas') && key === 'category') continue
+      row[key.replace(/[A-Z]/gu, (character) => `_${character.toLowerCase()}`)] = value
+    }
+    return row
+  }
+  db.exec('BEGIN')
+  try {
+    if (plan.replaceExisting) execute(`DELETE FROM ${table} WHERE profile_id = $1`, [profileId])
+    for (const entry of inserts) {
+      insert(table, { ...rowFor(entry), profile_id: profileId })
+      if (table === 'books' || table === 'mangas') {
+        const key = table === 'mangas' ? 'manga_id' : 'book_id'
+        for (const quote of (entry.quotes ?? []) as Row[]) {
+          insert(table === 'mangas' ? 'manga_quotes' : 'book_quotes', {
+            id: quote.id, [key]: entry.id, body: quote.body, position: quote.position, created_at: quote.createdAt,
+          })
+        }
+      }
+    }
+    for (const entry of updates) {
+      const row = rowFor(entry)
+      const columns = Object.keys(row).filter((column) => column !== 'id' && column !== 'profile_id')
+      if (columns.length === 0) continue
+      execute(
+        `UPDATE ${table} SET ${columns.map((column, index) => `${column} = $${index + 1}`).join(', ')} WHERE id = $${columns.length + 1} AND profile_id = $${columns.length + 2}`,
+        [...columns.map((column) => row[column]), row.id, profileId],
+      )
+    }
+    db.exec('COMMIT')
+  } catch (error) {
+    db.exec('ROLLBACK')
+    throw error
+  }
+  return { inserted: inserts.length, updated: updates.length, removed }
+}
+
 // ─── Custom-entry native command mocks ─────────────────────────────────────
 
 function customTable(libraryId: unknown): CustomLibraryId {
@@ -724,6 +777,15 @@ function handle(cmd: string, args: Args): unknown {
     case 'find_backup_candidates': return { candidates: [], unreadableLocations: [] }
     case 'import_library_document_into_empty_profile': return importPortableProfile(args.payload as Row, false)
     case 'import_library_document_atomically': return importPortableProfile(args.payload as Row, true)
+    // Imports de collection : le plan du composant est écrit dans SQLite mémoire,
+    // comme la commande Rust, pour que la recette lise les valeurs en base.
+    case 'import_films_into_profile': return writeCollectionPlan('films', args.plan as Row)
+    case 'import_series_into_profile': return writeCollectionPlan('series', args.plan as Row)
+    case 'import_anime_into_profile': return writeCollectionPlan('anime', args.plan as Row)
+    case 'import_books_into_profile': return writeCollectionPlan('books', args.plan as Row)
+    case 'import_mangas_into_profile': return writeCollectionPlan('mangas', args.plan as Row)
+    case 'import_games_into_profile': return writeCollectionPlan('games', args.plan as Row)
+    case 'import_artworks_into_profile': return writeCollectionPlan('artworks', args.plan as Row)
 
     // Sélecteurs et exports : l'utilisateur « annule »
     case 'pick_import_any':

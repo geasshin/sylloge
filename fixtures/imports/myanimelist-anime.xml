@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<myanimelist>
+    <myinfo>
+        <user_id>900000</user_id>
+        <user_name>fiction</user_name>
+        <user_export_type>1</user_export_type>
+    </myinfo>
+    <anime>
+        <series_animedb_id>90001</series_animedb_id>
+        <series_title><![CDATA[Animé fictif & compagnie]]></series_title>
+        <series_type>TV</series_type>
+        <series_episodes>12</series_episodes>
+        <my_watched_episodes>12</my_watched_episodes>
+        <my_start_date>2024-01-05</my_start_date>
+        <my_finish_date>2024-03-29</my_finish_date>
+        <my_score>8</my_score>
+        <my_status>Completed</my_status>
+        <my_comments><![CDATA[  Avis fictif, avec "guillemets".  ]]></my_comments>
+        <update_on_import>1</update_on_import>
+    </anime>
+    <anime>
+        <series_animedb_id>90002</series_animedb_id>
+        <series_title><![CDATA[Animé fictif en cours]]></series_title>
+        <series_type>TV</series_type>
+        <series_episodes>24</series_episodes>
+        <my_watched_episodes>7</my_watched_episodes>
+        <my_start_date>2024-04-01</my_start_date>
+        <my_finish_date>0000-00-00</my_finish_date>
+        <my_score>0</my_score>
+        <my_status>Watching</my_status>
+        <my_comments></my_comments>
+        <update_on_import>1</update_on_import>
+    </anime>
+    <anime>
+        <series_animedb_id>90003</series_animedb_id>
+        <series_title><![CDATA[Animé fictif en pause]]></series_title>
+        <series_type>TV</series_type>
+        <series_episodes>12</series_episodes>
+        <my_watched_episodes>3</my_watched_episodes>
+        <my_start_date>0000-00-00</my_start_date>
+        <my_finish_date>0000-00-00</my_finish_date>
+        <my_score>7</my_score>
+        <my_status>On-Hold</my_status>
+        <my_comments></my_comments>
+        <update_on_import>1</update_on_import>
+    </anime>
+    <anime>
+        <series_animedb_id>90004</series_animedb_id>
+        <series_title><![CDATA[Animé fictif abandonné]]></series_title>
+        <series_type>TV</series_type>
+        <series_episodes>13</series_episodes>
+        <my_watched_episodes>5</my_watched_episodes>
+        <my_start_date>2023-09-01</my_start_date>
+        <my_finish_date>0000-00-00</my_finish_date>
+        <my_score>6</my_score>
+        <my_status>Dropped</my_status>
+        <my_comments></my_comments>
+        <update_on_import>1</update_on_import>
+    </anime>
+    <anime>
+        <series_animedb_id>90005</series_animedb_id>
+        <series_title><![CDATA[Animé fictif à voir]]></series_title>
+        <series_type>TV</series_type>
+        <series_episodes>10</series_episodes>
+        <my_watched_episodes>0</my_watched_episodes>
+        <my_start_date>0000-00-00</my_start_date>
+        <my_finish_date>0000-00-00</my_finish_date>
+        <my_score>0</my_score>
+        <my_status>Plan to Watch</my_status>
+        <my_comments></my_comments>
+        <update_on_import>1</update_on_import>
+    </anime>
+</myanimelist>

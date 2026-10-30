@@ -11,6 +11,8 @@ Ces fichiers sont **entièrement synthétiques**. Les œuvres, personnes, identi
 
 Les tests dans `scripts/third-party-import.test.mjs` dérivent aussi des variantes en mémoire : ZIP déjà lu par le pont natif, fichiers contradictoires, historique répété, mauvais encodage et mauvaises destinations. Ils ne prétendent pas exercer le téléchargement authentifié d’un service.
 
+Les fixtures des services ajoutés (IMDb, The StoryGraph, Simkl, Hardcover, MyAnimeList XML) sont dans `fixtures/imports/` avec leur propre README ; `scripts/third-party-import-services.test.mjs` les exerce. Elles sont également synthétiques et ne prouvent pas la stabilité des exports tiers.
+
 Références officielles consultées et limites de vérification : `docs/IMPORT_GUIDES_SOURCES.md`. Le schéma reconnu par l’adaptateur est documenté dans `docs/IMPORTS_TIERS_MOTEUR.md` ; les noms de fichiers et colonnes testés ne sont pas une garantie de stabilité des exports tiers.
 
 Exécution : `npm run test:portability`. Les tests n’ouvrent aucune donnée personnelle, ne se connectent à aucun compte et n’appellent aucune API fournisseur.

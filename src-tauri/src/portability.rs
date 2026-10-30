@@ -68,8 +68,8 @@ fn native_dialog_labels(language: Option<&str>) -> NativeDialogLabels {
     NativeDialogLabels {
         import_any_title: text("Choisir un fichier à importer", "Choose a file to import"),
         import_any_filter: text(
-            "Import Sylloge (JSON, CSV, ZIP)",
-            "Sylloge import (JSON, CSV, ZIP)",
+            "Import Sylloge (JSON, CSV, XML, ZIP)",
+            "Sylloge import (JSON, CSV, XML, ZIP)",
         ),
         import_container_title: text("Choisir un dossier à analyser", "Choose a folder to scan"),
         import_json_title: text("Choisir un export Sylloge", "Choose a Sylloge export"),
@@ -540,7 +540,7 @@ pub async fn pick_import_any(
     let Some(file_path) = app
         .dialog()
         .file()
-        .add_filter(labels.import_any_filter, &["json", "csv", "zip"])
+        .add_filter(labels.import_any_filter, &["json", "csv", "xml", "zip"])
         .set_title(labels.import_any_title)
         .blocking_pick_file()
     else {
@@ -573,7 +573,7 @@ pub async fn pick_import_any(
                 container_candidates: Vec::new(),
             }))
         }
-        "csv" => {
+        "xml" | "csv" => {
             let contents = read_utf8_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?;
             Ok(Some(PickedAnyImportFile {
                 csv_candidates: vec![CsvImportCandidate {
@@ -590,7 +590,7 @@ pub async fn pick_import_any(
         }
         "zip" => inspect_zip_container(&name, &read_file_with_limit(&path, MAX_IMPORT_FILE_BYTES)?)
             .map(Some),
-        _ => Err("Choisissez un fichier JSON, CSV ou ZIP compatible.".to_string()),
+        _ => Err("Choisissez un fichier JSON, CSV, XML ou ZIP compatible.".to_string()),
     }
 }
 

@@ -1,0 +1,6 @@
+simkl_id,TVDB_ID,TMDB,IMDB_ID,MAL_ID,Type,Title,Year,LastEpWatched,Watchlist,WatchedDate,Rating,Memo
+1001,,90001,,,movie,"Film fictif Simkl",2015,,completed,06-03-2024,8,"  Avis fictif Simkl, avec ""guillemets"".  "
+1002,8001,90002,,,tv,"Série fictive Simkl",2018,S01E04,watching,,7,
+1003,,90003,,,anime,"Animé fictif Simkl",2020,S02E10,on hold,,9,
+1004,,90004,,,movie,"Film fictif à voir Simkl",2021,,plan to watch,,,
+1005,8002,90005,,,tv,"Série fictive abandonnée Simkl",2019,S03E01,dropped,15/04/2023,,

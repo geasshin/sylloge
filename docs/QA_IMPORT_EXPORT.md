@@ -28,6 +28,32 @@
 
 Les noms des services n’imposent jamais un parseur à partir du seul bouton sélectionné : la reconnaissance porte sur le contenu. Un service reconnu dans une mauvaise bibliothèque est bloqué, sans repli silencieux.
 
+## Exports vers les services (30 octobre 2026)
+
+Le dialogue d’export est recomposé en deux groupes : **Sauvegarde complète** (JSON Sylloge, CSV) et
+**Exporter vers un service**, avec un fichier au format d’import exact de chaque service proposé pour
+la bibliothèque ouverte. Formats, correspondances et limites : [EXPORTS_SERVICES.md](EXPORTS_SERVICES.md).
+
+| Bibliothèque | Services | Fichier produit |
+|---|---|---|
+| Films | Letterboxd (vus, à voir), SensCritique, Simkl | `sylloge-letterboxd-*.csv`, `sylloge-senscritique-films-*.csv`, `sylloge-simkl-films-*.csv` |
+| Séries | SensCritique, Simkl | `sylloge-senscritique-series-*.csv`, `sylloge-simkl-series-*.csv` |
+| Animation japonaise | Simkl | `sylloge-simkl-anime-*.csv` |
+| Livres | The StoryGraph (format Goodreads), Hardcover | `sylloge-storygraph-livres-*.csv`, `sylloge-hardcover-livres-*.csv` |
+| Mangas | The StoryGraph (format Goodreads) | `sylloge-storygraph-mangas-*.csv` |
+| Jeux, Art | Aucun | sauvegarde complète seulement |
+
+- **En-têtes** : tirés de la documentation officielle du service ; `universe,title,release_date,rating,is_wishlisted,is_recommended,is_done`
+  pour SensCritique, les treize colonnes du modèle Simkl, les 31 colonnes Goodreads pour The
+  StoryGraph, les 28 colonnes du schéma custom Hardcover.
+- **Bilan** : chaque export affiche le fichier écrit, le nombre d’œuvres et ce qui n’est pas parti
+  (séries sans année, progression non transmise, notes arrondies, favoris ou citations sans colonne,
+  ISBN manquant).
+- **Preuve** : 26 tests Node (`scripts/service-exports.test.mjs`) et la recette
+  `scripts/qa-exports-services.js` (**79 points de contrôle**), qui relit chaque ligne du fichier
+  contre la fiche dont elle vient, vérifie qu’un lien fournisseur ajouté remplit la colonne `TMDB`
+  du fichier Simkl suivant, et couvre les quatre bibliothèques en français et en anglais.
+
 ## Vérifications exécutées
 
 ### TypeScript et fichiers

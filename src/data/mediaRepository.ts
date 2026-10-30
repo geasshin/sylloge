@@ -580,6 +580,30 @@ export class SqliteMediaRepository {
     }
   }
 
+  /**
+   * Tous les liens fournisseurs d'un médium, pour un export qui a besoin de l'identifiant TMDB de
+   * chaque fiche (séries, animés) sans une requête par œuvre.
+   */
+  async listMediaProviderLinks(profileId: string, medium: MediaProviderMedium): Promise<MediaProviderLink[]> {
+    const database = await this.loadDatabase()
+    const rows = await database.select<MediaProviderLinkRow[]>(
+      `SELECT profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at
+       FROM media_provider_links
+       WHERE profile_id = $1 AND medium = $2
+       ORDER BY media_id ASC`,
+      [profileId, medium],
+    )
+    return rows.map(row => ({
+      profileId: row.profile_id,
+      medium: row.medium,
+      mediaId: row.media_id,
+      providerName: row.provider_name,
+      providerId: row.provider_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  }
+
   async setMediaProviderLink(input: {
     profileId: string
     medium: MediaProviderMedium

@@ -171,7 +171,7 @@ const messages: Record<string, string> = {
   'Le chemin choisi n’est pas un dossier.': 'The chosen path is not a folder.',
   'Impossible de lire une entrée de l’archive ZIP : {0}': 'Could not read a ZIP archive entry: {0}',
   'Chemin de fichier illisible : {0}': 'Unreadable file path: {0}',
-  'Choisissez un fichier JSON, CSV ou ZIP compatible.': 'Choose a compatible JSON, CSV or ZIP file.',
+  'Choisissez un fichier JSON, CSV, XML ou ZIP compatible.': 'Choose a compatible JSON, CSV, XML or ZIP file.',
   'Chemin de dossier illisible : {0}': 'Unreadable folder path: {0}',
   'Choisissez un fichier CSV ou ZIP compatible.': 'Choose a compatible CSV or ZIP file.',
   'Impossible de lire le fichier choisi : {0}': 'Could not read the chosen file: {0}',

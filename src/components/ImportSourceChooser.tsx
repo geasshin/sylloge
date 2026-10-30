@@ -4,7 +4,8 @@ import { IMPORT_GUIDES } from '../domain/importGuides.ts'
 
 const SOURCE_FORMAT_LABELS: Record<string, string> = {
   letterboxd: 'CSV ou ZIP', goodreads: 'CSV', notion: 'CSV ou ZIP',
-  myanimelist: 'XML · non pris en charge', betaseries: 'CSV à vérifier', 'tv-time': 'Ancienne archive à vérifier',
+  imdb: 'CSV', storygraph: 'CSV', simkl: 'CSV', hardcover: 'CSV',
+  myanimelist: 'XML', betaseries: 'CSV à vérifier', 'tv-time': 'Service arrêté le 15 juillet 2026',
 }
 
 type Library = 'films' | 'series' | 'anime' | 'books' | 'mangas' | 'games' | 'artworks'

@@ -24,7 +24,7 @@ fn native_dialog_labels_select_all_english_titles_and_filters() {
         dialog_copy(native_dialog_labels(Some("en"))),
         [
             "Choose a file to import",
-            "Sylloge import (JSON, CSV, ZIP)",
+            "Sylloge import (JSON, CSV, XML, ZIP)",
             "Choose a folder to scan",
             "Choose a Sylloge export",
             "Sylloge JSON export",
@@ -44,7 +44,7 @@ fn native_dialog_labels_select_all_english_titles_and_filters() {
 fn native_dialog_labels_default_to_french_for_omitted_or_unsupported_languages() {
     let french = [
         "Choisir un fichier à importer",
-        "Import Sylloge (JSON, CSV, ZIP)",
+        "Import Sylloge (JSON, CSV, XML, ZIP)",
         "Choisir un dossier à analyser",
         "Choisir un export Sylloge",
         "Export JSON Sylloge",

@@ -1,10 +1,26 @@
-import type { ThirdPartyImportPreview } from '../domain/thirdPartyImport.ts'
+import type { ThirdPartyImportLibrary, ThirdPartyImportPreview, ThirdPartyImportService } from '../domain/thirdPartyImport.ts'
 import { formatNumber, t, translateMessage } from '../i18n/core.ts'
 
 /** French field names; each is translated at render, never stored. */
 const FIELD_LABELS: Record<string, string> = {
   title: 'Titre', author: 'Auteur', year: 'Année', status: 'Statut', rating: 'Note sur 5',
-  personalNote: 'Avis personnel', watchedAt: 'Date de visionnage',
+  personalNote: 'Avis personnel', watchedAt: 'Date de visionnage', startedAt: 'Début',
+  progress: 'Progression',
+}
+
+const SERVICE_NAMES: Record<ThirdPartyImportService, string> = {
+  letterboxd: 'Letterboxd',
+  goodreads: 'Goodreads',
+  imdb: 'IMDb',
+  storygraph: 'The StoryGraph',
+  simkl: 'Simkl',
+  hardcover: 'Hardcover',
+  myanimelist: 'MyAnimeList',
+}
+
+const LIBRARY_LABELS: Record<ThirdPartyImportLibrary, string> = {
+  films: 'Films', series: 'Séries', anime: 'Animation japonaise', books: 'Livres',
+  mangas: 'Mangas', games: 'Jeux', artworks: 'Art',
 }
 
 type Props = {
@@ -17,14 +33,15 @@ type Props = {
 }
 
 export function ThirdPartyImportReview({ preview, fileName, needsListChoice, onListChoice, onContinue, onChooseAnother }: Props) {
-  const service = preview.service === 'letterboxd' ? 'Letterboxd' : 'Goodreads'
+  const service = SERVICE_NAMES[preview.service]
+  const libraries = preview.libraries ?? [preview.library]
   const ready = preview.items !== null && preview.errors.length === 0
   return (
     <div className="assistant-content third-party-review">
       <h3>{t('{service} reconnu', { service })}</h3>
       <dl className="assistant-source-summary">
         <div><dt>{t("Fichier")}</dt><dd>{fileName}</dd></div>
-        <div><dt>{t("Bibliothèque prévue")}</dt><dd>{t(preview.library === 'films' ? 'Films' : 'Livres')}</dd></div>
+        <div><dt>{t(libraries.length === 1 ? "Bibliothèque prévue" : "Bibliothèques prévues")}</dt><dd>{libraries.map((library) => t(LIBRARY_LABELS[library])).join(' · ')}</dd></div>
         <div><dt>{t("Fiches préparées")}</dt><dd>{t('{valid} sur {total}', { valid: formatNumber(preview.validItemCount), total: formatNumber(preview.totalItemCount) })}</dd></div>
         {preview.sourceRowCount !== undefined && <div><dt>{t("Lignes regroupées")}</dt><dd>{t('{rows} lignes dans {files} fichiers', { rows: formatNumber(preview.sourceRowCount), files: formatNumber(preview.sourceFiles?.length ?? 0) })}</dd></div>}
       </dl>

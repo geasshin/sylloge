@@ -1,0 +1,5 @@
+Title,Author,Status,Privacy,Hardcover Book ID,Hardcover Edition ID,ISBN 10,ISBN 13,ASIN,Media,Country Code,Language Code,Binding,Pages,Duration in Seconds,Publish Date,Publisher,Genres,Moods,Tags,Content Warnings,Lists,Date Added,Date Started,Date Finished,Rating,Review,Review Contains Spoilers
+"Livre fictif Hardcover, le départ",Autrice fictive,Read,public,501,601,,9780000000018,,Book,FR,fre,Hardcover,320,,2019-05-01,Éditeur fictif,"fiction, roman",,,,,2024-01-01,2024-01-02,2024-02-03,4.5,  Avis fictif Hardcover.  ,false
+Livre fictif Hardcover en cours,Auteur fictif,Currently Reading,private,502,602,,,,Ebook,FR,fre,Ebook,180,,2021-06-02,Éditeur fictif,roman,,,,,2024-03-01,2024-03-02,,,,false
+Livre fictif Hardcover abandonné,Autrice fictive,Did Not Finish Read,public,503,603,,,,Book,FR,fre,Paperback,200,,2022-07-03,Éditeur fictif,essai,,,,,2024-04-01,2024-04-02,,2,,false
+Livre fictif Hardcover à lire,Auteur fictif,Want to Read,public,504,604,,,,Book,FR,fre,Paperback,150,,2023-08-04,Éditeur fictif,roman,,,,,2024-05-01,,,,,false

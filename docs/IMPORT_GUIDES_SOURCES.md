@@ -1,6 +1,6 @@
 # Sources des guides d’import tiers
 
-Contrôle effectué le **22 octobre 2026**, date locale obtenue avec `date` : `2026-10-22 00:26:23 CEST` (Europe/Paris).
+Contrôle effectué le **30 octobre 2026** (Europe/Paris), complété par la matrice `services-matrix` du même jour pour les en-têtes IMDb, Simkl, Hardcover, StoryGraph et MyAnimeList. La première consultation des guides date du 22 octobre 2026.
 
 Le catalogue destiné à l’interface est `src/domain/importGuides.ts`. Il contient des instructions d’export, pas des connexions aux comptes tiers.
 
@@ -48,7 +48,7 @@ Forme prévue pour Sylloge : CSV de bibliothèque, avec contrôle du mapping. Un
 
 Le parseur dédié disponible pendant cette intervention a été relu et exercé par ses tests : il cible **Livres uniquement**, pas Mangas. Il reconnaît `Book Id`, `Title`, `Author`, `My Rating` et `Exclusive Shelf` ; les notes personnelles, l’année, l’avis et les notes privées sont repris selon leur présence. Les statuts `read`, `currently-reading` et `to-read` sont traduits, `My Rating = 0` reste une absence de note. `Date Read`, `Date Added`, `Read Count`, ISBN et étagères personnalisées ne sont pas transformés en champs au sens différent.
 
-## MyAnimeList — confirmation partielle, pas de support XML promis
+## MyAnimeList — export XML confirmé, import XML pris en charge
 
 ### Sources lues
 
@@ -61,9 +61,66 @@ Le parseur dédié disponible pendant cette intervention a été relu et exercé
 
 - L’existence historique d’un export XML et l’accès actuel à la route protégée sont vérifiés. Le rendu authentifié actuel et la compression effectivement délivrée ne le sont pas.
 - Le format est présenté comme **XML, généralement compressé en `.xml.gz`**, avec réserve explicite. Le bouton historique est formulé conditionnellement.
-- La disponibilité de champs tels que commentaires, tags et détails par épisode varie dans les témoignages du fil ; aucune promesse actuelle n’est tirée de ces messages anciens.
-- **Support direct Sylloge de `.xml`, `.xml.gz` ou `.gz` non confirmé.** Le guide conseille de conserver la sauvegarde et ne termine pas par une consigne d’import direct. Décompresser un gzip produit un XML, pas un CSV ; changer l’extension ne convertit pas le format.
-- `verification` reste **partial** malgré l’annonce officielle, précisément parce qu’elle est ancienne et complétée par des témoignages communautaires.
+- **Support Sylloge de `.xml` : livré et testé** (fixtures synthétiques, racine `<myanimelist>`, entrées `<anime>`/`<manga>`). Le fichier `.xml.gz` n’est **pas** décompressé par Sylloge : le guide demande de le décompresser d’abord, et le sélecteur natif ne propose que `.xml`. Une extension changée ne convertit pas le format.
+- La disponibilité de champs tels que commentaires, tags et détails par épisode varie dans les témoignages du fil ; aucune promesse actuelle n’est tirée de ces messages anciens. Le moteur lit les champs `my_status`, `my_score`, `my_start_date`, `my_finish_date`, `my_comments`, `my_watched_episodes`, `my_read_volumes` et `my_read_chapters` lorsqu’ils existent, et ignore silencieusement les autres.
+- `verification` reste **partial** malgré l’annonce officielle, précisément parce qu’elle est ancienne et complétée par des témoignages communautaires, et parce qu’aucun export authentifié n’a été téléchargé.
+
+## IMDb — en-tête réel, import seul
+
+### Sources lues
+
+1. [Ratings FAQ](https://help.imdb.com/article/imdb/track-movies-tv/ratings-faq/G67Y87TFYYP6TWAV), aide officielle mise à jour le 9 février 2026 : *Your Ratings* → icône **Export** → fichier `.csv`. La page ne publie pas les colonnes.
+2. [Migrating from IMDb](https://letterboxd.com/about/migrating-from-imdb/), guide officiel de Letterboxd : décrit les quatre exports IMDb (`ratings.csv`, `checkins.csv`, `watchlist.csv`, listes) et confirme qu’IMDb n’exporte pas les critiques.
+3. Export public de 503 notes, dépôt `sharkdp/imdb-ratings` : en-tête réel `position,const,created,modified,description,Title,Title type,Directors,You rated,IMDb Rating,Runtime (mins),Year,Genres,Num. Votes,Release Date (month/day/year),URL`. Preuve d’en-tête, pas de stabilité garantie.
+4. Variante récente évoquée par un outil tiers (`Const`, `Your Rating`, `Title Type`) : non vérifiée. Le détecteur accepte les deux casses et les deux noms de note par normalisation.
+
+### Conséquences pour le guide
+
+- L’export `.csv` est confirmé ; la présence d’un bouton dans un compte connecté et le contenu exact de la watchlist ne sont pas testés.
+- L’import Sylloge ne dépend pas du nom du fichier : `const`, une colonne de note et `Title type` suffisent à reconnaître IMDb. `watchlist.csv` sert seulement à choisir le statut à voir.
+- IMDb n’a **aucun import de fichier** : le guide ne promet pas de retour vers IMDb.
+- Les épisodes et types non film/série sont comptés et nommés ; la date de notation n’est pas une date de visionnage ; l’identifiant IMDb, l’année et les réalisateurs ne sont pas repris.
+
+## The StoryGraph — export CSV, en-tête non publié
+
+### Sources lues
+
+1. [Bulk import template](https://thestorygraph.freshdesk.com/support/solutions/articles/79000146300-bulk-import-template), aide officielle modifiée le 2 avril 2025 : l’import en masse n’accepte qu’un **CSV au format Goodreads**, avec les colonnes obligatoires `Title`, `Author`, `My Rating`, `Date Added`, `Exclusive Shelf`, `Read Count`.
+2. `https://app.thestorygraph.com/user-export`, URL d’export citée comme officielle par la FAQ Hardcover (`https://hardcover.app/pages/faq`). La page n’a pas été ouverte avec un compte.
+3. Les colonnes exactes de l’export StoryGraph ne sont **pas trouvées**. Un guide tiers annonce 23 colonnes, non vérifié.
+
+### Conséquences pour le guide
+
+- Sylloge reconnaît un CSV Goodreads **sans `Book Id`** portant `Title`, `Author`, `My Rating`, `Exclusive Shelf` et `Read Count`. C’est un sous-ensemble documenté du schéma d’import, pas une preuve du schéma d’export.
+- `did-not-finish` est traduit en abandonné. Les autres étagères exclusives inconnues bloquent, sans statut deviné.
+- Un export dont l’en-tête diffère retombe sur le mapping CSV générique. Aucun export connecté n’a été testé ; `verification` reste **partial**.
+
+## Simkl — en-tête officiel du modèle CSV
+
+### Sources lues
+
+1. [Export data formats](https://docs.simkl.org/how-to-use-simkl/advanced-usage/import-export-data/exporting-from-simkl/export-data-formats), documentation officielle : trois voies (CSV simple réservé Pro, ZIP JSON selon l’offre, API gratuite). Le CSV ne contient que le dernier épisode vu par série.
+2. [Import CSV](https://simkl.com/apps/import/csv) et modèle officiel `https://simkl.com/ajax/apps/import-data.csv` : en-tête exact `simkl_id,TVDB_ID,TMDB,IMDB_ID,MAL_ID,Type,Title,Year,LastEpWatched,Watchlist,WatchedDate,Rating,Memo` ; `Type` ∈ `tv`, `anime`, `movie` ; `Watchlist` ∈ `watching`, `plan to watch`, `completed`, `dropped`, `on hold` ; `Rating` 1–10 ; `WatchedDate` `DD-MM-YYYY` ou `MM/DD/YYYY` ; limite 5 Mo.
+
+### Conséquences pour le guide
+
+- L’en-tête reconnu est celui du modèle d’import officiel, que Simkl utilise aussi pour son CSV d’export. Le guide signale que l’export CSV dépend de l’offre Pro et que le ZIP JSON n’a pas de schéma publié.
+- Le moteur répartit les lignes par `Type` et n’importe que le médium ouvert ; les autres sont comptées. `on hold` devient « en cours » pour les séries et l’animation, « en attente » pour les films.
+- Le CSV ne portant que le dernier épisode, la progression et la date du dernier épisode ne sont pas importées ; les identifiants ne sont pas stockés.
+
+## Hardcover — format d’import documenté, export non publié
+
+### Sources lues
+
+1. [Custom CSV import format](https://hardcover.app/pages/custom-csv-import-format), documentation officielle : `Title` et `Author` requis, `Status` ∈ None, Want to Read, Currently Reading, Read, Did Not Finish Read ; `Rating` 0,5–5 par demi-points ; dates `AAAA-MM-JJ` ; ISBN/ASIN/identifiants Hardcover optionnels.
+2. [FAQ Hardcover](https://hardcover.app/pages/faq) : import des CSV Goodreads/StoryGraph et du CSV personnalisé ; l’export CSV est annoncé comme livré (demande roadmap « csv export », statut **Released**, commentaire du 27 août 2025).
+3. Format exact de l’**export** Hardcover : **non trouvé**. Un export différent du format d’import documenté n’est pas reconnu et passe par le mapping générique.
+
+### Conséquences pour le guide
+
+- Sylloge reconnaît l’en-tête du format d’import personnalisé, avec au moins une colonne propre à Hardcover pour éviter les faux positifs.
+- `None` bloque : Sylloge n’invente pas de statut. `Date Finished` et `Date Added` ne sont pas importées ; `Date Started`, `Review` et l’année de `Publish Date` le sont.
+- `verification` reste **partial** : le schéma d’import est officiel, mais le bouton et les colonnes de l’export ne le sont pas.
 
 ## Notion — documentation officielle
 
@@ -95,19 +152,14 @@ Des sujets communautaires sur le domaine BetaSeries mentionnent des exports CSV 
 
 Le guide recommande donc de vérifier les options du compte, puis de consulter la procédure officielle d’accès/portabilité si nécessaire. **Aucune fermeture de BetaSeries n’est affirmée.** Aucun délai ni export CSV garanti n’est annoncé. Sylloge ne promet qu’un mapping générique pour un éventuel CSV compatible, pas une interprétation validée des statuts numériques, identifiants internes ou épisodes.
 
-## TV Time — aucune nouvelle procédure d’export fonctionnelle vérifiée
+## TV Time — service arrêté le 15 juillet 2026
 
 ### Constats directs sur les domaines officiels
 
 1. [TV Time](https://www.tvtime.com/), HTTP 200 dans le navigateur : page **Thank You — TV Time**, dont le texte remercie la communauté et parle du rôle passé de la plateforme. Aucun lien de connexion ou d’export n’est présent.
 2. [Aide TV Time](https://help.tvtime.com/), HTTP 200 : même page de remerciement.
-3. Ancien portail `https://gdpr.tvtime.com/gdpr/self-service` : échec navigateur **ERR_NAME_NOT_RESOLVED** pendant ce contrôle. Un résultat de recherche en conserve une ancienne page de connexion ; cet extrait n’est pas la preuve que le service fonctionne encore.
-
-### Recoupement distinct, non attribué à TV Time
-
-L’aide officielle **BetaSeries**, [Importer votre archive TV Time](https://support.betaseries.com/importer-tv-time), lue dans le navigateur, annonce une fermeture au **15 juillet** et l’indisponibilité des nouvelles demandes. Cette page documente la reprise d’une **archive déjà téléchargée dans BetaSeries**, pas dans Sylloge. Sa date de fermeture ne constitue pas une annonce primaire TV Time ; elle n’est donc pas répétée comme fait daté dans le catalogue.
-
-Le guide Sylloge se limite à rechercher et conserver une archive existante. Il ne garantit **ni une nouvelle récupération**, ni le contenu exact d’un ZIP, ni un import natif TV Time. Seul un CSV compatible peut être présenté au mapping générique, après inspection. Le champ `exportUrl` ouvre exceptionnellement le site d’information officiel, **pas un export actif** ; cette exception est explicitée dans `limitations`.
+3. Ancien portail `https://gdpr.tvtime.com/gdpr/self-service` : échec navigateur **ERR_NAME_NOT_RESOLVED** pendant le contrôle. Un résultat de recherche en conserve une ancienne page de connexion ; cet extrait n’est pas la preuve que le service fonctionne encore.
+4. [Serializd — TV Time](https://www.serializd.com/tvtime) et [BetaSeries — Importer votre archive TV Time](https://support.betaseries.com/importer-tv-time), recoupement du 30 octobre 2026 : arrêt annoncé au **15 juillet 2026**, données supprimées, plus aucune demande d’export possible.
 
 ## Contrat avec l’interface et le moteur
 
@@ -115,13 +167,14 @@ Le guide Sylloge se limite à rechercher et conserver une archive existante. Il 
 - `libraries` indique la pertinence du guide pour une bibliothèque. Il ne s’agit pas d’une déclaration de support de tous les formats du service.
 - Les liens d’export ouvrent le site tiers. Les opérations de connexion et de demande de données restent sur le service concerné ; Sylloge ne reçoit pas les identifiants.
 - Les liens « officiels » ne doivent pas être étiquetés « export testé » ou « tout sera conservé » dans l’UI.
-- Référence du support existant relu : `src/domain/filmCsvImport.ts`, `src/domain/collectionCsvImport.ts`, `src/data/nativePortability.ts`, puis le nouvel adaptateur `src/domain/thirdPartyImport.ts` apparu pendant cette intervention. CSV et conteneurs sont distincts des adaptateurs propres à un service. La présence d’une extension reconnue ne prouve pas la reprise d’un schéma externe.
-- Priorités documentées : **Letterboxd CSV/ZIP** et **Goodreads CSV**. Le catalogue n’anticipe pas un parseur MyAnimeList non validé, un connecteur BetaSeries ou un connecteur TV Time.
+- Référence du support existant relu : `src/domain/filmCsvImport.ts`, `src/domain/collectionCsvImport.ts`, `src/data/nativePortability.ts`, puis le nouvel adaptateur `src/domain/thirdPartyImport.ts` apparu pendant cette intervention. CSV, XML et conteneurs sont distincts des adaptateurs propres à un service. La présence d’une extension reconnue ne prouve pas la reprise d’un schéma externe.
+- Adaptateurs testés : **Letterboxd CSV/ZIP**, **Goodreads CSV**, **The StoryGraph CSV**, **IMDb CSV**, **Simkl CSV**, **Hardcover CSV (format d’import documenté)** et **MyAnimeList XML**. Grouvee, Trakt, AniList, SensCritique (CSV) et BoardGameGeek n’ont pas d’adaptateur ; aucun en-tête non vérifié n’a été supposé.
 - Si le moteur ajoute un adaptateur testé ou la fusion de plusieurs tables, mettre à jour `preserved` et `limitations` à partir de ses tests réels. Une évolution du moteur ne change pas à elle seule le niveau de vérification du parcours authentifié tiers.
 
 ## Vérification locale du catalogue
 
 - Compilation TypeScript isolée de `src/domain/importGuides.ts` en mode strict : réussie.
-- Chargement réel du module sous Node et assertions sur le schéma, les identifiants uniques, les URL HTTPS, les bibliothèques, les dates, les étapes et l’absence de tutoiement/vouvoiement : **6 guides conformes**.
-- `node --experimental-strip-types --test scripts/third-party-import.test.mjs` : **9 tests réussis**, aucun échec. Ils exercent les adaptateurs purs Letterboxd et Goodreads avec des fixtures synthétiques, pas des exports de comptes authentifiés ni l’intégralité du parcours UI/natif.
+- Chargement réel du module sous Node et assertions sur le schéma, les identifiants uniques, les URL HTTPS, les bibliothèques, les dates, les étapes et l’absence de tutoiement/vouvoiement : **10 guides conformes**.
+- `node --experimental-strip-types --test scripts/third-party-import.test.mjs scripts/third-party-import-services.test.mjs` : **27 tests réussis**, aucun échec. Ils exercent les adaptateurs purs avec des fixtures synthétiques, pas des exports de comptes authentifiés ni l’intégralité du parcours UI/natif.
 - Pour Letterboxd, les tests confirment les variantes notes/journal/vus/à voir, `Watched Date` plutôt que `Date`, et le blocage des titres répétés sans fusion silencieuse des revisionnages. Les noms `watched.csv` et `watchlist.csv` sont donc cités comme une contrainte de l’adaptateur testé, non comme un schéma de nommage exhaustif promis par les sources publiques.
+- Pour IMDb, les tests couvrent la reconnaissance par en-tête, le mélange films/séries compté, les épisodes ignorés, la conversion /10 → /5 et le refus d’une note invalide. Pour Simkl, les cinq statuts, les trois médiums et les deux ordres de date. Pour Hardcover, les quatre statuts et le blocage de `None`. Pour MyAnimeList, les statuts anime et manga, le score 0, les dates `0000-00-00`, les CDATA, le refus du DOCTYPE et le XML mal formé. Pour The StoryGraph, l’absence de `Book Id` et `did-not-finish`.

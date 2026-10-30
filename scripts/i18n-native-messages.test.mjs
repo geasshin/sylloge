@@ -119,8 +119,8 @@ const NOT_DISPLAY = new Set([
   'Choose the folder for future Sylloge backups',
   'Choose the Sylloge backup folder',
   'Compatible CSV or ZIP',
-  'Import Sylloge (JSON, CSV, ZIP)',
-  'Sylloge import (JSON, CSV, ZIP)',
+  'Import Sylloge (JSON, CSV, XML, ZIP)',
+  'Sylloge import (JSON, CSV, XML, ZIP)',
   'Sylloge JSON export',
   'Sylloge CSV export',
   // Carte à partager : filtre et titre de la fenêtre d'enregistrement du PNG.

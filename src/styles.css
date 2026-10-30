@@ -3858,6 +3858,23 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .export-format-option:hover:not(:disabled) { background: var(--color-surface-muted); }
 .export-format-option:disabled { opacity: .6; cursor: default; }
 .export-format-option small { color: var(--color-text-muted); }
+/* Deux groupes du dialogue d'export (30 octobre 2026) : la sauvegarde complète, puis un fichier par
+   service. Chaque service tient sur une ligne d'action et une ligne d'aide ; son lien d'import reste
+   un <a href> ordinaire, hors du bouton (un lien dans un bouton n'est ni valide ni cliquable au clavier). */
+.export-group + .export-group, .export-group + .export-share-actions { margin-top: var(--space-4); }
+.export-review > .transfer-scope { margin-bottom: var(--space-4); }
+.export-group-title { margin: 0 0 var(--space-1); }
+.export-group .import-contextual-hint { margin: 0 0 var(--space-3); }
+/* Les deux sauvegardes tiennent côte à côte : une rangée de moins dans la fenêtre. */
+.export-group .export-format-options { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.export-group .export-format-option { padding: var(--space-2-5) var(--space-3); }
+.export-service-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+/* Dense : l'action et son aide dans la carte, le lien d'import sur la même ligne, à droite. */
+.export-service { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); }
+.export-service .export-format-option { width: 100%; }
+.export-service-link { flex: none; color: var(--color-text-muted); font-size: var(--text-sm); text-underline-offset: var(--space-1); white-space: nowrap; }
+.export-service-link:hover { color: var(--color-text); }
+.export-share-actions { padding-top: var(--space-3); border-top: 1px solid var(--color-border); }
 
 
 /* Champs personnalisés de l'Art (0.6.12) : lignes nom → valeur, sobres. */
