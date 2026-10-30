@@ -77,7 +77,7 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
       <DetailLayout
         visual={(
           <div className="poster-container detail-poster-wrap">
-            <Poster title={book.title} src={book.coverUrl} className="detail-poster" label="Couverture" onEdit={onCoverEdit ? () => setPosterDialogOpen(true) : undefined} />
+            <Poster title={book.title} src={book.coverUrl} className="detail-poster" sharp label="Couverture" onEdit={onCoverEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
         )}
         verdict={(
@@ -112,12 +112,11 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
           <>
             <p className="eyebrow">{t(BOOK_CATEGORY_LABELS[book.category])}</p>
             <h1 className="display-title">{book.title}</h1>
-            {(book.author || book.year !== null || progress) && (
+            {(book.author || book.year !== null) && (
               <p className="detail-factline">
                 {[
                   book.author,
                   book.year !== null ? String(book.year) : null,
-                  progress,
                 ].filter(Boolean).join(' · ')}
               </p>
             )}
@@ -125,12 +124,6 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
         )}
         facts={(
           <dl className="detail-facts">
-            {book.author && (
-              <div><dt>{t("Auteur")}</dt><dd>{book.author}</dd></div>
-            )}
-            {book.year !== null && (
-              <div><dt>{t("Parution")}</dt><dd>{book.year}</dd></div>
-            )}
             {progress && (
               <div><dt>{t("Avancement")}</dt><dd>{progress}</dd></div>
             )}

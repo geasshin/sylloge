@@ -52,7 +52,9 @@ async page => {
   await form.getByRole('button', { name: 'Ajouter un podcast', exact: true }).click()
   await page.getByRole('heading', { level: 1, name: 'Les Pieds sur terre' }).waitFor()
   const facts = await page.locator('.detail-facts').innerText()
-  assert(/Sonia Kronlund/.test(facts) && /France Culture/.test(facts) && /12 \/ 40/.test(facts), 'Fiche : créateur, plateforme et progression affichés')
+  // Le créateur vit sous le titre et n'est pas répété dans la grille (30 octobre 2026).
+  const byline = await page.locator('.detail-factline').first().innerText()
+  assert(/Sonia Kronlund/.test(byline) && !/Sonia Kronlund/.test(facts) && /France Culture/.test(facts) && /12 \/ 40/.test(facts), 'Fiche : créateur sous le titre, plateforme et progression dans la grille')
   const [stored] = await sql("SELECT status, progress_current, progress_total, creator, details FROM podcasts WHERE title = 'Les Pieds sur terre'")
   assert(stored.status === 'en cours' && stored.progress_current === 12 && stored.progress_total === 40 && JSON.parse(stored.details).format === 'Récit', 'Fiche : stockée dans la table podcasts')
   await page.getByRole('button', { name: 'Retour à Podcasts', exact: true }).click()

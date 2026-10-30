@@ -172,8 +172,11 @@ async page => {
   assert(await addButton().count() === 0, 'Fixture Film : aucun bouton d’ajout quand la bannière existe')
   const seededEdit = await banner().locator('.banner-edit-overlay').getAttribute('aria-label')
   assert(seededEdit.includes('Modifier la bannière de « Portrait de la jeune fille en feu »'), `Fixture Film : le crayon est nommé (${seededEdit})`)
-  const seededHeight = await page.evaluate(() => document.querySelector('.detail-banner')?.getBoundingClientRect().height ?? 0)
-  assert(seededHeight <= Math.ceil(900 * 0.32) + 1, `Fixture Film : hauteur du bandeau bornée à 32 vh (${Math.round(seededHeight)} px)`)
+  // Un bandeau 2:1 (l'image 16:9 perd environ 11 % de sa hauteur), pas plus
+  // haut que 60 vh (retour d'Aurélien, 30 octobre 2026).
+  const seeded = await page.evaluate(() => { const r = document.querySelector('.detail-banner')?.getBoundingClientRect(); return r ? { width: r.width, height: r.height } : { width: 0, height: 1 } })
+  assert(Math.abs(seeded.width / seeded.height - 2) < 0.02, `Fixture Film : bandeau au format 2:1 (${(seeded.width / seeded.height).toFixed(2)})`)
+  assert(seeded.height <= Math.ceil(900 * 0.6) + 1, `Fixture Film : hauteur du bandeau bornée à 60 vh (${Math.round(seeded.height)} px)`)
   await page.locator('.back-button').first().click()
   await page.getByRole('heading', { level: 1, name: 'Films', exact: true }).waitFor()
   await settle()
@@ -212,12 +215,10 @@ async page => {
   // ── 4. Défilement : le statut et la note restent atteignables sous le bandeau ───────────
   await openLibrary('Films')
   await openCard('Portrait de la jeune fille en feu')
-  const aboveFold = await page.evaluate(() => {
-    const bottom = selector => document.querySelector(selector)?.getBoundingClientRect().bottom ?? Infinity
-    return { status: bottom('.detail-status'), rate: bottom('.detail-rate'), notebook: bottom('.detail-notebook'), viewport: window.innerHeight }
-  })
-  assert(aboveFold.status <= aboveFold.viewport, `1440 px avec bannière : le statut reste visible sans défiler (${aboveFold.status} ≤ ${aboveFold.viewport})`)
-  assert(aboveFold.rate <= aboveFold.viewport, `1440 px avec bannière : la note reste visible sans défiler (${aboveFold.rate} ≤ ${aboveFold.viewport})`)
+  // La bannière se voit en entier à l'ouverture ; le statut et la note suivent
+  // dessous et s'atteignent en défilant (contrôlé ci-dessous).
+  const aboveFold = await page.evaluate(() => ({ banner: document.querySelector('.detail-banner')?.getBoundingClientRect().bottom ?? Infinity, viewport: window.innerHeight }))
+  assert(aboveFold.banner <= aboveFold.viewport, `1440 px avec bannière : l'image entière tient dans la fenêtre (${Math.round(aboveFold.banner)} ≤ ${aboveFold.viewport})`)
   await page.evaluate(() => window.scrollTo(0, 260))
   await page.waitForTimeout(250)
   const scrolled = await page.evaluate(() => {

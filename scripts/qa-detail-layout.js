@@ -117,9 +117,29 @@ async page => {
       cartelLabels: document.querySelectorAll('.detail-cartel dt').length,
       steps: box(one('.detail-steps')),
       ingredients: box(one('.detail-recipe-ingredients')),
-      label: one('.detail-label')?.innerText?.trim() ?? null,
+      // Groupe centré sous le visuel : statut, note, cœur, puis la date.
+      poster: box(one('.detail-side .detail-visual .detail-poster')),
+      verdictContent: (() => {
+        const kids = [...(one('.detail-side .detail-verdict')?.children ?? [])].map(node => node.getBoundingClientRect())
+        if (kids.length === 0) return null
+        return { left: Math.min(...kids.map(r => r.left)), right: Math.max(...kids.map(r => r.right)) }
+      })(),
+      date: box(one('.detail-side .detail-notebook-date')),
+      attribution: Boolean(one('.detail-attribution-line')),
+      notebookLabel: /mon carnet|my notebook/i.test(one('.detail-side')?.innerText ?? ''),
       reviewLabel: one('.mine-label')?.innerText?.trim() ?? null,
       stageBackground: one('.detail-art-stage') ? getComputedStyle(one('.detail-art-stage')).backgroundColor : null,
+      artImage: (() => {
+        const img = one('.detail-art-stage .artwork-visual-image img')
+        if (!img || !img.complete || img.naturalWidth === 0) return null
+        const frame = img.parentElement.getBoundingClientRect()
+        const rect = img.getBoundingClientRect()
+        return {
+          width: rect.width, height: rect.height, naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight,
+          frameWidth: frame.width, frameHeight: frame.height,
+          frameBackground: getComputedStyle(img.parentElement).backgroundColor,
+        }
+      })(),
     }
   })
 
@@ -135,7 +155,12 @@ async page => {
     assert(info.body !== null && info.side.right < info.body.left, `${label} : la colonne de lecture est à droite du visuel`)
     assert(info.status !== null && info.status.bottom <= info.viewport.height, `${label} : le statut est visible sans défiler (${info.status?.bottom} ≤ ${info.viewport.height})`)
     assert(info.rate !== null && info.rate.bottom <= info.viewport.height, `${label} : la note est visible sans défiler (${info.rate?.bottom} ≤ ${info.viewport.height})`)
-    assert(info.notebook === null || info.notebook.bottom <= info.viewport.height, `${label} : le carnet est visible sans défiler`)
+    assert(info.notebook === null || info.notebook.bottom <= info.viewport.height, `${label} : la date est visible sans défiler`)
+    const center = range => (range.left + range.right) / 2
+    assert(info.poster !== null && info.verdictContent !== null && Math.abs(center(info.verdictContent) - center(info.poster)) < 3, `${label} : statut, note et cœur sont centrés sur le visuel (écart ${info.poster && info.verdictContent ? Math.abs(center(info.verdictContent) - center(info.poster)).toFixed(1) : '?'} px)`)
+    assert(info.date === null || Math.abs(center(info.date) - center(info.poster)) < 3, `${label} : la date est centrée sur le visuel`)
+    assert(!info.notebookLabel, `${label} : aucun libellé « Mon carnet »`)
+    assert(!info.attribution, `${label} : aucune ligne « Présentation enrichie par » dans la fiche`)
     assert(info.overflow <= 1, `${label} : aucun débordement horizontal (${info.overflow} px)`)
     assert(info.banners === 0, `${label} : aucune bannière n'est inventée`)
     oneLineFacts(info, label)
@@ -152,6 +177,12 @@ async page => {
     const titleCenter = (info.artTitle.left + info.artTitle.right) / 2
     assert(Math.abs(titleCenter - stageCenter) < 4, `${label} : le titre est centré (écart ${Math.abs(titleCenter - stageCenter).toFixed(1)} px)`)
     assert(info.media.height <= Math.round(info.viewport.height * 0.7) + 2, `${label} : l'œuvre tient dans 70 vh (${info.media.height} px)`)
+    if (info.artImage) {
+      const image = info.artImage
+      assert(image.width <= image.naturalWidth + 0.5 && image.height <= image.naturalHeight + 0.5, `${label} : l'image n'est jamais agrandie au-delà de sa taille d'origine (${Math.round(image.width)} ≤ ${image.naturalWidth})`)
+      assert(Math.abs(image.frameWidth - image.width) < 1.5 && Math.abs(image.frameHeight - image.height) < 1.5, `${label} : aucun cadre autour de l'image (${Math.round(image.frameWidth)}×${Math.round(image.frameHeight)} pour ${Math.round(image.width)}×${Math.round(image.height)})`)
+      assert(Math.abs(image.width / image.height - image.naturalWidth / image.naturalHeight) < 0.02, `${label} : l'image garde son format exact`)
+    }
     assert(info.cartel !== null && info.artNotebook !== null && info.cartel.right < info.artNotebook.left, `${label} : cartel à gauche, carnet à droite`)
     assert(info.cartelLabels >= 1, `${label} : le cartel nomme chaque valeur (${info.cartelLabels} étiquette(s))`)
     assert(info.artBlock.top >= info.stage.bottom, `${label} : le bloc d'informations vient sous l'œuvre, jamais à côté`)
@@ -180,7 +211,7 @@ async page => {
     await openCard(title)
     const info = await measure()
     checkColumn(info, `${library} (${title})`)
-    assert(info.label === 'MON CARNET', `${library} : le carnet personnel porte son libellé (${info.label})`)
+    assert(library === 'Films' ? info.date !== null : true, `${library} : la date de visionnage est affichée`)
     assert(info.reviewLabel === 'MON AVIS', `${library} : l'avis porte son libellé (${info.reviewLabel})`)
     await page.locator('.back-button').first().click()
     await page.getByRole('heading', { level: 1, name: library, exact: true }).waitFor()
@@ -258,7 +289,6 @@ async page => {
   assert(recipe.steps !== null && recipe.steps.left >= recipe.body.left, 'Recettes : les étapes vivent dans la colonne de lecture')
   assert(recipe.ingredients.bottom <= recipe.viewport.height, `Recettes : les ingrédients sont visibles sans défiler (${recipe.ingredients?.bottom} ≤ ${recipe.viewport.height})`)
   assert(recipe.denseRows === 1, `Recettes : les faits tiennent sur une seule ligne dense (${recipe.denseRows} rangée(s))`)
-  assert(recipe.label === 'MON CARNET' && recipe.reviewLabel === 'NOTES', `Recettes : carnet et notes gardent leurs libellés (${recipe.label} / ${recipe.reviewLabel})`)
   assert(recipe.reviewLabel === 'NOTES', 'Recettes : le texte libre s’appelle toujours « Notes »')
   await page.getByRole('button', { name: 'Retour à Recettes', exact: true }).click()
   await page.getByRole('heading', { level: 1, name: 'Recettes' }).waitFor()
@@ -282,7 +312,7 @@ async page => {
   await page.getByRole('heading', { level: 1, name: 'Films', exact: true }).waitFor()
   await settle()
 
-  // ── 5. Thème sombre : la fiche et le mur de l'Art suivent la surface du thème ───────────────────
+  // ── 5. Thème sombre : la fiche suit la surface du thème, l'Art n'a plus de mur ───────────────────
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.evaluate(() => localStorage.setItem('sylloge-theme', 'dark'))
   await page.reload()
@@ -292,21 +322,21 @@ async page => {
   const dark = await measure()
   assert(dark.theme === 'dark', `Thème sombre : <html data-theme> vaut « dark » (${dark.theme})`)
   assert(dark.surface === '#232326', `Thème sombre : la surface du thème est appliquée (${dark.surface})`)
-  assert(dark.stageBackground === 'rgb(35, 35, 38)', `Thème sombre : le mur de l'Art prend la surface du thème (${dark.stageBackground})`)
+  // Plus de mur ni de cadre autour de l'œuvre (30 octobre 2026) : l'image seule.
+  assert(dark.stageBackground === 'rgba(0, 0, 0, 0)', `Thème sombre : aucun mur derrière l'œuvre (${dark.stageBackground})`)
   checkArt(dark, 'Art en thème sombre')
   await page.locator('.back-button').first().click()
   await page.getByRole('heading', { level: 1, name: 'Art', exact: true }).waitFor()
   await settle()
   await page.evaluate(() => localStorage.setItem('sylloge-theme', 'light'))
 
-  // ── 6. Anglais : le carnet, l'avis et le cartel sont traduits ──────────────────────────────────
+  // ── 6. Anglais : l'avis et le cartel sont traduits ──────────────────────────────────
   await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full&lang=en')
   await page.getByRole('heading', { level: 1 }).first().waitFor()
   await openLibrary('Films')
   await openCard('Aftersun')
   const english = await measure()
   assert(english.lang === 'en', `Anglais : <html lang> vaut « en » (${english.lang})`)
-  assert(english.label === 'MY NOTEBOOK', `Anglais : « Mon carnet » devient « My notebook » (${english.label})`)
   assert(english.reviewLabel === 'MY REVIEW', `Anglais : « Mon avis » devient « My review » (${english.reviewLabel})`)
   checkColumn(english, 'Anglais (Aftersun)')
   await page.locator('.back-button').first().click()

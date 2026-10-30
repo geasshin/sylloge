@@ -182,6 +182,7 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
               title={displayTitle}
               src={displayPosterUrl}
               className="detail-poster"
+              sharp
               onEdit={() => (allPosters.length > 1 ? setShowPosterGallery(true) : setPosterUrlOpen(true))}
             />
           </div>
@@ -220,9 +221,11 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             {displayOriginalTitle && displayOriginalTitle !== displayTitle && (
               <p className="original-title">{displayOriginalTitle}</p>
             )}
-            {(displayYear || displayRuntime) && (
+            {/* Sous le titre : qui et quand. La grille donne le reste, sans
+                rien répéter (retour d'Aurélien, 30 octobre 2026). */}
+            {(displayDirector || displayYear) && (
               <p className="detail-factline">
-                {[displayYear, displayRuntime].filter(Boolean).join(' · ')}
+                {[displayDirector, displayYear].filter(Boolean).join(' · ')}
               </p>
             )}
           </>
@@ -230,14 +233,8 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
         facts={(
           <>
             <dl className="detail-facts">
-              {displayDirector && (
-                <div><dt>{t("Réalisation")}</dt><dd>{displayDirector}</dd></div>
-              )}
               {displayCast && (
-                <div><dt>{t("Distribution")}</dt><dd>{displayCast}</dd></div>
-              )}
-              {displayYear && (
-                <div><dt>{t("Sortie")}</dt><dd>{displayYear}</dd></div>
+                <div><dt>{t("Casting")}</dt><dd>{displayCast}</dd></div>
               )}
               {displayRuntime && (
                 <div><dt>{t("Durée")}</dt><dd>{displayRuntime}</dd></div>
@@ -253,34 +250,10 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             <p>{synopsis}</p>
           </div>
         )}
-        notebook={(film.watchedAt || !tmdbLoading) && (
-          <>
-            {film.watchedAt && (
-              <DetailDate label={t("Vu le")} value={formatDate(film.watchedAt, { dateStyle: 'long' })} />
-            )}
-            {/* Le lien fournisseur appartient au carnet : la colonne de lecture
-                garde l'œuvre et son avis. */}
-            {!tmdbLoading && (
-              <p className="detail-attribution-line">
-                {tmdbCache ? (
-                  <>
-                    {t("Présentation enrichie par")}{' '}
-                    <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>
-                    {/* 0.6.11 : plus de « Rafraîchir », la gestion passe
-                        exclusivement par Associer/Dissocier. */}
-                    <button className="link-subtle" type="button" onClick={handleRemoveAssociation} disabled={removingAssociation}>
-                      {removingAssociation ? t('Dissociation…') : t("Dissocier")}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {t("Aucune métadonnée TMDB associée")}
-                    <button className="link-subtle" type="button" onClick={onAssociateTmdb}>{t("Associer")}</button>
-                  </>
-                )}
-              </p>
-            )}
-          </>
+        /* Associer / Dissocier restent dans la barre d'actions ; l'attribution
+           TMDB vit dans Paramètres › À propos (30 octobre 2026). */
+        notebook={film.watchedAt && (
+          <DetailDate label={t("Vu le")} value={formatDate(film.watchedAt, { dateStyle: 'long' })} />
         )}
         review={film.personalNote ? (
           <>

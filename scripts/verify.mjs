@@ -4868,7 +4868,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   // 27 octobre 2026 : carte et fiche passent par ArtworkVisual, qui garde la
   // classe artwork-visual et donne au cadre le format de l'image.
   const artworkVisualSourceArt = readFileSync(new URL('../src/components/ArtworkVisual.tsx', import.meta.url), 'utf8')
-  assert.match(artworkVisualSourceArt, /className=\{`artwork-visual \$\{poem \? 'artwork-poem-page' : ''\} \$\{className\}`/, 'Art : le visuel partagé garde la classe du visuel entier')
+  assert.match(artworkVisualSourceArt, /className=\{`artwork-visual \$\{poem \? 'artwork-poem-page' : ''\} \$\{artwork\.imageUrl \? 'artwork-visual-image' : ''\} \$\{className\}`/, 'Art : le visuel partagé garde la classe du visuel entier (et signale une image, montrée sans cadre dans la fiche)')
   assert.match(mainSourceArt, /<ArtworkVisual artwork=\{artwork\} frame=\{frame\} \/>/, 'Art : la carte utilise le visuel entier')
   assert.match(artworkDetailSourceArt, /<ArtworkVisual artwork=\{artwork\} frame=\{frame\} className="detail-poster"/, 'Art : la fiche utilise le visuel entier')
   assert.match(artworkFormSourceArt, /className="form-poster-preview-lg artwork-visual"/, 'Art : l’aperçu d’ajout utilise le visuel entier')
@@ -5115,6 +5115,7 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(stylesSourceFiche, /\.detail-facts > div \{[^}]*grid-template-columns: minmax\(104px, max-content\) minmax\(0, 1fr\);/s, 'Fiche : les libellés de faits prennent la largeur de leur mot')
   assert.match(stylesSourceFiche, /\.detail-facts dt \{[^}]*white-space: nowrap;/s, 'Fiche : un libellé de fait ne se replie jamais')
   assert.match(stylesSourceFiche, /\.detail-art-stage \.detail-poster \{[^}]*max-height: 70vh;/s, 'Art : l’œuvre est limitée à 70 vh, un portrait reste entier')
+  assert.match(stylesSourceFiche, /\.detail-art-stage \.artwork-visual-image img \{[^}]*width: auto;[^}]*max-height: 70vh;/s, 'Art : l’image garde sa taille d’origine, sans agrandissement, dans 70 vh')
   assert.match(stylesSourceFiche, /\.detail-art-block \{ width: 100%; max-width: 880px; margin: var\(--space-8\) auto 0; \}/, 'Art : le bloc d’informations est centré sous l’œuvre, 880 px au plus')
   assert.match(stylesSourceFiche, /\.detail-art-head \{ text-align: center; \}/, 'Art : surtitre, titre et artiste · année sont centrés')
   assert.match(stylesSourceFiche, /\.detail-art-columns \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s, 'Art : cartel et carnet forment deux colonnes équilibrées')

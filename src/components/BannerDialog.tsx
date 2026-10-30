@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { t } from '../i18n/core.ts'
 import type { BannerCandidate, BannerMedium } from '../data/bannerService.ts'
-import { isBannerUrl, normalizeBannerUrl, bannerCropWarning } from '../domain/bannerImages.ts'
+import { isBannerUrl, normalizeBannerUrl, bannerCropWarning, sameBannerImage } from '../domain/bannerImages.ts'
 import { useDialogFocus } from './FocusDialog.tsx'
 import { useImageRatio } from './useImageRatio.ts'
 
@@ -150,7 +150,7 @@ function BannerDialogContent({
             ) : (
               <ul className="banner-dialog-grid">
                 {candidates.map((candidate) => {
-                  const active = chosen === candidate.url
+                  const active = sameBannerImage(chosen, candidate.url)
                   return (
                     <li key={candidate.url}>
                       <button

@@ -2052,29 +2052,18 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   aspect-ratio: 1 / 1;
 }
 .detail-verdict { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+/* Sous le visuel, statut, note, cœur et date forment un groupe centré sur
+   l'affiche (30 octobre 2026). L'Art garde son carnet aligné à côté du cartel. */
+.detail-side .detail-verdict { justify-content: center; }
 .detail-verdict .detail-status,
 .detail-verdict .detail-rate { margin: 0; }
 
-/* Le carnet personnel : le filet sépare le visuel du carnet, comme la marge
-   d'une page. */
-.detail-notebook {
-  display: grid;
-  gap: var(--space-2);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-hairline);
-}
-.detail-label {
-  margin: 0;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-.detail-notebook-date { margin: 0; color: var(--color-text-muted); font-size: var(--text-md); line-height: 1.5; }
+/* La date personnelle : une légende sous le verdict, sans libellé ni filet. */
+.detail-notebook { display: grid; gap: var(--space-1); }
+.detail-side .detail-notebook { justify-items: center; text-align: center; margin-top: calc(-1 * var(--space-2)); }
+.detail-notebook-date { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.5; }
 .detail-notebook-date svg { margin-right: var(--space-2); vertical-align: -1px; opacity: .55; }
 .detail-notebook-date b { color: var(--color-text); font-weight: 600; }
-.detail-notebook .detail-attribution-line { margin: 0; }
 
 .detail-review {
   margin-top: var(--space-8);
@@ -2195,30 +2184,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   font-weight: 600;
 }
 .link-accent:hover { background: var(--color-accent-soft); }
-.link-subtle {
-  border: 0;
-  /* C1 : cible ≥ 30 px pour « Associer » / « Dissocier » des fiches
-     (19 → 31 px), encombrement compensé par la marge négative. */
-  padding: var(--space-2) var(--space-3);
-  margin: calc(-1 * var(--space-1-5)) calc(-1 * var(--space-0-5));
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
-.link-subtle:hover { background: var(--veil-strong); color: var(--color-text); }
-.detail-attribution-line {
-  margin: var(--space-4) 0 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-1-5);
-  color: var(--color-text-muted);
-  font-size: var(--text-xs);
-}
-/* C1 : le lien TMDB de la ligne d'attribution suit la même règle de cible
-   (30 px) que les liens « Modifier » / « Associer » de la fiche. */
-.detail-attribution-line a { color: inherit; display: inline-block; padding: var(--space-2) var(--space-0-5); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-0-5)); border-radius: var(--radius-xs); }
 
 /* La partie personnelle : libellé de section, critique en voix serif */
 .mine-label {
@@ -2255,11 +2220,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .detail-art-stage {
   display: grid;
   place-items: center;
-  padding: var(--space-4);
   min-height: 240px;
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
 }
 .detail-art-stage .poster-container { width: 100%; max-width: none; display: grid; place-items: center; }
 .detail-art-stage .detail-poster {
@@ -2268,6 +2229,30 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   max-height: 70vh;
   margin-inline: auto;
   box-shadow: var(--shadow-visual);
+}
+/* Une œuvre avec image (30 octobre 2026) : l'image seule, sans mur ni cadre,
+   à son format exact et jamais agrandie au-delà de sa taille d'origine (un
+   pixel de l'image = un point de l'écran) ; elle ne réduit que pour tenir
+   dans 70 vh et dans la largeur. Une image trop petite reste petite et nette
+   plutôt que grande et floue. */
+.detail-art-stage .detail-poster.artwork-visual-image {
+  width: auto;
+  max-width: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  background: none;
+}
+.detail-art-stage .artwork-visual-image img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}
+/* L'image ne se charge pas : le cadre reprend sa place pour le message. */
+.detail-art-stage .artwork-visual-image .poster-fallback {
+  width: min(60vw, 420px);
+  aspect-ratio: var(--ar, 3 / 4);
 }
 /* Un poème sans image : la page prend la place de l'œuvre, à la hauteur d'une
    page et non d'un portrait entier ; le texte entier se lit sous le bloc. */
@@ -2476,10 +2461,14 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    défaut, donc aucun cadre vide quand la fiche n'en porte pas. */
 .detail-banner {
   position: relative;
-  width: 100%;
-  aspect-ratio: 21 / 9;
-  max-height: 32vh;
-  margin: 0;
+  /* Un vrai bandeau, sans perdre de définition (retour d'Aurélien, 30 octobre
+     2026) : l'image d'origine (16:9) est montrée au format 2:1, soit environ
+     11 % de sa hauteur rognés, moitié en haut, moitié en bas. Le 21:9 d'avant
+     en coupait le quart. Sur une fenêtre basse, le bandeau garde son format et
+     se resserre en largeur (60 vh de haut au plus). */
+  width: min(100%, calc(60vh * 2));
+  aspect-ratio: 2 / 1;
+  margin: 0 auto;
   overflow: hidden;
   border-radius: var(--radius-lg);
   background: var(--color-surface-muted);

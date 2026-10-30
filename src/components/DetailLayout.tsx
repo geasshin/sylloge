@@ -15,7 +15,9 @@ import { t } from '../i18n/core.ts'
  * - `heading`  surtitre, titre, ligne de faits ;
  * - `facts`    grille de faits (et son état d'association) ;
  * - `synopsis` résumé ;
- * - `notebook` dates personnelles, lien fournisseur ;
+ * - `notebook` date personnelle (vu le, lu le…), centrée sous le verdict,
+ *   sans libellé : la date se lit d'elle-même. Le lien fournisseur vit dans la
+ *   barre d'actions (Associer / Dissocier) et l'attribution dans Paramètres ;
  * - `review`   avis personnel ;
  * - `appendices` citations ou poème.
  *
@@ -47,7 +49,6 @@ export type DetailLayoutProps = {
   art?: { cartel: ReactNode } | null
 }
 
-const NOTEBOOK_LABEL = 'Mon carnet'
 const REVIEW_LABEL = 'Mon avis'
 
 /** Date personnelle du carnet : libellé puis valeur, sur une ligne. */
@@ -62,12 +63,7 @@ export function DetailDate({ label, value }: { label: ReactNode; value: ReactNod
 }
 
 function Notebook({ children }: { children: ReactNode }) {
-  return (
-    <div className="detail-notebook">
-      <p className="detail-label">{t(NOTEBOOK_LABEL)}</p>
-      {children}
-    </div>
-  )
+  return <div className="detail-notebook">{children}</div>
 }
 
 function Review({ label, children }: { label?: ReactNode; children: ReactNode }) {
@@ -121,9 +117,10 @@ export function DetailLayout({
       {banner && <div className="detail-banner-slot">{banner}</div>}
       <div className="detail-side">
         <div className="detail-visual">{visual}</div>
+        {/* Verdict et date forment un seul groupe centré sous le visuel. */}
         <div className="detail-verdict">{verdict}</div>
-        {recipe?.ingredients}
         {notebook && <Notebook>{notebook}</Notebook>}
+        {recipe?.ingredients}
       </div>
       <div className="detail-body">
         {heading}

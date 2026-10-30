@@ -290,8 +290,6 @@ const messages: Record<string, string> = {
   "Supprimer ce jeu": "Delete this game",
   "Supprimer cette œuvre": "Delete this artwork",
   "Lecture de l’association…": "Reading the link…",
-  "Présentation enrichie par": "Details enriched by",
-  "Aucune métadonnée TMDB associée": "No TMDB metadata linked",
   "Ta critique s’écrira ici après visionnage.": "Your review will appear here after watching.",
   "Supprimer définitivement ce film ?": "Delete this film permanently?",
   "Supprimer définitivement cette série ?": "Delete this series permanently?",
@@ -383,8 +381,7 @@ const messages: Record<string, string> = {
   "Épreuve 12/50": "Impression 12/50",
   "736 heures": "736 hours",
   "Installation, texte, vidéo…": "Installation, text, video…",
-  // Fiche : les deux sections de la colonne de lecture et du carnet (30 octobre 2026).
-  "Mon carnet": "My notebook",
+  // Fiche : la section de l’avis dans la colonne de lecture (30 octobre 2026).
   "Mon avis": "My review",
   "Choisir une bannière": "Choose a banner",
   "Une image paysage pour « {title} ».": "A landscape image for “{title}”.",

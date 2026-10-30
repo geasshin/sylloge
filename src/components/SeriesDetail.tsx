@@ -96,7 +96,7 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
         ) : undefined}
         visual={(
           <div className="poster-container detail-poster-wrap">
-            <Poster title={series.title} src={series.posterUrl} className="detail-poster" onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined} />
+            <Poster title={series.title} src={series.posterUrl} className="detail-poster" sharp onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
         )}
         verdict={(
@@ -131,18 +131,12 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
           <>
             <p className="eyebrow">{t(series.category === 'animation' ? "Animation japonaise" : "Série télé")}</p>
             <h1 className="display-title">{series.title}</h1>
-            {(series.showrunner || progress) && (
-              <p className="detail-factline">
-                {[series.showrunner, progress].filter(Boolean).join(' · ')}
-              </p>
-            )}
+            {/* Sous le titre : qui. L'avancement vit dans la grille. */}
+            {series.showrunner && <p className="detail-factline">{series.showrunner}</p>}
           </>
         )}
         facts={(
           <dl className="detail-facts">
-            {series.showrunner && (
-              <div><dt>{t("Showrunner")}</dt><dd>{series.showrunner}</dd></div>
-            )}
             {series.casting && (
               <div><dt>{t("Casting")}</dt><dd>{series.casting}</dd></div>
             )}

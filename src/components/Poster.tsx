@@ -1,5 +1,6 @@
 import { t } from '../i18n/core.ts'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { detailImageUrl } from '../domain/imageQuality.ts'
 
 export type PosterLabel = 'Affiche' | 'Couverture' | 'Visuel'
 
@@ -52,15 +53,22 @@ type PosterProps = {
   style?: CSSProperties
   /** Contenu de l'état « sans visuel » à la place du libellé et du titre. */
   fallback?: ReactNode
+  /** Fiche : demander la grande taille au service (TMDB w780, IGDB 720p). */
+  sharp?: boolean
 }
 
-export function Poster({ title, src, className = '', label = 'Affiche', onEdit, onImageLoad, style, fallback }: PosterProps) {
+export function Poster({ title, src, className = '', label = 'Affiche', onEdit, onImageLoad, style, fallback, sharp = false }: PosterProps) {
   const [missing, setMissing] = useState(false)
+  // La grande taille peut manquer chez le service : on retombe alors sur
+  // l'adresse enregistrée avant de déclarer le visuel indisponible.
+  const [sharpFailed, setSharpFailed] = useState(false)
 
   useEffect(() => {
     setMissing(false)
+    setSharpFailed(false)
   }, [src])
 
+  const sharpSrc = sharp && !sharpFailed ? detailImageUrl(src) : src
   const showFallback = !src || missing
   const copy = POSTER_COPY[label]
 
@@ -79,11 +87,11 @@ export function Poster({ title, src, className = '', label = 'Affiche', onEdit, 
         </div>
       ) : (
         <img
-          src={src}
+          src={sharpSrc ?? undefined}
           alt={t(copy.alt, { title })}
           loading="lazy"
           decoding="async"
-          onError={() => setMissing(true)}
+          onError={() => (sharpSrc !== src ? setSharpFailed(true) : setMissing(true))}
           onLoad={onImageLoad ? (event) => onImageLoad(event.currentTarget) : undefined}
         />
       )}

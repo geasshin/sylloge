@@ -517,14 +517,17 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
     && !denseKeys.includes(field.key))
 
   const factRows: { key: string; label: ReactNode; value: ReactNode }[] = []
-  if (entry.creator) {
+  // La ligne sous le titre porte déjà le créateur et l'année (hors recettes) :
+  // la grille ne les répète pas.
+  const bylineCarries = !isRecipe && detailByline !== ''
+  if (entry.creator && !(bylineCarries && template.showsYear !== false)) {
     factRows.push({
       key: 'creator',
       label: label(template.creatorLabel),
       value: isHttpsSource(entry.creator) ? <a href={entry.creator}>{sourceLabel(entry.creator)}</a> : entry.creator,
     })
   }
-  if (template.showsYear !== false && entry.year !== null) {
+  if (template.showsYear !== false && entry.year !== null && !bylineCarries) {
     factRows.push({ key: 'year', label: t('Année'), value: formatNumber(entry.year, { useGrouping: false }) })
   }
   for (const field of template.fields.filter((candidate) => denseKeys.includes(candidate.key))) {
@@ -615,6 +618,7 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
               className={`detail-poster ${template.coverShape === 'square' ? 'poster-square' : ''}`}
               label={customCoverLabel(libraryId)}
               onEdit={() => setPosterDialogOpen(true)}
+              sharp
             />
           </div>
         )}

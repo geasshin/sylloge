@@ -89,7 +89,7 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
         ) : undefined}
         visual={(
           <div className="poster-container detail-poster-wrap">
-            <Poster title={game.title} src={game.coverUrl} className="detail-poster" label="Couverture" onEdit={onCoverEdit ? () => setPosterDialogOpen(true) : undefined} />
+            <Poster title={game.title} src={game.coverUrl} className="detail-poster" sharp label="Couverture" onEdit={onCoverEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
         )}
         verdict={(
@@ -123,23 +123,17 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
         heading={(
           <>
             <h1 className="display-title">{game.title}</h1>
-            {(game.developer || game.year !== null || game.platform) && (
+            {(game.developer || game.year !== null) && (
               <p className="detail-factline">
-                {[game.developer, game.year !== null ? String(game.year) : null, game.platform].filter(Boolean).join(' · ')}
+                {[game.developer, game.year !== null ? String(game.year) : null].filter(Boolean).join(' · ')}
               </p>
             )}
           </>
         )}
         facts={(
           <dl className="detail-facts">
-            {game.developer && (
-              <div><dt>{t("Développeur")}</dt><dd>{game.developer}</dd></div>
-            )}
             {game.platform && (
               <div><dt>{t("Plateforme")}</dt><dd>{game.platform}</dd></div>
-            )}
-            {game.year !== null && (
-              <div><dt>{t("Sortie")}</dt><dd>{game.year}</dd></div>
             )}
           </dl>
         )}

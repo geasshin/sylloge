@@ -37,7 +37,8 @@ const IGDB_IMAGE_BASE: &str = "https://images.igdb.com/igdb/image/upload";
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BannerCandidateDto {
-    /// Adresse en grand : TMDB `w1280`, IGDB `t_1080p`.
+    /// Adresse en grand : TMDB `original` (1 920 px ou plus : `w1280` paraît
+    /// flou sur un bandeau pleine largeur d'écran Retina), IGDB `t_1080p`.
     pub url: String,
     /// Même image en petit : TMDB `w780`, IGDB `t_screenshot_med`.
     pub thumbnail_url: String,
@@ -138,7 +139,7 @@ fn tmdb_banner_candidates(entries: &[TmdbBackdropEntry]) -> Vec<BannerCandidateD
             .filter(|value| !value.is_empty())
             .map(str::to_string);
         candidates.push(BannerCandidateDto {
-            url: format!("{TMDB_IMAGE_BASE}/w1280{path}"),
+            url: format!("{TMDB_IMAGE_BASE}/original{path}"),
             thumbnail_url: format!("{TMDB_IMAGE_BASE}/w780{path}"),
             width: entry.width,
             height: entry.height,
@@ -284,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn tmdb_backdrops_build_w1280_addresses_and_their_thumbnails() {
+    fn tmdb_backdrops_build_original_addresses_and_their_thumbnails() {
         let entries = backdrops(
             r#"{
                 "id": 550,
@@ -307,7 +308,7 @@ mod tests {
         assert_eq!(
             candidates[0],
             BannerCandidateDto {
-                url: "https://image.tmdb.org/t/p/w1280/no-text.jpg".to_string(),
+                url: "https://image.tmdb.org/t/p/original/no-text.jpg".to_string(),
                 thumbnail_url: "https://image.tmdb.org/t/p/w780/no-text.jpg".to_string(),
                 width: Some(3840),
                 height: Some(2160),
@@ -335,7 +336,10 @@ mod tests {
         );
         let candidates = tmdb_banner_candidates(&entries);
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].url, "https://image.tmdb.org/t/p/w1280/ok.jpg");
+        assert_eq!(
+            candidates[0].url,
+            "https://image.tmdb.org/t/p/original/ok.jpg"
+        );
     }
 
     #[test]

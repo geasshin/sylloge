@@ -16,7 +16,7 @@
 
 /** Une image proposée pour la bannière d'une fiche. */
 export type BannerImageCandidate = {
-  /** Adresse de l'image en grand (TMDB w1280, IGDB t_1080p). */
+  /** Adresse de l'image en grand (TMDB original, IGDB t_1080p). */
   url: string
   /** Même image en petit, pour la vignette de la fenêtre de choix. */
   thumbnailUrl: string
@@ -157,4 +157,24 @@ export function isBannerUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+/** Taille d'une image TMDB dans son adresse : `w1280`, `w780`… ou `original`. */
+const TMDB_SIZED_IMAGE = /^(https:\/\/image\.tmdb\.org\/t\/p\/)w\d+\//
+
+/**
+ * Adresse à afficher pour une bannière : une image TMDB l'est toujours dans sa
+ * définition d'origine (1 920 px ou plus). Les bannières choisies avant le
+ * 30 octobre 2026 pointent `w1280`, que le bandeau étire sur un écran Retina :
+ * elles paraissaient floues. La base n'est pas réécrite ; seule la lecture
+ * change. Une adresse personnelle ou IGDB passe telle quelle.
+ */
+export function bannerDisplayUrl(url: string): string {
+  return url.replace(TMDB_SIZED_IMAGE, '$1original/')
+}
+
+/** Deux adresses désignent-elles la même image, quelle que soit la taille TMDB ? */
+export function sameBannerImage(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return false
+  return bannerDisplayUrl(a) === bannerDisplayUrl(b)
 }

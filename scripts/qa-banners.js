@@ -75,10 +75,10 @@ async page => {
   assert(await stored('films', film) === textless, 'Film : l’adresse choisie est écrite dans films.banner_url')
   assert(await card(film).locator('.detail-banner img').getAttribute('src') === textless, 'Film : le bandeau affiche l’image choisie')
   const box = await card(film).locator('.detail-banner').boundingBox()
-  assert(box.height <= Math.ceil(viewport.height * 0.32) + 1, `Bandeau : hauteur bornée à 32vh (${Math.round(box.height)} px)`)
-  // La hauteur est bornée à 32vh : sur une fenêtre basse, le bandeau est donc
-  // plus large que 21:9. Il ne doit jamais être plus étroit que ce format.
-  assert(box.width / box.height >= 21 / 9 - 0.05, `Bandeau : au moins 21:9 (${(box.width / box.height).toFixed(2)})`)
+  // Un bandeau 2:1 : l'image 16:9 ne perd qu'environ 11 % de sa hauteur, et le
+  // bandeau ne dépasse pas 60vh, quitte à se resserrer en largeur.
+  assert(Math.abs(box.width / box.height - 2) < 0.02, `Bandeau : format 2:1 (${(box.width / box.height).toFixed(2)})`)
+  assert(box.height <= Math.ceil(viewport.height * 0.6) + 1, `Bandeau : hauteur bornée à 60vh (${Math.round(box.height)} px)`)
 
   // ── 4. Fermer sans Enregistrer ne retient rien ────────────────────────────────────────────
   await openEdit(film)
@@ -108,6 +108,16 @@ async page => {
   await page.keyboard.press('Escape')
   await dialog().waitFor({ state: 'hidden' })
   assert(await stored('films', film) === vertical, 'Adresse refusée : la bannière précédente est intacte')
+
+  // ── 6 bis. Bannière TMDB enregistrée en w1280 : affichée en définition d'origine ─────────
+  await page.route('https://image.tmdb.org/**', route => route.fulfill(image(1920, 1080, '#2e3b4a')))
+  const legacy = 'https://image.tmdb.org/t/p/w1280/ancienne.jpg'
+  await openEdit(film)
+  await dialog().getByLabel('Adresse de l’image').fill(legacy)
+  await save()
+  assert(await stored('films', film) === legacy, 'Ancienne bannière : la base garde l’adresse telle quelle')
+  assert(await card(film).locator('.detail-banner img').getAttribute('src') === 'https://image.tmdb.org/t/p/original/ancienne.jpg', 'Ancienne bannière : affichée en original, jamais en w1280 étiré')
+  await page.unroute('https://image.tmdb.org/**')
 
   // ── 7. Retirer la bannière ───────────────────────────────────────────────────────────────
   await openEdit(film)

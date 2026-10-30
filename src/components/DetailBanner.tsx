@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { t } from '../i18n/core.ts'
+import { bannerDisplayUrl } from '../domain/bannerImages.ts'
 
 /**
  * Bandeau 16:9 d'une fiche (films, séries, animation japonaise, jeux).
@@ -48,7 +49,7 @@ export function DetailBanner({ title, bannerUrl, onEdit, className = '' }: Detai
   return (
     <div className={`detail-banner ${onEdit ? 'detail-banner-editable' : ''} ${className}`.replace(/\s+/g, ' ').trim()}>
       <img
-        src={bannerUrl}
+        src={bannerDisplayUrl(bannerUrl)}
         alt={t('Bannière de « {title} »', { title })}
         loading="lazy"
         decoding="async"

@@ -3,6 +3,8 @@ import { test } from 'node:test'
 import {
   BANNER_MAX_CANDIDATES,
   bannerCropWarning,
+  bannerDisplayUrl,
+  sameBannerImage,
   isBannerCandidate,
   isBannerUrl,
   normalizeBannerUrl,
@@ -107,4 +109,22 @@ test('Une adresse de bannière est https, bornée, et vide vaut aucune bannière
   assert.equal(isBannerUrl('data:image/png;base64,AAAA'), false, 'données inline refusées')
   assert.equal(isBannerUrl('https://x/a b.jpg'), false, 'espace refusé')
   assert.equal(isBannerUrl(`https://x/${'a'.repeat(2100)}.jpg`), false, 'adresse démesurée refusée')
+})
+
+test('une bannière TMDB s’affiche toujours en pleine définition (original)', () => {
+  // Les bannières enregistrées avant le 30 octobre pointent la taille w1280 :
+  // étirée sur un écran Retina, elle paraît floue. L’affichage la relit en original.
+  assert.equal(bannerDisplayUrl('https://image.tmdb.org/t/p/w1280/abc.jpg'), 'https://image.tmdb.org/t/p/original/abc.jpg')
+  assert.equal(bannerDisplayUrl('https://image.tmdb.org/t/p/w780/abc.jpg'), 'https://image.tmdb.org/t/p/original/abc.jpg')
+  assert.equal(bannerDisplayUrl('https://image.tmdb.org/t/p/original/abc.jpg'), 'https://image.tmdb.org/t/p/original/abc.jpg')
+  // Une adresse personnelle ou IGDB n’est jamais réécrite.
+  assert.equal(bannerDisplayUrl('https://example.test/t/p/w1280/abc.jpg'), 'https://example.test/t/p/w1280/abc.jpg')
+  assert.equal(bannerDisplayUrl('https://images.igdb.com/igdb/image/upload/t_1080p/ar1.jpg'), 'https://images.igdb.com/igdb/image/upload/t_1080p/ar1.jpg')
+  assert.equal(bannerDisplayUrl('http://image.tmdb.org/t/p/w1280/abc.jpg'), 'http://image.tmdb.org/t/p/w1280/abc.jpg')
+})
+
+test('une ancienne bannière w1280 reste reconnue comme le candidat original', () => {
+  assert.equal(sameBannerImage('https://image.tmdb.org/t/p/w1280/abc.jpg', 'https://image.tmdb.org/t/p/original/abc.jpg'), true)
+  assert.equal(sameBannerImage('https://image.tmdb.org/t/p/original/abc.jpg', 'https://image.tmdb.org/t/p/original/def.jpg'), false)
+  assert.equal(sameBannerImage(null, 'https://image.tmdb.org/t/p/original/abc.jpg'), false)
 })

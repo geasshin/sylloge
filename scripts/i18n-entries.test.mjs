@@ -158,11 +158,14 @@ try {
 
     const film = { ...stamp, id: 'qa-film', profileId: 'qa', title: 'En cours', director: 'Réalisation', year: 2024, originalTitle: null, casting: null, summary: 'Résumé français', status: 'terminé', rating: 4.5, isFavorite: true, watchedAt: '2026-10-08', posterUrl: null, personalNote: null }
     const filmHtml = render(FilmDetail, { film, ...base })
-    for (const copy of ['title="Edit entry"', '>Edit<', '>Director<', '>Release<', 'aria-label="4.5 out of 5"', '>4.5/5<', 'Watched on', '8 October 2026', 'Your review will appear here after watching.', 'Poster unavailable for En cours']) {
+    // Le réalisateur et l'année vivent dans la ligne sous le titre, plus dans la
+    // grille (30 octobre 2026) : aucun libellé « Director » ni « Release ».
+    for (const copy of ['title="Edit entry"', '>Edit<', 'aria-label="4.5 out of 5"', '>4.5/5<', 'Watched on', '8 October 2026', 'Your review will appear here after watching.', 'Poster unavailable for En cours']) {
       assert.ok(filmHtml.includes(copy), `Film: ${copy}`)
     }
     assert.ok(filmHtml.includes('<h1 class="display-title">En cours</h1>'), 'Titre personnel intact')
-    assert.ok(filmHtml.includes('<dd>Réalisation</dd>'), 'Le réalisateur saisi reste intact')
+    assert.ok(filmHtml.includes('class="detail-factline">Réalisation · 2024</p>'), 'Le réalisateur saisi reste intact, sous le titre')
+    assert.ok(!filmHtml.includes('>Director<') && !filmHtml.includes('>Release<'), 'Film : la grille ne répète ni le réalisateur ni l’année')
 
     const series = { ...stamp, id: 'qa-series', profileId: 'qa', title: 'En cours', showrunner: 'Auteur français', casting: null, summary: null, category: 'série télé', status: 'en cours', rating: null, isFavorite: false, seasonsSeen: 2, seasonsTotal: 4, startedAt: '2026-10-03', posterUrl: null, personalNote: 'Avis personnel' }
     const seriesHtml = render(SeriesDetail, { series, ...base })
@@ -175,13 +178,13 @@ try {
 
     const book = { ...stamp, id: 'qa-book', profileId: 'qa', title: 'En cours', author: 'En cours', year: 2024, category: 'manga', status: 'lu', rating: null, isFavorite: false, volumesRead: 2, volumesTotal: 3, startedAt: '2026-10-03', coverUrl: null, summary: null, personalNote: null, quotes: [] }
     const bookHtml = render(BookDetail, { book, ...base })
-    for (const copy of ['>Manga<', '2 of 3 volumes', '3 October 2026', '>Author<', '>Publication<', '>Progress<', '>Reading started<', 'No cover', 'No quotes']) {
+    for (const copy of ['>Manga<', '2 of 3 volumes', '3 October 2026', 'class="detail-factline">En cours · 2024</p>', '>Progress<', '>Reading started<', 'No cover', 'No quotes']) {
       assert.ok(bookHtml.includes(copy), `Livre: ${copy}`)
     }
 
     const game = { ...stamp, id: 'qa-game', profileId: 'qa', title: 'En cours', developer: 'En cours', year: 2024, platform: 'En cours', status: 'joué', rating: null, isFavorite: false, playedAt: '2026-10-03', coverUrl: null, personalNote: 'Avis personnel' }
     const gameHtml = render(GameDetail, { game, ...base })
-    for (const copy of ['>Developer<', '>Platform<', '>Release<', '>Played on<', '3 October 2026', 'Avis personnel']) {
+    for (const copy of ['class="detail-factline">En cours · 2024</p>', '>Platform<', '>Played on<', '3 October 2026', 'Avis personnel']) {
       assert.ok(gameHtml.includes(copy), `Jeu: ${copy}`)
     }
 
