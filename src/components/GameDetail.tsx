@@ -7,6 +7,9 @@ import { t, tc, formatDate, formatNumber, translateMessage } from '../i18n/core.
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
+import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { BannerAddButton, DetailBanner } from './DetailBanner.tsx'
+import { useBannerEditor, useBannerProviderId } from './useBannerEditor.tsx'
 import { icon } from '../main.tsx'
 
 type GameDetailProps = {
@@ -18,14 +21,24 @@ type GameDetailProps = {
   onCoverEdit?: (url: string | null) => Promise<void> | void
   /** Ouverture de la pop-up d'association IGDB (même parcours que les films). */
   onAssociate?: () => void
+  /** Enregistre (ou retire, avec null) la bannière 16:9 de la fiche. */
+  onBannerChange?: (url: string | null) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAssociate, onDelete }: GameDetailProps) {
+export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAssociate, onBannerChange, onDelete }: GameDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [posterDialogOpen, setPosterDialogOpen] = useState(false)
+  const bannerProviderId = useBannerProviderId(game.profileId, 'game', game.id)
+  const bannerEditor = useBannerEditor({
+    title: game.title,
+    medium: 'game',
+    providerId: bannerProviderId,
+    currentUrl: game.bannerUrl,
+    onSave: (url) => onBannerChange?.(url),
+  })
 
   const deleteGame = async () => {
     setDeleting(true)
@@ -54,6 +67,7 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
               <span>{t("Associer")}</span>
             </button>
           )}
+          {!game.bannerUrl && onBannerChange && <BannerAddButton {...bannerEditor.addProps} />}
           <button
             className="icon-action-button icon-action-danger"
             type="button"
@@ -65,45 +79,58 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
         </div>
       </header>
 
-      <article className="detail-layout">
-        <div className="detail-side">
+      <DetailLayout
+        banner={game.bannerUrl ? (
+          <DetailBanner
+            title={game.title}
+            bannerUrl={game.bannerUrl}
+            {...(onBannerChange ? bannerEditor.bannerProps : {})}
+          />
+        ) : undefined}
+        visual={(
           <div className="poster-container detail-poster-wrap">
             <Poster title={game.title} src={game.coverUrl} className="detail-poster" label="Couverture" onEdit={onCoverEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
-          <div className="detail-status">
-            <StatusBadge status={game.status} labels={GAME_STATUS_LABELS} />
-          </div>
-          {(game.rating !== null || game.isFavorite) && (
-            <div className="detail-rate">
-              {game.rating !== null && (
-                <>
-                  <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(game.rating) })}>
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const fill = Math.max(0, Math.min(1, game.rating! - star + 1))
-                      return (
-                        <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                          <span className="star-glyph" aria-hidden="true">★</span>
-                          <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                        </span>
-                      )
-                    })}
-                  </span>
-                  <span className="rate-value">{formatNumber(game.rating)}/5</span>
-                </>
-              )}
-              {game.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
+        )}
+        verdict={(
+          <>
+            <div className="detail-status">
+              <StatusBadge status={game.status} labels={GAME_STATUS_LABELS} />
             </div>
-          )}
-        </div>
-
-        <div className="detail-body">
-          <h1 className="display-title">{game.title}</h1>
-          {(game.developer || game.year !== null || game.platform) && (
-            <p className="detail-factline">
-              {[game.developer, game.year !== null ? String(game.year) : null, game.platform].filter(Boolean).join(' · ')}
-            </p>
-          )}
-
+            {(game.rating !== null || game.isFavorite) && (
+              <div className="detail-rate">
+                {game.rating !== null && (
+                  <>
+                    <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(game.rating) })}>
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const fill = Math.max(0, Math.min(1, game.rating! - star + 1))
+                        return (
+                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                            <span className="star-glyph" aria-hidden="true">★</span>
+                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                          </span>
+                        )
+                      })}
+                    </span>
+                    <span className="rate-value">{formatNumber(game.rating)}/5</span>
+                  </>
+                )}
+                {game.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
+              </div>
+            )}
+          </>
+        )}
+        heading={(
+          <>
+            <h1 className="display-title">{game.title}</h1>
+            {(game.developer || game.year !== null || game.platform) && (
+              <p className="detail-factline">
+                {[game.developer, game.year !== null ? String(game.year) : null, game.platform].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </>
+        )}
+        facts={(
           <dl className="detail-facts">
             {game.developer && (
               <div><dt>{t("Développeur")}</dt><dd>{game.developer}</dd></div>
@@ -114,23 +141,20 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
             {game.year !== null && (
               <div><dt>{t("Sortie")}</dt><dd>{game.year}</dd></div>
             )}
-            {game.playedAt && (
-              <div><dt>{tc('games', "Partie")}</dt><dd>{formatDate(game.playedAt, { dateStyle: 'long' })}</dd></div>
-            )}
           </dl>
-
-          <section className="mine-block">
-            {game.personalNote ? (
-              <>
-                <blockquote className="review-personal">{game.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
-              </>
-            ) : (
-              <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
-            )}
-          </section>
-        </div>
-      </article>
+        )}
+        notebook={game.playedAt && (
+          <DetailDate label={tc('games', "Partie")} value={formatDate(game.playedAt, { dateStyle: 'long' })} />
+        )}
+        review={game.personalNote ? (
+          <>
+            <blockquote className="review-personal">{game.personalNote}</blockquote>
+            <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
+          </>
+        ) : (
+          <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
+        )}
+      />
 
       {confirmingDelete && (
         <div className="confirm-backdrop">
@@ -155,6 +179,7 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
         onClose={() => setPosterDialogOpen(false)}
         onSave={(url) => onCoverEdit?.(url)}
       />
+      {bannerEditor.bannerDialog}
     </main>
   )
 }

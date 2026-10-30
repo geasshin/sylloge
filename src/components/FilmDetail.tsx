@@ -12,6 +12,9 @@ import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
+import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { BannerAddButton, DetailBanner } from './DetailBanner.tsx'
+import { useBannerEditor } from './useBannerEditor.tsx'
 import { icon } from '../main.tsx'
 
 type FilmDetailProps = {
@@ -23,10 +26,12 @@ type FilmDetailProps = {
   onAssociateTmdb: () => void
   /** Enregistre (ou retire, avec null) l'adresse de l'affiche dans la colonne locale de la fiche. */
   onPosterChange: (url: string | null) => Promise<void>
+  /** Enregistre (ou retire, avec null) la bannière 16:9 de la fiche. */
+  onBannerChange?: (url: string | null) => Promise<void> | void
   tmdbNotice?: string | null
 }
 
-export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, tmdbNotice = null }: FilmDetailProps) {
+export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, onBannerChange, tmdbNotice = null }: FilmDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -54,6 +59,18 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
   const allPosters = tmdbCache
     ? [tmdbCache.presentation.posterUrl, ...tmdbCache.presentation.alternativePosterUrls].filter(Boolean) as string[]
     : []
+  // Le film porte lui-même son identifiant TMDB ; le cache le confirme quand il
+  // existe. Sans association, la fenêtre ne proposera que l'adresse collée.
+  const bannerProviderId = tmdbCache
+    ? String(tmdbCache.presentation.tmdbId)
+    : film.providerName?.toLowerCase() === 'tmdb' ? film.providerId : null
+  const bannerEditor = useBannerEditor({
+    title: displayTitle,
+    medium: 'film',
+    providerId: bannerProviderId,
+    currentUrl: film.bannerUrl,
+    onSave: (url) => onBannerChange?.(url),
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -139,6 +156,7 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
               <span>{t("Associer")}</span>
             </button>
           )}
+          {!film.bannerUrl && onBannerChange && <BannerAddButton {...bannerEditor.addProps} />}
           <button
             className="icon-action-button icon-action-danger"
             type="button"
@@ -150,9 +168,15 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
         </div>
       </header>
 
-      <article className="detail-layout">
-        {/* Colonne gauche : l'œuvre objet + ton verdict dessous */}
-        <div className="detail-side">
+      <DetailLayout
+        banner={film.bannerUrl ? (
+          <DetailBanner
+            title={displayTitle}
+            bannerUrl={film.bannerUrl}
+            {...(onBannerChange ? bannerEditor.bannerProps : {})}
+          />
+        ) : undefined}
+        visual={(
           <div className="poster-container detail-poster-wrap">
             <Poster
               title={displayTitle}
@@ -161,127 +185,133 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
               onEdit={() => (allPosters.length > 1 ? setShowPosterGallery(true) : setPosterUrlOpen(true))}
             />
           </div>
-          <div className="detail-status">
-            <StatusBadge status={film.status} labels={FILM_STATUS_LABELS} />
-          </div>
-          {(film.rating !== null || film.isFavorite) && (
-            <div className="detail-rate">
-              {film.rating !== null && (
-                <>
-                  <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(film.rating) })}>
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const fill = Math.max(0, Math.min(1, film.rating! - star + 1))
-                      return (
-                        <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                          <span className="star-glyph" aria-hidden="true">★</span>
-                          <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                        </span>
-                      )
-                    })}
-                  </span>
-                  <span className="rate-value">{formatNumber(film.rating)}/5</span>
-                </>
-              )}
-              {film.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
-            </div>
-          )}
-        </div>
-
-        {showPosterGallery && (
-          <TmdbPosterDialog
-            title={displayTitle}
-            posters={allPosters}
-            selectedUrl={customPosterUrl ?? tmdbCache?.selectedPosterUrl ?? null}
-            saving={savingPoster}
-            onSelect={handleSelectPoster}
-            onCustom={onPosterChange}
-            onClose={() => setShowPosterGallery(false)}
-          />
         )}
-        <PosterUrlDialog
-          open={posterUrlOpen}
-          title={displayTitle}
-          label="Affiche"
-          currentUrl={film.posterUrl}
-          onClose={() => setPosterUrlOpen(false)}
-          onSave={onPosterChange}
-        />
-
-        {/* Bloc œuvre puis partie personnelle, dans la même respiration */}
-        <div className="detail-body">
-          <h1 className="display-title">{displayTitle}</h1>
-          {displayOriginalTitle && displayOriginalTitle !== displayTitle && (
-            <p className="original-title">{displayOriginalTitle}</p>
-          )}
-          {(displayYear || displayRuntime) && (
-            <p className="detail-factline">
-              {[displayYear, displayRuntime].filter(Boolean).join(' · ')}
-            </p>
-          )}
-
-          <dl className="detail-facts">
-            {displayDirector && (
-              <div><dt>{t("Réalisation")}</dt><dd>{displayDirector}</dd></div>
-            )}
-            {displayCast && (
-              <div><dt>{t("Distribution")}</dt><dd>{displayCast}</dd></div>
-            )}
-            {displayYear && (
-              <div><dt>{t("Sortie")}</dt><dd>{displayYear}</dd></div>
-            )}
-            {displayRuntime && (
-              <div><dt>{t("Durée")}</dt><dd>{displayRuntime}</dd></div>
-            )}
-          </dl>
-
-          {tmdbNotice && <p className="inline-report error" role="alert">{tmdbNotice}</p>}
-          {tmdbLoading && <p className="detail-loading" role="status">{t("Lecture de l’association…")}</p>}
-
-          {!tmdbLoading && synopsis && (
-            <div className="synopsis-block">
-              <p>{synopsis}</p>
+        verdict={(
+          <>
+            <div className="detail-status">
+              <StatusBadge status={film.status} labels={FILM_STATUS_LABELS} />
             </div>
-          )}
-
-          {!tmdbLoading && (
-            <p className="detail-attribution-line">
-              {tmdbCache ? (
-                <>
-                  {t("Présentation enrichie par")}{' '}
-                  <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>
-                  {/* 0.6.11 : plus de « Rafraîchir », la gestion passe
-                      exclusivement par Associer/Dissocier. */}
-                  <button className="link-subtle" type="button" onClick={handleRemoveAssociation} disabled={removingAssociation}>
-                    {removingAssociation ? t('Dissociation…') : t("Dissocier")}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {t("Aucune métadonnée TMDB associée")}
-                  <button className="link-subtle" type="button" onClick={onAssociateTmdb}>{t("Associer")}</button>
-                </>
-              )}
-            </p>
-          )}
-
-          <section className="mine-block">
-            {film.watchedAt && (
-              <p className="mine-date">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                {t("Vu le")} <b>{formatDate(film.watchedAt, { dateStyle: 'long' })}</b>
+            {(film.rating !== null || film.isFavorite) && (
+              <div className="detail-rate">
+                {film.rating !== null && (
+                  <>
+                    <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(film.rating) })}>
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const fill = Math.max(0, Math.min(1, film.rating! - star + 1))
+                        return (
+                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                            <span className="star-glyph" aria-hidden="true">★</span>
+                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                          </span>
+                        )
+                      })}
+                    </span>
+                    <span className="rate-value">{formatNumber(film.rating)}/5</span>
+                  </>
+                )}
+                {film.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
+              </div>
+            )}
+          </>
+        )}
+        heading={(
+          <>
+            <h1 className="display-title">{displayTitle}</h1>
+            {displayOriginalTitle && displayOriginalTitle !== displayTitle && (
+              <p className="original-title">{displayOriginalTitle}</p>
+            )}
+            {(displayYear || displayRuntime) && (
+              <p className="detail-factline">
+                {[displayYear, displayRuntime].filter(Boolean).join(' · ')}
               </p>
             )}
-            {film.personalNote ? (
-              <>
-                <blockquote className="review-personal">{film.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
-              </>
-            ) : (
-              <p className="mine-empty">{t("Ta critique s’écrira ici après visionnage.")}</p>
+          </>
+        )}
+        facts={(
+          <>
+            <dl className="detail-facts">
+              {displayDirector && (
+                <div><dt>{t("Réalisation")}</dt><dd>{displayDirector}</dd></div>
+              )}
+              {displayCast && (
+                <div><dt>{t("Distribution")}</dt><dd>{displayCast}</dd></div>
+              )}
+              {displayYear && (
+                <div><dt>{t("Sortie")}</dt><dd>{displayYear}</dd></div>
+              )}
+              {displayRuntime && (
+                <div><dt>{t("Durée")}</dt><dd>{displayRuntime}</dd></div>
+              )}
+            </dl>
+
+            {tmdbNotice && <p className="inline-report error" role="alert">{tmdbNotice}</p>}
+            {tmdbLoading && <p className="detail-loading" role="status">{t("Lecture de l’association…")}</p>}
+          </>
+        )}
+        synopsis={!tmdbLoading && synopsis && (
+          <div className="synopsis-block">
+            <p>{synopsis}</p>
+          </div>
+        )}
+        notebook={(film.watchedAt || !tmdbLoading) && (
+          <>
+            {film.watchedAt && (
+              <DetailDate label={t("Vu le")} value={formatDate(film.watchedAt, { dateStyle: 'long' })} />
             )}
-          </section>
-        </div>
-      </article>
+            {/* Le lien fournisseur appartient au carnet : la colonne de lecture
+                garde l'œuvre et son avis. */}
+            {!tmdbLoading && (
+              <p className="detail-attribution-line">
+                {tmdbCache ? (
+                  <>
+                    {t("Présentation enrichie par")}{' '}
+                    <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>
+                    {/* 0.6.11 : plus de « Rafraîchir », la gestion passe
+                        exclusivement par Associer/Dissocier. */}
+                    <button className="link-subtle" type="button" onClick={handleRemoveAssociation} disabled={removingAssociation}>
+                      {removingAssociation ? t('Dissociation…') : t("Dissocier")}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {t("Aucune métadonnée TMDB associée")}
+                    <button className="link-subtle" type="button" onClick={onAssociateTmdb}>{t("Associer")}</button>
+                  </>
+                )}
+              </p>
+            )}
+          </>
+        )}
+        review={film.personalNote ? (
+          <>
+            <blockquote className="review-personal">{film.personalNote}</blockquote>
+            <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
+          </>
+        ) : (
+          <p className="mine-empty">{t("Ta critique s’écrira ici après visionnage.")}</p>
+        )}
+      />
+
+      {showPosterGallery && (
+        <TmdbPosterDialog
+          title={displayTitle}
+          posters={allPosters}
+          selectedUrl={customPosterUrl ?? tmdbCache?.selectedPosterUrl ?? null}
+          saving={savingPoster}
+          onSelect={handleSelectPoster}
+          onCustom={onPosterChange}
+          onClose={() => setShowPosterGallery(false)}
+        />
+      )}
+      <PosterUrlDialog
+        open={posterUrlOpen}
+        title={displayTitle}
+        label="Affiche"
+        currentUrl={film.posterUrl}
+        onClose={() => setPosterUrlOpen(false)}
+        onSave={onPosterChange}
+      />
+      {bannerEditor.bannerDialog}
 
       {confirmingDelete && (
         <div className="confirm-backdrop">

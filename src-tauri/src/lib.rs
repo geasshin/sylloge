@@ -1,5 +1,6 @@
 mod app_data;
 mod art_images;
+mod banners;
 mod books;
 mod custom_entries;
 mod database;
@@ -98,6 +99,7 @@ pub fn run() {
             updater_preferences::set_ignored_updater_version,
             updater::check_for_app_update,
             updater::install_app_update,
+            banners::fetch_banner_candidates,
             tmdb::get_film_tmdb_cache,
             tmdb::purge_expired_tmdb_cache,
             tmdb::search_tmdb_films,

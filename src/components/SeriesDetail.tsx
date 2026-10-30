@@ -7,6 +7,9 @@ import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { StatusBadge } from './VerdictControls.tsx'
+import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { BannerAddButton, DetailBanner } from './DetailBanner.tsx'
+import { useBannerEditor, useBannerProviderId } from './useBannerEditor.tsx'
 import { icon } from '../main.tsx'
 
 type SeriesDetailProps = {
@@ -18,14 +21,25 @@ type SeriesDetailProps = {
   onPosterEdit?: (url: string | null) => Promise<void> | void
   /** Ouverture de la pop-up d'association TMDB (même parcours que les films). */
   onAssociate?: () => void
+  /** Enregistre (ou retire, avec null) la bannière 16:9 de la fiche. */
+  onBannerChange?: (url: string | null) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, onAssociate, onDelete }: SeriesDetailProps) {
+export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, onAssociate, onBannerChange, onDelete }: SeriesDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [posterDialogOpen, setPosterDialogOpen] = useState(false)
+  const bannerMedium = series.category === 'animation' ? 'anime' : 'series'
+  const bannerProviderId = useBannerProviderId(series.profileId, bannerMedium, series.id)
+  const bannerEditor = useBannerEditor({
+    title: series.title,
+    medium: bannerMedium,
+    providerId: bannerProviderId,
+    currentUrl: series.bannerUrl,
+    onSave: (url) => onBannerChange?.(url),
+  })
 
   const progress = series.seasonsSeen !== null
     ? series.seasonsTotal !== null
@@ -60,6 +74,7 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
               <span>{t("Associer")}</span>
             </button>
           )}
+          {!series.bannerUrl && onBannerChange && <BannerAddButton {...bannerEditor.addProps} />}
           <button
             className="icon-action-button icon-action-danger"
             type="button"
@@ -71,48 +86,59 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
         </div>
       </header>
 
-      <article className="detail-layout">
-        <div className="detail-side">
+      <DetailLayout
+        banner={series.bannerUrl ? (
+          <DetailBanner
+            title={series.title}
+            bannerUrl={series.bannerUrl}
+            {...(onBannerChange ? bannerEditor.bannerProps : {})}
+          />
+        ) : undefined}
+        visual={(
           <div className="poster-container detail-poster-wrap">
             <Poster title={series.title} src={series.posterUrl} className="detail-poster" onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined} />
           </div>
-          <div className="detail-status">
-            <StatusBadge status={series.status} labels={SERIES_STATUS_LABELS} />
-          </div>
-          {(series.rating !== null || series.isFavorite) && (
-            <div className="detail-rate">
-              {series.rating !== null && (
-                <>
-                  <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(series.rating) })}>
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const fill = Math.max(0, Math.min(1, series.rating! - star + 1))
-                      return (
-                        <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                          <span className="star-glyph" aria-hidden="true">★</span>
-                          <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                        </span>
-                      )
-                    })}
-                  </span>
-                  <span className="rate-value">{formatNumber(series.rating)}/5</span>
-                </>
-              )}
-              {series.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
+        )}
+        verdict={(
+          <>
+            <div className="detail-status">
+              <StatusBadge status={series.status} labels={SERIES_STATUS_LABELS} />
             </div>
-          )}
-        </div>
-
-        <div className="detail-body">
-          <p className="eyebrow">{t(series.category === 'animation' ? "Animation japonaise" : "Série télé")}</p>
-          <h1 className="display-title">{series.title}</h1>
-          {(series.showrunner || progress || series.startedAt) && (
-            <p className="detail-factline">
-              {[series.showrunner, progress, series.startedAt ? t('débutée le {date}', { date: formatDate(series.startedAt, { dateStyle: 'long' }) }) : null]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
-          )}
-
+            {(series.rating !== null || series.isFavorite) && (
+              <div className="detail-rate">
+                {series.rating !== null && (
+                  <>
+                    <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(series.rating) })}>
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const fill = Math.max(0, Math.min(1, series.rating! - star + 1))
+                        return (
+                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                            <span className="star-glyph" aria-hidden="true">★</span>
+                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                          </span>
+                        )
+                      })}
+                    </span>
+                    <span className="rate-value">{formatNumber(series.rating)}/5</span>
+                  </>
+                )}
+                {series.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
+              </div>
+            )}
+          </>
+        )}
+        heading={(
+          <>
+            <p className="eyebrow">{t(series.category === 'animation' ? "Animation japonaise" : "Série télé")}</p>
+            <h1 className="display-title">{series.title}</h1>
+            {(series.showrunner || progress) && (
+              <p className="detail-factline">
+                {[series.showrunner, progress].filter(Boolean).join(' · ')}
+              </p>
+            )}
+          </>
+        )}
+        facts={(
           <dl className="detail-facts">
             {series.showrunner && (
               <div><dt>{t("Showrunner")}</dt><dd>{series.showrunner}</dd></div>
@@ -123,29 +149,25 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
             {progress && (
               <div><dt>{t("Avancement")}</dt><dd>{progress}</dd></div>
             )}
-            {series.startedAt && (
-              <div><dt>{t("Début du visionnage")}</dt><dd>{formatDate(series.startedAt, { dateStyle: 'long' })}</dd></div>
-            )}
           </dl>
-
-          {series.summary && (
-            <div className="synopsis-block">
-              <p>{series.summary}</p>
-            </div>
-          )}
-
-          <section className="mine-block">
-            {series.personalNote ? (
-              <>
-                <blockquote className="review-personal">{series.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
-              </>
-            ) : (
-              <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
-            )}
-          </section>
-        </div>
-      </article>
+        )}
+        synopsis={series.summary && (
+          <div className="synopsis-block">
+            <p>{series.summary}</p>
+          </div>
+        )}
+        notebook={series.startedAt && (
+          <DetailDate label={t("Début du visionnage")} value={formatDate(series.startedAt, { dateStyle: 'long' })} />
+        )}
+        review={series.personalNote ? (
+          <>
+            <blockquote className="review-personal">{series.personalNote}</blockquote>
+            <button className="link-accent review-edit-link" type="button" onClick={onEdit}>{t("Modifier")}</button>
+          </>
+        ) : (
+          <p className="mine-empty">{t("Ton avis s’écrira ici.")}</p>
+        )}
+      />
 
       {confirmingDelete && (
         <div className="confirm-backdrop">
@@ -170,6 +192,7 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
         onClose={() => setPosterDialogOpen(false)}
         onSave={(url) => onPosterEdit?.(url)}
       />
+      {bannerEditor.bannerDialog}
     </main>
   )
 }

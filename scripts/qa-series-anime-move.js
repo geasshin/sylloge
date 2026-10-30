@@ -23,7 +23,8 @@ async (page) => {
     await settle()
   }
   const FIELDS = ['id', 'title', 'showrunner', 'casting', 'summary', 'rating', 'is_favorite',
-    'seasons_seen', 'seasons_total', 'progress_updated_at', 'started_at', 'poster_url', 'personal_note', 'created_at']
+    'seasons_seen', 'seasons_total', 'progress_updated_at', 'started_at', 'poster_url', 'banner_url',
+    'personal_note', 'created_at']
   const control = () => checks.length
 
   await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full&lang=fr')
@@ -35,7 +36,10 @@ async (page) => {
   // suit la fiche, sans contacter de service externe. L’avis personnel est
   // saisi dans le formulaire, comme le ferait la personne.
   await write("INSERT INTO media_provider_links (profile_id, medium, media_id, provider_name, provider_id, created_at, updated_at) SELECT profile_id, 'series', id, 'TMDB', '95396', '2026-10-20T10:00:00.000Z', '2026-10-20T10:00:00.000Z' FROM series WHERE id = '" + original.id + "'")
-  const fixture = original
+  // Une bannière 16:9 posée avant le déplacement : elle doit suivre la fiche,
+  // comme le garde-fou Rust `move_covers_every_column_of_the_real_schema`.
+  await write("UPDATE series SET banner_url = 'https://image.tmdb.org/t/p/w1280/fond.jpg' WHERE id = '" + original.id + "'")
+  const fixture = (await db('SELECT * FROM series WHERE id = \'' + original.id + '\''))[0]
 
   // ─── Séries → Animation japonaise ─────────────────────────────────────────
   await openLibrary('Séries')

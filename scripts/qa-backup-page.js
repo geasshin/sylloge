@@ -71,10 +71,20 @@ async page => {
       { medium: 'films', name: 'À revoir', criteria, createdAt: at, updatedAt: at },
     ]
     const withExperience = serializeLibraryDocument(createLibraryDocument(library, undefined, buildExperience(views, { theme: 'dark', homeAutoplay: 'off' })))
-    // Version courante : 6 (champs de forme d’art, 27 octobre 2026) ; « plus récente » = 7.
-    const newer = JSON.stringify({ ...JSON.parse(withExperience), version: 7 })
+    // Version courante : 7 (bannière 16:9, 30 octobre 2026) ; « plus récente » = 8.
+    const newer = JSON.stringify({ ...JSON.parse(withExperience), version: 8 })
     // Un vrai v4 n’a ni expérience ni champs de forme sur ses œuvres.
-    const v4 = (() => { const d = JSON.parse(withExperience); d.version = 4; delete d.experience; d.artworks = d.artworks.map(({ details: _details, ...artwork }) => artwork); return JSON.stringify(d) })()
+    const v4 = (() => {
+      const d = JSON.parse(withExperience)
+      d.version = 4
+      delete d.experience
+      d.artworks = d.artworks.map(({ details: _details, ...artwork }) => artwork)
+      // Ni la bannière 16:9, apparue en v7 : une clé inconnue ferait refuser le document.
+      for (const section of ['films', 'series', 'anime', 'games']) {
+        d[section] = d[section].map(({ bannerUrl: _banner, ...entry }) => entry)
+      }
+      return JSON.stringify(d)
+    })()
     const invoke = window.__TAURI_INTERNALS__.invoke
     window.__bk = { next: withExperience, withExperience, newer, v4 }
     window.__TAURI_INTERNALS__.invoke = async (cmd, args, ...rest) => {

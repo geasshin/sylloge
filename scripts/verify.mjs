@@ -89,6 +89,7 @@ const filmRow = {
   provider_name: null,
   provider_id: null,
   poster_url: null,
+  banner_url: null,
   created_at: '2026-07-17T10:00:00.000Z',
   updated_at: '2026-07-17T10:00:00.000Z',
 }
@@ -347,6 +348,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     providerName: null,
     providerId: null,
     posterUrl: null,
+    bannerUrl: null,
     createdAt: filmRow.created_at,
     updatedAt: filmRow.updated_at,
   }, 'Toutes les colonnes Film doivent être converties sans valeur inventée')
@@ -385,6 +387,7 @@ const completeTransferFilm = {
   providerName: 'Fournisseur de test',
   providerId: 'provider-test-id',
   posterUrl: 'https://example.invalid/poster.jpg',
+  // Le format v1 ne porte pas la bannière : la fiche relue n'a pas la clé.
   createdAt: '2026-07-17T10:00:00.000Z',
   updatedAt: '2026-07-17T11:00:00.000Z',
 }
@@ -1667,8 +1670,12 @@ const completeExport = createLibraryExport({
   assert.equal(importedPayload.profile.id, 'new-profile-id', 'L’import doit créer un nouvel identifiant de profil')
   assert.equal(importedPayload.films[0].id, 'new-film-id', 'L’import doit recréer les identifiants Film pour éviter les conflits')
   assert.equal(importedPayload.films[0].profileId, 'new-profile-id', 'Chaque film doit cibler exclusivement le nouveau profil')
+  // Le format v1 ne porte pas la bannière ; la transaction native la reçoit à
+  // null (colonne de la migration 0026), sans rien changer aux champs v1.
+  const { bannerUrl: importedBanner, ...importedV1Film } = importedPayload.films[0]
+  assert.equal(importedBanner, null, 'Un import v1 n’apporte aucune bannière')
   assert.deepEqual(
-    { ...importedPayload.films[0], id: completeTransferFilm.id, profileId: completeTransferFilm.profileId },
+    { ...importedV1Film, id: completeTransferFilm.id, profileId: completeTransferFilm.profileId },
     completeTransferFilm,
     'Tous les autres champs V1 doivent être transmis sans perte à la transaction',
   )
@@ -2238,6 +2245,17 @@ assert.match(normalizationMigration, /NULLIF\(original_title, ''\)/, 'La migrati
 assert.match(normalizationMigration, /provider_name = CASE/, 'La migration doit traiter la provenance comme une paire atomique')
 assert.match(databaseMigrationSource, /version: 7/, 'La migration de canonisation doit rester séquentielle')
 assert.match(databaseMigrationSource, /version: 8/, 'La migration de cache TMDB doit suivre les migrations existantes')
+// Bannières 16:9 (30 octobre 2026) : ajout pur sur quatre tables, document v7.
+{
+  const bannerMigration = readFileSync(new URL('../src-tauri/migrations/0026_media_banner_url.sql', import.meta.url), 'utf8')
+  for (const table of ['films', 'series', 'anime', 'games']) {
+    assert.match(bannerMigration, new RegExp(`ALTER TABLE ${table} ADD COLUMN banner_url TEXT;`), `La bannière doit être ajoutée à ${table}`)
+  }
+  assert.doesNotMatch(bannerMigration, /\b(UPDATE|DELETE|DROP)\b/, 'La migration de bannière reste additive : aucune ligne réécrite')
+  assert.doesNotMatch(bannerMigration, /ALTER TABLE (books|mangas|artworks)/, 'Les livres et l’Art ne portent pas de bannière')
+  assert.match(databaseMigrationSource, /version: 26,[\s\S]{0,200}media_banner_url/, 'La migration 0026 doit être enregistrée')
+  assert.match(tauriLibrarySource, /banners::fetch_banner_candidates/, 'La commande des images de bannière doit être enregistrée')
+}
 assert.match(tmdbCacheMigration, /CREATE TABLE film_tmdb_cache/, 'Le cache TMDB doit vivre dans une table séparée')
 assert.match(tmdbCacheMigration, /REFERENCES films\(id\) ON DELETE CASCADE/, 'La suppression d’un Film doit supprimer son cache TMDB')
 assert.match(tmdbCacheMigration, /film_tmdb_cache_refresh_idx/, 'Le cache TMDB doit indexer son échéance de rafraîchissement')
@@ -2546,7 +2564,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
 
   const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
   assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format sylloge-library')
-  assert.equal(document.version, 6, 'Le document doit porter la version 6 (champs propres aux formes d’art)')
+  assert.equal(document.version, 7, 'Le document doit porter la version 7 (bannière 16:9)')
 
   const serialized = serializeLibraryDocument(document)
   const preview = validateLibraryDocument(serialized)
@@ -3544,6 +3562,7 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     isFavorite: true,
     playedAt: '2026-07-22',
     coverUrl: null,
+    bannerUrl: null,
     personalNote: 'Avis local\npréservé.',
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -5054,6 +5073,55 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   assert.match(mediaRepositorySourceMove, /targetLibrary !== library[\s\S]*?this\.moveSeriesNative\(\{ series, library \}\)/, 'Le repository doit déléguer le déplacement à la commande native, jamais un UPDATE dans la même table')
   assert.match(mainSourceMove, /getSeries\(library\.profile\.id, editSeriesId, targetLibrary\)/, 'Après un déplacement, la fiche doit être relue dans sa nouvelle bibliothèque')
   assert.match(bridgeSourceMove, /case 'move_series_library'/, 'Le harnais de recette doit simuler la commande de déplacement, refus compris')
+}
+
+// Fiche détail : une seule composition, la « colonne pleine » (30 octobre 2026).
+// Le visuel et le carnet vivent dans une colonne de 380 px collante ; la
+// colonne de lecture porte l'œuvre puis l'avis. Art et Recettes ont leur
+// composition propre, décidée le même jour.
+{
+  const stylesSourceFiche = readFileSync(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const detailLayoutSource = readFileSync(new URL('../src/components/DetailLayout.tsx', import.meta.url), 'utf8')
+  const layoutScreens = {
+    Films: '../src/components/FilmDetail.tsx',
+    Séries: '../src/components/SeriesDetail.tsx',
+    Livres: '../src/components/BookDetail.tsx',
+    Jeux: '../src/components/GameDetail.tsx',
+    Art: '../src/components/ArtworkDetail.tsx',
+    'Bibliothèques ajoutées': '../src/components/CustomLibraryScreen.tsx',
+  }
+  for (const [label, path] of Object.entries(layoutScreens)) {
+    const source = readFileSync(new URL(path, import.meta.url), 'utf8')
+    assert.match(source, /import \{ DetailDate, DetailLayout \} from '\.\/DetailLayout\.tsx'/, `${label} : la fiche importe la composition commune`)
+    assert.match(source, /<DetailLayout/, `${label} : la fiche rend la composition commune`)
+    assert.doesNotMatch(source, /<article className="detail-layout"/, `${label} : la fiche ne recompose plus sa disposition elle-même`)
+    assert.doesNotMatch(source, /className="detail-side"/, `${label} : la colonne gauche vient du composant partagé`)
+  }
+
+  assert.match(detailLayoutSource, /banner\?: ReactNode/, 'Fiche : l’emplacement de bannière est facultatif')
+  assert.match(detailLayoutSource, /\{banner && <div className="detail-banner-slot">\{banner\}<\/div>\}/, 'Fiche : la bannière est rendue en tête, pleine largeur, et rien sans elle')
+  assert.match(detailLayoutSource, /detail-layout-bannered/, 'Fiche : une bannière signale sa présence à la composition')
+  assert.match(stylesSourceFiche, /\.detail-layout-bannered \.detail-side \{ position: static; \}/, 'Fiche : la colonne collante ne chevauche jamais une bannière')
+  assert.match(detailLayoutSource, /art\?: \{ cartel: ReactNode \} \| null/, 'Art : le cartel est un bloc de la composition')
+  assert.match(detailLayoutSource, /<dl className="detail-facts detail-cartel">\{art\.cartel\}<\/dl>/, 'Art : le cartel réutilise la liste de faits, étiquettes devant les valeurs')
+  assert.match(detailLayoutSource, /recipe\?: \{ ingredients\?: ReactNode; steps\?: ReactNode \} \| null/, 'Recettes : ingrédients et étapes sont deux blocs de la composition')
+  assert.match(detailLayoutSource, /<div className="detail-art-stage">\{visual\}<\/div>/, 'Art : l’œuvre est la scène, au-dessus du bloc d’informations')
+  assert.match(detailLayoutSource, /<div className="detail-art-block">/, 'Art : le bloc d’informations est distinct de l’œuvre')
+
+  assert.match(stylesSourceFiche, /\.detail-layout \{[^}]*grid-template-columns: 380px minmax\(0, 1fr\);[^}]*max-width: 1180px;/s, 'Fiche : la colonne pleine mesure 380 px dans un cadre de 1180 px')
+  assert.match(stylesSourceFiche, /\.detail-side \{[^}]*position: sticky;[^}]*top: var\(--space-6\);/s, 'Fiche : la colonne gauche reste visible en défilant')
+  assert.match(stylesSourceFiche, /\.detail-visual \.detail-poster \{[^}]*width: min\(100%, calc\(var\(--detail-visual-height, 62vh\) \* 2 \/ 3\)\);/s, 'Fiche : l’affiche cède de la hauteur pour que le carnet reste visible')
+  assert.match(stylesSourceFiche, /@media \(max-width: 1000px\) \{[\s\S]{0,1600}?\.detail-layout \{ grid-template-columns: minmax\(0, 1fr\);/s, 'Fiche : une seule colonne sous 1000 px')
+  assert.match(stylesSourceFiche, /\.detail-facts > div \{[^}]*grid-template-columns: minmax\(104px, max-content\) minmax\(0, 1fr\);/s, 'Fiche : les libellés de faits prennent la largeur de leur mot')
+  assert.match(stylesSourceFiche, /\.detail-facts dt \{[^}]*white-space: nowrap;/s, 'Fiche : un libellé de fait ne se replie jamais')
+  assert.match(stylesSourceFiche, /\.detail-art-stage \.detail-poster \{[^}]*max-height: 70vh;/s, 'Art : l’œuvre est limitée à 70 vh, un portrait reste entier')
+  assert.match(stylesSourceFiche, /\.detail-art-block \{ width: 100%; max-width: 880px; margin: var\(--space-8\) auto 0; \}/, 'Art : le bloc d’informations est centré sous l’œuvre, 880 px au plus')
+  assert.match(stylesSourceFiche, /\.detail-art-head \{ text-align: center; \}/, 'Art : surtitre, titre et artiste · année sont centrés')
+  assert.match(stylesSourceFiche, /\.detail-art-columns \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/s, 'Art : cartel et carnet forment deux colonnes équilibrées')
+  assert.match(stylesSourceFiche, /\.detail-facts-dense \{[^}]*display: flex;/s, 'Recettes : les faits tiennent sur une ligne dense')
+  assert.match(stylesSourceFiche, /\.detail-steps li::before/, 'Recettes : les étapes sont numérotées en grand')
+  assert.doesNotMatch(stylesSourceFiche, /\.mine-block\s*\{/, 'Fiche : plus de règle morte .mine-block')
+  assert.doesNotMatch(stylesSourceFiche, /\.mine-date\s*\{/, 'Fiche : plus de règle morte .mine-date')
 }
 
 await import('./verify-book-libraries.mjs')

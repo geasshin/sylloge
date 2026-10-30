@@ -2006,16 +2006,82 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    structurellement impossible avec cette marge automatique. */
 .detail-actions { margin-left: auto; }
 
+/* ===== Fiche détail : la colonne pleine (30 octobre 2026) =====
+   Une seule composition pour toutes les bibliothèques : le visuel et le
+   carnet personnel dans une colonne de 380 px collante, l'œuvre et l'avis
+   dans la colonne de lecture. L'Art et les recettes ont leur propre
+   composition, plus bas. */
 .detail-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
-  gap: var(--space-16);
+  grid-template-columns: 380px minmax(0, 1fr);
+  column-gap: var(--space-16);
   align-items: start;
-  max-width: 1150px;
+  max-width: 1180px;
   margin: var(--space-6) auto 0;
 }
-.detail-side { position: sticky; top: 74px; display: flex; flex-direction: column; align-items: center; }
-.detail-poster-wrap { width: 100%; max-width: 330px; }
+/* Emplacement facultatif des bannières 16:9 : pleine largeur, au-dessus des
+   deux colonnes ; absent, il ne rend rien. Le bandeau porte son propre cadre ;
+   l'emplacement ne fait que réserver la rangée et l'écart. */
+.detail-banner-slot { grid-column: 1 / -1; margin-bottom: var(--space-6); }
+.detail-side {
+  position: sticky;
+  top: var(--space-6);
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  min-width: 0;
+}
+/* Une bannière occupe le haut de la page : la colonne collante viendrait la
+   chevaucher en défilant. Elle redevient donc statique dès qu'un bandeau est
+   posé, et l'affiche cède encore de la hauteur (42 vh) pour que le statut et
+   la note restent visibles à 1440 × 900 malgré le bandeau ; le carnet suit. */
+.detail-layout-bannered { --detail-visual-height: 42vh; }
+.detail-layout-bannered .detail-side { position: static; }
+/* L'affiche occupe la colonne sans pousser le carnet hors de la fenêtre : sa
+   largeur suit une hauteur maximale en vh, pour que le statut, la note et les
+   dates restent visibles sans défiler à 1440 × 900. */
+.detail-visual .detail-poster-wrap { width: 100%; max-width: none; }
+.detail-visual .detail-poster {
+  width: min(100%, calc(var(--detail-visual-height, 62vh) * 2 / 3));
+  max-width: none;
+  margin-inline: auto;
+  aspect-ratio: 2 / 3;
+}
+.detail-visual .detail-poster.poster-square {
+  width: min(100%, var(--detail-visual-height, 62vh));
+  aspect-ratio: 1 / 1;
+}
+.detail-verdict { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
+.detail-verdict .detail-status,
+.detail-verdict .detail-rate { margin: 0; }
+
+/* Le carnet personnel : le filet sépare le visuel du carnet, comme la marge
+   d'une page. */
+.detail-notebook {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-hairline);
+}
+.detail-label {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.detail-notebook-date { margin: 0; color: var(--color-text-muted); font-size: var(--text-md); line-height: 1.5; }
+.detail-notebook-date svg { margin-right: var(--space-2); vertical-align: -1px; opacity: .55; }
+.detail-notebook-date b { color: var(--color-text); font-weight: 600; }
+.detail-notebook .detail-attribution-line { margin: 0; }
+
+.detail-review {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-hairline);
+}
+.detail-review .review-personal { margin-top: var(--space-3); }
 .detail-status { margin-top: var(--space-4); }
 /* Statut : un seul composant monochrome pour la pastille des cartes et le
    badge des fiches. Accompli = encre pleine ; en cours = contour encre et
@@ -2096,7 +2162,8 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 }
 .detail-facts > div {
   display: grid;
-  grid-template-columns: 104px 1fr;
+  /* Le libellé ne se replie jamais : seule la valeur cède la place. */
+  grid-template-columns: minmax(104px, max-content) minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-2-5) 0;
   border-bottom: 1px solid var(--color-hairline);
@@ -2107,6 +2174,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   font-weight: 700;
   letter-spacing: .09em;
   text-transform: uppercase;
+  white-space: nowrap;
   padding-top: var(--space-0-5);
 }
 .detail-facts dd { margin: 0; font-size: var(--text-md); overflow-wrap: anywhere; }
@@ -2152,8 +2220,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    (30 px) que les liens « Modifier » / « Associer » de la fiche. */
 .detail-attribution-line a { color: inherit; display: inline-block; padding: var(--space-2) var(--space-0-5); margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-0-5)); border-radius: var(--radius-xs); }
 
-/* La partie personnelle : filet, date seule, critique en voix serif */
-.mine-block { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--color-hairline); }
+/* La partie personnelle : libellé de section, critique en voix serif */
 .mine-label {
   margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
@@ -2162,16 +2229,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   color: var(--color-text-muted);
   font-weight: 600;
 }
-.mine-date {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-}
-.mine-date svg { opacity: .55; flex: 0 0 auto; }
-.mine-date b { color: var(--color-text); font-weight: 600; }
 .review-personal {
   margin: var(--space-5) 0 0;
   max-width: 62ch;
@@ -2187,7 +2244,104 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .review-edit-link { margin: var(--space-1) calc(-1 * var(--space-1)) calc(-1 * var(--space-1-5)) var(--space-4); font-size: var(--text-sm); justify-self: start; }
 .mine-empty { margin: var(--space-5) 0 0; color: var(--color-text-muted); font-size: var(--text-md); }
 
-.detail-poster { max-width: 390px; margin-inline: auto; aspect-ratio: 3 / 4; border-radius: var(--radius-md); }
+.detail-poster { margin-inline: auto; aspect-ratio: 2 / 3; border-radius: var(--radius-md); }
+
+/* ===== Art : l'œuvre en majesté, le cartel sous elle (30 octobre 2026) =====
+   L'image est centrée en haut, sur un mur neutre de la surface du thème,
+   haute d'au plus 70 vh pour qu'un portrait reste entier ; le bloc
+   d'informations (surtitre, titre, artiste · année, cartel, carnet) est
+   centré dessous, large de 880 px au plus. */
+.detail-layout.detail-art { display: block; max-width: none; }
+.detail-art-stage {
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  min-height: 240px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.detail-art-stage .poster-container { width: 100%; max-width: none; display: grid; place-items: center; }
+.detail-art-stage .detail-poster {
+  width: min(100%, calc(70vh * var(--ar, 1.5)));
+  max-width: 100%;
+  max-height: 70vh;
+  margin-inline: auto;
+  box-shadow: var(--shadow-visual);
+}
+/* Un poème sans image : la page prend la place de l'œuvre, à la hauteur d'une
+   page et non d'un portrait entier ; le texte entier se lit sous le bloc. */
+.detail-art-stage .artwork-poem-page {
+  width: min(100%, calc(52vh * var(--ar, 0.75)));
+  max-height: 52vh;
+}
+.detail-art-block { width: 100%; max-width: 880px; margin: var(--space-8) auto 0; }
+.detail-art-head { text-align: center; }
+.detail-art-head .display-title { text-align: center; }
+.detail-art-head .eyebrow { margin: 0 0 var(--space-2); }
+.detail-art-head .detail-factline { margin-top: var(--space-3); }
+.detail-art-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-12);
+  align-items: start;
+  margin-top: var(--space-8);
+}
+/* Cartel de musée : une ligne par fait, l'étiquette discrète devant la valeur. */
+.detail-cartel { grid-template-columns: minmax(0, 1fr); margin: 0; }
+.detail-cartel > div { grid-template-columns: minmax(104px, max-content) minmax(0, 1fr); }
+.detail-art-notebook { display: grid; gap: var(--space-6); align-content: start; min-width: 0; }
+.detail-art-notebook .detail-notebook { padding-top: 0; border-top: 0; }
+.detail-art-notebook .detail-verdict { justify-content: flex-start; }
+.detail-art-notebook .detail-review { margin-top: 0; padding-top: 0; border-top: 0; }
+.detail-art-appendix { margin-top: var(--space-10); }
+/* Sans cartel (une œuvre sans aucun champ de forme), le carnet prend toute la
+   largeur du bloc centré. */
+.detail-art-columns-plain { grid-template-columns: minmax(0, 1fr); max-width: 480px; margin-inline: auto; }
+
+/* ===== Recettes : photo 4:3, ingrédients à gauche, étapes à droite ===== */
+.detail-recipe .detail-visual .detail-poster { width: 100%; aspect-ratio: 4 / 3; }
+.detail-recipe-ingredients { border-top: 1px solid var(--color-hairline); padding-top: var(--space-4); }
+.detail-recipe-ingredients .detail-list { list-style: none; margin: 0; padding: 0; }
+.detail-recipe-ingredients .detail-list li {
+  padding: var(--space-1-5) 0;
+  border-bottom: 1px solid var(--color-hairline);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  line-height: 1.45;
+}
+.detail-recipe-steps { margin-top: 0; max-width: none; }
+.detail-steps { counter-reset: detail-step; margin: 0; padding: 0; list-style: none; display: grid; gap: var(--space-5); }
+.detail-steps li {
+  counter-increment: detail-step;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: baseline;
+  color: var(--color-text-secondary);
+  font-size: var(--text-lg);
+  line-height: 1.62;
+}
+.detail-steps li::before {
+  content: counter(detail-step, decimal-leading-zero);
+  color: var(--color-text-subtle);
+  font: 700 var(--text-xl) var(--font-display);
+  letter-spacing: .02em;
+}
+/* Les notes d'une recette : un encadré de surface, comme une fiche de cuisine. */
+.detail-recipe .detail-review {
+  margin-top: var(--space-10);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.detail-recipe .detail-review .review-personal { margin-top: var(--space-1); }
+/* Faits d'une recette : une seule ligne dense sous le titre. */
+.detail-facts-dense { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); margin-top: var(--space-4); }
+.detail-facts-dense > div { display: flex; align-items: baseline; gap: var(--space-2); padding: 0; border: 0; }
+.detail-facts-dense > div + div::before { content: "·"; margin-right: var(--space-2); color: var(--color-text-subtle); }
+.detail-facts-dense dt { padding-top: 0; }
 
 /* TMDB Search & Association */
 .tmdb-search-form { margin-top: var(--space-6); padding: var(--space-6); border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border); box-shadow: var(--shadow-xs); }
@@ -2316,6 +2470,164 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .poster-dialog-attribution { margin: 0; font-size: var(--text-sm); color: var(--color-text-muted); }
 .poster-dialog-attribution a { color: var(--color-accent); }
 .poster-dialog-actions { display: flex; gap: var(--space-2); margin-left: auto; }
+
+/* Bannière 16:9 des fiches (films, séries, animation japonaise, jeux — 30 octobre 2026).
+   Une seule image d'adresse, affichée en bandeau recadré ; aucune bannière par
+   défaut, donc aucun cadre vide quand la fiche n'en porte pas. */
+.detail-banner {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  max-height: 32vh;
+  margin: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+}
+.detail-banner img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.detail-banner .banner-edit-overlay {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  width: var(--control-md);
+  height: var(--control-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-scrim);
+  color: var(--color-on-scrim);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+/* Bannière introuvable : seul le bouton de remplacement reste, sans cadre. */
+.detail-banner-missing { display: flex; justify-content: flex-end; }
+.detail-banner .banner-edit-overlay:hover:not(:disabled) { background: var(--color-scrim-strong); }
+.detail-banner .banner-edit-overlay:focus-visible { outline-color: var(--color-on-scrim); }
+@media (prefers-reduced-motion: reduce) {
+  .detail-banner .banner-edit-overlay { transition: none; }
+}
+.banner-add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  height: var(--control-sm, 28px);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.banner-add-button:hover:not(:disabled) { border-color: var(--color-border-strong); color: var(--color-text); }
+/* Dans la barre d'actions d'une fiche, l'ajout prend le gabarit des autres
+   actions (hauteur 34 px, libellé 13 px) : la rangée reste sur une ligne. */
+.detail-actions .banner-add-button {
+  flex: 0 0 auto;
+  min-height: var(--control-md);
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-md);
+  white-space: nowrap;
+}
+
+/* Fenêtre de choix d'une bannière : galerie 16:9 à gauche, adresse et aperçu à droite. */
+.banner-dialog { max-height: min(88vh, 760px); display: flex; flex-direction: column; overflow: hidden; }
+.banner-dialog-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  gap: var(--space-5);
+  padding: var(--space-4) var(--dialog-pad);
+  min-height: 0;
+  overflow-y: auto;
+}
+.banner-dialog-gallery { min-width: 0; }
+.banner-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.banner-dialog-item {
+  position: relative;
+  width: 100%;
+  padding: 0;
+  aspect-ratio: 16 / 9;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-surface-muted);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+.banner-dialog-item:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--color-border); }
+.banner-dialog-item.active { border-color: var(--color-accent); }
+.banner-dialog-item img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.banner-dialog-check {
+  position: absolute;
+  top: var(--space-1-5);
+  right: var(--space-1-5);
+  width: var(--space-5);
+  height: var(--space-5);
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-size: var(--text-sm);
+}
+.banner-dialog-address { display: grid; align-content: start; gap: var(--space-3); min-width: 0; }
+.banner-dialog-preview {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+}
+.banner-dialog-preview img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.banner-dialog-preview[data-state='unreachable'] {
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.banner-dialog-preview p { margin: 0; }
+.banner-dialog-note {
+  margin: 0;
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+.banner-dialog-note p { margin: 0 0 var(--space-3); }
+.banner-dialog-warning {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-soft);
+  color: var(--color-warning-text);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.banner-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding: var(--space-4) var(--dialog-pad) var(--dialog-pad);
+  border-top: 1px solid var(--color-hairline);
+}
+.banner-dialog-error { padding: 0 var(--dialog-pad) var(--dialog-pad); margin: 0; }
 
 .reading-section { margin-top: var(--space-8); }
 .reading-section h2 { margin: 0; font-size: var(--text-lg); letter-spacing: .01em; }
@@ -3597,6 +3909,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 @media (max-width: 1250px) {
   .film-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .detail-layout { grid-template-columns: 320px minmax(0, 1fr); column-gap: var(--space-10); }
 }
 
 @media (max-width: 1000px) {
@@ -3609,7 +3922,10 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .home-main { height: auto; min-height: 100vh; overflow: visible; }
   .transfer-media-grid { grid-template-columns: 1fr; }
   .film-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .detail-layout { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--space-8); }
+  .detail-layout { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+  .detail-side { position: static; }
+  .detail-visual .detail-poster { width: min(100%, 360px); }
+  .detail-facts { grid-template-columns: 1fr; }
   .form-detail { grid-template-columns: minmax(170px, 210px) minmax(0, 1fr); gap: var(--space-6); }
   .assistant-choice-grid { grid-template-columns: 1fr; }
   .updater-preference { align-items: flex-start; flex-direction: column; }
@@ -4146,6 +4462,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .detail-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); margin-top: var(--space-6); }
   .detail-layout { max-width: 720px; }
   .detail-side { position: static; }
+  .detail-art-columns { grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
   .detail-poster-wrap { width: min(72vw, 300px); }
   .film-detail .detail-poster { width: min(72vw, 310px); }
   .film-detail-content { padding: 0 0 var(--space-5); }
@@ -4565,3 +4882,16 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Démonstration de recette des bannières (qa-app.html?demo=banners) : hors produit,
+   la page ne monte que le couple fenêtre + bandeau sur des lignes de fixtures. */
+.banner-demo { padding: var(--space-8) var(--space-8) var(--space-16); }
+.banner-demo > h1 { font-family: var(--font-display); font-size: var(--text-2xl); margin: 0 0 var(--space-6); letter-spacing: .02em; text-transform: uppercase; }
+.banner-demo-list { display: grid; gap: var(--space-8); max-width: 960px; }
+.banner-demo-card { display: grid; gap: var(--space-4); padding: var(--space-5); border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+.banner-demo-card > header { display: flex; align-items: baseline; gap: var(--space-3); }
+.banner-demo-card > header h2 { margin: 0; font-size: var(--text-lg); }
+.banner-demo-card > header span { color: var(--color-text-muted); font-size: var(--text-sm); }
+.banner-demo-card > header code { margin-left: auto; color: var(--color-text-muted); font-size: var(--text-xs); }
+.banner-demo-card .detail-banner { margin: 0; }
+.banner-demo-actions { display: flex; gap: var(--space-2); }

@@ -34,6 +34,8 @@ export type Series = {
   progressUpdatedAt: string | null
   startedAt: string | null
   posterUrl: string | null
+  /** Bannière 16:9 (v7) : une adresse d'image, `null` quand aucune n'est choisie. */
+  bannerUrl: string | null
   personalNote: string | null
   createdAt: string
   updatedAt: string
@@ -53,10 +55,11 @@ export function normalizeSeries(series: Series): Series {
     progressUpdatedAt: emptyOptionalTextToNull(series.progressUpdatedAt),
     startedAt: emptyOptionalTextToNull(series.startedAt),
     posterUrl: emptyOptionalTextToNull(series.posterUrl),
+    bannerUrl: emptyOptionalTextToNull(series.bannerUrl),
     personalNote: emptyOptionalTextToNull(series.personalNote),
   }
 }
 
-function emptyOptionalTextToNull(value: string | null): string | null {
-  return value === '' ? null : value
+function emptyOptionalTextToNull(value: string | null | undefined): string | null {
+  return value === '' || value === undefined ? null : value
 }

@@ -148,6 +148,27 @@ struct TmdbImageEntry {
     file_path: Option<String>,
 }
 
+/// Décor (`backdrop`) d'un film ou d'une série : le fichier et son format réel.
+/// `iso_639_1` est la langue du texte incrusté, `null` quand l'image n'en porte
+/// pas — l'image sans texte est le meilleur fond pour une bannière.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+pub struct TmdbBackdropEntry {
+    #[serde(default)]
+    pub file_path: Option<String>,
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    #[serde(default, rename = "iso_639_1")]
+    pub language: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbBackdropsResponse {
+    #[serde(default)]
+    backdrops: Vec<TmdbBackdropEntry>,
+}
+
 #[derive(Debug, Deserialize)]
 struct TmdbTvSearchResponse {
     results: Vec<TmdbTvSearchResult>,
@@ -276,6 +297,19 @@ impl ReqwestTmdbClient {
             )
             .await?;
         Ok(director_portrait(&credits.crew, name))
+    }
+
+    /// Décors d'un film (`/movie/{id}/images`) ou d'une série
+    /// (`/tv/{id}/images`), sans autre appel : la bannière choisit parmi eux.
+    /// `tmdb_id` et le genre de fiche désignent le chemin, construit par
+    /// l'appelant (`src-tauri/src/banners.rs`), pour que l'adresse demandée au
+    /// relais soit vérifiable dans un test.
+    pub async fn fetch_backdrops(
+        &self,
+        images_path: &str,
+    ) -> Result<Vec<TmdbBackdropEntry>, TmdbError> {
+        let response: TmdbBackdropsResponse = self.get(images_path, &[]).await?;
+        Ok(response.backdrops)
     }
 }
 

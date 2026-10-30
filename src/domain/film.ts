@@ -25,6 +25,8 @@ export type Film = {
   providerName: string | null
   providerId: string | null
   posterUrl: string | null
+  /** Bannière 16:9 (v7) : une adresse d'image, `null` quand aucune n'est choisie. */
+  bannerUrl: string | null
   createdAt: string
   updatedAt: string
 }
@@ -49,9 +51,10 @@ export function normalizeFilm(film: Film): Film {
     providerName: hasCompleteProvenance ? providerName : null,
     providerId: hasCompleteProvenance ? providerId : null,
     posterUrl: emptyOptionalTextToNull(film.posterUrl),
+    bannerUrl: emptyOptionalTextToNull(film.bannerUrl),
   }
 }
 
-function emptyOptionalTextToNull(value: string | null): string | null {
-  return value === '' ? null : value
+function emptyOptionalTextToNull(value: string | null | undefined): string | null {
+  return value === '' || value === undefined ? null : value
 }

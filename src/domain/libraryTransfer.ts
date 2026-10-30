@@ -6,6 +6,7 @@ export const SYLLOGE_EXPORT_VERSION = 1 as const
 
 export type SyllogeExportProfile = Profile
 
+/** Fiche du format JSON Films v1 (juillet 2026). */
 export type SyllogeExportFilm = Film
 
 export type SyllogeExportDocument = {
@@ -61,15 +62,25 @@ export function createLibraryExport(library: ExportableLibrary, exportedAt = new
     version: SYLLOGE_EXPORT_VERSION,
     exportedAt,
     profile: { ...library.profile },
-    films: library.films.map(normalizeFilm),
+    films: library.films.map(legacyFilm),
   }
+}
+
+/**
+ * La bannière 16:9 reste hors du format v1 (juillet 2026), qui ne la connaît
+ * pas : elle ne voyage que dans le document de profil v7. Le validateur v1 la
+ * remet à null en relisant une fiche.
+ */
+function legacyFilm(film: Film): SyllogeExportFilm {
+  const { bannerUrl: _banner, ...legacy } = normalizeFilm(film)
+  return legacy as SyllogeExportFilm
 }
 
 export function serializeLibraryExport(document: SyllogeExportDocument): string {
   return `${JSON.stringify({
     ...document,
     profile: { ...document.profile },
-    films: document.films.map(normalizeFilm),
+    films: document.films.map(legacyFilm),
   }, null, 2)}\n`
 }
 
@@ -227,7 +238,8 @@ function validateFilm(
 
   if (errors.length !== errorCount) return null
 
-  return film
+  // Une fiche v1 relue ne porte pas de bannière : le format l'ignore.
+  return legacyFilm(film)
 }
 
 function validateExactKeys(

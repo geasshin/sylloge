@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { formatDate, formatNumber, getLanguage, getLocale, t, tc, translateMessage } from '../i18n/core.ts'
 import { QuotesSection } from './Quotes.tsx'
 import {
@@ -17,6 +17,7 @@ import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { Select } from './Select.tsx'
 import { StatusBadge, statusTone } from './VerdictControls.tsx'
+import { DetailDate, DetailLayout } from './DetailLayout.tsx'
 import { useIncrementalList } from './useIncrementalList.ts'
 import { SearchIcon, ArrowLeftIcon, PencilIcon, TrashIcon } from './icons.tsx'
 
@@ -501,6 +502,83 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
     entry.year !== null && template.showsYear !== false ? formatNumber(entry.year, { useGrouping: false }) : null,
   ].filter(Boolean).join(' · ')
 
+  // Le prototype a montré qu'une recette se lit autrement : sa photo, son
+  // statut et ses ingrédients vivent dans la colonne gauche, ses étapes
+  // numérotées et ses notes dans la colonne de lecture.
+  const isRecipe = libraryId === 'recipes'
+  const fieldLines = (key: string) => (entry.details[key] ?? '').split('\n').map((line) => line.trim()).filter((line) => line !== '')
+  const ingredientsField = template.fields.find((field) => field.key === 'ingredients')
+  const stepsField = template.fields.find((field) => field.key === 'steps')
+  /** Portions et temps d'une recette : une seule ligne dense sous le titre. */
+  const denseKeys = isRecipe ? ['servings', 'prepTime', 'cookTime'] : []
+  const detailFactFields = template.fields.filter((field) => field.key !== template.kindField
+    && field.kind !== 'textarea' && field.kind !== 'list'
+    && entry.details[field.key]
+    && !denseKeys.includes(field.key))
+
+  const factRows: { key: string; label: ReactNode; value: ReactNode }[] = []
+  if (entry.creator) {
+    factRows.push({
+      key: 'creator',
+      label: label(template.creatorLabel),
+      value: isHttpsSource(entry.creator) ? <a href={entry.creator}>{sourceLabel(entry.creator)}</a> : entry.creator,
+    })
+  }
+  if (template.showsYear !== false && entry.year !== null) {
+    factRows.push({ key: 'year', label: t('Année'), value: formatNumber(entry.year, { useGrouping: false }) })
+  }
+  for (const field of template.fields.filter((candidate) => denseKeys.includes(candidate.key))) {
+    if (entry.details[field.key]) factRows.push({ key: field.key, label: label(field.label), value: displayFieldValue(libraryId, field, entry.details[field.key]) })
+  }
+  for (const field of detailFactFields) {
+    factRows.push({ key: field.key, label: label(field.label), value: displayFieldValue(libraryId, field, entry.details[field.key]) })
+  }
+  for (const [key, value] of extraDetails) factRows.push({ key, label: key, value })
+  if (template.progress && progress) factRows.push({ key: 'progress', label: label(template.progress.label), value: progress })
+
+  const longTextNodes = template.fields
+    .filter((field) => (field.kind === 'textarea' || field.kind === 'list') && entry.details[field.key])
+    .map((field) => {
+      const lines = fieldLines(field.key)
+      const ordered = field.kind === 'list' && field.key === 'steps'
+      return (
+        <section className="detail-long-text" key={field.key} data-field={field.key}>
+          <h2>{label(field.label)}</h2>
+          {field.kind === 'list' ? (
+            ordered
+              ? <ol className="detail-list">{lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ol>
+              : <ul className="detail-list">{lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ul>
+          ) : (
+            <p>{entry.details[field.key]}</p>
+          )}
+        </section>
+      )
+    })
+
+  const reviewNode = entry.personalNote ? (
+    <>
+      <blockquote className="review-personal">{entry.personalNote}</blockquote>
+      <button className="link-accent review-edit-link" type="button" onClick={() => onEdit()}>{t('Modifier')}</button>
+    </>
+  ) : (
+    <p className="mine-empty">{label(template.noteEmpty ?? 'Ton avis s’écrira ici.')}</p>
+  )
+
+  const recipeNode = isRecipe ? {
+    ingredients: ingredientsField && fieldLines('ingredients').length > 0 ? (
+      <section className="detail-long-text detail-recipe-ingredients" data-field="ingredients">
+        <h2>{label(ingredientsField.label)}</h2>
+        <ul className="detail-list">{fieldLines('ingredients').map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ul>
+      </section>
+    ) : undefined,
+    steps: stepsField && fieldLines('steps').length > 0 ? (
+      <section className="detail-long-text detail-recipe-steps" data-field="steps">
+        <h2>{label(stepsField.label)}</h2>
+        <ol className="detail-steps">{fieldLines('steps').map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ol>
+      </section>
+    ) : undefined,
+  } : null
+
   const confirmDelete = async () => {
     setDeleting(true)
     setDeleteError(null)
@@ -528,8 +606,8 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
         </div>
       </header>
 
-      <article className="detail-layout">
-        <div className="detail-side">
+      <DetailLayout
+        visual={(
           <div className="poster-container detail-poster-wrap">
             <Poster
               title={entry.title}
@@ -539,101 +617,71 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
               onEdit={() => setPosterDialogOpen(true)}
             />
           </div>
-          <div className="detail-status">
-            <StatusBadge status={entry.status} labels={Object.fromEntries(Object.entries(template.statusLabels).map(([status, label]) => [status, t(label)]))} />
-          </div>
-          {(entry.rating !== null || entry.isFavorite) && (
-            <div className="detail-rate">
-              {entry.rating !== null && (
-                <>
-                  <span className="stars-display" aria-label={t('Note {rating} sur 5', { rating: formatNumber(entry.rating) })}>
-                    {[1, 2, 3, 4, 5].map((star) => {
-                      const fill = Math.max(0, Math.min(1, (entry.rating ?? 0) - star + 1))
-                      return (
-                        <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                          <span className="star-glyph" aria-hidden="true">★</span>
-                          <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                        </span>
-                      )
-                    })}
-                  </span>
-                  <span className="rate-value">{formatNumber(entry.rating)}/5</span>
-                </>
-              )}
-              {entry.isFavorite && <span className="heart-display on" aria-label={t('Coup de cœur')}>♥</span>}
+        )}
+        verdict={(
+          <>
+            <div className="detail-status">
+              <StatusBadge status={entry.status} labels={Object.fromEntries(Object.entries(template.statusLabels).map(([status, label]) => [status, t(label)]))} />
             </div>
-          )}
-        </div>
-
-        <div className="detail-body">
-          <p className="eyebrow">{kind ? displayFieldValue(libraryId, template.fields.find((field) => field.key === template.kindField), kind) : label(template.label)}</p>
-          <h1 className="display-title">{entry.title}</h1>
-          {detailByline && <p className="detail-factline">{detailByline}</p>}
-
-          <dl className="detail-facts">
-            {entry.creator && (
-              <div>
-                <dt>{label(template.creatorLabel)}</dt>
-                <dd>
-                  {isHttpsSource(entry.creator)
-                    ? <a href={entry.creator}>{sourceLabel(entry.creator)}</a>
-                    : entry.creator}
-                </dd>
+            {(entry.rating !== null || entry.isFavorite) && (
+              <div className="detail-rate">
+                {entry.rating !== null && (
+                  <>
+                    <span className="stars-display" aria-label={t('Note {rating} sur 5', { rating: formatNumber(entry.rating) })}>
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const fill = Math.max(0, Math.min(1, (entry.rating ?? 0) - star + 1))
+                        return (
+                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                            <span className="star-glyph" aria-hidden="true">★</span>
+                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                          </span>
+                        )
+                      })}
+                    </span>
+                    <span className="rate-value">{formatNumber(entry.rating)}/5</span>
+                  </>
+                )}
+                {entry.isFavorite && <span className="heart-display on" aria-label={t('Coup de cœur')}>♥</span>}
               </div>
             )}
-            {template.showsYear !== false && entry.year !== null && <div><dt>{t('Année')}</dt><dd>{formatNumber(entry.year as number, { useGrouping: false })}</dd></div>}
-            {template.fields.filter((field) => field.key !== template.kindField && field.kind !== 'textarea' && field.kind !== 'list' && entry.details[field.key]).map((field) => (
-              <div key={field.key}><dt>{label(field.label)}</dt><dd>{displayFieldValue(libraryId, field, entry.details[field.key])}</dd></div>
-            ))}
-            {extraDetails.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{value}</dd></div>)}
-            {template.progress && progress && <div><dt>{label(template.progress.label)}</dt><dd>{progress}</dd></div>}
-            {entry.finishedAt && <div><dt>{label(template.dateLabel)}</dt><dd>{formatCalendarDate(entry.finishedAt)}</dd></div>}
+          </>
+        )}
+        heading={(
+          <>
+            <p className="eyebrow">{kind ? displayFieldValue(libraryId, template.fields.find((field) => field.key === template.kindField), kind) : label(template.label)}</p>
+            <h1 className="display-title">{entry.title}</h1>
+            {/* Une recette porte sa source et ses temps sur une ligne dense ;
+                les autres modèles gardent leur signature (source, millésime). */}
+            {detailByline && !isRecipe && <p className="detail-factline">{detailByline}</p>}
+          </>
+        )}
+        facts={factRows.length > 0 ? (
+          <dl className={`detail-facts${isRecipe ? ' detail-facts-dense' : ''}`}>
+            {factRows.map((row) => <div key={row.key}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}
           </dl>
-
-          {template.showsSummary !== false && entry.summary && (
-            <div className="synopsis-block">
-              <p>{entry.summary}</p>
-            </div>
-          )}
-
-          {/* Ingrédients et préparation : une ligne = un élément, lu comme une
-              liste. Un texte libre reste affiché tel qu'il a été saisi. */}
-          {template.fields.some((field) => (field.kind === 'textarea' || field.kind === 'list') && entry.details[field.key]) && (
-            <div className="detail-long-texts">
-              {template.fields.filter((field) => (field.kind === 'textarea' || field.kind === 'list') && entry.details[field.key]).map((field) => {
-                const lines = entry.details[field.key].split('\n').map((line) => line.trim()).filter((line) => line !== '')
-                const ordered = field.kind === 'list' && field.key === 'steps'
-                return (
-                  <section className="detail-long-text" key={field.key} data-field={field.key}>
-                    <h2>{label(field.label)}</h2>
-                    {field.kind === 'list' ? (
-                      ordered
-                        ? <ol className="detail-list">{lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ol>
-                        : <ul className="detail-list">{lines.map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ul>
-                    ) : (
-                      <p>{entry.details[field.key]}</p>
-                    )}
-                  </section>
-                )
-              })}
-            </div>
-          )}
-
-          <section className="mine-block">
-            {template.noteLabel && <h3 className="mine-label">{label(template.noteLabel)}</h3>}
-            {entry.personalNote ? (
-              <>
-                <blockquote className="review-personal">{entry.personalNote}</blockquote>
-                <button className="link-accent review-edit-link" type="button" onClick={() => onEdit()}>{t('Modifier')}</button>
-              </>
-            ) : (
-              <p className="mine-empty">{label(template.noteEmpty ?? 'Ton avis s’écrira ici.')}</p>
+        ) : undefined}
+        synopsis={(
+          <>
+            {template.showsSummary !== false && entry.summary && (
+              <div className="synopsis-block">
+                <p>{entry.summary}</p>
+              </div>
             )}
-
-          </section>
-          {template.quotes && <QuotesSection quotes={entry.quotes} onEdit={onEdit} />}
-        </div>
-      </article>
+            {/* Ingrédients et préparation : une ligne = un élément, lu comme une
+                liste. Un texte libre reste affiché tel qu'il a été saisi. */}
+            {longTextNodes.length > 0 && !isRecipe && (
+              <div className="detail-long-texts">{longTextNodes}</div>
+            )}
+          </>
+        )}
+        notebook={entry.finishedAt && (
+          <DetailDate label={label(template.dateLabel)} value={formatCalendarDate(entry.finishedAt)} />
+        )}
+        review={reviewNode}
+        reviewLabel={template.noteLabel ? label(template.noteLabel) : undefined}
+        appendices={template.quotes ? <QuotesSection quotes={entry.quotes} onEdit={onEdit} /> : null}
+        recipe={recipeNode}
+      />
 
       {confirmingDelete && (
         <div className="confirm-backdrop">

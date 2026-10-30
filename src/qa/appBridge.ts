@@ -31,6 +31,10 @@
  * recette a déjà reçu la sienne pour l'année, et les autres recettes ne la voient jamais.
  *
  * Langue, via ?lang= : fr (défaut), en, auto (détection réelle) — voir qaLanguage.ts.
+ *
+ * Démonstration, via ?demo=banners : la page ne monte pas l'application mais le
+ * couple `useBannerEditor` + `DetailBanner` de quatre lignes de fixtures, sur la
+ * même base en mémoire (src/qa/bannerDemo.tsx, recette scripts/qa-banners.js).
  */
 import './qaLanguage.ts'
 import initSqlJs, { type Database, type SqlValue } from 'sql.js'
@@ -421,7 +425,8 @@ function moveSeries(payload: SeriesPayload): void {
     status: series.status, rating: series.rating, is_favorite: series.isFavorite,
     seasons_seen: series.seasonsSeen, seasons_total: series.seasonsTotal,
     progress_updated_at: series.progressUpdatedAt, started_at: series.startedAt,
-    poster_url: series.posterUrl, personal_note: series.personalNote, updated_at: series.updatedAt,
+    poster_url: series.posterUrl, banner_url: series.bannerUrl,
+    personal_note: series.personalNote, updated_at: series.updatedAt,
   }
   db.exec('BEGIN')
   try {
@@ -472,7 +477,10 @@ function writeCollectionPlan(table: string, plan: Row) {
     }
     for (const entry of updates) {
       const row = rowFor(entry)
-      const columns = Object.keys(row).filter((column) => column !== 'id' && column !== 'profile_id')
+      // Une fusion qui ne porte pas de bannière ne l'efface pas (comme le
+      // COALESCE de `upsert_*` côté Rust) : un CSV ne la connaît pas.
+      const columns = Object.keys(row).filter((column) => column !== 'id' && column !== 'profile_id'
+        && !(column === 'banner_url' && (row[column] === null || row[column] === undefined)))
       if (columns.length === 0) continue
       execute(
         `UPDATE ${table} SET ${columns.map((column, index) => `${column} = $${index + 1}`).join(', ')} WHERE id = $${columns.length + 1} AND profile_id = $${columns.length + 2}`,
@@ -632,6 +640,8 @@ const savedImages: number[][] = []
 /** Les adresses d'images demandées à la commande native : la recette vérifie que la carte passe par elle. */
 const fetchedImages: string[] = []
 const searchedArtworks: string[] = []
+// Demandes d'images de bannière reçues par le simulateur (médium:identifiant).
+const bannerRequests: string[] = []
 
 function handle(cmd: string, args: Args): unknown {
   switch (cmd) {
@@ -832,6 +842,31 @@ function handle(cmd: string, args: Args): unknown {
       execute('UPDATE film_tmdb_cache SET selected_poster_url = $1 WHERE film_id = $2', [args.posterUrl ?? null, args.filmId])
       return cachedFilm(args.filmId)
     }
+    // Bannières 16:9 : même contrat que la commande native (src-tauri/src/banners.rs).
+    // Sans identifiant fournisseur, elle refuse ; avec l'identifiant « 0 », elle
+    // répond qu'aucune image officielle n'existe. Les vignettes visent
+    // picsum.photos, que la recette intercepte (aucun réseau).
+    case 'fetch_banner_candidates': {
+      const medium = String(args.medium ?? '')
+      const providerId = String(args.providerId ?? '').trim()
+      if (!['film', 'series', 'anime', 'game'].includes(medium)) fail('Type de fiche inconnu pour une bannière.')
+      if (providerId === '') fail('L’identifiant du fournisseur est absent : aucune image officielle ne peut être proposée.')
+      if (!/^\d+$/.test(providerId)) fail('L’identifiant du fournisseur est invalide.')
+      bannerRequests.push(`${medium}:${providerId}`)
+      if (providerId === '0') return []
+      const seed = encodeURIComponent(`banner-${medium}-${providerId}`)
+      const source = medium === 'game' ? 'igdb' : 'tmdb'
+      // Ordre volontairement mélangé : le tri de l'interface doit placer l'image
+      // sans texte en tête, puis la langue française, puis les autres. Le portrait
+      // et le très large sont là pour être écartés par le filtre.
+      return [
+        { url: `https://picsum.photos/seed/${seed}-fr/1280/720`, thumbnailUrl: `https://picsum.photos/seed/${seed}-fr/320/180`, width: 1280, height: 720, language: 'fr', source },
+        { url: `https://picsum.photos/seed/${seed}-textless/1920/1080`, thumbnailUrl: `https://picsum.photos/seed/${seed}-textless/320/180`, width: 1920, height: 1080, language: null, source },
+        { url: `https://picsum.photos/seed/${seed}-ja/2560/1440`, thumbnailUrl: `https://picsum.photos/seed/${seed}-ja/320/180`, width: 2560, height: 1440, language: 'ja', source },
+        { url: `https://picsum.photos/seed/${seed}-portrait/1000/1500`, thumbnailUrl: `https://picsum.photos/seed/${seed}-portrait/320/180`, width: 1000, height: 1500, language: null, source },
+        { url: `https://picsum.photos/seed/${seed}-ultrawide/2560/1000`, thumbnailUrl: `https://picsum.photos/seed/${seed}-ultrawide/320/180`, width: 2560, height: 1000, language: null, source },
+      ]
+    }
     case 'search_igdb_games':
       return fakeCandidates(args.query).map((candidate) => ({ gameId: 700_000 + candidate.id, title: candidate.title, releaseYear: candidate.year, coverUrl: candidate.poster }))
     case 'preview_igdb_game':
@@ -865,7 +900,18 @@ Object.assign(window, {
     savedImages: () => savedImages.map(bytes => [...bytes]),
     fetchedImages: () => [...fetchedImages],
     searchedArtworks: () => [...searchedArtworks],
+    bannerRequests: () => [...bannerRequests],
+    // Contrat de la commande, pour éprouver le refus sans identifiant et la
+    // réponse vide d'un identifiant « 0 » sans passer par l'interface.
+    bannerCandidates: (medium: string, providerId: string) => handle('fetch_banner_candidates', { medium, providerId }),
   },
 })
 
-await import('../main.tsx')
+// `?demo=banners` : la page de recette ne monte que les composants de bannière,
+// sur la base en mémoire et les fixtures déjà en place (aucune fiche modifiée).
+if (new URLSearchParams(window.location.search).get('demo') === 'banners') {
+  const { mountBannerDemo } = await import('./bannerDemo.tsx')
+  mountBannerDemo()
+} else {
+  await import('../main.tsx')
+}

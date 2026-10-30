@@ -148,7 +148,8 @@ fn io_complete_document_value(profile_id: &str) -> serde_json::Value {
             "originalTitle": note, "year": 2024, "status": "en attente", "isFavorite": true,
             "rating": 4.5, "watchedAt": "2026-10-01", "personalNote": note,
             "director": note, "summary": note, "providerName": "Source", "providerId": "123",
-            "posterUrl": "https://example.test/film.jpg"
+            "posterUrl": "https://example.test/film.jpg",
+            "bannerUrl": "https://example.test/film-banner.jpg"
         })
         .as_object()
         .unwrap()
@@ -161,7 +162,8 @@ fn io_complete_document_value(profile_id: &str) -> serde_json::Value {
                 "showrunner": note, "casting": note, "summary": note, "category": category,
                 "status": "à voir", "rating": 0.5, "isFavorite": true, "seasonsSeen": 0,
                 "seasonsTotal": 12, "progressUpdatedAt": timestamp, "startedAt": "2026-10-01",
-                "posterUrl": "https://example.test/series.jpg", "personalNote": note
+                "posterUrl": "https://example.test/series.jpg",
+                "bannerUrl": "https://example.test/series-banner.jpg", "personalNote": note
             })
             .as_object()
             .unwrap()
@@ -183,7 +185,8 @@ fn io_complete_document_value(profile_id: &str) -> serde_json::Value {
     let mut game = identity("game-io");
     game.as_object_mut().unwrap().extend(serde_json::json!({
         "developer": note, "platform": note, "year": 2024, "status": "à jouer", "rating": 0.5,
-        "isFavorite": true, "playedAt": "2026-10-01", "coverUrl": "https://example.test/game.jpg", "personalNote": note
+        "isFavorite": true, "playedAt": "2026-10-01", "coverUrl": "https://example.test/game.jpg",
+        "bannerUrl": "https://example.test/game-banner.jpg", "personalNote": note
     }).as_object().unwrap().clone());
     serde_json::json!({
         "profile": {"id": profile_id, "name": "Profil de contrôle", "createdAt": timestamp, "updatedAt": timestamp},
@@ -336,6 +339,115 @@ fn portability_io_native_import_preserves_every_field_of_all_seven_libraries() {
             .await
             .unwrap()
             .is_empty());
+    });
+}
+
+/// Bannière 16:9 (v7) : elle voyage avec le document et un import avec fusion
+/// qui n'en porte pas ne l'efface pas — la même règle que les détails d'une œuvre.
+#[test]
+fn banner_url_travels_with_a_document_and_survives_a_merge_without_one() {
+    tauri::async_runtime::block_on(async {
+        let pool = test_pool_with_tmdb_migrations().await;
+        let expected = io_complete_document_value("banner-io");
+        let payload = serde_json::from_value(expected.clone()).unwrap();
+        write_library_document_import(&pool, &payload, true)
+            .await
+            .unwrap();
+
+        for (table, id, banner) in [
+            ("films", "film-io", "https://example.test/film-banner.jpg"),
+            ("series", "series-io", "https://example.test/series-banner.jpg"),
+            ("anime", "anime-io", "https://example.test/series-banner.jpg"),
+            ("games", "game-io", "https://example.test/game-banner.jpg"),
+        ] {
+            let stored: Option<String> =
+                sqlx::query_scalar(&format!("SELECT banner_url FROM {table} WHERE id = $1"))
+                    .bind(id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(stored.as_deref(), Some(banner), "{table}.banner_url");
+        }
+
+        // Import d'une collection sans bannière (le cas d'un CSV, qui ne la porte
+        // pas) : la fusion ne l'efface pas.
+        let mut without_banner = io_complete_document_value("banner-io");
+        for section in ["films", "series", "anime", "games"] {
+            without_banner[section][0]
+                .as_object_mut()
+                .unwrap()
+                .remove("bannerUrl");
+        }
+        fn empty_plan<T>(profile_id: &str) -> CollectionImportPlan<T> {
+            CollectionImportPlan {
+                profile_id: profile_id.to_string(),
+                replace_existing: false,
+                inserts: Vec::new(),
+                updates: Vec::new(),
+            }
+        }
+        let mut films = empty_plan::<ImportFilm>("banner-io");
+        films.updates = vec![serde_json::from_value(without_banner["films"][0].clone()).unwrap()];
+        write_films_import_plan(&pool, &films).await.unwrap();
+
+        let mut series = empty_plan::<ImportSeries>("banner-io");
+        series.updates = vec![serde_json::from_value(without_banner["series"][0].clone()).unwrap()];
+        write_series_import_plan(&pool, &series).await.unwrap();
+
+        let mut anime = empty_plan::<ImportAnime>("banner-io");
+        anime.updates = vec![serde_json::from_value(without_banner["anime"][0].clone()).unwrap()];
+        write_anime_import_plan(&pool, &anime).await.unwrap();
+
+        let mut games = empty_plan::<ImportGame>("banner-io");
+        games.updates = vec![serde_json::from_value(without_banner["games"][0].clone()).unwrap()];
+        write_games_import_plan(&pool, &games).await.unwrap();
+
+        for (table, id, banner) in [
+            ("films", "film-io", "https://example.test/film-banner.jpg"),
+            ("series", "series-io", "https://example.test/series-banner.jpg"),
+            ("anime", "anime-io", "https://example.test/series-banner.jpg"),
+            ("games", "game-io", "https://example.test/game-banner.jpg"),
+        ] {
+            let stored: Option<String> =
+                sqlx::query_scalar(&format!("SELECT banner_url FROM {table} WHERE id = $1"))
+                    .bind(id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap();
+            assert_eq!(
+                stored.as_deref(),
+                Some(banner),
+                "une fusion sans bannière ne doit pas effacer {table}.banner_url"
+            );
+        }
+    });
+}
+
+/// Une bannière qui n'est pas une adresse https est refusée avant toute écriture.
+#[test]
+fn a_banner_that_is_not_https_is_refused_before_any_write() {
+    tauri::async_runtime::block_on(async {
+        for invalid in [
+            "http://example.test/fond.jpg",
+            "file:///Users/moi/fond.jpg",
+            "data:image/png;base64,AAAA",
+            " https://example.test/fond.jpg",
+        ] {
+            let pool = test_pool_with_tmdb_migrations().await;
+            let before = io_database_snapshot(&pool).await;
+            let mut value = io_complete_document_value("banner-refus");
+            value["films"][0]["bannerUrl"] = serde_json::json!(invalid);
+            let payload = serde_json::from_value(value).unwrap();
+            let error = write_library_document_import(&pool, &payload, true)
+                .await
+                .expect_err("une bannière non https doit être refusée");
+            assert!(error.contains("bannière"), "{invalid} : {error}");
+            assert_eq!(
+                io_database_snapshot(&pool).await,
+                before,
+                "{invalid} : rien ne doit être écrit"
+            );
+        }
     });
 }
 

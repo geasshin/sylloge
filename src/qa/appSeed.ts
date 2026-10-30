@@ -11,7 +11,16 @@ export const QA_PROFILE_ID = 'qa-profile'
 export const QA_PROFILE_NAME = 'Aurélien'
 
 const poster = (slug: string) => `https://picsum.photos/seed/sylloge-${slug}/400/600`
+const banner = (slug: string) => `https://picsum.photos/seed/sylloge-banner-${slug}/1600/900`
 const portrait = (slug: string) => `https://picsum.photos/seed/sylloge-cast-${slug}/200/260`
+
+/**
+ * Fiches qui portent déjà une bannière 16:9 : une de chaque médium concerné,
+ * pour que les captures et les recettes montrent le bandeau sans avoir à
+ * l'ajouter. Aucune recette existante n'ouvre ces deux fiches.
+ */
+const FILMS_WITH_BANNER = new Set(['Portrait de la jeune fille en feu'])
+const SERIES_WITH_BANNER = new Set(['Succession'])
 
 /** Date ISO stable à `daysAgo` jours de la date de recette. */
 const RECETTE_NOW = Date.parse('2026-10-16T10:00:00.000Z')
@@ -171,6 +180,7 @@ export function seedFilms(): { films: Row[]; tmdbCache: Row[] } {
       provider_name: tmdb ? 'tmdb' : null,
       provider_id: tmdb ? String(900_000 + index) : null,
       poster_url: hasPoster ? poster(slugify(title)) : null,
+      banner_url: FILMS_WITH_BANNER.has(title) ? banner(`film-${slugify(title)}`) : null,
       created_at: at(addedDaysAgo),
       updated_at: at(Math.max(0, addedDaysAgo - 1)),
     })
@@ -241,6 +251,7 @@ export function seedSeries(): { series: Row[]; anime: Row[] } {
       progress_updated_at: seen !== null ? at(addedDaysAgo) : null,
       started_at: status === 'à voir' ? null : day(addedDaysAgo + 10),
       poster_url: hasPoster ? poster(`series-${slugify(title)}`) : null,
+      banner_url: SERIES_WITH_BANNER.has(title) ? banner(`series-${slugify(title)}`) : null,
       personal_note: null,
       created_at: at(addedDaysAgo),
       updated_at: at(Math.max(0, addedDaysAgo - 1)),

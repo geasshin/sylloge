@@ -297,5 +297,6 @@ const messages: Record<string, string> = {
   'L’écriture du jeu « {0} » n’a modifié aucune ligne SQLite.': 'Writing the game “{0}” modified no SQLite rows.',
   'Impossible de mettre à jour l’œuvre « {0} » : {1}': 'Could not update the artwork “{0}”: {1}',
   'L’écriture de l’œuvre « {0} » n’a modifié aucune ligne SQLite.': 'Writing the artwork “{0}” modified no SQLite rows.',
+  'La bannière de « {0} » doit être une adresse https de moins de 2 048 caractères.': 'The banner of “{0}” must be an https address shorter than 2,048 characters.',
 }
 export default messages

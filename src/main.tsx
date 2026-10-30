@@ -2009,10 +2009,12 @@ type SqliteFilmDetailProps = {
   onAssociateTmdb: () => void
   /** Enregistre (ou retire, avec null) l'adresse de l'affiche dans la colonne locale de la fiche. */
   onPosterChange: (url: string | null) => Promise<void>
+  /** Enregistre (ou retire, avec null) la bannière 16:9 de la fiche. */
+  onBannerChange: (url: string | null) => Promise<void>
   tmdbNotice?: string | null
 }
 
-function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, tmdbNotice }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, onBannerChange, tmdbNotice }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -2040,7 +2042,7 @@ function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel
   }, [attempt, detailRevision, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} onPosterChange={onPosterChange} tmdbNotice={tmdbNotice} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} onPosterChange={onPosterChange} onBannerChange={onBannerChange} tmdbNotice={tmdbNotice} />
   }
 
   return (
@@ -3020,6 +3022,17 @@ function App() {
           setLibraryState({ status: 'ready', library: updatedLibrary })
           requestAutomaticBackup(updatedLibrary)
         }}
+        onBannerChange={async (url) => {
+          const updatedAt = await filmsRepository.updateFilmBanner(library.profile.id, view.filmId, url)
+          // La grille Films lit la collection maître et la fiche se relit sur
+          // `updatedAt` : mettre à jour la collection suffit aux deux.
+          const updatedLibrary: FilmLibrary = {
+            ...library,
+            films: library.films.map((entry) => (entry.id === view.filmId ? { ...entry, bannerUrl: url, updatedAt } : entry)),
+          }
+          setLibraryState({ status: 'ready', library: updatedLibrary })
+          requestAutomaticBackup(updatedLibrary)
+        }}
         onDelete={async () => {
           await filmsRepository.deleteFilm(library.profile.id, view.filmId)
           const updatedLibrary: FilmLibrary = {
@@ -3095,6 +3108,11 @@ function App() {
           onPosterEdit={async (url: string | null) => {
             await mediaRepository.updateSeries(library.profile.id, series.id, { ...series, posterUrl: url }, seriesLibraryForCategory(series.category))
             setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...series, posterUrl: url } : entry)))
+            refreshLibraryQuery('série')
+          }}
+          onBannerChange={async (url: string | null) => {
+            const updatedAt = await mediaRepository.setSeriesBanner(library.profile.id, series.id, url, seriesLibraryForCategory(series.category))
+            setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...entry, bannerUrl: url, updatedAt } : entry)))
             refreshLibraryQuery('série')
           }}
           onDelete={async () => {
@@ -3235,6 +3253,11 @@ function App() {
           onCoverEdit={async (url: string | null) => {
             await mediaRepository.updateGame(library.profile.id, game.id, { ...game, coverUrl: url })
             setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...game, coverUrl: url } : entry)))
+            refreshLibraryQuery('jeu')
+          }}
+          onBannerChange={async (url: string | null) => {
+            const updatedAt = await mediaRepository.setGameBanner(library.profile.id, game.id, url)
+            setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...entry, bannerUrl: url, updatedAt } : entry)))
             refreshLibraryQuery('jeu')
           }}
           onDelete={async () => {

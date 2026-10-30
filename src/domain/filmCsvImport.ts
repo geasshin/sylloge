@@ -455,6 +455,7 @@ function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPre
       providerName: emptyToNull(value.providerName),
       providerId: emptyToNull(value.providerId),
       posterUrl: emptyToNull(value.posterUrl),
+      bannerUrl: null,
       createdAt: value.createdAt,
       updatedAt: value.updatedAt,
     }))
@@ -465,7 +466,7 @@ function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPre
     version: SYLLOGE_EXPORT_VERSION,
     exportedAt: first.exportedAt,
     profile,
-    films,
+    films: legacyFilms(films),
   }
   const validated = validateLibraryImport(JSON.stringify(document))
   return {
@@ -479,6 +480,15 @@ function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPre
     warnings: [],
     detectedRatingScale: 5,
   }
+}
+
+/**
+ * Le format JSON Films v1 (juillet 2026) ne connaît pas la bannière 16:9 : le
+ * document transitoire qui repasse par son validateur la retire, sinon la clé
+ * inconnue ferait refuser l'import. Un CSV ne porte jamais de bannière.
+ */
+function legacyFilms(films: Film[]): Film[] {
+  return films.map(({ bannerUrl: _banner, ...film }) => film) as Film[]
 }
 
 function previewGenericCsv(
@@ -565,6 +575,7 @@ function previewGenericCsv(
         providerName: null,
         providerId: null,
         posterUrl: null,
+        bannerUrl: null,
         createdAt: importedAt,
         updatedAt: importedAt,
       }))
@@ -582,7 +593,7 @@ function previewGenericCsv(
       createdAt: importedAt,
       updatedAt: importedAt,
     },
-    films,
+    films: legacyFilms(films),
   }
   const validated = validateLibraryImport(JSON.stringify(document))
   const allErrors = [...errors, ...validated.errors]

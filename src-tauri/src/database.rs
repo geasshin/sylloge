@@ -154,6 +154,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0025_artwork_details.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 26,
+            description: "media_banner_url",
+            sql: include_str!("../migrations/0026_media_banner_url.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -441,6 +447,125 @@ mod tests {
                     .expect("read preserved current profile");
             assert_eq!(used_profile_count, 1);
             assert_eq!(used_current_profile.as_deref(), Some("default"));
+        });
+    }
+
+    /// Bannière 16:9 (migration 0026) : un ajout pur. Les fiches écrites avant
+    /// la migration gardent toutes leurs valeurs et reçoivent une colonne
+    /// `banner_url` vide — aucune bannière par défaut, aucun livre concerné.
+    #[test]
+    fn banner_url_migration_is_additive_and_starts_empty() {
+        tauri::async_runtime::block_on(async {
+            let mut connection = SqliteConnection::connect("sqlite::memory:")
+                .await
+                .expect("create in-memory SQLite database");
+            let all = migrations();
+            for migration in all.iter().filter(|migration| migration.version < 26) {
+                sqlx::raw_sql(migration.sql)
+                    .execute(&mut connection)
+                    .await
+                    .expect("apply Sylloge migration before 0026");
+            }
+
+            sqlx::query("INSERT INTO profiles (id, name) VALUES ('p1', 'Test')")
+                .execute(&mut connection)
+                .await
+                .expect("seed profile");
+            sqlx::query(
+                "INSERT INTO films (id, profile_id, title, poster_url)
+                 VALUES ('film', 'p1', 'Film existant', 'https://image.tmdb.org/t/p/w500/affiche.jpg')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed film");
+            sqlx::query(
+                "INSERT INTO series (id, profile_id, title) VALUES ('serie', 'p1', 'Série existante')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed series");
+            sqlx::query(
+                "INSERT INTO anime (id, profile_id, title) VALUES ('anime', 'p1', 'Animé existant')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed anime");
+            sqlx::query(
+                "INSERT INTO games (id, profile_id, title) VALUES ('jeu', 'p1', 'Jeu existant')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed game");
+            sqlx::query(
+                "INSERT INTO books (id, profile_id, title) VALUES ('livre', 'p1', 'Livre existant')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed book");
+
+            let banner_migration = all
+                .iter()
+                .find(|migration| migration.version == 26)
+                .expect("migration 0026");
+            sqlx::raw_sql(banner_migration.sql)
+                .execute(&mut connection)
+                .await
+                .expect("apply banner migration");
+
+            for table in ["films", "series", "anime", "games"] {
+                let column_count: i64 = sqlx::query_scalar(&format!(
+                    "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = 'banner_url'"
+                ))
+                .fetch_one(&mut connection)
+                .await
+                .expect("read banner column");
+                assert_eq!(
+                    column_count, 1,
+                    "la table `{table}` doit porter `banner_url`"
+                );
+
+                let banner: Option<String> =
+                    sqlx::query_scalar(&format!("SELECT banner_url FROM {table}"))
+                        .fetch_one(&mut connection)
+                        .await
+                        .expect("read banner value");
+                assert_eq!(banner, None, "aucune bannière par défaut dans `{table}`");
+            }
+
+            let poster: Option<String> =
+                sqlx::query_scalar("SELECT poster_url FROM films WHERE id = 'film'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read preserved poster");
+            assert_eq!(
+                poster.as_deref(),
+                Some("https://image.tmdb.org/t/p/w500/affiche.jpg"),
+                "l’affiche existante est intacte"
+            );
+
+            let book_columns: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'banner_url'",
+            )
+            .fetch_one(&mut connection)
+            .await
+            .expect("read book columns");
+            assert_eq!(book_columns, 0, "les livres ne portent pas de bannière");
+
+            sqlx::query(
+                "UPDATE films SET banner_url = 'https://image.tmdb.org/t/p/w1280/fond.jpg' WHERE id = 'film'",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("write a banner on an existing film");
+            let written: Option<String> =
+                sqlx::query_scalar("SELECT banner_url FROM films WHERE id = 'film'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read written banner");
+            assert_eq!(
+                written.as_deref(),
+                Some("https://image.tmdb.org/t/p/w1280/fond.jpg")
+            );
         });
     }
 }

@@ -42,6 +42,8 @@ export type Game = {
   isFavorite: boolean
   playedAt: string | null
   coverUrl: string | null
+  /** Bannière 16:9 (v7) : une adresse d'image, `null` quand aucune n'est choisie. */
+  bannerUrl: string | null
   personalNote: string | null
   createdAt: string
   updatedAt: string
@@ -93,10 +95,11 @@ export function normalizeGame(game: Game): Game {
     platform: emptyOptionalTextToNull(game.platform),
     playedAt: emptyOptionalTextToNull(game.playedAt),
     coverUrl: emptyOptionalTextToNull(game.coverUrl),
+    bannerUrl: emptyOptionalTextToNull(game.bannerUrl),
     personalNote: emptyOptionalTextToNull(game.personalNote),
   }
 }
 
-function emptyOptionalTextToNull(value: string | null): string | null {
-  return value === '' ? null : value
+function emptyOptionalTextToNull(value: string | null | undefined): string | null {
+  return value === '' || value === undefined ? null : value
 }

@@ -4,7 +4,7 @@ mod client;
 use std::fmt;
 
 use cache::{CacheService, Clock, SqliteFilmTmdbCacheRepository, SystemClock};
-use client::{ReqwestTmdbClient, TmdbClient};
+use client::TmdbClient;
 use serde::Serialize;
 use tauri::{AppHandle, Manager, Runtime, State};
 use tauri_plugin_sql::{DbInstances, DbPool};
@@ -12,7 +12,10 @@ use tauri_plugin_sql::{DbInstances, DbPool};
 use crate::database::DATABASE_URL;
 
 pub use cache::CachedFilmTmdbPresentationDto;
-pub use client::{TmdbFilmPresentationDto, TmdbSearchCandidateDto, TmdbSeriesPresentationDto};
+pub use client::{
+    ReqwestTmdbClient, TmdbBackdropEntry, TmdbFilmPresentationDto, TmdbSearchCandidateDto,
+    TmdbSeriesPresentationDto,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TmdbError {

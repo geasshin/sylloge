@@ -14,6 +14,7 @@ reste légère, la sauvegarde JSON aussi.
 | Jeux | `cover_url` | idem |
 | Art | `image_url` | idem |
 | Bibliothèques personnalisées (dont Recettes) | `cover_url` | idem |
+| Films, Séries, Animation japonaise, Jeux | `banner_url` (bannière 16:9) | bouton crayon du bandeau |
 
 Le crayon ouvre un dialogue d'adresse commun : champ, **aperçu de l'image avant d'enregistrer**, message
 si l'adresse ne mène pas à une image. Un champ vidé retire le lien. Seules les adresses `http://` et
@@ -66,12 +67,54 @@ pas. Films n'était pas touché : sa grille lit directement la collection maîtr
 concernée après l'écriture, aux sept endroits qui écrivaient depuis une fiche (visuel Séries, Livre, Jeu,
 Art ; association TMDB Séries, Open Library Livre, IGDB Jeu).
 
+## Le visuel dans la fiche (30 octobre 2026)
+
+La fiche pose le visuel dans sa colonne gauche de 380 px : affiche 2:3 (Films, Séries, Livres, Mangas), carré pour un modèle à couverture carrée, 4:3 pour la photo d'une recette. Le crayon reste dans le visuel (`poster-edit-overlay`). L'affiche cède de la largeur quand la fenêtre manque de hauteur (`--detail-visual-height`, `62vh`) plutôt que de pousser le statut et la note sous la ligne de flottaison. Pour l'Art, le visuel garde le format réel de son image dans la scène de la fiche (voir `DESIGN.md`, « Art éditorial »).
+
+La bannière 16:9 est un second visuel, distinct : elle vit au-dessus des deux colonnes, pleine largeur (`DetailLayout`, emplacement `banner`). Sans bannière, rien n'est rendu en haut et le bouton d'ajout prend place dans la barre d'actions ; avec une bannière, le crayon est dans le bandeau et la colonne gauche cesse d'être collante pour ne jamais passer sous l'image en défilant.
+
+## Bannières 16:9 (30 octobre 2026)
+
+Films, Séries, Animation japonaise et Jeux portent une image de fond, distincte de
+l’affiche : `banner_url` (migration 0026), une adresse d’image paysage et jamais un
+fichier. **Aucune bannière par défaut** : sans choix, la fiche n’affiche aucun bandeau.
+Les livres, les mangas, l’Art et les bibliothèques personnalisées ne sont pas concernés.
+
+- Le bouton du bandeau ouvre `BannerDialog` : les images officielles du fournisseur en
+  vignettes 16:9, un champ « Adresse de l’image » avec aperçu recadré, et « Retirer la
+  bannière ». Rien n’est retenu avant « Enregistrer » ; fermer abandonne.
+- **Où vit la commande.** Une fiche qui a déjà une bannière montre `DetailBanner` en tête,
+  pleine largeur, avec le crayon « Modifier la bannière » dans son coin. Une fiche qui n’en
+  a pas n’affiche rien en haut : un bouton discret « Ajouter une bannière » (crayon et
+  libellé, au gabarit des actions) se place dans sa barre d’actions, entre « Associer » et
+  « Supprimer », pour rester découvrable sans casser la colonne. Les livres, les mangas,
+  l’Art et les bibliothèques ajoutées n’ont ni bandeau ni bouton.
+- Les images officielles viennent de la commande native `fetch_banner_candidates` :
+  décors TMDB pour un film (`/movie/{id}/images`), une série ou un animé
+  (`/tv/{id}/images`) ; illustrations puis captures IGDB pour un jeu (requête `games`
+  sur `artworks` et `screenshots`). La fenêtre ne joint aucun service : tout passe par
+  Rust et le relais du projet. Sans identifiant fournisseur, elle le dit et laisse
+  seulement coller une adresse.
+- Le tri et le filtrage sont purs (`src/domain/bannerImages.ts`, `npm run test:banners`) :
+  paysage entre 1,6 et 2,0 de ratio, largeur ≥ 1 280, images sans texte d’abord puis la
+  langue de l’interface, 24 candidats au plus. Une adresse collée est prévisualisée en
+  16:9 ; un avertissement paraît si l’image est plus haute que large.
+- `DetailBanner` affiche le bandeau sur toute la largeur, à un format d’au moins 21:9 et
+  une hauteur bornée à 32 vh, recadré au centre, coins arrondis. Une image qui ne se
+  charge pas fait disparaître le bandeau, sans cadre vide.
+- Une bannière enregistrée est toujours `https://`, bornée à 2 048 caractères. Voir
+  docs/PORTABILITE.md pour ce qu’elle devient dans une sauvegarde et dans un CSV.
+
 ## Vérifications
 
 - `npm run test:covers` : la règle d'affichage, huit cas (fiche associée sans affiche locale, choix de la
   galerie, lien personnel, adresse TMDB oubliée par le cache, valeur invalide).
 - `scripts/qa-covers.js` : parcours film complet (associé, non associé, galerie, annulation, adresse invalide,
   aperçu) puis le même geste dans les sept autres bibliothèques.
+- `scripts/qa-detail-layout.js` : pour dix fiches (Films, Séries, Animation japonaise, Livres, Mangas, Jeux,
+  Art paysage, Art portrait, poème, Recettes) à 1440 × 900, la colonne gauche (visuel, statut, note, carnet)
+  tient sans défiler, l'Art est centré sous son mur, aucun débordement horizontal, les libellés de faits
+  restent sur une ligne ; à 1000 × 760 une seule colonne ; thème sombre et anglais compris.
 - `scripts/qa-work-cards.js` : pour les six bibliothèques qui lisent leur propre requête, le visuel changé
   depuis la fiche arrive dans la grille et la colonne est écrite ; puis la ligne de faits de chaque médium
   (signature, note ou année, coup de cœur, état, écart titre → faits ≤ 8 px, aucun débordement).
@@ -79,5 +122,17 @@ Art ; association TMDB Séries, Open Library Livre, IGDB Jeu).
   hauteur de deux lignes est réservée.
 - Le simulateur du harnais (`src/qa/appBridge.ts`) applique le contrat de la commande native ; un simulateur
   plus souple avait masqué le troisième défaut.
+- `scripts/qa-banners.js` : la fenêtre de choix (candidats simulés filtrés et triés,
+  sélection, adresse collée, avertissement image verticale, retrait), l’écriture dans
+  `films.banner_url`, `series.banner_url`, `anime.banner_url` et `games.banner_url` relue
+  en base, le bandeau rendu ou absent, l’état sans fournisseur, l’image en échec et
+  l’anglais. La page `qa-app.html?demo=banners` monte le couple fenêtre + bandeau sur des
+  lignes de fixtures, sans toucher aux fiches.
+- `scripts/qa-banners-fiches.js` : dans de vraies fiches du harnais `scenario=full`,
+  l’absence de bandeau et le bouton « Ajouter une bannière » dans la barre d’actions, la
+  fenêtre et une image officielle simulée, l’écriture en base, le bandeau en tête, puis le
+  retrait qui fait revenir le bouton — pour un Film, une Série, un Animé et un Jeu ; un
+  Livre et une œuvre d’Art n’ont aucun bouton. Vérifie aussi qu’une fiche déjà pourvue
+  (fixtures) affiche son crayon, et l’anglais.
 - Non couvert : un lien réellement distant. Le harnais sert des images `picsum.photos` ; l'application native
   n'a pas été lancée pour ce lot.

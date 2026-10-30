@@ -17,19 +17,22 @@ import {
   type CustomStatus,
 } from './customLibraries.ts'
 import { EXPERIENCE_VERSION, readExperience, type ProfileExperience } from './profileExperience.ts'
+import { isBannerUrl } from './bannerImages.ts'
 
 export const SYLLOGE_LIBRARY_FORMAT = 'sylloge-library' as const
 /**
  * Version écrite par l’application. La v4 (22 octobre 2026) ajoute les
  * bibliothèques personnalisées, la v5 (23 octobre 2026) l’expérience du
  * profil — vues enregistrées et préférences d’affichage, la v6 (27 octobre
- * 2026) les champs propres à chaque forme d’art (`details` d’une œuvre).
- * Les versions 1 à 5 restent lisibles : une œuvre v5 s’importe sans détails.
+ * 2026) les champs propres à chaque forme d’art (`details` d’une œuvre),
+ * la v7 (30 octobre 2026) la bannière 16:9 des films, séries, animés et jeux
+ * (`bannerUrl`).
+ * Les versions 1 à 6 restent lisibles : une fiche v6 s’importe sans bannière.
  */
-export const SYLLOGE_LIBRARY_VERSION = 6 as const
-export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3, 4, 5] as const
+export const SYLLOGE_LIBRARY_VERSION = 7 as const
+export const SYLLOGE_LIBRARY_LEGACY_VERSIONS = [1, 2, 3, 4, 5, 6] as const
 
-type DocumentVersion = 1 | 2 | 3 | 4 | 5 | 6
+type DocumentVersion = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 export type SyllogeLibraryDocument = {
   format: typeof SYLLOGE_LIBRARY_FORMAT
@@ -219,6 +222,13 @@ const ARTWORK_KEYS = [
 ] as const
 /** v6 : chaque œuvre porte ses champs de forme, même vides (`{}`). */
 const ARTWORK_KEYS_V6 = [...ARTWORK_KEYS, 'details'] as const
+/**
+ * v7 : films, séries et jeux portent leur bannière 16:9 (`null` quand aucune
+ * n'est choisie). Les livres et les autres bibliothèques n'en ont pas.
+ */
+const FILM_KEYS_V7 = [...FILM_KEYS, 'bannerUrl'] as const
+const SERIES_KEYS_V7 = [...SERIES_KEYS, 'bannerUrl'] as const
+const GAME_KEYS_V7 = [...GAME_KEYS, 'bannerUrl'] as const
 const CUSTOM_FIELD_KEYS = ['name', 'value'] as const
 
 export function createLibraryDocument(
@@ -362,7 +372,7 @@ export function validateLibraryDocument(contents: string): LibraryImportPreview 
       '$.version',
       isNewerDocumentVersion(value.version)
         ? 'Cette sauvegarde a été créée par une version plus récente de Sylloge. Mettre l’application à jour pour la restaurer.'
-        : 'Les versions 1 à 6 du document sont prises en charge.',
+        : 'Les versions 1 à 7 du document sont prises en charge.',
     )
     return { document: null, counts: emptyCounts, errors }
   }
@@ -504,7 +514,9 @@ const isNewerDocumentVersion = (value: unknown): boolean =>
   typeof value === 'number' && Number.isInteger(value) && value > SYLLOGE_LIBRARY_VERSION
 
 function libraryDocumentVersion(value: unknown): DocumentVersion | null {
-  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 ? value : null
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 || value === 6 || value === 7
+    ? value
+    : null
 }
 
 function rootKeysFor(version: DocumentVersion): readonly string[] {
@@ -818,6 +830,20 @@ function validateOptionalCalendarDate(
   }
 }
 
+/**
+ * Une bannière (v7) suit la règle du produit : une adresse `https://` bornée,
+ * jamais un fichier local ni une image inline. `null` = aucune bannière.
+ */
+function validateOptionalBannerUrl(
+  value: string | null,
+  path: string,
+  errors: LibraryImportValidationError[],
+) {
+  if (value !== null && !isBannerUrl(value)) {
+    addError(errors, path, 'L’URL de bannière doit être nulle ou une adresse https:// de moins de 2 048 caractères.')
+  }
+}
+
 function validateOptionalHttpUrl(
   value: string | null,
   path: string,
@@ -842,7 +868,7 @@ function validateFilm(
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, FILM_KEYS, version, profileId, ids, errors, 'Film')
+  const identityValid = validateSharedIdentity(value, path, version >= 7 ? FILM_KEYS_V7 : FILM_KEYS, version, profileId, ids, errors, 'Film')
   validateOptionalString(value.originalTitle, `${path}.originalTitle`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
   if (!(FILM_STATUSES as readonly unknown[]).includes(value.status)) {
@@ -858,10 +884,12 @@ function validateFilm(
   validateOptionalString(value.providerName, `${path}.providerName`, errors)
   validateOptionalString(value.providerId, `${path}.providerId`, errors)
   validateOptionalString(value.posterUrl, `${path}.posterUrl`, errors)
+  if (version >= 7) validateOptionalString(value.bannerUrl, `${path}.bannerUrl`, errors)
 
   const film = normalizeFilm(value as Film)
   validateOptionalCalendarDate(film.watchedAt, `${path}.watchedAt`, errors, 'La date de visionnage')
   validateOptionalHttpUrl(film.posterUrl, `${path}.posterUrl`, errors, 'L’URL d’affiche')
+  if (version >= 7) validateOptionalBannerUrl(film.bannerUrl, `${path}.bannerUrl`, errors)
 
   if (!identityValid || hasPathError(errors, path)) return null
 
@@ -882,7 +910,7 @@ function validateSeries(
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, SERIES_KEYS, version, profileId, ids, errors, 'Série')
+  const identityValid = validateSharedIdentity(value, path, version >= 7 ? SERIES_KEYS_V7 : SERIES_KEYS, version, profileId, ids, errors, 'Série')
   validateOptionalString(value.showrunner, `${path}.showrunner`, errors)
   validateOptionalString(value.casting, `${path}.casting`, errors)
   validateOptionalString(value.summary, `${path}.summary`, errors)
@@ -910,11 +938,13 @@ function validateSeries(
     addError(errors, `${path}.seasonsSeen`, 'Les saisons vues ne peuvent pas dépasser le total de saisons.')
   }
   validateOptionalString(value.posterUrl, `${path}.posterUrl`, errors)
+  if (version >= 7) validateOptionalString(value.bannerUrl, `${path}.bannerUrl`, errors)
   validateOptionalString(value.personalNote, `${path}.personalNote`, errors)
 
   const series = normalizeSeries(value as Series)
   validateOptionalCalendarDate(series.startedAt, `${path}.startedAt`, errors, 'La date de début de visionnage')
   validateOptionalHttpUrl(series.posterUrl, `${path}.posterUrl`, errors, 'L’URL d’affiche')
+  if (version >= 7) validateOptionalBannerUrl(series.bannerUrl, `${path}.bannerUrl`, errors)
 
   if (!identityValid || hasPathError(errors, path)) return null
 
@@ -1026,7 +1056,7 @@ function validateGame(
     return null
   }
 
-  const identityValid = validateSharedIdentity(value, path, GAME_KEYS, version, profileId, ids, errors, 'Jeu')
+  const identityValid = validateSharedIdentity(value, path, version >= 7 ? GAME_KEYS_V7 : GAME_KEYS, version, profileId, ids, errors, 'Jeu')
   validateOptionalString(value.developer, `${path}.developer`, errors)
   validateOptionalString(value.platform, `${path}.platform`, errors)
   validateOptionalYear(value.year, `${path}.year`, errors)
@@ -1038,11 +1068,13 @@ function validateGame(
     addError(errors, `${path}.isFavorite`, 'La valeur favori doit être un booléen.')
   }
   validateOptionalString(value.coverUrl, `${path}.coverUrl`, errors)
+  if (version >= 7) validateOptionalString(value.bannerUrl, `${path}.bannerUrl`, errors)
   validateOptionalString(value.personalNote, `${path}.personalNote`, errors)
 
   const game = normalizeGame(value as Game)
   validateOptionalCalendarDate(game.playedAt, `${path}.playedAt`, errors, 'La date de jeu')
   validateOptionalHttpUrl(game.coverUrl, `${path}.coverUrl`, errors, 'L’URL de couverture')
+  if (version >= 7) validateOptionalBannerUrl(game.bannerUrl, `${path}.bannerUrl`, errors)
 
   if (!identityValid || hasPathError(errors, path)) return null
 

@@ -458,7 +458,10 @@ function parseGenericRow(
     } satisfies SeriesFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)
     for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
-    return { id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data, progressUpdatedAt: null, createdAt: importedAt, updatedAt: importedAt }
+    return {
+      id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data,
+      progressUpdatedAt: null, bannerUrl: null, createdAt: importedAt, updatedAt: importedAt,
+    }
   }
   if (kind === 'books' || kind === 'mangas') {
     if (kind === 'books' && /^comics?$/iu.test(value('category').trim())) {
@@ -492,7 +495,10 @@ function parseGenericRow(
     } satisfies GameFormValues)
     if (!result.success) return formFailure(line, result.errors, errors)
     for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
-    return { id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data, createdAt: importedAt, updatedAt: importedAt }
+    return {
+      id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data,
+      bannerUrl: null, createdAt: importedAt, updatedAt: importedAt,
+    }
   }
   const result = validateArtworkForm({
     title: value('title'), artist: value('artist'), year: count('year', 'Année :'),

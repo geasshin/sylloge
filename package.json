@@ -9,7 +9,7 @@
   "build": "vite build",
   "preview": "vite preview",
   "typecheck": "tsc -b",
-  "verify": "node scripts/verify.mjs && npm run test:portability && npm run test:i18n && npm run test:update-notice && npm run test:release && npm run test:covers && npm run test:recipes && npm run test:links && npm run test:share && npm run test:recap && npm run test:art && npm run test:services && npm run test:incremental",
+  "verify": "node scripts/verify.mjs && npm run test:portability && npm run test:i18n && npm run test:update-notice && npm run test:release && npm run test:covers && npm run test:recipes && npm run test:links && npm run test:share && npm run test:recap && npm run test:art && npm run test:banners && npm run test:services && npm run test:incremental",
   "test:i18n": "node --experimental-strip-types --test scripts/i18n*.test.mjs",
   "test:update-notice": "node --experimental-strip-types --test scripts/update-notice.test.mjs",
   "test:release": "node --experimental-strip-types --test scripts/updater-manifest.test.mjs",
@@ -24,7 +24,8 @@
   "tauri:dev": "tauri dev",
   "tauri:build": "tauri build",
   "test:recap": "node --experimental-strip-types --test scripts/year-recap.test.mjs",
-    "test:art": "node --experimental-strip-types --test scripts/art-image-search.test.mjs scripts/art-details.test.mjs"
+    "test:art": "node --experimental-strip-types --test scripts/art-image-search.test.mjs scripts/art-details.test.mjs",
+  "test:banners": "node --experimental-strip-types --test scripts/banner-images.test.mjs"
  },
  "dependencies": {
   "@tauri-apps/api": "2.11.1",

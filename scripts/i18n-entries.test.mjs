@@ -166,7 +166,7 @@ try {
 
     const series = { ...stamp, id: 'qa-series', profileId: 'qa', title: 'En cours', showrunner: 'Auteur français', casting: null, summary: null, category: 'série télé', status: 'en cours', rating: null, isFavorite: false, seasonsSeen: 2, seasonsTotal: 4, startedAt: '2026-10-03', posterUrl: null, personalNote: 'Avis personnel' }
     const seriesHtml = render(SeriesDetail, { series, ...base })
-    for (const copy of ['>TV series<', '2 of 4 seasons', 'Watching started 3 October 2026', '>Progress<', 'title="Edit entry"', 'Avis personnel']) {
+    for (const copy of ['>TV series<', '2 of 4 seasons', 'Watching started', '3 October 2026', '>Progress<', 'title="Edit entry"', 'Avis personnel']) {
       assert.ok(seriesHtml.includes(copy), `Série: ${copy}`)
     }
     const anime = render(SeriesDetail, { series: { ...series, category: 'animation', seasonsSeen: 1 }, ...base })
@@ -175,7 +175,7 @@ try {
 
     const book = { ...stamp, id: 'qa-book', profileId: 'qa', title: 'En cours', author: 'En cours', year: 2024, category: 'manga', status: 'lu', rating: null, isFavorite: false, volumesRead: 2, volumesTotal: 3, startedAt: '2026-10-03', coverUrl: null, summary: null, personalNote: null, quotes: [] }
     const bookHtml = render(BookDetail, { book, ...base })
-    for (const copy of ['>Manga<', '2 of 3 volumes', 'Reading started 3 October 2026', '>Author<', '>Publication<', '>Progress<', '>Reading started<', 'No cover', 'No quotes']) {
+    for (const copy of ['>Manga<', '2 of 3 volumes', '3 October 2026', '>Author<', '>Publication<', '>Progress<', '>Reading started<', 'No cover', 'No quotes']) {
       assert.ok(bookHtml.includes(copy), `Livre: ${copy}`)
     }
 
@@ -187,7 +187,7 @@ try {
 
     const artwork = { ...stamp, id: 'qa-art', profileId: 'qa', title: 'En cours', artist: 'En cours', year: 2024, form: 'peinture', location: 'En cours', exhibition: 'En cours', status: 'découverte', isFavorite: false, discoveredAt: '2026-10-03', imageUrl: null, personalNote: null, customFields: [{ name: 'Champ français', value: 'Coups de cœur' }], details: { technique: 'En cours' } }
     const artHtml = render(ArtworkDetail, { artwork, ...base })
-    for (const copy of ['>Painting<', '>Artist<', '>Year<', '>Location<', '>Exhibition<', '>Date discovered<', 'No image', 'Champ français', 'Coups de cœur', '>Technique<', '>En cours<']) {
+    for (const copy of ['>Painting<', 'En cours · 2024', '>Location<', '>Exhibition<', '>Date discovered<', 'No image', 'Champ français', 'Coups de cœur', '>Technique<', '>En cours<']) {
       assert.ok(artHtml.includes(copy), `Art: ${copy}`)
     }
   })

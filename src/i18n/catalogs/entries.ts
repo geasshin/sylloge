@@ -382,7 +382,31 @@ const messages: Record<string, string> = {
   "25 × 37 cm": "25 × 37 cm",
   "Épreuve 12/50": "Impression 12/50",
   "736 heures": "736 hours",
-  "Installation, texte, vidéo…": "Installation, text, video…"
+  "Installation, texte, vidéo…": "Installation, text, video…",
+  // Fiche : les deux sections de la colonne de lecture et du carnet (30 octobre 2026).
+  "Mon carnet": "My notebook",
+  "Mon avis": "My review",
+  "Choisir une bannière": "Choose a banner",
+  "Une image paysage pour « {title} ».": "A landscape image for “{title}”.",
+  "Images officielles": "Official images",
+  "Aucune image officielle : cette fiche n’est associée à aucun fournisseur. Vous pouvez coller l’adresse d’une image.": "No official images: this entry is not linked to any provider. You can paste an image address.",
+  "Chargement des images officielles…": "Loading official images…",
+  "Les images officielles n’ont pas pu être chargées.": "Official images could not be loaded.",
+  "Aucune image officielle au format bannière. Vous pouvez coller l’adresse d’une image.": "No official image in banner format. You can paste an image address.",
+  "Bannière actuellement choisie": "Banner currently selected",
+  "Choisir cette bannière": "Choose this banner",
+  "Image avec du texte en {language}": "Image with text in {language}",
+  "Image sans texte": "Image without text",
+  "Une adresse https suffit : rien n’est téléchargé dans Sylloge.": "An https address is enough: nothing is downloaded into Sylloge.",
+  "Cette image est plus haute que large : recadrée en 16:9, elle perdra une grande partie de son cadre.": "This image is taller than it is wide: cropped to 16:9, it will lose much of its frame.",
+  "Images fournies par": "Images provided by",
+  "Retirer la bannière": "Remove banner",
+  "Bannière de « {title} »": "Banner for “{title}”",
+  "Modifier la bannière de « {title} »": "Edit the banner for “{title}”",
+  "Modifier la bannière": "Edit banner",
+  "Ajouter une bannière": "Add a banner",
+  "Bannière introuvable · La remplacer": "Banner not found · Replace it",
+  "Bannières 16:9 — démonstration": "Banners 16:9 — demo",
 }
 
 export default messages

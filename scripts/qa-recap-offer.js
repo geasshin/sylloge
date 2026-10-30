@@ -67,7 +67,10 @@ async page => {
   assert(await page.evaluate(key => localStorage.getItem(key), KEY) === '2026', 'La mémoire de l’appareil est posée dès l’affichage')
   const box = await offer().boundingBox()
   const view = page.viewportSize()
-  assert(box.width === 440 && Math.abs((view.width - box.width) / 2 - box.x) <= 1, `La fenêtre est compacte (${box.width} px) et centrée`)
+  // Centrée dans son fond, qui couvre la zone visible : une barre de défilement
+  // classique (15 px selon le système) réduit cette zone sans décentrer la fenêtre.
+  const area = await offer().evaluate(node => node.parentElement.clientWidth)
+  assert(box.width === 440 && Math.abs((area - box.width) / 2 - box.x) <= 1, `La fenêtre est compacte (${box.width} px) et centrée (x ${box.x}, zone ${area} px)`)
   assert(box.y + box.height < view.height, 'La fenêtre tient en hauteur, sans déborder de la vue')
 
   // ── 2. « Plus tard » ferme, et la proposition ne revient pas dans la session ───────────────────
@@ -138,7 +141,8 @@ async page => {
     const notice = document.querySelector('.update-notice').getBoundingClientRect()
     const dialog = document.querySelector('.transfer-dialog').getBoundingClientRect()
     return {
-      right: Math.round(innerWidth - notice.right),
+      // Même zone que la fenêtre : sans la barre de défilement éventuelle.
+      right: Math.round(document.querySelector('.transfer-dialog-backdrop').clientWidth - notice.right),
       bottom: Math.round(innerHeight - notice.bottom),
       overlapping: !(notice.right < dialog.left || notice.left > dialog.right || notice.bottom < dialog.top || notice.top > dialog.bottom),
       dialogs: document.querySelectorAll('[aria-modal="true"]').length,

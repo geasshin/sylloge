@@ -95,6 +95,36 @@ struct NamedEntry {
     name: Option<String>,
 }
 
+/// Visuel paysage d'un jeu : `artworks` (illustrations officielles) puis
+/// `screenshots` (captures). Un artwork est préféré à une capture pour une
+/// bannière ; les deux passent par la même entrée `games`, sans endpoint séparé.
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+pub struct IgdbImageEntry {
+    #[serde(default)]
+    pub image_id: Option<String>,
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct IgdbGameImages {
+    #[serde(default)]
+    artworks: Vec<IgdbImageEntry>,
+    #[serde(default)]
+    screenshots: Vec<IgdbImageEntry>,
+}
+
+/// Champs demandés pour les visuels d'un jeu. `artworks` et `screenshots` sont
+/// ouverts côté relais pour la requête `games` (pas d'endpoint séparé).
+const IMAGE_FIELDS: &str = "artworks.image_id,artworks.width,artworks.height,screenshots.image_id,screenshots.width,screenshots.height";
+
+/// Corps Apicalypse des visuels d'un jeu : `where id = N`, une seule fiche.
+fn images_request_body(game_id: i64) -> String {
+    format!("fields {IMAGE_FIELDS}; where id = {game_id}; limit 1;")
+}
+
 fn release_year(timestamp_seconds: Option<i64>) -> Option<i32> {
     let seconds = timestamp_seconds?;
     let days = seconds / 86_400;
@@ -207,6 +237,19 @@ impl IgdbClient {
 
     /// Détails d'un jeu précis, avec repli sur le candidat de la recherche si
     /// l'API renvoie moins d'informations.
+    /// Visuels paysage d'un jeu : illustrations officielles puis captures.
+    /// Aucune écriture, aucun autre appel.
+    pub async fn fetch_game_images(
+        &self,
+        game_id: i64,
+    ) -> Result<(Vec<IgdbImageEntry>, Vec<IgdbImageEntry>), IgdbError> {
+        let mut results: Vec<IgdbGameImages> = self.query(&images_request_body(game_id)).await?;
+        Ok(results
+            .pop()
+            .map(|images| (images.artworks, images.screenshots))
+            .unwrap_or_default())
+    }
+
     pub async fn fetch_game_presentation(
         &self,
         game_id: i64,
@@ -320,6 +363,41 @@ mod tests {
             candidate.cover_url.as_deref(),
             Some("https://images.igdb.com/igdb/image/upload/t_cover_big/co67oa.jpg")
         );
+    }
+
+    #[test]
+    fn images_request_asks_for_artworks_then_screenshots_on_the_games_endpoint() {
+        let body = images_request_body(237895);
+        assert!(body.contains("where id = 237895"), "{body}");
+        assert!(body.contains("artworks.image_id"), "{body}");
+        assert!(body.contains("artworks.width,artworks.height"), "{body}");
+        assert!(body.contains("screenshots.image_id"), "{body}");
+        assert!(
+            body.contains("screenshots.width,screenshots.height"),
+            "{body}"
+        );
+        assert!(body.contains("limit 1"), "{body}");
+    }
+
+    #[test]
+    fn image_entries_read_a_simulated_relay_response() {
+        let payload = r#"[
+            {
+                "id": 237895,
+                "artworks": [
+                    { "image_id": "ar1", "width": 1920, "height": 1080 },
+                    { "image_id": "ar2" }
+                ],
+                "screenshots": [ { "image_id": "sc1", "width": 1920, "height": 1080 } ]
+            }
+        ]"#;
+        let mut results: Vec<IgdbGameImages> =
+            serde_json::from_str(payload).expect("réponse simulée");
+        let images = results.pop().expect("une fiche");
+        assert_eq!(images.artworks.len(), 2);
+        assert_eq!(images.artworks[0].image_id.as_deref(), Some("ar1"));
+        assert_eq!(images.artworks[1].width, None);
+        assert_eq!(images.screenshots.len(), 1);
     }
 
     #[test]

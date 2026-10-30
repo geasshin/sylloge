@@ -13,7 +13,8 @@ const identity = (id) => ({ id, profileId: profile.id, title: text, createdAt: t
 const series = (id, category = 'série télé') => ({
   ...identity(id), showrunner: text, casting: text, summary: text, category,
   status: 'à voir', rating: 0.5, isFavorite: true, seasonsSeen: 0, seasonsTotal: 12,
-  progressUpdatedAt: timestamp, startedAt: '2026-10-01', posterUrl: 'https://example.test/image.jpg', personalNote: text,
+  progressUpdatedAt: timestamp, startedAt: '2026-10-01', posterUrl: 'https://example.test/image.jpg',
+  bannerUrl: 'https://example.test/banner.jpg', personalNote: text,
 })
 const book = (id, category = 'livre') => ({
   ...identity(id), author: text, year: 2024, summary: text, category, status: 'à lire',
@@ -25,11 +26,13 @@ const library = {
   profile,
   films: [{ ...identity('film'), originalTitle: text, year: 2024, status: 'en attente', isFavorite: true,
     rating: 4.5, watchedAt: '2026-10-01', personalNote: text, director: text, summary: text,
-    providerName: text, providerId: text, posterUrl: 'https://example.test/film.jpg' }],
+    providerName: text, providerId: text, posterUrl: 'https://example.test/film.jpg',
+    bannerUrl: 'https://example.test/film-banner.jpg' }],
   series: [series('series')], anime: [series('anime', 'animation')],
   books: [book('book')], mangas: [book('manga', 'manga')],
   games: [{ ...identity('game'), developer: text, platform: text, year: 2024, status: 'à jouer',
-    rating: 0.5, isFavorite: true, playedAt: '2026-10-01', coverUrl: 'https://example.test/game.jpg', personalNote: text }],
+    rating: 0.5, isFavorite: true, playedAt: '2026-10-01', coverUrl: 'https://example.test/game.jpg',
+    bannerUrl: 'https://example.test/game-banner.jpg', personalNote: text }],
   artworks: [{ ...identity('artwork'), artist: text, year: 2024, form: 'peinture', location: text,
     exhibition: text, status: 'à découvrir', isFavorite: true, discoveredAt: '2026-10-01',
     imageUrl: 'https://example.test/art.jpg', personalNote: text, customFields: [{ name: 'Technique', value: text }], details: { text: 'Vers un\n\n    Vers deux', collection: 'Recueil 日本語' } }],
@@ -60,6 +63,8 @@ function represented(item, kind) {
     delete result.customFields
     delete result.details
   }
+  // Le CSV ne porte pas la bannière 16:9 (v7) : elle ne voyage que par le JSON.
+  if ('bannerUrl' in result) delete result.bannerUrl
   return result
 }
 
@@ -162,12 +167,66 @@ const customLibraries = [
 
 test('JSON v5 : les sept bibliothèques, les bibliothèques personnalisées et chaque champ personnel restent identiques', () => {
   const document = createLibraryDocument({ ...library, customLibraries }, timestamp)
-  assert.equal(document.version, 6)
+  assert.equal(document.version, 7)
   const result = validateLibraryDocument(serializeLibraryDocument(document))
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.document, document)
   assert.deepEqual(result.document.customLibraries, customLibraries)
   assert.deepEqual(result.counts, { films: 1, series: 1, anime: 1, books: 1, mangas: 1, games: 1, artworks: 1, custom: 2 })
+})
+
+test('JSON v7 : la bannière 16:9 des films, séries, animés et jeux survit à l’aller-retour, et les livres n’en portent pas', () => {
+  const document = createLibraryDocument(library, timestamp)
+  assert.equal(document.version, 7)
+  const result = validateLibraryDocument(serializeLibraryDocument(document))
+  assert.deepEqual(result.errors, [])
+  assert.equal(result.document?.films[0].bannerUrl, 'https://example.test/film-banner.jpg')
+  assert.equal(result.document?.series[0].bannerUrl, 'https://example.test/banner.jpg')
+  assert.equal(result.document?.anime[0].bannerUrl, 'https://example.test/banner.jpg')
+  assert.equal(result.document?.games[0].bannerUrl, 'https://example.test/game-banner.jpg')
+  assert.equal('bannerUrl' in (result.document?.books[0] ?? {}), false, 'un livre ne porte pas de bannière')
+  assert.equal('bannerUrl' in (result.document?.artworks[0] ?? {}), false, 'une œuvre ne porte pas de bannière')
+})
+
+test('JSON v6 : un document sans bannière reste lisible, chaque fiche reçoit null', () => {
+  const current = createLibraryDocument(library, timestamp)
+  const legacy = { ...current, version: 6 }
+  for (const section of ['films', 'series', 'anime', 'games']) {
+    legacy[section] = legacy[section].map(({ bannerUrl: _banner, ...entry }) => entry)
+  }
+  const result = validateLibraryDocument(JSON.stringify(legacy))
+  assert.deepEqual(result.errors, [])
+  assert.equal(result.document?.films[0].bannerUrl, null)
+  assert.equal(result.document?.series[0].bannerUrl, null)
+  assert.equal(result.document?.anime[0].bannerUrl, null)
+  assert.equal(result.document?.games[0].bannerUrl, null)
+  // Réexporté en v7, le document porte la clé avec null : il reste valide.
+  const reexported = validateLibraryDocument(serializeLibraryDocument(result.document))
+  assert.deepEqual(reexported.errors, [])
+  assert.equal(reexported.document?.films[0].bannerUrl, null)
+})
+
+test('JSON v7 : une bannière non https, trop longue ou une clé manquante sont refusées', () => {
+  const base = createLibraryDocument(library, timestamp)
+  const cases = [
+    ['adresse http', { ...base, films: [{ ...base.films[0], bannerUrl: 'http://example.test/fond.jpg' }] }, '$.films[0].bannerUrl'],
+    ['fichier local', { ...base, series: [{ ...base.series[0], bannerUrl: 'file:///Users/moi/fond.jpg' }] }, '$.series[0].bannerUrl'],
+    ['adresse démesurée', { ...base, games: [{ ...base.games[0], bannerUrl: `https://example.test/${'a'.repeat(2100)}.jpg` }] }, '$.games[0].bannerUrl'],
+    ['bannière absente', { ...base, anime: [{ ...base.anime[0], bannerUrl: undefined }] }, '$.anime[0].bannerUrl'],
+  ]
+  for (const [label, document, path] of cases) {
+    const result = validateLibraryDocument(JSON.stringify(document))
+    assert.equal(result.document, null, label)
+    assert.ok(result.errors.some((error) => error.path === path), `${label} : ${JSON.stringify(result.errors)}`)
+  }
+})
+
+test('JSON v6 : une clé de bannière dans un document v6 est refusée, comme les détails d’une œuvre en v5', () => {
+  const base = createLibraryDocument(library, timestamp)
+  const legacy = { ...base, version: 6 }
+  const result = validateLibraryDocument(JSON.stringify(legacy))
+  assert.equal(result.document, null)
+  assert.ok(result.errors.some((error) => error.path === '$.films[0].bannerUrl'), JSON.stringify(result.errors))
 })
 
 test('JSON v3 : des comics rangés dans Livres rejoignent la bibliothèque Comics, citations comprises', () => {
@@ -178,6 +237,10 @@ test('JSON v3 : des comics rangés dans Livres rejoignent la bibliothèque Comic
   delete legacy.experience
   // Ni les champs de forme des œuvres, apparus en v6.
   legacy.artworks = legacy.artworks.map(({ details: _details, ...artwork }) => artwork)
+  // Ni la bannière 16:9, apparue en v7 : le validateur v3 refuse une clé inconnue.
+  for (const section of ['films', 'series', 'anime', 'games']) {
+    legacy[section] = legacy[section].map(({ bannerUrl: _banner, ...entry }) => entry)
+  }
   const result = validateLibraryDocument(JSON.stringify(legacy))
   assert.deepEqual(result.errors, [])
   assert.deepEqual(result.document.books.map((entry) => entry.id), ['book'])

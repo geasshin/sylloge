@@ -1,5 +1,6 @@
 import { FILM_STATUSES, normalizeFilm, type Film, type FilmStatus } from '../domain/film.ts'
 import { isHttpUrl } from '../domain/customLibraries.ts'
+import { isBannerUrl, normalizeBannerUrl } from '../domain/bannerImages.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import type { LibrarySort } from '../domain/libraryViews.ts'
@@ -46,6 +47,7 @@ type FilmRow = {
   provider_name: string | null
   provider_id: string | null
   poster_url: string | null
+  banner_url: string | null
   created_at: string
   updated_at: string
 }
@@ -120,6 +122,7 @@ export function toFilm(row: FilmRow): Film {
     providerName: row.provider_name,
     providerId: row.provider_id,
     posterUrl: row.poster_url,
+    bannerUrl: row.banner_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })
@@ -196,6 +199,7 @@ export class SqliteFilmsRepository {
          provider_name,
          provider_id,
          poster_url,
+         banner_url,
          created_at,
          updated_at
        FROM films
@@ -312,6 +316,7 @@ export class SqliteFilmsRepository {
          provider_name,
          provider_id,
          poster_url,
+         banner_url,
          created_at,
          updated_at
        FROM films
@@ -342,6 +347,7 @@ export class SqliteFilmsRepository {
          provider_name,
          provider_id,
          poster_url,
+         banner_url,
          created_at,
          updated_at
        FROM films
@@ -361,12 +367,15 @@ export class SqliteFilmsRepository {
     const database = await this.loadDatabase()
     const id = this.createId()
     const now = this.now()
+    // Une fiche créée par un formulaire ou un import de collection n'a pas de
+    // bannière : elle se choisit depuis la fiche (colonne laissée à NULL).
     const film = normalizeFilm({
       id,
       profileId,
       ...input,
       providerName: provenance?.providerName ?? null,
       providerId: provenance?.providerId ?? null,
+      bannerUrl: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -421,12 +430,15 @@ export class SqliteFilmsRepository {
   async updateFilm(profileId: string, id: string, input: FilmWriteInput): Promise<string> {
     const database = await this.loadDatabase()
     const updatedAt = this.now()
+    // `banner_url` reste hors de cet UPDATE : modifier une fiche au formulaire
+    // ne doit jamais effacer une bannière choisie depuis la fiche.
     const film = normalizeFilm({
       id,
       profileId,
       ...input,
       providerName: null,
       providerId: null,
+      bannerUrl: null,
       createdAt: updatedAt,
       updatedAt,
     })
@@ -486,6 +498,33 @@ export class SqliteFilmsRepository {
     const result = await database.execute(
       `UPDATE films
        SET poster_url = $1, updated_at = $2
+       WHERE id = $3 AND profile_id = $4`,
+      [stored, updatedAt, id, profileId],
+    )
+
+    if (result.rowsAffected !== 1) {
+      throw new Error('Le film à modifier est introuvable dans le profil courant.')
+    }
+
+    return updatedAt
+  }
+
+  /**
+   * Enregistre seulement la bannière 16:9 (v7). Elle ne passe pas par l'UPDATE
+   * du formulaire, qui ne la connaît pas : une adresse collée ou choisie dans
+   * la galerie est écrite ici, sans toucher aux autres champs.
+   * `null` retire la bannière ; aucune bannière par défaut n'est réintroduite.
+   */
+  async updateFilmBanner(profileId: string, id: string, bannerUrl: string | null): Promise<string> {
+    const stored = normalizeBannerUrl(bannerUrl)
+    if (stored !== null && !isBannerUrl(stored)) {
+      throw new Error('Une bannière doit être l’adresse https d’une image.')
+    }
+    const database = await this.loadDatabase()
+    const updatedAt = this.now()
+    const result = await database.execute(
+      `UPDATE films
+       SET banner_url = $1, updated_at = $2
        WHERE id = $3 AND profile_id = $4`,
       [stored, updatedAt, id, profileId],
     )
