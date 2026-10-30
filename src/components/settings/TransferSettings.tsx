@@ -3,6 +3,8 @@ import { formatNumber, t } from '../../i18n/core.ts'
 import { useLanguage } from '../../i18n/react.ts'
 import type { FilmLibrary } from '../../data/filmsRepository.ts'
 import { libraryRepository, type CulturalLibrary } from '../../data/libraryRepository.ts'
+import { collectShareItems } from '../../domain/shareCard.ts'
+import { recapHistoryYears, recapNow } from '../../domain/yearRecap.ts'
 import { LibraryExportFlow } from '../LibraryExportFlow.tsx'
 import { LibraryImportButton } from '../LibraryImportButton.tsx'
 import { ShareCardLauncher } from '../ShareCardDialog.tsx'
@@ -20,10 +22,19 @@ export function TransferSettings({ library, onLibraryChanged }: Props) {
   const [failed, setFailed] = useState(false)
   const [revision, setRevision] = useState(0)
   // Une seule année calculée ici : le libellé de la ligne et le bouton ne peuvent pas se contredire.
-  const recapYear = launcherYear(typeof location === 'undefined' ? '' : location.search)
+  const search = typeof location === 'undefined' ? '' : location.search
+  const recapYear = launcherYear(search)
+  // Les années déjà ouvertes, calculées depuis les mêmes œuvres que la fenêtre ; la rangée principale
+  // n'est pas répétée dans la liste. Tant que la bibliothèque n'est pas lue, il n'y a rien à montrer.
+  const recapHistory = full === null
+    ? []
+    : recapHistoryYears(collectShareItems(full), recapNow(search)).filter(entry => entry.year < recapYear)
   const fiches = (count: number) => count === 1
     ? t('{count} fiche', { count: formatNumber(count) })
     : t('{count} fiches', { count: formatNumber(count) })
+  const works = (count: number) => count === 1
+    ? t('{count} œuvre', { count: formatNumber(count) })
+    : t('{count} œuvres', { count: formatNumber(count) })
 
   useEffect(() => {
     let cancelled = false
@@ -101,6 +112,16 @@ export function TransferSettings({ library, onLibraryChanged }: Props) {
         >
           <YearRecapLauncher profileId={library.profile.id} year={recapYear} />
         </SettingsRow>
+        {recapHistory.length > 0 && (
+          <>
+            <h3 className="settings-subheading">{t('Années précédentes')}</h3>
+            {recapHistory.map(entry => (
+              <SettingsRow key={entry.year} label={String(entry.year)} detail={works(entry.count)}>
+                <YearRecapLauncher profileId={library.profile.id} year={entry.year} label={t('Voir')} />
+              </SettingsRow>
+            ))}
+          </>
+        )}
       </SettingsGroup>
     </>
   )

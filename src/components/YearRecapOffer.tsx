@@ -5,7 +5,7 @@ import { useLanguage } from '../i18n/react.ts'
 import { libraryRepository } from '../data/libraryRepository.ts'
 import { readRecapOfferedYear, rememberRecapOfferedYear } from '../data/recapOfferStorage.ts'
 import { collectShareItems } from '../domain/shareCard.ts'
-import { recapItems, recapOfferFor } from '../domain/yearRecap.ts'
+import { recapItems, recapNow, recapOfferFor } from '../domain/yearRecap.ts'
 import { AccessibleDialog } from './AccessibleDialog.tsx'
 import { YearRecapDialog } from './YearRecapDialog.tsx'
 
@@ -24,18 +24,6 @@ import { YearRecapDialog } from './YearRecapDialog.tsx'
 /** Délai après la première peinture, comme l'annonce de mise à jour : la personne voit son accueil d'abord. */
 const OFFER_DELAY_MS = 1500
 
-/**
- * La date « maintenant » de la proposition. Le harnais de recette la force par `?recapOffer=AAAA-MM-JJ` :
- * une recette ne change pas l'horloge de la machine.
- */
-export function recapOfferNow(search: string, fallback: Date = new Date()): Date {
-  const forced = new URLSearchParams(search).get('recapOffer')
-  const match = forced === null ? null : /^(\d{4})-(\d{2})-(\d{2})$/.exec(forced.trim())
-  if (!match) return fallback
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
-  return Number.isNaN(date.getTime()) ? fallback : date
-}
-
 /** Une fenêtre est déjà ouverte : la proposition attend son tour, elle ne se pose jamais par-dessus.
  *  Détection simple (les fenêtres portent `aria-modal`) ; sinon elle revient à la prochaine ouverture,
  *  la mémoire n'étant posée qu'à l'affichage. */
@@ -52,7 +40,7 @@ export function YearRecapOffer({ profileId, now }: { profileId: string; now?: Da
     if (typeof window === 'undefined') return
     let cancelled = false
     const timer = window.setTimeout(() => {
-      const moment = now ?? recapOfferNow(window.location.search)
+      const moment = now ?? recapNow(window.location.search)
       const lastOfferedYear = readRecapOfferedYear(profileId)
       libraryRepository.loadLibrary(profileId).then(
         loaded => {

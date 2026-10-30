@@ -89,6 +89,40 @@ export function seedRecapFilms(count: number): Row[] {
   })
 }
 
+/**
+ * Des films terminés sur une dizaine d'années, pour retrouver les récapitulatifs précédents dans les
+ * réglages : huit années pleines (dont 2018, une seule œuvre, pour le singulier), l'année 2026 et une
+ * année future que rien ne doit jamais afficher. Aucune année n'atteint le seuil de la proposition
+ * automatique. Dates fixes, donc stables quelle que soit la date de la machine.
+ */
+export function seedRecapHistoryFilms(): Row[] {
+  const YEARS: Array<[year: number, count: number]> = [
+    [2018, 1], [2019, 2], [2020, 3], [2021, 4], [2022, 5], [2023, 6], [2024, 7], [2025, 8], [2026, 9], [2099, 2],
+  ]
+  return YEARS.flatMap(([year, count]) => Array.from({ length: count }, (_, index) => {
+    const watched = `${year}-${String(index + 1).padStart(2, '0')}-${String((index % 27) + 1).padStart(2, '0')}`
+    return {
+      id: `film-history-${year}-${index + 1}`,
+      profile_id: QA_PROFILE_ID,
+      title: `Film de ${year} · ${index + 1}`,
+      original_title: null,
+      year: Math.min(year - 10, 2026),
+      status: 'terminé',
+      is_favorite: 0,
+      rating: null,
+      watched_at: watched,
+      personal_note: null,
+      director: 'Réalisation de recette',
+      summary: null,
+      provider_name: null,
+      provider_id: null,
+      poster_url: null,
+      created_at: `${watched}T09:00:00.000Z`,
+      updated_at: `${watched}T20:00:00.000Z`,
+    }
+  }))
+}
+
 /** Films rattachés à une fiche TMDB factice (cache local simulé). */
 const TMDB_FILMS = new Set(['Anatomie d’une chute', 'Perfect Days', 'Aftersun', 'In the Mood for Love', 'Mulholland Drive', 'Drive My Car'])
 

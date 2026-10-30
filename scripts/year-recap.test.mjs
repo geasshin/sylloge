@@ -4,8 +4,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  RECAP_MIN_ITEMS, RECAP_STEPS, buildRecap, nextRecapYear, recapFileName, recapIsOpen, recapItems, recapOfferFor, recapYearFor,
-  weekdayOfDate, yearOfDate,
+  RECAP_MIN_ITEMS, RECAP_STEPS, buildRecap, nextRecapYear, recapFileName, recapHistoryYears, recapIsOpen, recapItems, recapNow,
+  recapOfferFor, recapYearFor, weekdayOfDate, yearOfDate,
 } from '../src/domain/yearRecap.ts'
 
 let n = 0
@@ -300,4 +300,68 @@ test('Le seuil compte exactement ce que compte le récapitulatif, et rien d’au
 test('Sans rien de daté dans l’année, aucune proposition', () => {
   assert.equal(recapOfferFor({ items: [], now: new Date('2026-12-12T12:00:00'), lastOfferedYear: null }), null)
   assert.equal(recapOfferFor({ items: [entry('films', { done: false, doneOn: null })], now: new Date('2026-12-12T12:00:00'), lastOfferedYear: null }), null)
+})
+
+
+// ─── Historique des années récapitulées ───────────────────────────────────────
+
+test('L’historique liste les années ouvertes qui ont au moins une œuvre datée, de la plus récente à la plus ancienne', () => {
+  const items = [
+    entry('films', { doneOn: '2025-03-01' }),
+    entry('books', { doneOn: '2026-02-01T10:00:00Z' }),
+    entry('games', { doneOn: '2024-07-01' }),
+    entry('films', { doneOn: '2025-08-01' }),
+    entry('mangas', { doneOn: '2023-01-01' }),
+  ]
+  assert.deepEqual(recapHistoryYears(items, new Date('2026-10-30T10:00:00')), [
+    { year: 2025, count: 2 },
+    { year: 2024, count: 1 },
+    { year: 2023, count: 1 },
+  ], '2026 n’est pas encore ouvert le 30 octobre, 2022 est vide')
+})
+
+test('L’historique ne montre jamais l’année en cours avant le 10 décembre, ni une année future', () => {
+  const items = [
+    entry('films', { doneOn: '2026-02-01' }),
+    entry('films', { doneOn: '2099-05-05' }),
+    entry('books', { doneOn: '2025-05-05' }),
+  ]
+  assert.deepEqual(recapHistoryYears(items, new Date('2026-12-09T23:59:00')), [{ year: 2025, count: 1 }])
+  assert.deepEqual(recapHistoryYears(items, new Date('2026-12-10T00:00:00')), [
+    { year: 2026, count: 1 },
+    { year: 2025, count: 1 },
+  ], 'le 10 décembre ouvre 2026 ; 2099 reste hors de la liste')
+})
+
+test('L’historique ignore les œuvres sans date, non terminées et hors des sept bibliothèques de base', () => {
+  const items = [
+    entry('films', { doneOn: null, doneAt: null }),
+    entry('films', { done: false, doneOn: '2024-04-04' }),
+    entry('music', { doneOn: '2024-04-05' }),
+    entry('books', { doneOn: 'n’importe quoi' }),
+    entry('series', { doneOn: '2024-06-06' }),
+  ]
+  assert.deepEqual(recapHistoryYears(items, new Date('2026-10-30T10:00:00')), [{ year: 2024, count: 1 }])
+  assert.deepEqual(recapHistoryYears([], new Date('2026-10-30T10:00:00')), [], 'un profil vide n’a pas d’historique')
+})
+
+test('Le décompte de l’historique est exactement celui du récapitulatif de l’année', () => {
+  const items = [
+    entry('films', { doneOn: '2022-01-01' }),
+    entry('films', { doneOn: '2022-12-31T23:30:00Z' }),
+    entry('books', { doneOn: '2021-06-01' }),
+    entry('films', { doneOn: '2023-01-01' }),
+  ]
+  const now = new Date('2026-10-30T10:00:00')
+  for (const { year, count } of recapHistoryYears(items, now)) {
+    assert.equal(count, recapItems(items, year).length, `l’année ${year} compte comme le récapitulatif`)
+  }
+})
+
+test('La date simulée du harnais se lit par `?recapOffer=AAAA-MM-JJ`, sinon la date réelle', () => {
+  const forced = recapNow('?scenario=full&recapOffer=2026-12-12')
+  assert.deepEqual([forced.getFullYear(), forced.getMonth(), forced.getDate()], [2026, 11, 12])
+  const fallback = new Date('2026-10-30T10:00:00')
+  assert.equal(recapNow('?scenario=full', fallback).getTime(), fallback.getTime())
+  assert.equal(recapNow('?recapOffer=2026-13-40', fallback).getTime(), fallback.getTime(), 'une date invalide ne force rien')
 })

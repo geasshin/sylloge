@@ -13,6 +13,16 @@
 - **Recettes de cuisine : rien à faire.** Il n’y a pas d’import dans l’application et il n’en faut pas : les recettes s’ajoutent par le « + » comme toute fiche. Le script Notion a servi une fois et ne fait pas partie du produit.
 - **Non exercé** : l’application native (WKWebView) pour ces trois lots ; le harnais simule le pont natif.
 
+### Demandes du 30 octobre, en cours
+
+- **Séries et animés rattachés à TMDB** (fait le 30 octobre sur les données réelles, sauvegarde `sauvegarde-avant-tmdb-series-2026-10-30`) : 174 fiches liées, 38 choisies à la main (Shōgun 2024, Dark Matter 2024, Drifters et Seven Deadly Sins animés, *Liebes Kind*…) ; créateurs, distribution, total de saisons et résumés vides remplis ; affiches, titres, statuts et saisons vues conservés.
+- **Galerie d’affiches pour les séries et animés** : TMDB en publie plusieurs par série (`/tv/{id}/images`), mais seule la fiche Film propose de choisir dans la galerie. À faire sur le modèle des films (`set_film_tmdb_poster` et `filmPoster.ts`), sans priorité.
+- **Recomposer les pages de fiche** (toutes bibliothèques) : trop de vide sous le visuel et sous le texte ; affiche des films à agrandir ; Art à repenser entièrement ; Recettes à composer pour ingrédients, étapes et notes. Trois compositions prototypées dans le harnais (`?fiche=A|B|C`) pour le choix d’Aurélien.
+- **Récapitulatif : les années précédentes** dans Paramètres › Récapitulatif de l’année.
+- **Imports et exports vers les services connus** : reconnaître automatiquement le fichier exporté par chaque service, importer au plus juste, exporter au format exact que chaque service accepte (« Exporter vers… ») ; services bloqués mis de côté avec une préconisation.
+- **Nom de l’application** : « Sylloge » est déjà pris par plusieurs applications et sites ; pistes de noms à évaluer (sens, logo, disponibilité).
+- **Mis de côté** : l’outil en ligne de commande (décision du 30 octobre).
+
 ## Actualisation du 27 octobre 2026
 
 **Mini-refonte de la bibliothèque Art et des listes déroulantes** (demande d’Aurélien du 27 octobre) : des cases qui suivent l’œuvre, des champs qui suivent la catégorie, des listes au style de l’application.

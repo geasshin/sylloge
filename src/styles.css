@@ -2364,6 +2364,8 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .settings-group-body { overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
 .settings-row { min-height: 56px; padding: var(--space-3) var(--space-4); display: flex; align-items: center; gap: var(--space-4); }
 .settings-row + .settings-row { border-top: 1px solid var(--color-hairline); }
+/* Sous-titre d'une liste dans un groupe (années précédentes du récapitulatif) : discret, au-dessus des rangées. */
+.settings-subheading { margin: 0; padding: var(--space-4) var(--space-4) var(--space-1); border-top: 1px solid var(--color-hairline); color: var(--color-text-muted); font: 600 var(--text-xs) var(--font-label); letter-spacing: .04em; text-transform: uppercase; }
 .settings-row-copy { flex: 1 1 auto; min-width: 0; display: grid; gap: var(--space-1); }
 .settings-row-copy b { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-md); font-weight: 600; }
 .settings-row-copy small { color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }

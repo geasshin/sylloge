@@ -186,6 +186,29 @@ export function recapItems(items: readonly ShareItem[], year: number): ShareItem
     .sort((a, b) => (dateOf(a) ?? '').localeCompare(dateOf(b) ?? '') || a.title.localeCompare(b.title))
 }
 
+/** Une année consultable et le nombre d'œuvres datées qu'elle contient. */
+export type RecapYearCount = { year: number; count: number }
+
+/**
+ * Les années qu'on peut rouvrir dans les réglages : toutes les années ouvertes (jusqu'à celle que
+ * `recapYearFor` autorise) qui comptent au moins une œuvre datée, de la plus récente à la plus
+ * ancienne. Même notion que `recapItems` : une œuvre non terminée, sans date ou d'une bibliothèque
+ * ajoutée ne crée pas une année. Aucune année future, donc aucune année en cours avant le 10 décembre.
+ */
+export function recapHistoryYears(items: readonly ShareItem[], now: Date): RecapYearCount[] {
+  const latest = recapYearFor(now)
+  const counts = new Map<number, number>()
+  for (const item of items) {
+    if (!item.done || !RECAP_LIBRARIES.includes(item.library)) continue
+    const year = yearOfDate(dateOf(item))
+    if (year === null || year > latest) continue
+    counts.set(year, (counts.get(year) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => b.year - a.year)
+}
+
 /** Le rang d'une œuvre dans un palmarès : coup de cœur d'abord, puis la note, puis la date la plus récente. */
 function palmaresRank(a: ShareItem, b: ShareItem): number {
   if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1
@@ -384,6 +407,21 @@ export function recapYearFor(now: Date): number {
 /** L'année est-elle ouverte à la consultation pour cette date ? */
 export function recapIsOpen(year: number, now: Date): boolean {
   return year <= recapYearFor(now)
+}
+
+/**
+ * La date « maintenant » du récapitulatif. Le harnais de recette la force par `?recapOffer=AAAA-MM-JJ` :
+ * une recette ne change pas l'horloge de la machine. Une valeur illisible laisse la date réelle.
+ */
+export function recapNow(search: string, fallback: Date = new Date()): Date {
+  const forced = new URLSearchParams(search).get('recapOffer')
+  const match = forced === null ? null : /^(\d{4})-(\d{2})-(\d{2})$/.exec(forced.trim())
+  if (!match) return fallback
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])]
+  if (month < 1 || month > 12 || day < 1 || day > 31) return fallback
+  const date = new Date(year, month - 1, day, 12)
+  if (Number.isNaN(date.getTime()) || date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return fallback
+  return date
 }
 
 export type RecapOfferInput = {

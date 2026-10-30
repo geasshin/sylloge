@@ -22,6 +22,9 @@
  *   recap          une seule bibliothèque Films, avec un nombre d'œuvres datées de
  *                  2026 choisi par ?recapWorks= (20 par défaut) : de quoi éprouver
  *                  le seuil de la proposition du récapitulatif de l'année
+ *   recapHistory   une seule bibliothèque Films, datée sur plusieurs années (2018 à
+ *                  2026, plus une année future) : de quoi retrouver les récapitulatifs
+ *                  précédents dans les réglages
  *
  * Proposition du récapitulatif : ?recapOffer=AAAA-MM-JJ force la date « maintenant » de la petite
  * fenêtre de décembre (voir src/components/YearRecapOffer.tsx) ; sans ce paramètre, l'appareil de
@@ -49,10 +52,11 @@ import {
   seedFilms,
   seedGames,
   seedRecapFilms,
+  seedRecapHistoryFilms,
   seedSeries,
 } from './appSeed.ts'
 
-type Scenario = 'full' | 'empty' | 'onboarding' | 'recettes' | 'recap'
+type Scenario = 'full' | 'empty' | 'onboarding' | 'recettes' | 'recap' | 'recapHistory'
 
 /** Tables des bibliothèques personnalisées (migration 0021). */
 const CUSTOM_TABLES = ['comics', 'magazines', 'audiobooks', 'music', 'podcasts', 'documentaries', 'shows', 'board_games', 'recipes'] as const
@@ -61,7 +65,7 @@ type Row = Record<string, unknown>
 
 const scenario: Scenario = (() => {
   const value = new URLSearchParams(window.location.search).get('scenario')
-  return value === 'empty' || value === 'onboarding' || value === 'recettes' || value === 'recap' ? value : 'full'
+  return value === 'empty' || value === 'onboarding' || value === 'recettes' || value === 'recap' || value === 'recapHistory' ? value : 'full'
 })()
 
 const migrations = import.meta.glob('../../src-tauri/migrations/*.sql', {
@@ -157,6 +161,10 @@ if (scenario === 'recap') {
   const requested = Number(new URLSearchParams(window.location.search).get('recapWorks') ?? 20)
   const count = Number.isInteger(requested) && requested >= 0 && requested <= 60 ? requested : 20
   seedRecapFilms(count).forEach((row) => insert('films', row))
+}
+
+if (scenario === 'recapHistory') {
+  seedRecapHistoryFilms().forEach((row) => insert('films', row))
 }
 
 if (scenario === 'recettes') {

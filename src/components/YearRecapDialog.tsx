@@ -355,13 +355,15 @@ export function launcherYear(search: string, now: Date = new Date()): number {
   return forced && /^\d{4}$/.test(forced) ? Number(forced) : recapYearFor(now)
 }
 
-/** Bouton qui ouvre le récapitulatif ; l'année vient de l'appelant, pour que le libellé et le bouton disent la même. */
-export function YearRecapLauncher({ profileId, year }: { profileId: string; year: number }) {
+/** Bouton qui ouvre le récapitulatif ; l'année vient de l'appelant, pour que le libellé et le bouton disent la même.
+ *  `label` permet un libellé court (« Voir ») dans une liste d'années ; le nom accessible garde l'année. */
+export function YearRecapLauncher({ profileId, year, label }: { profileId: string; year: number; label?: string }) {
   useLanguage()
   const [open, setOpen] = useState(false)
+  const fullLabel = t('Voir mon année {year}', { year: String(year) })
   return (
     <>
-      <button className="secondary-button" type="button" onClick={() => setOpen(true)}>{t('Voir mon année {year}', { year: String(year) })}</button>
+      <button className="secondary-button" type="button" aria-label={fullLabel} onClick={() => setOpen(true)}>{label ?? fullLabel}</button>
       {open && createPortal(<YearRecapDialog profileId={profileId} year={year} onClose={() => setOpen(false)} />, document.body)}
     </>
   )
