@@ -16,6 +16,13 @@ droite (voir « Annonces en coin » dans [DESIGN.md](../DESIGN.md)). Elle propos
 Aucune installation n’a lieu sans action explicite. Un échec réseau ou un dépôt indisponible reste silencieux :
 c’est l’état normal d’un usage hors ligne.
 
+**Installer ce qui a été annoncé** (31 octobre 2026). `src-tauri/src/updater.rs` garde la mise à jour
+vérifiée telle que le manifeste l’a décrite (paquet et signature) et l’installe sans relire le manifeste ;
+elle n’est oubliée qu’après une installation réussie. Avant, l’installation consommait la mise à jour
+retenue puis relisait `latest.json` : un essai interrompu, ou une seconde lecture vide, faisait afficher
+« Cette mise à jour n’est plus disponible » sur une version bel et bien publiée (vu avec la 0.6.23). La
+signature reste vérifiée par le greffon avant toute écriture.
+
 ## Le manifeste, et pourquoi il casse une plateforme à la fois
 
 Le point d’entrée (`src-tauri/tauri.conf.json`) est
