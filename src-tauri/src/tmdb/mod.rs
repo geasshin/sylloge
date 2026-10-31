@@ -13,8 +13,8 @@ use crate::database::DATABASE_URL;
 
 pub use cache::CachedFilmTmdbPresentationDto;
 pub use client::{
-    ReqwestTmdbClient, TmdbBackdropEntry, TmdbFilmPresentationDto, TmdbSearchCandidateDto,
-    TmdbSeriesPresentationDto,
+    ReqwestTmdbClient, TmdbBackdropEntry, TmdbFilmPresentationDto, TmdbPosterEntry,
+    TmdbSearchCandidateDto, TmdbSeriesPresentationDto,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

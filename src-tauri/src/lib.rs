@@ -11,6 +11,7 @@ mod migration_backup;
 mod navigation;
 mod openlibrary;
 mod portability;
+mod posters;
 mod profiles;
 mod series;
 mod share_images;
@@ -100,6 +101,7 @@ pub fn run() {
             updater::check_for_app_update,
             updater::install_app_update,
             banners::fetch_banner_candidates,
+            posters::fetch_poster_candidates,
             tmdb::get_film_tmdb_cache,
             tmdb::purge_expired_tmdb_cache,
             tmdb::search_tmdb_films,

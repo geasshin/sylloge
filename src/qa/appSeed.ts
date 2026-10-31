@@ -280,6 +280,30 @@ export function seedSeries(): { series: Row[]; anime: Row[] } {
   return { series, anime }
 }
 
+/**
+ * Liens TMDB des fixtures Séries et Animation japonaise, pour la galerie
+ * d'affiches (`fetch_poster_candidates`).
+ *
+ * Le scénario `full` reste sans lien : la recette d'export Simkl prouve que
+ * l'absence de lien laisse la colonne TMDB vide. Le scénario `posters` les
+ * ajoute — une série et un animé suffisent à ouvrir les deux galeries.
+ */
+export function seedSeriesProviderLinks(): Row[] {
+  const links: Array<[medium: 'series' | 'anime', mediaId: string, providerId: string]> = [
+    ['series', 'series-severance', '95396'],
+    ['anime', 'series-arcane', '94605'],
+  ]
+  return links.map(([medium, mediaId, providerId]) => ({
+    profile_id: QA_PROFILE_ID,
+    medium,
+    media_id: mediaId,
+    provider_name: 'TMDB',
+    provider_id: providerId,
+    created_at: at(60),
+    updated_at: at(59),
+  }))
+}
+
 // ─── Livres ─────────────────────────────────────────────────────────────────
 
 type BookSeed = [title: string, author: string, year: number, category: 'livre' | 'manga', status: string, rating: number | null, favorite: 0 | 1, read: number | null, total: number | null, addedDaysAgo: number, cover: boolean, quotes?: string[]]

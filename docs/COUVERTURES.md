@@ -73,6 +73,33 @@ La fiche pose le visuel dans sa colonne gauche de 380 px : affiche 2:3 (Films, S
 
 La bannière 16:9 est un second visuel, distinct : elle vit au-dessus des deux colonnes, pleine largeur (`DetailLayout`, emplacement `banner`). Sans bannière, rien n'est rendu en haut et le bouton d'ajout prend place dans la barre d'actions ; avec une bannière, le crayon est dans le bandeau et la colonne gauche cesse d'être collante pour ne jamais passer sous l'image en défilant.
 
+## Séries et Animation japonaise : la galerie TMDB (31 octobre 2026)
+
+Une série ou un animé relié à TMDB (`media_provider_links`, fournisseur `TMDB`) ouvre la même
+galerie d'affiches que les films au crayon de l'affiche. Sans lien, le crayon garde le dialogue
+d'adresse — rien ne change pour une fiche saisie à la main ou associée à un autre fournisseur.
+
+- **Source.** La commande native `fetch_poster_candidates(medium, provider_id)` lit le tableau
+  `posters` de `/tv/{id}/images` (le même appel que les décors de la bannière), pour `series` ou
+  `anime` seulement ; tout autre médium est refusé, comme un identifiant absent ou invalide.
+- **Tri et filtre**, purs et testés dans `src-tauri/src/posters.rs` : seuls les chemins sûrs
+  (`valid_tmdb_path`), dédoublonnés ; la langue `fr` d'abord, puis les affiches sans texte
+  (`iso_639_1` nul ou `xx`), puis `en`, puis le reste ; dans chaque groupe, `vote_average` puis
+  `vote_count` décroissants, 40 candidats au plus. `xx` est rendu comme « sans texte ».
+- **Tailles.** La vignette de la fenêtre est `w342`, l'adresse enregistrée `w500` — la taille déjà
+  utilisée pour les affiches. Comme partout dans une fiche, l'affichage demande `w780` à TMDB
+  (`detailImageUrl`) : la base garde le `w500`, l'écran gagne en netteté.
+- **La fenêtre.** Le chargement ne part qu'à l'ouverture, une fois par identifiant ; rouvrir la
+  galerie ne redemande rien. Les états sont explicites : « Chargement des affiches… », un échec
+  avec « Réessayer » (qui relance la demande), une liste vide (« Aucune affiche officielle pour
+  cette série ») qui laisse la tuile « + ». L'affiche actuelle est sélectionnée si elle fait partie
+  des candidats, sinon elle ouvre la grille comme tuile « affiche actuelle ». Pas de bouton
+  « Affiche par défaut » : une série n'a pas d'affiche principale locale à retrouver.
+- **Écriture.** Choisir une affiche écrit son adresse `w500` dans `poster_url` par le chemin
+  existant (`onPosterEdit`), met la fiche et la grille à jour, puis « Valider » ferme. La tuile
+  « + » ouvre le dialogue d'adresse personnelle, comme pour les films. Hors de la fenêtre, rien
+  n'est écrit ; l'application n'appelle aucun service elle-même, tout passe par Rust et le relais.
+
 ## Bannières 16:9 (30 octobre 2026)
 
 Films, Séries, Animation japonaise et Jeux portent une image de fond, distincte de
@@ -140,6 +167,13 @@ un pourcentage vertical d’`object-position` : 0 montre le haut de l’image, 5
   galerie, lien personnel, adresse TMDB oubliée par le cache, valeur invalide).
 - `scripts/qa-covers.js` : parcours film complet (associé, non associé, galerie, annulation, adresse invalide,
   aperçu) puis le même geste dans les sept autres bibliothèques.
+- `scripts/qa-series-poster-gallery.js` : dans le harnais `scenario=posters` (une série et un animé
+  reliés à TMDB), la galerie s'ouvre au crayon avec six affiches factices dans l'ordre du natif, les
+  vignettes `w342` et l'affiche actuelle en tête ; choisir la 3e écrit son adresse `w500` dans
+  `series.poster_url` et change l'affiche de la fiche (affichée en `w780`), « Valider » ferme, une
+  réouverture ne redemande rien ; même parcours sur un animé (`anime.poster_url`) ; une série sans lien
+  garde le dialogue d'adresse ; l'échec affiche le message et « Réessayer » relance la demande ; une
+  liste vide le dit en gardant la tuile « + » ; l'anglais est couvert.
 - `scripts/qa-detail-layout.js` : pour dix fiches (Films, Séries, Animation japonaise, Livres, Mangas, Jeux,
   Art paysage, Art portrait, poème, Recettes) à 1440 × 900, la colonne gauche (visuel, statut, note, carnet)
   tient sans défiler, l'Art est centré sous son mur, aucun débordement horizontal, les libellés de faits

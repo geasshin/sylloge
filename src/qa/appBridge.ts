@@ -25,6 +25,10 @@
  *   recapHistory   une seule bibliothèque Films, datée sur plusieurs années (2018 à
  *                  2026, plus une année future) : de quoi retrouver les récapitulatifs
  *                  précédents dans les réglages
+ *   posters        les sept bibliothèques remplies (comme `full`) et un lien TMDB
+ *                  pour une série et un animé : de quoi ouvrir la galerie d'affiches
+ *                  (`scripts/qa-series-poster-gallery.js`). `full` reste sans lien,
+ *                  pour que l'export Simkl prouve encore la colonne TMDB vide.
  *
  * Proposition du récapitulatif : ?recapOffer=AAAA-MM-JJ force la date « maintenant » de la petite
  * fenêtre de décembre (voir src/components/YearRecapOffer.tsx) ; sans ce paramètre, l'appareil de
@@ -58,9 +62,10 @@ import {
   seedRecapFilms,
   seedRecapHistoryFilms,
   seedSeries,
+  seedSeriesProviderLinks,
 } from './appSeed.ts'
 
-type Scenario = 'full' | 'empty' | 'onboarding' | 'recettes' | 'recap' | 'recapHistory'
+type Scenario = 'full' | 'empty' | 'onboarding' | 'recettes' | 'recap' | 'recapHistory' | 'posters'
 
 /** Tables des bibliothèques personnalisées (migration 0021). */
 const CUSTOM_TABLES = ['comics', 'magazines', 'audiobooks', 'music', 'podcasts', 'documentaries', 'shows', 'board_games', 'recipes'] as const
@@ -69,7 +74,7 @@ type Row = Record<string, unknown>
 
 const scenario: Scenario = (() => {
   const value = new URLSearchParams(window.location.search).get('scenario')
-  return value === 'empty' || value === 'onboarding' || value === 'recettes' || value === 'recap' || value === 'recapHistory' ? value : 'full'
+  return value === 'empty' || value === 'onboarding' || value === 'recettes' || value === 'recap' || value === 'recapHistory' || value === 'posters' ? value : 'full'
 })()
 
 const migrations = import.meta.glob('../../src-tauri/migrations/*.sql', {
@@ -140,13 +145,14 @@ if (scenario !== 'onboarding') {
   if (!new URLSearchParams(window.location.search).has('recapOffer')) rememberRecapOfferedYear(QA_PROFILE_ID, recapYearFor(new Date()))
 }
 
-if (scenario === 'full') {
+if (scenario === 'full' || scenario === 'posters') {
   const { films, tmdbCache } = seedFilms()
   films.forEach((row) => insert('films', row))
   tmdbCache.forEach((row) => insert('film_tmdb_cache', row))
   const { series, anime } = seedSeries()
   series.forEach((row) => insert('series', row))
   anime.forEach((row) => insert('anime', row))
+  if (scenario === 'posters') seedSeriesProviderLinks().forEach((row) => insert('media_provider_links', row))
   const { books, mangas, quotes, mangaQuotes } = seedBooks()
   books.forEach((row) => insert('books', row))
   mangas.forEach((row) => insert('mangas', row))
@@ -645,6 +651,8 @@ const fetchedImages: string[] = []
 const searchedArtworks: string[] = []
 // Demandes d'images de bannière reçues par le simulateur (médium:identifiant).
 const bannerRequests: string[] = []
+// Demandes d'affiches reçues par le simulateur (médium:identifiant), échecs compris.
+const posterRequests: string[] = []
 
 function handle(cmd: string, args: Args): unknown {
   switch (cmd) {
@@ -870,6 +878,26 @@ function handle(cmd: string, args: Args): unknown {
         { url: `https://picsum.photos/seed/${seed}-ultrawide/2560/1000`, thumbnailUrl: `https://picsum.photos/seed/${seed}-ultrawide/320/180`, width: 2560, height: 1000, language: null, source },
       ]
     }
+    // Affiches TMDB des séries et animés : même contrat que la commande native
+    // (src-tauri/src/posters.rs). Sans identifiant, elle refuse ; « 0 » répond
+    // qu'aucune affiche n'existe. Six affiches factices, déjà triées comme le
+    // natif (français, sans texte, anglais, puis le reste). Les images visent
+    // image.tmdb.org, que la recette intercepte (aucun réseau).
+    case 'fetch_poster_candidates': {
+      const medium = String(args.medium ?? '')
+      const providerId = String(args.providerId ?? '').trim()
+      if (medium !== 'series' && medium !== 'anime') fail('Type de fiche inconnu pour une affiche.')
+      posterRequests.push(`${medium}:${providerId}`)
+      if (providerId === '') fail('L’identifiant du fournisseur est absent : aucune image officielle ne peut être proposée.')
+      if (!/^\d+$/.test(providerId)) fail('L’identifiant du fournisseur est invalide.')
+      if (providerId === '0') return []
+      const languages: Array<string | null> = ['fr', 'fr', null, null, 'en', 'ja']
+      return languages.map((language, index) => ({
+        url: `https://image.tmdb.org/t/p/w500/qa-poster-${index + 1}.jpg`,
+        thumbnailUrl: `https://image.tmdb.org/t/p/w342/qa-poster-${index + 1}.jpg`,
+        language,
+      }))
+    }
     case 'search_igdb_games':
       return fakeCandidates(args.query).map((candidate) => ({ gameId: 700_000 + candidate.id, title: candidate.title, releaseYear: candidate.year, coverUrl: candidate.poster }))
     case 'preview_igdb_game':
@@ -904,9 +932,11 @@ Object.assign(window, {
     fetchedImages: () => [...fetchedImages],
     searchedArtworks: () => [...searchedArtworks],
     bannerRequests: () => [...bannerRequests],
+    posterRequests: () => [...posterRequests],
     // Contrat de la commande, pour éprouver le refus sans identifiant et la
     // réponse vide d'un identifiant « 0 » sans passer par l'interface.
     bannerCandidates: (medium: string, providerId: string) => handle('fetch_banner_candidates', { medium, providerId }),
+    posterCandidates: (medium: string, providerId: string) => handle('fetch_poster_candidates', { medium, providerId }),
   },
 })
 

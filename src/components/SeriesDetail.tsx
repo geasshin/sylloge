@@ -7,6 +7,8 @@ import {
 import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
+import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
+import { usePosterCandidates } from './usePosterCandidates.ts'
 import { DetailVerdict } from './VerdictControls.tsx'
 import { DetailLayout } from './DetailLayout.tsx'
 import { verdictLine } from '../domain/verdictLine.ts'
@@ -35,12 +37,17 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [posterDialogOpen, setPosterDialogOpen] = useState(false)
+  const [posterGalleryOpen, setPosterGalleryOpen] = useState(false)
+  const [savingPoster, setSavingPoster] = useState(false)
   const bannerMedium = series.category === 'animation' ? 'anime' : 'series'
-  const bannerProviderId = useBannerProviderId(series.profileId, bannerMedium, series.id)
+  const providerId = useBannerProviderId(series.profileId, bannerMedium, series.id)
+  // La galerie d'affiches lit le même identifiant TMDB que la bannière : sans
+  // lien fournisseur, le crayon garde le dialogue d'adresse.
+  const posterGallery = usePosterCandidates(bannerMedium, providerId, posterGalleryOpen)
   const bannerEditor = useBannerEditor({
     title: series.title,
     medium: bannerMedium,
-    providerId: bannerProviderId,
+    providerId,
     currentUrl: series.bannerUrl,
     onSave: (url) => onBannerChange?.(url),
   })
@@ -54,6 +61,30 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
   // Toutes les informations dans la grille, sous le même filet : qui et quand
   // d'abord, puis le casting et l'avancement (31 octobre 2026).
   const airPeriod = formatAirPeriod(series.firstAirYear, series.lastAirYear)
+
+  // Une vignette `w342` par affiche ; le grand format `w500` reste l'adresse
+  // enregistrée dans `poster_url`.
+  const posterThumbnails = Object.fromEntries(
+    posterGallery.candidates.map((candidate) => [candidate.url, candidate.thumbnailUrl]),
+  )
+
+  /** Le choix de la galerie passe par le crayon existant : il écrit `poster_url`. */
+  const selectPoster = async (url: string | null) => {
+    if (!onPosterEdit) return
+    setSavingPoster(true)
+    try {
+      await onPosterEdit(url)
+    } catch (error) {
+      console.error('Impossible d’enregistrer le choix d’affiche.', error)
+    } finally {
+      setSavingPoster(false)
+    }
+  }
+
+  const openPosterEditor = () => {
+    if (providerId) setPosterGalleryOpen(true)
+    else setPosterDialogOpen(true)
+  }
 
   const deleteSeries = async () => {
     setDeleting(true)
@@ -106,7 +137,7 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
         ) : undefined}
         visual={(
           <div className="poster-container detail-poster-wrap">
-            <Poster title={series.title} src={series.posterUrl} className="detail-poster" sharp onEdit={onPosterEdit ? () => setPosterDialogOpen(true) : undefined} />
+            <Poster title={series.title} src={series.posterUrl} className="detail-poster" sharp onEdit={onPosterEdit ? openPosterEditor : undefined} />
           </div>
         )}
         verdict={(
@@ -174,6 +205,24 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
             </div>
           </div>
         </div>
+      )}
+      {posterGalleryOpen && (
+        <TmdbPosterDialog
+          title={series.title}
+          posters={posterGallery.candidates.map((candidate) => candidate.url)}
+          thumbnails={posterThumbnails}
+          selectedUrl={series.posterUrl}
+          saving={savingPoster}
+          loading={posterGallery.loading}
+          error={posterGallery.error}
+          onRetry={posterGallery.retry}
+          emptyLabel={t('Aucune affiche officielle pour cette série')}
+          preselectFirst={false}
+          allowReset={false}
+          onSelect={(url) => void selectPoster(url)}
+          onCustom={onPosterEdit}
+          onClose={() => setPosterGalleryOpen(false)}
+        />
       )}
       <PosterUrlDialog
         open={posterDialogOpen}

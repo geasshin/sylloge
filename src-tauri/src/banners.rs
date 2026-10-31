@@ -81,7 +81,8 @@ impl BannerMedium {
 }
 
 /// Identifiant fournisseur exigé : sans lui, aucune image officielle n'existe.
-fn provider_identifier(raw: &str) -> Result<i64, String> {
+/// Partagé avec `posters.rs` : une affiche a le même contrat qu'une bannière.
+pub(crate) fn provider_identifier(raw: &str) -> Result<i64, String> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(
@@ -108,7 +109,9 @@ fn is_banner_shape(width: Option<u32>, height: Option<u32>) -> bool {
 }
 
 /// Chemin TMDB acceptable : racine absolue, sans remontée ni espace.
-fn valid_tmdb_path(path: &str) -> Option<&str> {
+/// Partagé avec `posters.rs` : une affiche ne peut pas sortir de l'hôte
+/// d'images du fournisseur.
+pub(crate) fn valid_tmdb_path(path: &str) -> Option<&str> {
     let trimmed = path.trim();
     if trimmed.starts_with('/')
         && trimmed.len() > 1

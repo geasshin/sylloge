@@ -2441,6 +2441,20 @@ assert.match(detailSource, /TmdbPosterDialog/, 'La fiche détail doit ouvrir la 
 assert.match(posterDialogSource, /role="dialog"/, 'La sélection d\'affiche doit être une vraie modale accessible')
 assert.match(posterDialogSource, /aria-modal="true"/, 'La modale d\'affiche doit déclarer son caractère modal')
 assert.doesNotMatch(detailSource, /poster-gallery-popover/, 'L\'ancien pseudo-popover d\'affiche ne doit plus être utilisé')
+
+// Galerie d'affiches TMDB des séries et animés (31 octobre 2026) : le natif lit les `posters`
+// de /tv/{id}/images, la fiche branchée sur le lien fournisseur ouvre la même fenêtre.
+const posterServiceSource = readFileSync(new URL('../src/data/posterService.ts', import.meta.url), 'utf8')
+const postersRustSource = readFileSync(new URL('../src-tauri/src/posters.rs', import.meta.url), 'utf8')
+const seriesDetailPosterSource = readFileSync(new URL('../src/components/SeriesDetail.tsx', import.meta.url), 'utf8')
+assert.match(postersRustSource, /pub async fn fetch_poster_candidates/, 'La commande d\'affiches des séries doit exister')
+assert.match(postersRustSource, /MAX_POSTER_CANDIDATES: usize = 40/, 'La galerie borne les affiches à 40')
+assert.match(tauriLibrarySource, /posters::fetch_poster_candidates/, 'La commande d\'affiches des séries doit être enregistrée')
+assert.match(posterServiceSource, /invoke<PosterCandidate\[\]>\('fetch_poster_candidates'/, 'La façade TypeScript doit appeler la commande native')
+assert.match(seriesDetailPosterSource, /usePosterCandidates/, 'La fiche Série doit charger les affiches officielles')
+assert.match(seriesDetailPosterSource, /<TmdbPosterDialog/, 'La fiche Série et Animation japonaise doit ouvrir la galerie d\'affiches')
+assert.match(seriesDetailPosterSource, /Aucune affiche officielle pour cette série/, 'La galerie des séries doit dire quand aucune affiche n\'existe')
+assert.match(seriesDetailPosterSource, /onCustom=\{onPosterEdit\}/, 'La tuile « + » doit garder le lien personnel de la fiche')
 assert.match(tauriLibrarySource, /tmdb::schedule_due_cache_refresh\(app\.handle\(\)\.clone\(\)\)/, 'Le démarrage Tauri doit programmer le renouvellement automatique après l’initialisation des plugins')
 assert.match(tauriLibrarySource, /tmdb::get_film_tmdb_cache/, 'La commande Tauri de lecture cache TMDB doit être enregistrée')
 assert.match(tauriLibrarySource, /tmdb::purge_expired_tmdb_cache/, 'La commande Tauri de purge TMDB doit être enregistrée')

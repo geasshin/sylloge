@@ -173,6 +173,31 @@ struct TmdbBackdropsResponse {
     backdrops: Vec<TmdbBackdropEntry>,
 }
 
+/// Affiche (`poster`) d'une série ou d'un animé : le fichier, son format réel
+/// et la note que lui donnent les personnes qui l'ont vue sur TMDB. Même
+/// réponse `/tv/{id}/images` que les décors, autre tableau.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct TmdbPosterEntry {
+    #[serde(default)]
+    pub file_path: Option<String>,
+    #[serde(default)]
+    pub width: Option<u32>,
+    #[serde(default)]
+    pub height: Option<u32>,
+    #[serde(default, rename = "iso_639_1")]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub vote_average: Option<f64>,
+    #[serde(default)]
+    pub vote_count: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TmdbPostersResponse {
+    #[serde(default)]
+    posters: Vec<TmdbPosterEntry>,
+}
+
 #[derive(Debug, Deserialize)]
 struct TmdbTvSearchResponse {
     results: Vec<TmdbTvSearchResult>,
@@ -320,6 +345,17 @@ impl ReqwestTmdbClient {
     ) -> Result<Vec<TmdbBackdropEntry>, TmdbError> {
         let response: TmdbBackdropsResponse = self.get(images_path, &[]).await?;
         Ok(response.backdrops)
+    }
+
+    /// Affiches d'une série ou d'un animé (`/tv/{id}/images`), lues dans la
+    /// même réponse que les décors. Le chemin est construit par l'appelant
+    /// (`src-tauri/src/posters.rs`) pour rester vérifiable dans un test.
+    pub async fn fetch_posters(
+        &self,
+        images_path: &str,
+    ) -> Result<Vec<TmdbPosterEntry>, TmdbError> {
+        let response: TmdbPostersResponse = self.get(images_path, &[]).await?;
+        Ok(response.posters)
     }
 }
 
@@ -765,6 +801,31 @@ mod tests {
             serde_json::from_str(payload).expect("un champ inconnu ne doit pas casser la lecture");
         assert_eq!(parsed.results.len(), 1);
         assert_eq!(parsed.results[0].id, 550);
+    }
+
+    /// `/tv/{id}/images` porte les décors et les affiches dans la même réponse : deux
+    /// lectures indépendantes, pour que la galerie d'affiches n'ait pas son propre appel.
+    #[test]
+    fn posters_and_backdrops_share_the_same_images_response() {
+        let payload = r#"{
+            "id": 95396,
+            "backdrops": [
+                { "file_path": "/b.jpg", "width": 1920, "height": 1080, "iso_639_1": null }
+            ],
+            "posters": [
+                { "file_path": "/p.jpg", "width": 1000, "height": 1500, "iso_639_1": "fr", "vote_average": 8.4, "vote_count": 120 }
+            ]
+        }"#;
+        let backdrops: TmdbBackdropsResponse =
+            serde_json::from_str(payload).expect("décors simulés");
+        let posters: TmdbPostersResponse =
+            serde_json::from_str(payload).expect("affiches simulées");
+        assert_eq!(backdrops.backdrops.len(), 1);
+        assert_eq!(backdrops.backdrops[0].width, Some(1920));
+        assert_eq!(posters.posters.len(), 1);
+        assert_eq!(posters.posters[0].vote_average, Some(8.4));
+        assert_eq!(posters.posters[0].vote_count, Some(120));
+        assert_eq!(posters.posters[0].language.as_deref(), Some("fr"));
     }
 
     #[test]

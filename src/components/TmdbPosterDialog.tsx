@@ -15,12 +15,33 @@ type TmdbPosterDialogProps = {
    */
   onCustom?: (url: string | null) => Promise<void> | void
   onClose: () => void
+  /**
+   * Vignettes distinctes des adresses en grand (séries, animés : `w342` pour la grille, `w500`
+   * pour l'affiche de la fiche). Absentes, `posters` sert les deux — le comportement des films.
+   */
+  thumbnails?: Record<string, string>
+  /** Chargement des affiches officielles en cours. */
+  loading?: boolean
+  /** Message d'échec du chargement ; non nul, la fenêtre propose « Réessayer ». */
+  error?: string | null
+  onRetry?: () => void
+  /** Texte de l'état vide ; absent, une grille vide ne dit rien (films). */
+  emptyLabel?: string
+  /**
+   * Sélectionner la première affiche quand la fiche n'en a aucune. Les films gardent ce
+   * comportement ; une série sans affiche laisse la grille neutre.
+   */
+  preselectFirst?: boolean
+  /** Proposer « Affiche par défaut » : les séries n'ont pas d'affiche principale locale. */
+  allowReset?: boolean
 }
 
 /**
  * Galerie d'affiches du fournisseur + tuile « Ajouter une affiche ».
  * - Sélection immédiate au clic, puis « Valider » pour clôturer.
  * - La tuile à plus ouvre le dialogue d'URL (affiche personnalisée).
+ * - Les états de chargement, d'échec et de liste vide sont facultatifs : les films ne les
+ *   passent pas, les séries et les animés les alimentent depuis `fetch_poster_candidates`.
  */
 export function TmdbPosterDialog({
   title,
@@ -30,6 +51,13 @@ export function TmdbPosterDialog({
   onSelect,
   onCustom,
   onClose,
+  thumbnails,
+  loading = false,
+  error = null,
+  onRetry,
+  emptyLabel,
+  preselectFirst = true,
+  allowReset = true,
 }: TmdbPosterDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const [addOpen, setAddOpen] = useState(false)
@@ -37,9 +65,12 @@ export function TmdbPosterDialog({
 
   useDialogFocus(dialogRef, onClose, saving || addOpen)
 
-  const currentUrl = customUrl ?? selectedUrl ?? posters[0] ?? null
-  // Le lien personnel n'est pas dans la liste du fournisseur : sans tuile, le choix actif serait invisible.
+  const currentUrl = customUrl ?? selectedUrl ?? (preselectFirst ? posters[0] ?? null : null)
+  // Le lien personnel n'est pas dans la liste du fournisseur : sans tuile, le choix actif
+  // n'apparaîtrait nulle part.
   const customTile = currentUrl !== null && !posters.includes(currentUrl) ? currentUrl : null
+  const thumbnailOf = (url: string) => thumbnails?.[url] ?? url
+  const stateEmpty = !loading && !error && posters.length === 0
 
   return (
     <>
@@ -73,7 +104,8 @@ export function TmdbPosterDialog({
           <p className="poster-dialog-film">{title}</p>
 
           <div className="poster-dialog-grid" role="group" aria-label={t("Affiches disponibles")}>
-            {/* Tuile « Ajouter une affiche » : toujours en tête de liste */}
+            {/* Tuile « Ajouter une affiche » : toujours en tête de liste, même quand le
+                fournisseur ne propose rien ou que le chargement a échoué. */}
             <button
               className="poster-dialog-item poster-dialog-add"
               type="button"
@@ -91,11 +123,28 @@ export function TmdbPosterDialog({
                 type="button"
                 aria-pressed="true"
                 aria-label={t('Affiche actuellement choisie')}
+                title={t('Affiche actuelle')}
                 disabled={saving}
               >
-                <img src={customTile} alt="" loading="lazy" />
+                <img src={thumbnailOf(customTile)} alt="" loading="lazy" />
                 <span className="poster-dialog-check" aria-hidden="true">✓</span>
               </button>
+            )}
+            {loading && (
+              <p className="poster-dialog-note" role="status">{t('Chargement des affiches…')}</p>
+            )}
+            {!loading && error && (
+              <div className="poster-dialog-note" role="alert">
+                <p>{t('Les affiches officielles n’ont pas pu être chargées.')}</p>
+                {onRetry && (
+                  <button className="secondary-button" type="button" onClick={onRetry} disabled={saving}>
+                    {t('Réessayer')}
+                  </button>
+                )}
+              </div>
+            )}
+            {stateEmpty && emptyLabel && (
+              <p className="poster-dialog-note" role="status">{emptyLabel}</p>
             )}
             {posters.map((url) => (
               <button
@@ -107,7 +156,7 @@ export function TmdbPosterDialog({
                 aria-pressed={currentUrl === url}
                 aria-label={currentUrl === url ? t('Affiche actuellement choisie') : t('Choisir cette affiche')}
               >
-                <img src={url} alt="" loading="lazy" />
+                <img src={thumbnailOf(url)} alt="" loading="lazy" />
                 {currentUrl === url && <span className="poster-dialog-check" aria-hidden="true">✓</span>}
               </button>
             ))}
@@ -119,7 +168,7 @@ export function TmdbPosterDialog({
               <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">TMDB</a>.
             </p>
             <div className="poster-dialog-actions">
-              {(selectedUrl !== null || customUrl !== null) && (
+              {allowReset && (selectedUrl !== null || customUrl !== null) && (
                 <button
                   className="secondary-button"
                   type="button"
