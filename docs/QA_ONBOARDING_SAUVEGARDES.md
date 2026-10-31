@@ -43,7 +43,7 @@
 
 Contrôles automatiques sur les captures : thème réel vérifié, aucun débordement horizontal, bouton principal entièrement visible.
 
-Captures inspectées visuellement : « Protéger le profil » (sombre, 1440), « Importer d’un autre service » (clair, 1000), « Démarrer la bibliothèque » (clair, 1440), réglages « Importer et exporter » (sombre, 1440). Les captures sont conservées hors dépôt, dans `~/Documents/ChatGPT/sylloge-recette/2026-10-22-onboarding-sauvegardes/`.
+Captures inspectées visuellement : « Protéger le profil » (sombre, 1440), « Importer d’un autre service » (clair, 1000), « Démarrer la bibliothèque » (clair, 1440), réglages « Importer et exporter » (sombre, 1440). Les captures sont conservées hors dépôt, dans `~/Documents/Hermes/_archives/sylloge-recette-2026-10-22/2026-10-22-onboarding-sauvegardes/`.
 
 Note de méthode : une capture prise pendant la transition de couleur (120 ms) montre un bouton désactivé dans sa couleur d’origine. L’état désactivé a été vérifié après 600 ms.
 
