@@ -1,6 +1,29 @@
 # Feuille de route de Sylloge
 
-**État au 30 octobre 2026.** Cette feuille de route remplace les anciens trains et versions décrits dans les archives. Aucun numéro de version n’est attribué aux prochains lots : la release corrective se publie à la main, plus sur un push (décision du 25 octobre 2026).
+**État au 31 octobre 2026.** Cette feuille de route remplace les anciens trains et versions décrits dans les archives. Aucun numéro de version n’est attribué aux prochains lots : la release corrective se publie à la main, plus sur un push (décision du 25 octobre 2026).
+
+## Actualisation du 31 octobre 2026
+
+**Publié : v0.6.20 à v0.6.23** (30 et 31 octobre). Tout ce qui était « en cours » le 30 octobre est livré, sauf la galerie d’affiches des séries.
+
+- **Fiches recomposées** (v0.6.20 à v0.6.22) : deux colonnes, visuel net (TMDB en w780, IGDB en 720p dans la fiche), Art sans cadre et jamais agrandi au-delà de sa taille réelle. Le verdict tient en deux lignes : étoiles et cœur, puis statut et date en une phrase (« Terminé le 29 novembre 2024 », `verdictLine`). Qui et quand sont dans la grille de faits, plus aucune ligne sous le titre, aucune information en double.
+- **Bannières** (v0.6.20 à v0.6.23) : original TMDB à l’affichage, bandeau 3:1 presque bord à bord, coins arrondis, et recadrage vertical par fiche (« Recadrer », `banner_position`, migration 0028, document v9).
+- **Période de diffusion des séries et animés** (v0.6.21, migration 0027, document v8) : années de début et de fin copiées de TMDB, jamais écrasées. Les 174 fiches d’Aurélien ont été remplies le 31 octobre (sauvegarde `sauvegarde-avant-annees-diffusion-2026-10-31`, répétition sur copie, même SQL).
+- **Imports et exports vers les services connus** : publiés avec la v0.6.20.
+- **Mise à jour automatique** : l’installation garde la version vérifiée jusqu’à sa réussite et ne relit plus le manifeste (correctif `c3d22aa`, à publier avec la prochaine version).
+- **Recettes navigateur** : `qa-custom-libraries` et `qa-library-separation` sont de nouveau vertes (attente des cartes, barre latérale repliée avant de cliquer, sélecteur « Bibliothèque de la fiche », version du document non figée).
+
+### En cours (31 octobre)
+
+- **Galerie d’affiches TMDB pour les séries et animés**, sur le modèle des films.
+- **Site de téléchargement** : textes mis à jour (bibliothèques ajoutables, champs réels, fonctions récentes), en français et en anglais ; les captures d’écran viendront dans un second temps.
+
+### Proposé, à décider
+
+- La période de diffusion sur les cartes de la grille et dans le CSV (aujourd’hui, les cartes de séries n’ont pas d’année : `qa-work-cards.js`).
+- Une progression visible pendant le téléchargement d’une mise à jour.
+- Exports en attente : Goodreads, Babelio, LibraryThing (ISBN depuis Open Library) ; MyAnimeList (identifiant via AniList).
+- Hors code : nom de domaine `sylloge.app` (payant, décision d’Aurélien), essai réel de la mise à jour sous Windows.
 
 ## Actualisation du 30 octobre 2026
 
@@ -13,7 +36,7 @@
 - **Recettes de cuisine : rien à faire.** Il n’y a pas d’import dans l’application et il n’en faut pas : les recettes s’ajoutent par le « + » comme toute fiche. Le script Notion a servi une fois et ne fait pas partie du produit.
 - **Non exercé** : l’application native (WKWebView) pour ces trois lots ; le harnais simule le pont natif.
 
-### Demandes du 30 octobre, en cours
+### Demandes du 30 octobre (livrées le 31 octobre, sauf la galerie des séries)
 
 - **Séries et animés rattachés à TMDB** (fait le 30 octobre sur les données réelles, sauvegarde `sauvegarde-avant-tmdb-series-2026-10-30`) : 174 fiches liées, 38 choisies à la main (Shōgun 2024, Dark Matter 2024, Drifters et Seven Deadly Sins animés, *Liebes Kind*…) ; créateurs, distribution, total de saisons et résumés vides remplis ; affiches, titres, statuts et saisons vues conservés.
 - **Galerie d’affiches pour les séries et animés** : TMDB en publie plusieurs par série (`/tv/{id}/images`), mais seule la fiche Film propose de choisir dans la galerie. À faire sur le modèle des films (`set_film_tmdb_poster` et `filmPoster.ts`), sans priorité.
@@ -170,7 +193,7 @@ Non exercé : le sélecteur de dossier macOS réel (ouverture sur iCloud Drive, 
   - **MyAnimeList** : le blocage est l’identifiant propre à MyAnimeList. Le chercher au moment de l’export (AniList ou Jikan, correspondances ambiguës confirmées par la personne) est jugé envisageable ; à instruire quand on traitera vraiment l’export, avec l’essai sur un vrai compte avant toute promesse de compatibilité.
 - **Récapitulatif de l’année, façon « Wrapped », idée d’Aurélien le 24 octobre 2026** (après les cartes image, qui servent de support) : une fois par an, une notification discrète dans l’application (même esprit que l’annonce de mise à jour : petite carte, ni modale ni bandeau) propose de voir son année : les œuvres préférées et les moins aimées, la répartition entre lecture, films, séries, jeux, etc., les mieux notées, les moments marquants. Chaque écran du récapitulatif peut s’exporter en carte image. Calcul local depuis les dates et les notes des fiches, sans compte ni serveur.
 - **Page web partageable : écartée** (24 octobre 2026). Même réduite à une adresse courte avec aperçu, elle demande un hébergement, un compte et de la modération. Le partage se fait par image.
-- **Publication groupée** : jusqu’à la prochaine grosse version, les commits sont poussés sur la branche `prochaine-release`, pas sur `main`. La version suivante se publie en fusionnant cette branche dans `main`, puis en lançant la release à la main, après accord.
+- **Publication** : les commits vont sur `main` ; un push ne publie rien. La release se lance à la main (`release.yml`), après accord d’Aurélien. L’ancienne branche `prochaine-release` n’est plus utilisée.
 - **Performance à 5 000 fiches : non demandée pour l’instant** (23 octobre 2026). L’usage réel est déjà fluide avec plusieurs milliers de fiches ; ne pas ouvrir ce chantier sans gêne mesurée.
 - **Windows, mise à jour automatique** : deux défauts, corrigés le 23 octobre 2026 (v0.6.11). Le manifeste `latest.json` ne publiait que les cibles macOS, donc `tauri-plugin-updater` répondait `TargetNotFound` et l’échec s’affichait comme une panne réseau. Et le workflow Windows ne partait jamais seul : le tag créé par `gh release create` ne déclenche aucun workflow. Les deux anciens workflows sont remplacés par `release.yml` : macOS et Windows construisent en parallèle, un troisième job assemble le manifeste des trois cibles, le relit, puis ouvre la release ; un build Windows en échec bloque la publication au lieu de livrer une release muette. Le diagnostic distingue « manifeste absent » de « plateforme absente ». La première publication par `release.yml` (v0.6.11) s’est déroulée sans accroc : trois cibles dans le manifeste, adresses vérifiées. Reste à éprouver, sur une vraie machine Windows : l’installation d’une version antérieure, l’annonce, l’installation de la nouvelle et l’intégrité de la base. Voir [UPDATER.md](UPDATER.md).
 - **Recettes de cuisine, publiées le 23 octobre 2026 (v0.6.11)** : neuvième modèle de bibliothèque personnalisée, avec sa propre table `recipes` (migration 0022, qui reconstruit `profile_libraries` pour élargir sa contrainte). Champs : source, type de plat, portions, préparation, cuisson, **ingrédients** et **étapes** en textes longs enregistrés tels que saisis (lignes vides comprises), photo par lien, note, favori, avis. Statuts : À essayer, Testée, Écartée. Famille « Cuisine » dans le catalogue, pictogramme toque de chef, français et anglais. Les ingrédients sont un texte libre, pas une liste structurée : quantité, unité et nom séparés permettraient plus tard de recalculer les portions ou de faire une liste de courses, au prix d’un modèle de données plus lourd, à ne décider que si le besoin apparaît. Une sauvegarde contenant des recettes n’est pas lisible par une version antérieure de l’application. Rapport : [QA_BIBLIOTHEQUES_PERSONNALISEES.md](QA_BIBLIOTHEQUES_PERSONNALISEES.md).

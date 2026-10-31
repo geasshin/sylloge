@@ -7,6 +7,12 @@ async page => {
   page.on('pageerror', error => errors.push(error.message))
   const assert = (ok, name) => { if (!ok) throw Error(name); checks.push(name) }
   const nav = () => page.getByRole('navigation', { name: 'Navigation principale' })
+  // Les cartes arrivent après le titre (lecture asynchrone de la table) : on attend
+  // le nombre visé, puis on compte. Un compte immédiat échouait selon la vitesse.
+  const cardCount = async (expected) => {
+    await page.waitForFunction(n => document.querySelectorAll('.custom-card').length === n, expected, { timeout: 4000 }).catch(() => {})
+    return page.locator('.custom-card').count()
+  }
   const sql = (query, values = []) => page.evaluate(([q, v]) => window.__syllogeRecette.select(q, v), [query, values])
 
   await page.goto('http://127.0.0.1:5173/qa-app.html?scenario=full')
@@ -57,25 +63,25 @@ async page => {
   const [stored] = await sql("SELECT status, progress_current, progress_total, creator, details FROM podcasts WHERE title = 'Les Pieds sur terre'")
   assert(stored.status === 'en cours' && stored.progress_current === 12 && stored.progress_total === 40 && JSON.parse(stored.details).format === 'Récit', 'Fiche : stockée dans la table podcasts')
   await page.getByRole('button', { name: 'Retour à Podcasts', exact: true }).click()
-  assert(await page.locator('.custom-card').count() === 1, 'Podcasts : une carte')
+  assert(await cardCount(1) === 1, 'Podcasts : une carte')
   assert(/1 podcast/.test(await page.locator('.library-subtitle').innerText()), 'Podcasts : sous-titre')
 
   // 4. Comics : filtres de statut et de format, citations conservées.
   await nav().getByRole('button', { name: 'Comics', exact: true }).click()
   await page.getByRole('heading', { level: 1, name: 'Comics' }).waitFor()
-  assert(await page.locator('.custom-card').count() === 4, 'Comics : quatre cartes')
+  assert(await cardCount(4) === 4, 'Comics : quatre cartes')
   await page.getByRole('radio', { name: 'Lu', exact: true }).click()
-  assert(await page.locator('.custom-card').count() === 2, 'Comics : filtre « Lu »')
+  assert(await cardCount(2) === 2, 'Comics : filtre « Lu »')
   await page.locator('.custom-kind-filter').getByRole('button', { name: 'Roman graphique', exact: true }).click()
   const titles = await page.locator('.custom-card .film-card-top > b').allInnerTexts()
   assert(titles.join() === 'Maus', `Comics : filtre « Roman graphique » (${titles.join()})`)
   await page.getByRole('radio', { name: 'Tous', exact: true }).click()
   await page.locator('.custom-kind-filter').getByRole('button', { name: 'Roman graphique', exact: true }).click()
-  assert(await page.locator('.custom-card').count() === 1, 'Comics : format seul, sans état')
+  assert(await cardCount(1) === 1, 'Comics : format seul, sans état')
   await page.locator('.custom-kind-filter').getByRole('button', { name: 'Roman graphique', exact: true }).click()
-  assert(await page.locator('.custom-card').count() === 4, 'Comics : la vue de format se referme')
+  assert(await cardCount(4) === 4, 'Comics : la vue de format se referme')
   await page.getByRole('searchbox').fill('gibbons')
-  assert(await page.locator('.custom-card').count() === 1, 'Comics : recherche dans les champs propres (dessin)')
+  assert(await cardCount(1) === 1, 'Comics : recherche dans les champs propres (dessin)')
   await page.getByRole('searchbox').fill('')
   await page.getByText('Watchmen', { exact: true }).click()
   await page.getByText('1 citation personnelle').click()
@@ -92,10 +98,10 @@ async page => {
   const [watchmen] = await sql("SELECT details FROM comics WHERE id = 'comics-watchmen'")
   assert(JSON.parse(watchmen.details).series === 'Watchmen' && JSON.parse(watchmen.details).artist === 'Dave Gibbons', 'Comics : champs propres conservés et mis à jour')
 
-  // 6. Sauvegarde JSON v5 : relue par le validateur, puis restaurée dans un profil neuf.
+  // 6. Sauvegarde JSON (version en vigueur) : relue par le validateur, puis restaurée dans un profil neuf.
   const roundtrip = await page.evaluate(async () => {
     const { libraryRepository } = await import('/src/data/libraryRepository.ts')
-    const { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument } = await import('/src/domain/libraryDocument.ts')
+    const { createLibraryDocument, serializeLibraryDocument, validateLibraryDocument, SYLLOGE_LIBRARY_VERSION } = await import('/src/domain/libraryDocument.ts')
     const library = await libraryRepository.loadLibrary('qa-profile')
     const preview = validateLibraryDocument(serializeLibraryDocument(createLibraryDocument(library, '2026-10-22T08:00:00.000Z')))
     if (!preview.document) return { errors: preview.errors }
@@ -106,6 +112,7 @@ async page => {
     }))
     return {
       version: preview.document.version,
+      currentVersion: SYLLOGE_LIBRARY_VERSION,
       count: preview.counts.custom,
       before: summarize(library),
       after: summarize(restored),
@@ -113,7 +120,9 @@ async page => {
     }
   })
   assert(!roundtrip.errors, `Sauvegarde : document valide ${JSON.stringify(roundtrip.errors ?? '')}`)
-  assert(roundtrip.version === 5 && roundtrip.count === 13, `Sauvegarde : v5 et 13 fiches personnalisées (${roundtrip.count})`)
+  // Le document de profil évolue (v9 le 31 octobre 2026) : la recette vérifie la
+  // version en vigueur, pas un numéro figé.
+  assert(roundtrip.version === roundtrip.currentVersion && roundtrip.count === 13, `Sauvegarde : version en vigueur (${roundtrip.version}/${roundtrip.currentVersion}) et 13 fiches personnalisées (${roundtrip.count})`)
   assert(roundtrip.newProfile && JSON.stringify(roundtrip.before) === JSON.stringify(roundtrip.after), 'Restauration : bibliothèques, ordre et fiches identiques')
 
   // 7. Suppression d'une bibliothèque : tout disparaît, retour à l'accueil.

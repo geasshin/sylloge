@@ -19,6 +19,12 @@ async (page) => {
   const open = async (label, all = true) => {
     await nav(label).click()
     await page.locator('.library-header h1').filter({ hasText: new RegExp(`^${label}$`) }).waitFor()
+    // Le pointeur reste sur la barre latérale après le clic : non épinglée, elle se
+    // déploie au survol et recouvre les vues. On sort la souris et on attend qu'elle
+    // se replie avant de cliquer « Tous ».
+    const viewport = page.viewportSize()
+    await page.mouse.move(viewport.width - 40, viewport.height / 2)
+    await page.locator('aside.sidebar.sidebar-unpinned.sidebar-expanded').waitFor({ state: 'detached', timeout: 3000 }).catch(() => {})
     if (all) await page.locator('.library-views').getByRole('button', { name: 'Tous', exact: true }).click()
     await settle()
   }
@@ -139,7 +145,9 @@ async (page) => {
   await open('Animation japonaise')
   await page.getByRole('button', { name: 'Ouvrir la fiche de Arcane', exact: true }).click()
   await page.getByRole('button', { name: 'Modifier', exact: true }).click()
-  await page.getByRole('radio', { name: 'Série télé', exact: true }).click()
+  // Depuis le 30 octobre 2026, la bibliothèque se choisit directement dans le
+  // formulaire (« Bibliothèque de la fiche »), plus par le type « Série télé ».
+  await page.getByRole('radiogroup', { name: 'Bibliothèque de la fiche' }).getByRole('radio', { name: 'Séries', exact: true }).click()
   await page.getByRole('button', { name: 'Enregistrer les modifications', exact: true }).click()
   await page.getByRole('button', { name: 'Retour aux séries', exact: true }).waitFor()
   const afterMove = (await sql("SELECT * FROM series WHERE title = 'Arcane'"))[0]
