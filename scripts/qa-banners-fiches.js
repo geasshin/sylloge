@@ -172,8 +172,8 @@ async page => {
   assert(await addButton().count() === 0, 'Fixture Film : aucun bouton d’ajout quand la bannière existe')
   const seededEdit = await banner().locator('.banner-edit-overlay').getAttribute('aria-label')
   assert(seededEdit.includes('Modifier la bannière de « Portrait de la jeune fille en feu »'), `Fixture Film : le crayon est nommé (${seededEdit})`)
-  // Bord à bord, format 3:1, sans coins arrondis, pas plus haut que 50 vh
-  // (choix d'Aurélien, 31 octobre 2026).
+  // Presque bord à bord (16 px de chaque côté), format 3:1, coins arrondis, pas
+  // plus haut que 50 vh (choix d'Aurélien, 31 octobre 2026).
   const seeded = await page.evaluate(() => {
     const r = document.querySelector('.detail-banner')?.getBoundingClientRect()
     const m = document.querySelector('.detail-page-main')?.getBoundingClientRect()
@@ -181,8 +181,8 @@ async page => {
     return r && m ? { width: r.width, height: r.height, left: r.left, right: r.right, mainLeft: m.left, mainRight: m.right, radius } : { width: 0, height: 1 }
   })
   assert(Math.abs(seeded.width / seeded.height - 3) < 0.02, `Fixture Film : bandeau au format 3:1 (${(seeded.width / seeded.height).toFixed(2)})`)
-  assert(Math.abs(seeded.left - seeded.mainLeft) <= 1 && Math.abs(seeded.right - seeded.mainRight) <= 1, `Fixture Film : bandeau bord à bord (${Math.round(seeded.left)}–${Math.round(seeded.right)})`)
-  assert(seeded.radius === '0px', `Fixture Film : bandeau sans coins arrondis (${seeded.radius})`)
+  assert(Math.abs(seeded.left - seeded.mainLeft - 16) <= 1 && Math.abs(seeded.mainRight - seeded.right - 16) <= 1, `Fixture Film : bandeau à 16 px des deux bords (${Math.round(seeded.left)}–${Math.round(seeded.right)} pour ${Math.round(seeded.mainLeft)}–${Math.round(seeded.mainRight)})`)
+  assert(seeded.radius === '16px', `Fixture Film : bandeau aux coins arrondis (${seeded.radius})`)
   assert(seeded.height <= Math.ceil(900 * 0.5) + 1, `Fixture Film : hauteur du bandeau bornée à 50 vh (${Math.round(seeded.height)} px)`)
   await page.locator('.back-button').first().click()
   await page.getByRole('heading', { level: 1, name: 'Films', exact: true }).waitFor()
