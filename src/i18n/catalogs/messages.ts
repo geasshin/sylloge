@@ -10,6 +10,7 @@
  */
 const messages: Record<string, string> = {
   "Une bannière doit être l’adresse https d’une image.": "A banner must be the https address of an image.",
+  "La position de la bannière doit être nulle ou un entier de 0 à 100.": "The banner position must be null or a whole number from 0 to 100.",
   // Form validation: film, series, book/manga, game, artwork and custom entries.
   'Le titre est obligatoire.': 'A title is required.',
   'Choisissez un statut disponible.': 'Choose an available status.',
@@ -198,7 +199,7 @@ const messages: Record<string, string> = {
 
   // Library document v1–v4 validation (src/domain/libraryDocument.ts). Field labels
   // interpolated into a few messages stay captured values.
-  'Les versions 1 à 8 du document sont prises en charge.': 'Document versions 1 to 8 are supported.',
+  'Les versions 1 à 9 du document sont prises en charge.': 'Document versions 1 to 9 are supported.',
   'L’année de diffusion doit être nulle ou comprise entre 1900 et 2100.': 'The air year must be null or between 1900 and 2100.',
   'Les détails d’une œuvre doivent être un objet.': 'An artwork’s details must be an object.',
   'La valeur d’un détail doit être une chaîne.': 'A detail value must be a string.',

@@ -17,7 +17,7 @@ import {
 } from './nativeBooks.ts'
 import { moveSeriesLibraryAtomically, type NativeSeriesMover } from './nativeSeries.ts'
 import { seriesLibraryForCategory } from '../domain/seriesLibraries.ts'
-import { isBannerUrl, normalizeBannerUrl } from '../domain/bannerImages.ts'
+import { isBannerUrl, normalizeBannerUrl, parseBannerPosition } from '../domain/bannerImages.ts'
 
 export type MediaProviderMedium = 'series' | 'anime' | 'books' | 'mangas' | 'games'
 
@@ -61,6 +61,7 @@ type SeriesRow = {
   started_at: string | null
   poster_url: string | null
   banner_url: string | null
+  banner_position: number | null
   first_air_year: number | null
   last_air_year: number | null
   personal_note: string | null
@@ -110,6 +111,7 @@ type GameRow = {
   played_at: string | null
   cover_url: string | null
   banner_url: string | null
+  banner_position: number | null
   personal_note: string | null
   created_at: string
   updated_at: string
@@ -166,6 +168,7 @@ const seriesColumns = (library: SeriesTableLibrary): string => library === 'anim
   started_at,
   poster_url,
   banner_url,
+  banner_position,
   first_air_year,
   last_air_year,
   personal_note,
@@ -213,6 +216,7 @@ const SERIES_COLUMNS = `
   started_at,
   poster_url,
   banner_url,
+  banner_position,
   first_air_year,
   last_air_year,
   personal_note,
@@ -252,6 +256,7 @@ const GAME_COLUMNS = `
   played_at,
   cover_url,
   banner_url,
+  banner_position,
   personal_note,
   created_at,
   updated_at`
@@ -333,6 +338,7 @@ export function toSeries(row: SeriesRow): Series {
     startedAt: row.started_at,
     posterUrl: row.poster_url,
     bannerUrl: row.banner_url,
+    bannerPosition: row.banner_position,
     firstAirYear: row.first_air_year,
     lastAirYear: row.last_air_year,
     personalNote: row.personal_note,
@@ -415,6 +421,7 @@ export function toGame(row: GameRow): Game {
     playedAt: row.played_at,
     coverUrl: row.cover_url,
     bannerUrl: row.banner_url,
+    bannerPosition: row.banner_position,
     personalNote: row.personal_note,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -719,7 +726,7 @@ export class SqliteMediaRepository {
 
   async createSeries(
     profileId: string,
-    input: Omit<Series, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'bannerUrl'>,
+    input: Omit<Series, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'bannerUrl' | 'bannerPosition'>,
     library: SeriesTableLibrary = 'series',
   ): Promise<Series> {
     const database = await this.loadDatabase()
@@ -733,6 +740,7 @@ export class SqliteMediaRepository {
       progressUpdatedAt: resolveInitialProgress(input.seasonsSeen, now),
       // La bannière se choisit depuis la fiche : une création n'en porte pas.
       bannerUrl: null,
+      bannerPosition: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -760,7 +768,7 @@ export class SqliteMediaRepository {
   async updateSeries(
     profileId: string,
     id: string,
-    input: Omit<Series, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'bannerUrl'>,
+    input: Omit<Series, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'progressUpdatedAt' | 'bannerUrl' | 'bannerPosition'>,
     library: SeriesTableLibrary = 'series',
   ): Promise<string> {
     const database = await this.loadDatabase()
@@ -777,9 +785,11 @@ export class SqliteMediaRepository {
       id,
       profileId,
       progressUpdatedAt: resolveProgressTimestamp(existing.seasonsSeen, input.seasonsSeen, existing.progressUpdatedAt, updatedAt),
-      // La bannière n'est ni dans le formulaire ni dans l'UPDATE : elle suit la
-      // fiche telle qu'elle est enregistrée, y compris lors d'un déplacement.
+      // La bannière et son recadrage ne sont ni dans le formulaire ni dans
+      // l'UPDATE : ils suivent la fiche telle qu'elle est enregistrée, y compris
+      // lors d'un déplacement.
       bannerUrl: existing.bannerUrl,
+      bannerPosition: existing.bannerPosition,
       // La date de création d'origine est conservée.
       createdAt: existing.createdAt,
       updatedAt,
@@ -812,6 +822,7 @@ export class SqliteMediaRepository {
    * Enregistre seulement la bannière 16:9 (document v7). Le formulaire ne la
    * porte pas : elle s'écrit depuis la fiche, sans réécrire les autres champs.
    * `null` retire la bannière ; aucune bannière par défaut n'est réintroduite.
+   * Une nouvelle image repart centrée : la position revient à `null` (v9).
    */
   async setSeriesBanner(
     profileId: string,
@@ -827,7 +838,34 @@ export class SqliteMediaRepository {
     const updatedAt = this.now()
     const result = await database.execute(
       `UPDATE ${seriesTable(library)}
-       SET banner_url = $1, updated_at = $2
+       SET banner_url = $1, banner_position = NULL, updated_at = $2
+       WHERE id = $3 AND profile_id = $4`,
+      [stored, updatedAt, id, profileId],
+    )
+
+    if (result.rowsAffected !== 1) {
+      throw new Error('La série à modifier est introuvable dans le profil courant.')
+    }
+
+    return updatedAt
+  }
+
+  /**
+   * Recadrage vertical de la bannière (v9, migration 0028) d'une série ou d'un
+   * animé : même contrat que `setFilmBannerPosition`. `null` recentre.
+   */
+  async setSeriesBannerPosition(
+    profileId: string,
+    id: string,
+    position: number | null,
+    library: SeriesTableLibrary = 'series',
+  ): Promise<string> {
+    const stored = parseBannerPosition(position)
+    const database = await this.loadDatabase()
+    const updatedAt = this.now()
+    const result = await database.execute(
+      `UPDATE ${seriesTable(library)}
+       SET banner_position = $1, updated_at = $2
        WHERE id = $3 AND profile_id = $4`,
       [stored, updatedAt, id, profileId],
     )
@@ -1081,7 +1119,7 @@ export class SqliteMediaRepository {
 
   async createGame(
     profileId: string,
-    input: Omit<Game, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'bannerUrl'>,
+    input: Omit<Game, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'bannerUrl' | 'bannerPosition'>,
   ): Promise<Game> {
     const database = await this.loadDatabase()
     const id = this.createId()
@@ -1092,6 +1130,7 @@ export class SqliteMediaRepository {
       ...input,
       // La bannière se choisit depuis la fiche : une création n'en porte pas.
       bannerUrl: null,
+      bannerPosition: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -1140,7 +1179,7 @@ export class SqliteMediaRepository {
   async updateGame(
     profileId: string,
     id: string,
-    input: Omit<Game, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'bannerUrl'>,
+    input: Omit<Game, 'id' | 'profileId' | 'createdAt' | 'updatedAt' | 'bannerUrl' | 'bannerPosition'>,
   ): Promise<string> {
     const database = await this.loadDatabase()
     const updatedAt = this.now()
@@ -1151,6 +1190,7 @@ export class SqliteMediaRepository {
       id,
       profileId,
       bannerUrl: null,
+      bannerPosition: null,
       createdAt: updatedAt,
       updatedAt,
     })
@@ -1193,7 +1233,10 @@ export class SqliteMediaRepository {
     return updatedAt
   }
 
-  /** Bannière 16:9 d'un jeu : même contrat que `setSeriesBanner`. */
+  /**
+   * Bannière 16:9 d'un jeu : même contrat que `setSeriesBanner`. Une nouvelle
+   * image repart centrée : la position revient à `null` (v9).
+   */
   async setGameBanner(profileId: string, id: string, bannerUrl: string | null): Promise<string> {
     const stored = normalizeBannerUrl(bannerUrl)
     if (stored !== null && !isBannerUrl(stored)) {
@@ -1203,7 +1246,26 @@ export class SqliteMediaRepository {
     const updatedAt = this.now()
     const result = await database.execute(
       `UPDATE games
-       SET banner_url = $1, updated_at = $2
+       SET banner_url = $1, banner_position = NULL, updated_at = $2
+       WHERE id = $3 AND profile_id = $4`,
+      [stored, updatedAt, id, profileId],
+    )
+
+    if (result.rowsAffected !== 1) {
+      throw new Error('Le jeu à modifier est introuvable dans le profil courant.')
+    }
+
+    return updatedAt
+  }
+
+  /** Recadrage vertical de la bannière d'un jeu : même contrat que la série. */
+  async setGameBannerPosition(profileId: string, id: string, position: number | null): Promise<string> {
+    const stored = parseBannerPosition(position)
+    const database = await this.loadDatabase()
+    const updatedAt = this.now()
+    const result = await database.execute(
+      `UPDATE games
+       SET banner_position = $1, updated_at = $2
        WHERE id = $3 AND profile_id = $4`,
       [stored, updatedAt, id, profileId],
     )

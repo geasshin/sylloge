@@ -1,6 +1,6 @@
 import { FILM_STATUSES, normalizeFilm, type Film, type FilmStatus } from '../domain/film.ts'
 import { isHttpUrl } from '../domain/customLibraries.ts'
-import { isBannerUrl, normalizeBannerUrl } from '../domain/bannerImages.ts'
+import { isBannerUrl, normalizeBannerUrl, parseBannerPosition } from '../domain/bannerImages.ts'
 import type { FilmWriteInput } from '../domain/filmForm.ts'
 import type { FilmMetadataProvenance } from '../domain/filmMetadataAssistance.ts'
 import type { LibrarySort } from '../domain/libraryViews.ts'
@@ -48,6 +48,7 @@ type FilmRow = {
   provider_id: string | null
   poster_url: string | null
   banner_url: string | null
+  banner_position: number | null
   created_at: string
   updated_at: string
 }
@@ -123,6 +124,7 @@ export function toFilm(row: FilmRow): Film {
     providerId: row.provider_id,
     posterUrl: row.poster_url,
     bannerUrl: row.banner_url,
+    bannerPosition: row.banner_position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   })
@@ -200,6 +202,7 @@ export class SqliteFilmsRepository {
          provider_id,
          poster_url,
          banner_url,
+         banner_position,
          created_at,
          updated_at
        FROM films
@@ -317,6 +320,7 @@ export class SqliteFilmsRepository {
          provider_id,
          poster_url,
          banner_url,
+         banner_position,
          created_at,
          updated_at
        FROM films
@@ -348,6 +352,7 @@ export class SqliteFilmsRepository {
          provider_id,
          poster_url,
          banner_url,
+         banner_position,
          created_at,
          updated_at
        FROM films
@@ -376,6 +381,7 @@ export class SqliteFilmsRepository {
       providerName: provenance?.providerName ?? null,
       providerId: provenance?.providerId ?? null,
       bannerUrl: null,
+      bannerPosition: null,
       createdAt: now,
       updatedAt: now,
     })
@@ -439,6 +445,7 @@ export class SqliteFilmsRepository {
       providerName: null,
       providerId: null,
       bannerUrl: null,
+      bannerPosition: null,
       createdAt: updatedAt,
       updatedAt,
     })
@@ -514,6 +521,7 @@ export class SqliteFilmsRepository {
    * du formulaire, qui ne la connaît pas : une adresse collée ou choisie dans
    * la galerie est écrite ici, sans toucher aux autres champs.
    * `null` retire la bannière ; aucune bannière par défaut n'est réintroduite.
+   * Une nouvelle image repart centrée : la position revient à `null` (v9).
    */
   async updateFilmBanner(profileId: string, id: string, bannerUrl: string | null): Promise<string> {
     const stored = normalizeBannerUrl(bannerUrl)
@@ -524,7 +532,31 @@ export class SqliteFilmsRepository {
     const updatedAt = this.now()
     const result = await database.execute(
       `UPDATE films
-       SET banner_url = $1, updated_at = $2
+       SET banner_url = $1, banner_position = NULL, updated_at = $2
+       WHERE id = $3 AND profile_id = $4`,
+      [stored, updatedAt, id, profileId],
+    )
+
+    if (result.rowsAffected !== 1) {
+      throw new Error('Le film à modifier est introuvable dans le profil courant.')
+    }
+
+    return updatedAt
+  }
+
+  /**
+   * Recadrage vertical de la bannière (v9, migration 0028) : un pourcentage
+   * d'`object-position`, `null` pour revenir au centre. La valeur est arrondie
+   * et bornée ici comme en base ; une position hors bornes est refusée plutôt
+   * que silencieusement corrigée à l'écriture.
+   */
+  async setFilmBannerPosition(profileId: string, id: string, position: number | null): Promise<string> {
+    const stored = parseBannerPosition(position)
+    const database = await this.loadDatabase()
+    const updatedAt = this.now()
+    const result = await database.execute(
+      `UPDATE films
+       SET banner_position = $1, updated_at = $2
        WHERE id = $3 AND profile_id = $4`,
       [stored, updatedAt, id, profileId],
     )

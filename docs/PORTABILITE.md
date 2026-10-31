@@ -2,10 +2,10 @@
 
 ## Ce que l’application sauvegarde
 
-Un seul fichier JSON par profil, `sylloge-library`, version **8** depuis le 30 octobre 2026.
-Les versions 1 à 7 restent lisibles : un document plus ancien s’importe, sans expérience
-(avant la v5), sans champs de forme d’art (avant la v6), sans bannière (avant la v7) et sans
-années de diffusion (avant la v8).
+Un seul fichier JSON par profil, `sylloge-library`, version **9** depuis le 31 octobre 2026.
+Les versions 1 à 8 restent lisibles : un document plus ancien s’importe, sans expérience
+(avant la v5), sans champs de forme d’art (avant la v6), sans bannière (avant la v7), sans
+années de diffusion (avant la v8) et sans recadrage de bannière (avant la v9).
 
 | Contenu | Porté depuis |
 | --- | --- |
@@ -16,6 +16,7 @@ années de diffusion (avant la v8).
 | Champs propres à chaque forme d’art (`details` d’une œuvre) : texte d’un poème vers pour vers, recueil, traduction, technique, dimensions, matériau, tirage… | **v6**, 27 octobre 2026 |
 | Bannière 16:9 des films, séries, animés et jeux (`bannerUrl`) : l’adresse d’une image paysage, `null` quand aucune n’est choisie | **v7**, 30 octobre 2026 |
 | Période de diffusion des séries et animés (`firstAirYear`, `lastAirYear`) : deux années, `null` quand elles ne sont pas connues | **v8**, 30 octobre 2026 |
+| Recadrage vertical de la bannière (`bannerPosition`) : un pourcentage d’`object-position`, `null` pour un centrage | **v9**, 31 octobre 2026 |
 
 Le brief 0.4.21 gardait les vues locales, hors des copies et des exports. L’objectif
 « portabilité intégrale de l’expérience » l’a renversé le 23 octobre 2026 : une vue
@@ -47,6 +48,12 @@ Période de diffusion (v8) : séries et animés portent `firstAirYear` et `lastA
 importe à `null` ; une fusion qui ne les porte pas ne les efface jamais. Une sauvegarde v8
 n’est pas lisible par une version antérieure à la 0.6.21.
 
+Recadrage de bannière (v9) : films, séries, animés et jeux portent `bannerPosition`
+(colonne `banner_position`, migration 0028), un entier de 0 à 100 ou `null` pour le
+centrage. Un document v1 à v8 l’importe à `null` ; une fusion qui ne le porte pas ne
+l’efface jamais. Une sauvegarde v9 n’est pas lisible par une version antérieure au
+31 octobre 2026.
+
 Un document v5 écrit par un chemin qui ne collecte rien (export d’une seule collection)
 porte `"experience": { "version": 1, "savedViews": [], "preferences": {} }` : cela se lit
 « ce document ne porte aucune expérience », jamais « préférences perdues ».
@@ -73,6 +80,22 @@ l’Art et les bibliothèques personnalisées n’en ont pas.
   en juillet 2026) : seule la sauvegarde JSON complète du profil la fait voyager. Un
   export de collection puis sa réimportation laissent donc la bannière de côté, ce qui
   est dit ici plutôt que découvert après coup.
+
+## Recadrage de la bannière (v9)
+
+`bannerPosition` dit quelle bande de l’image le bandeau 3:1 montre : 0 pour le haut,
+50 pour le centre (défaut, `null` en base), 100 pour le bas. La colonne
+`banner_position` est ajoutée par la migration 0028 sur `films`, `series`, `anime` et
+`games`, bornée à 0–100 et `NULL`.
+
+- Une fiche d’un document v1 à v8 n’a pas la clé : elle s’importe avec
+  `bannerPosition: null`. Une fiche v9 sans la clé est refusée, comme la bannière en v7.
+- Une position non entière, négative ou au-delà de 100 est refusée à la validation
+  (`La position de la bannière doit être nulle ou un entier de 0 à 100.`), côté
+  interface comme côté natif.
+- Un import **avec fusion** qui ne porte pas de recadrage ne l’efface jamais
+  (`COALESCE`), comme la bannière ; changer d’image depuis la fiche remet la position à
+  `NULL` et l’image repart centrée.
 
 ## Restauration
 
@@ -120,14 +143,16 @@ l’Art et les bibliothèques personnalisées n’en ont pas.
 ## Vérifications
 
 - `npm run test:portability` : aller-retour des sept bibliothèques et des champs personnels,
-  v1 à v7, bannière v7 et période v8 comprises (document v6 relu avec `bannerUrl: null`,
-  bannière non https refusée, clé de bannière refusée dans un document v6, document v7 relu
-  sans années, années hors 1900–2100 ou fin avant début refusées), et `scripts/profile-experience.test.mjs`
+  v1 à v9, bannière v7, période v8 et recadrage v9 compris (document v6 relu avec
+  `bannerUrl: null`, bannière non https refusée, clé de bannière refusée dans un document
+  v6, document v7 relu sans années, document v8 relu sans recadrage, position décimale ou
+  hors 0–100 refusée, années hors 1900–2100 ou fin avant début refusées), et `scripts/profile-experience.test.mjs`
   pour l’expérience (document v5, document v4 sans experience, préférence abîmée écartée sans
   perte, conflit de nom, restauration dans un profil vide, texte du bilan et de l’aperçu,
   version future).
 - `npm run test:banners` : le tri et le filtrage des candidats de bannière (paysage, 16:10 à
-  2:1, largeur minimale, sans texte d’abord puis la langue, 24 au plus, adresse https bornée).
+  2:1, largeur minimale, sans texte d’abord puis la langue, 24 au plus, adresse https bornée),
+  et les calculs purs du recadrage (bornes, arrondi, hauteur cachée, sens du glissement).
 - `npm run verify` : contrats de données, migrations et sérialisation.
 - Ce qui n’est pas couvert : le parcours de restauration complet dans l’interface native
   (dialogue de fichier macOS ou Windows, écriture réelle du fichier de sauvegarde). Le

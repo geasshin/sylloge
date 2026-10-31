@@ -1,3 +1,5 @@
+import { normalizeBannerPosition } from './bannerImages.ts'
+
 // 0.6.11 : trois statuts seulement. « En cours » et « Regardé » disparaissent ;
 // la migration 15 remappe les fiches existantes (« en cours » et « regardé »
 // deviennent « joué »).
@@ -44,6 +46,8 @@ export type Game = {
   coverUrl: string | null
   /** Bannière 16:9 (v7) : une adresse d'image, `null` quand aucune n'est choisie. */
   bannerUrl: string | null
+  /** Recadrage vertical (v9, migration 0028) : pourcentage, `null` = centré. */
+  bannerPosition: number | null
   personalNote: string | null
   createdAt: string
   updatedAt: string
@@ -96,6 +100,7 @@ export function normalizeGame(game: Game): Game {
     playedAt: emptyOptionalTextToNull(game.playedAt),
     coverUrl: emptyOptionalTextToNull(game.coverUrl),
     bannerUrl: emptyOptionalTextToNull(game.bannerUrl),
+    bannerPosition: normalizeBannerPosition(game.bannerPosition),
     personalNote: emptyOptionalTextToNull(game.personalNote),
   }
 }

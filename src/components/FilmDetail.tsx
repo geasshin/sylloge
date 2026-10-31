@@ -29,10 +29,12 @@ type FilmDetailProps = {
   onPosterChange: (url: string | null) => Promise<void>
   /** Enregistre (ou retire, avec null) la bannière 16:9 de la fiche. */
   onBannerChange?: (url: string | null) => Promise<void> | void
+  /** Enregistre le recadrage vertical de la bannière (v9). */
+  onBannerPositionChange?: (position: number) => Promise<void> | void
   tmdbNotice?: string | null
 }
 
-export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, onBannerChange, tmdbNotice = null }: FilmDetailProps) {
+export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, onBannerChange, onBannerPositionChange, tmdbNotice = null }: FilmDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -174,7 +176,9 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
           <DetailBanner
             title={displayTitle}
             bannerUrl={film.bannerUrl}
+            bannerPosition={film.bannerPosition}
             {...(onBannerChange ? bannerEditor.bannerProps : {})}
+            {...(onBannerPositionChange ? { onReposition: onBannerPositionChange } : {})}
           />
         ) : undefined}
         visual={(

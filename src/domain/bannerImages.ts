@@ -178,3 +178,76 @@ export function sameBannerImage(a: string | null, b: string | null): boolean {
   if (a === null || b === null) return false
   return bannerDisplayUrl(a) === bannerDisplayUrl(b)
 }
+
+/**
+ * Recadrage vertical d'une bannière (31 octobre 2026, migration 0028).
+ *
+ * Le bandeau est en 3:1 et l'image en 16:9 : `object-fit: cover` remplit la
+ * largeur et cache environ 40 % de la hauteur. `object-position: 50% <p>%` dit
+ * quelle bande reste visible — 0 montre le haut de l'image, 50 le centre
+ * (défaut, `null` en base), 100 le bas. Ces calculs sont purs pour s'éprouver
+ * hors de l'application (`scripts/banner-images.test.mjs`).
+ */
+export const BANNER_POSITION_DEFAULT = 50
+/** Pas du clavier : 2 % par flèche, 10 % avec Maj. */
+export const BANNER_POSITION_STEP = 2
+export const BANNER_POSITION_STEP_LARGE = 10
+
+/** Ramène un pourcentage de recadrage entre 0 et 100, arrondi à l'entier. */
+export function clampBannerPosition(value: number): number {
+  if (!Number.isFinite(value)) return BANNER_POSITION_DEFAULT
+  return Math.min(100, Math.max(0, Math.round(value)))
+}
+
+/**
+ * Position lue en base ou dans un document : `null` (ou absente) vaut centré,
+ * une valeur reçue est ramenée dans les bornes. Import et lecture SQLite
+ * passent par ici pour qu'une fiche ne porte jamais un pourcentage absurde.
+ */
+export function normalizeBannerPosition(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null
+  return clampBannerPosition(value)
+}
+
+/**
+ * Position venue d'un geste ou d'un document : un pourcentage arrondi entre 0
+ * et 100, ou `null` pour le centrage. Une valeur hors bornes est refusée par
+ * une erreur lisible plutôt que corrigée en silence — le dépôt et l'import
+ * partagent ainsi la même règle que la contrainte CHECK de la migration 0028.
+ */
+export function parseBannerPosition(value: number | null): number | null {
+  if (value === null) return null
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    throw new Error('La position de la bannière doit être nulle ou un entier de 0 à 100.')
+  }
+  return Math.round(value)
+}
+
+/**
+ * Hauteur réellement cachée de l'image dans le bandeau : `cover` la rend à la
+ * largeur du cadre, donc `largeur × hauteurNaturelle / largeurNaturelle`, moins
+ * la hauteur du cadre. Zéro quand l'image n'est pas plus haute que le bandeau.
+ */
+export function hiddenBannerPixels(
+  frameWidth: number,
+  frameHeight: number,
+  naturalWidth: number | null,
+  naturalHeight: number | null,
+): number {
+  if (!naturalWidth || !naturalHeight || frameWidth <= 0 || frameHeight <= 0) return 0
+  return Math.max(0, (frameWidth * naturalHeight) / naturalWidth - frameHeight)
+}
+
+/**
+ * Position après un glissement vertical : `deltaPx` positif = doigt vers le
+ * bas, qui montre davantage le haut de l'image et fait donc baisser le
+ * pourcentage. `hiddenPx` est la hauteur réellement cachée de l'image rendue
+ * (hauteur rendue − hauteur du bandeau) ; sans hauteur cachée, rien ne bouge.
+ */
+export function bannerPositionAfterDrag(start: number, deltaPx: number, hiddenPx: number): number {
+  if (!Number.isFinite(deltaPx) || !Number.isFinite(hiddenPx) || hiddenPx <= 0) {
+    return clampBannerPosition(start)
+  }
+  return clampBannerPosition(start - (deltaPx / hiddenPx) * 100)
+}

@@ -426,6 +426,7 @@ function moveSeries(payload: SeriesPayload): void {
     seasons_seen: series.seasonsSeen, seasons_total: series.seasonsTotal,
     progress_updated_at: series.progressUpdatedAt, started_at: series.startedAt,
     poster_url: series.posterUrl, banner_url: series.bannerUrl,
+    banner_position: series.bannerPosition,
     first_air_year: series.firstAirYear, last_air_year: series.lastAirYear,
     personal_note: series.personalNote, updated_at: series.updatedAt,
   }
@@ -478,10 +479,11 @@ function writeCollectionPlan(table: string, plan: Row) {
     }
     for (const entry of updates) {
       const row = rowFor(entry)
-      // Une fusion qui ne porte pas de bannière ne l'efface pas (comme le
-      // COALESCE de `upsert_*` côté Rust) : un CSV ne la connaît pas.
+      // Une fusion qui ne porte ni bannière ni recadrage ne les efface pas
+      // (comme le COALESCE de `upsert_*` côté Rust) : un CSV ne les connaît pas.
       const columns = Object.keys(row).filter((column) => column !== 'id' && column !== 'profile_id'
-        && !(column === 'banner_url' && (row[column] === null || row[column] === undefined)))
+        && !((column === 'banner_url' || column === 'banner_position')
+          && (row[column] === null || row[column] === undefined)))
       if (columns.length === 0) continue
       execute(
         `UPDATE ${table} SET ${columns.map((column, index) => `${column} = $${index + 1}`).join(', ')} WHERE id = $${columns.length + 1} AND profile_id = $${columns.length + 2}`,

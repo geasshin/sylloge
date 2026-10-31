@@ -417,6 +417,12 @@ const messages: Record<string, string> = {
   "Modifier la bannière": "Edit banner",
   "Ajouter une bannière": "Add a banner",
   "Bannière introuvable · La remplacer": "Banner not found · Replace it",
+  // Recadrage vertical de la bannière (31 octobre 2026, document v9).
+  "Recadrer la bannière de « {title} »": "Crop the banner for “{title}”",
+  "Recadrer la bannière": "Crop banner",
+  "Position de la bannière": "Banner position",
+  "Faites glisser l’image": "Drag the image",
+  "Le recadrage n’a pas pu être enregistré.": "The crop could not be saved.",
   "Bannières 16:9 — démonstration": "Banners 16:9 — demo",
 }
 

@@ -456,6 +456,7 @@ function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPre
       providerId: emptyToNull(value.providerId),
       posterUrl: emptyToNull(value.posterUrl),
       bannerUrl: null,
+      bannerPosition: null,
       createdAt: value.createdAt,
       updatedAt: value.updatedAt,
     }))
@@ -488,7 +489,9 @@ function previewSyllogeCsv(session: SyllogeFilmImportSession): FilmsCsvImportPre
  * inconnue ferait refuser l'import. Un CSV ne porte jamais de bannière.
  */
 function legacyFilms(films: Film[]): Film[] {
-  return films.map(({ bannerUrl: _banner, ...film }) => film) as Film[]
+  // Le CSV v1 ne porte ni la bannière ni son recadrage : le document Films v1
+  // non plus, et son validateur refuse une clé inconnue.
+  return films.map(({ bannerUrl: _banner, bannerPosition: _position, ...film }) => film) as Film[]
 }
 
 function previewGenericCsv(
@@ -576,6 +579,7 @@ function previewGenericCsv(
         providerId: null,
         posterUrl: null,
         bannerUrl: null,
+        bannerPosition: null,
         createdAt: importedAt,
         updatedAt: importedAt,
       }))

@@ -463,7 +463,7 @@ function parseGenericRow(
     for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
     return {
       id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data,
-      progressUpdatedAt: null, bannerUrl: null, createdAt: importedAt, updatedAt: importedAt,
+      progressUpdatedAt: null, bannerUrl: null, bannerPosition: null, createdAt: importedAt, updatedAt: importedAt,
     }
   }
   if (kind === 'books' || kind === 'mangas') {
@@ -500,7 +500,7 @@ function parseGenericRow(
     for (const warning of warnings) errors.push({ path: `Ligne ${line}.info`, message: warning })
     return {
       id: `import-preview-${line}`, profileId: 'import-preview-profile', ...result.data,
-      bannerUrl: null, createdAt: importedAt, updatedAt: importedAt,
+      bannerUrl: null, bannerPosition: null, createdAt: importedAt, updatedAt: importedAt,
     }
   }
   const result = validateArtworkForm({

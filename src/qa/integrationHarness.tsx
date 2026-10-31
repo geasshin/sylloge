@@ -54,31 +54,31 @@ const films: Film[] = [
     id: 'film-1', profileId, title: 'Le.Extension, la plus longue', originalTitle: null, year: 2024,
     status: 'à découvrir', isFavorite: true, rating: 5, watchedAt: null, personalNote: 'Un avis assez long pour vérifier la respiration de la fiche et la composition éditoriale de l’accueil.',
     director: 'Ariane Rivière', summary: 'Un film de recette.', providerName: null, providerId: null,
-    posterUrl: null, bannerUrl: null, createdAt: timestamp('2026-09-22'), updatedAt: timestamp('2026-09-22'),
+    posterUrl: null, bannerUrl: null, bannerPosition: null, createdAt: timestamp('2026-09-22'), updatedAt: timestamp('2026-09-22'),
   },
   {
     id: 'film-2', profileId, title: ' memories of a long afternoon ', originalTitle: null, year: 1999,
     status: 'terminé', isFavorite: false, rating: 4, watchedAt: '2025-09-23', personalNote: 'Une mémoire douce, conservée.',
     director: 'Mina Kore', summary: 'Un second film.', providerName: null, providerId: null,
-    posterUrl: null, bannerUrl: null, createdAt: timestamp('2026-01-10'), updatedAt: timestamp('2026-09-23'),
+    posterUrl: null, bannerUrl: null, bannerPosition: null, createdAt: timestamp('2026-01-10'), updatedAt: timestamp('2026-09-23'),
   },
   {
     id: 'film-3', profileId, title: 'Les Heures', originalTitle: null, year: 1986,
     status: 'abandonné', isFavorite: false, rating: null, watchedAt: '2024-09-23', personalNote: null,
     director: null, summary: null, providerName: null, providerId: null,
-    posterUrl: null, bannerUrl: null, createdAt: timestamp('2025-09-23'), updatedAt: timestamp('2026-02-01'),
+    posterUrl: null, bannerUrl: null, bannerPosition: null, createdAt: timestamp('2025-09-23'), updatedAt: timestamp('2026-02-01'),
   },
   {
     id: 'film-4', profileId, title: 'Rien à signaler', originalTitle: null, year: 2001,
     status: 'à découvrir', isFavorite: false, rating: null, watchedAt: null, personalNote: null,
     director: null, summary: null, providerName: null, providerId: null,
-    posterUrl: null, bannerUrl: null, createdAt: timestamp('2026-09-20'), updatedAt: timestamp('2026-09-20'),
+    posterUrl: null, bannerUrl: null, bannerPosition: null, createdAt: timestamp('2026-09-20'), updatedAt: timestamp('2026-09-20'),
   },
   {
     id: 'film-5', profileId, title: 'Une œuvre en attente', originalTitle: null, year: 2012,
     status: 'en attente', isFavorite: false, rating: null, watchedAt: null, personalNote: null,
     director: null, summary: null, providerName: null, providerId: null,
-    posterUrl: null, bannerUrl: null, createdAt: timestamp('2026-09-19'), updatedAt: timestamp('2026-09-19'),
+    posterUrl: null, bannerUrl: null, bannerPosition: null, createdAt: timestamp('2026-09-19'), updatedAt: timestamp('2026-09-19'),
   },
 ]
 
@@ -95,13 +95,13 @@ const series: Series[] = [
     id: 'series-1', profileId, title: 'Le Bureau des Légendes', showrunner: 'Eric Kandel', casting: 'Dagane, Caroline Proust',
     summary: 'Une série à reprendre.', category: 'série télé', status: 'en cours', rating: 5, isFavorite: true,
     seasonsSeen: 3, seasonsTotal: 5, progressUpdatedAt: timestamp('2026-09-23'), startedAt: '2024-01-10',
-    posterUrl: null, bannerUrl: null, firstAirYear: 2015, lastAirYear: 2020, personalNote: 'Une saison à reprendre avec calme.', createdAt: timestamp('2024-01-10'), updatedAt: timestamp('2026-09-23'),
+    posterUrl: null, bannerUrl: null, bannerPosition: null, firstAirYear: 2015, lastAirYear: 2020, personalNote: 'Une saison à reprendre avec calme.', createdAt: timestamp('2024-01-10'), updatedAt: timestamp('2026-09-23'),
   },
   {
     id: 'series-2', profileId, title: 'Dark', showrunner: 'Baran bo Odar', casting: null, summary: null,
     category: 'série télé', status: 'à voir', rating: null, isFavorite: false,
     seasonsSeen: null, seasonsTotal: 3, progressUpdatedAt: null, startedAt: null,
-    posterUrl: null, bannerUrl: null, firstAirYear: 2017, lastAirYear: 2020, personalNote: null, createdAt: timestamp('2026-10-03'), updatedAt: timestamp('2026-10-03'),
+    posterUrl: null, bannerUrl: null, bannerPosition: null, firstAirYear: 2017, lastAirYear: 2020, personalNote: null, createdAt: timestamp('2026-10-03'), updatedAt: timestamp('2026-10-03'),
   },
 ]
 
@@ -123,12 +123,12 @@ const books: Book[] = [
 const games: Game[] = [
   {
     id: 'game-1', profileId, title: 'Hades', developer: 'Supergiant Games', platform: 'PC', year: 2020, status: 'joué',
-    rating: 5, isFavorite: true, playedAt: '2025-09-23', coverUrl: null, bannerUrl: null, personalNote: 'Toujours excellent.',
+    rating: 5, isFavorite: true, playedAt: '2025-09-23', coverUrl: null, bannerUrl: null, bannerPosition: null, personalNote: 'Toujours excellent.',
     createdAt: timestamp('2020-09-17'), updatedAt: timestamp('2025-09-23'),
   },
   {
     id: 'game-2', profileId, title: 'Celeste', developer: 'Non', platform: 'PC', year: 2018, status: 'à jouer',
-    rating: null, isFavorite: false, playedAt: null, coverUrl: null, bannerUrl: null, personalNote: null,
+    rating: null, isFavorite: false, playedAt: null, coverUrl: null, bannerUrl: null, bannerPosition: null, personalNote: null,
     createdAt: timestamp('2026-10-06'), updatedAt: timestamp('2026-10-06'),
   },
 ]

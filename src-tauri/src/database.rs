@@ -166,6 +166,12 @@ pub fn migrations() -> Vec<Migration> {
             sql: include_str!("../migrations/0027_series_air_years.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 28,
+            description: "banner_position",
+            sql: include_str!("../migrations/0028_banner_position.sql"),
+            kind: MigrationKind::Up,
+        },
     ]
 }
 
@@ -696,6 +702,133 @@ mod tests {
                 untouched, 0,
                 "les livres ne portent pas d’année de diffusion"
             );
+        });
+    }
+
+    /// Recadrage vertical (migration 0028) : un ajout pur, borné. Les fiches
+    /// existantes gardent leurs valeurs et reçoivent une position vide — NULL
+    /// vaut centré, le comportement d’avant la migration.
+    #[test]
+    fn banner_position_migration_is_additive_and_bounded() {
+        tauri::async_runtime::block_on(async {
+            let mut connection = SqliteConnection::connect("sqlite::memory:")
+                .await
+                .expect("create in-memory SQLite database");
+            let all = migrations();
+            for migration in all.iter().filter(|migration| migration.version < 28) {
+                sqlx::raw_sql(migration.sql)
+                    .execute(&mut connection)
+                    .await
+                    .expect("apply Sylloge migration before 0028");
+            }
+
+            sqlx::query("INSERT INTO profiles (id, name) VALUES ('p1', 'Test')")
+                .execute(&mut connection)
+                .await
+                .expect("seed profile");
+            sqlx::query(
+                "INSERT INTO films (id, profile_id, title, banner_url)
+                 VALUES ('film', 'p1', 'Film existant', 'https://image.tmdb.org/t/p/w1280/fond.jpg')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed film");
+            for (table, id) in [("series", "serie"), ("anime", "anime"), ("games", "jeu")] {
+                sqlx::query(&format!(
+                    "INSERT INTO {table} (id, profile_id, title) VALUES ('{id}', 'p1', 'Existant')"
+                ))
+                .execute(&mut connection)
+                .await
+                .expect("seed media row");
+            }
+            sqlx::query(
+                "INSERT INTO books (id, profile_id, title) VALUES ('livre', 'p1', 'Livre')",
+            )
+            .execute(&mut connection)
+            .await
+            .expect("seed book");
+
+            let position_migration = all
+                .iter()
+                .find(|migration| migration.version == 28)
+                .expect("migration 0028");
+            sqlx::raw_sql(position_migration.sql)
+                .execute(&mut connection)
+                .await
+                .expect("apply banner position migration");
+
+            for table in ["films", "series", "anime", "games"] {
+                let column_count: i64 = sqlx::query_scalar(&format!(
+                    "SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = 'banner_position'"
+                ))
+                .fetch_one(&mut connection)
+                .await
+                .expect("read banner position column");
+                assert_eq!(
+                    column_count, 1,
+                    "la table `{table}` doit porter `banner_position`"
+                );
+
+                let stored: Option<i64> =
+                    sqlx::query_scalar(&format!("SELECT banner_position FROM {table}"))
+                        .fetch_one(&mut connection)
+                        .await
+                        .expect("read banner position value");
+                assert_eq!(stored, None, "aucune position par défaut dans `{table}`");
+            }
+
+            let banner: Option<String> =
+                sqlx::query_scalar("SELECT banner_url FROM films WHERE id = 'film'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read preserved banner");
+            assert_eq!(
+                banner.as_deref(),
+                Some("https://image.tmdb.org/t/p/w1280/fond.jpg"),
+                "la bannière existante est intacte"
+            );
+
+            let books: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM pragma_table_info('books') WHERE name = 'banner_position'",
+            )
+            .fetch_one(&mut connection)
+            .await
+            .expect("read book columns");
+            assert_eq!(books, 0, "les livres ne portent pas de recadrage");
+
+            sqlx::query("UPDATE films SET banner_position = 20 WHERE id = 'film'")
+                .execute(&mut connection)
+                .await
+                .expect("write a crop position");
+            let stored: Option<i64> =
+                sqlx::query_scalar("SELECT banner_position FROM films WHERE id = 'film'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read written position");
+            assert_eq!(stored, Some(20));
+
+            // Les bornes refusent l’absurde ; la valeur NULL reste permise.
+            for out_of_range in [-1_i64, 101] {
+                let error = sqlx::query("UPDATE films SET banner_position = $1 WHERE id = 'film'")
+                    .bind(out_of_range)
+                    .execute(&mut connection)
+                    .await
+                    .expect_err("une position hors bornes doit être refusée");
+                assert!(
+                    error.to_string().contains("CHECK"),
+                    "la contrainte doit refuser {out_of_range} : {error}"
+                );
+            }
+            sqlx::query("UPDATE films SET banner_position = NULL WHERE id = 'film'")
+                .execute(&mut connection)
+                .await
+                .expect("clear the crop position");
+            let stored: Option<i64> =
+                sqlx::query_scalar("SELECT banner_position FROM films WHERE id = 'film'")
+                    .fetch_one(&mut connection)
+                    .await
+                    .expect("read cleared position");
+            assert_eq!(stored, None, "NULL revient au centrage");
         });
     }
 }

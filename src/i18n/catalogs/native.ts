@@ -298,5 +298,6 @@ const messages: Record<string, string> = {
   'Impossible de mettre à jour l’œuvre « {0} » : {1}': 'Could not update the artwork “{0}”: {1}',
   'L’écriture de l’œuvre « {0} » n’a modifié aucune ligne SQLite.': 'Writing the artwork “{0}” modified no SQLite rows.',
   'La bannière de « {0} » doit être une adresse https de moins de 2 048 caractères.': 'The banner of “{0}” must be an https address shorter than 2,048 characters.',
+  'La position de la bannière de « {0} » doit être nulle ou un entier de 0 à 100.': 'The banner position of “{0}” must be null or a whole number from 0 to 100.',
 }
 export default messages

@@ -67,12 +67,12 @@ export function createLibraryExport(library: ExportableLibrary, exportedAt = new
 }
 
 /**
- * La bannière 16:9 reste hors du format v1 (juillet 2026), qui ne la connaît
- * pas : elle ne voyage que dans le document de profil v7. Le validateur v1 la
- * remet à null en relisant une fiche.
+ * La bannière 16:9 et son recadrage restent hors du format v1 (juillet 2026),
+ * qui ne les connaît pas : ils ne voyagent que dans le document de profil (v7
+ * et v9). Le validateur v1 les remet à null en relisant une fiche.
  */
 function legacyFilm(film: Film): SyllogeExportFilm {
-  const { bannerUrl: _banner, ...legacy } = normalizeFilm(film)
+  const { bannerUrl: _banner, bannerPosition: _position, ...legacy } = normalizeFilm(film)
   return legacy as SyllogeExportFilm
 }
 

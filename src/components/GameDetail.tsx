@@ -24,10 +24,12 @@ type GameDetailProps = {
   onAssociate?: () => void
   /** Enregistre (ou retire, avec null) la bannière 16:9 de la fiche. */
   onBannerChange?: (url: string | null) => Promise<void> | void
+  /** Enregistre le recadrage vertical de la bannière (v9). */
+  onBannerPositionChange?: (position: number) => Promise<void> | void
   onDelete: () => Promise<void>
 }
 
-export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAssociate, onBannerChange, onDelete }: GameDetailProps) {
+export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAssociate, onBannerChange, onBannerPositionChange, onDelete }: GameDetailProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -85,7 +87,9 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
           <DetailBanner
             title={game.title}
             bannerUrl={game.bannerUrl}
+            bannerPosition={game.bannerPosition}
             {...(onBannerChange ? bannerEditor.bannerProps : {})}
+            {...(onBannerPositionChange ? { onReposition: onBannerPositionChange } : {})}
           />
         ) : undefined}
         visual={(

@@ -90,6 +90,7 @@ const filmRow = {
   provider_id: null,
   poster_url: null,
   banner_url: null,
+  banner_position: 20,
   created_at: '2026-07-17T10:00:00.000Z',
   updated_at: '2026-07-17T10:00:00.000Z',
 }
@@ -349,6 +350,7 @@ function csvCandidate(contents, name = 'table.csv', id = 'csv-0') {
     providerId: null,
     posterUrl: null,
     bannerUrl: null,
+    bannerPosition: 20,
     createdAt: filmRow.created_at,
     updatedAt: filmRow.updated_at,
   }, 'Toutes les colonnes Film doivent être converties sans valeur inventée')
@@ -387,7 +389,9 @@ const completeTransferFilm = {
   providerName: 'Fournisseur de test',
   providerId: 'provider-test-id',
   posterUrl: 'https://example.invalid/poster.jpg',
-  // Le format v1 ne porte pas la bannière : la fiche relue n'a pas la clé.
+  // Le format v1 ne porte ni la bannière ni son recadrage : la fiche relue
+  // les remet à null.
+  bannerPosition: null,
   createdAt: '2026-07-17T10:00:00.000Z',
   updatedAt: '2026-07-17T11:00:00.000Z',
 }
@@ -469,7 +473,11 @@ const completeExport = createLibraryExport({
   assert.equal(preview.document?.format, 'sylloge-films', 'L’export doit annoncer un format stable')
   assert.equal(preview.document?.version, 1, 'L’export doit être explicitement versionné')
   assert.equal(preview.validFilmCount, 1, 'Tous les champs V1 valides doivent être acceptés')
-  assert.deepEqual(preview.document?.films[0], completeTransferFilm, 'La validation ne doit perdre aucun champ Film V1')
+  // Le format v1 ne connaît ni la bannière ni son recadrage : leur clé est
+  // retirée à la relecture, sans toucher aux autres champs V1.
+  const { bannerPosition: _v1Position, ...completeV1Film } = completeTransferFilm
+  assert.deepEqual(preview.document?.films[0], completeV1Film, 'La validation ne doit perdre aucun champ Film V1')
+  assert.equal('bannerPosition' in (preview.document?.films[0] ?? {}), false, 'Un document Films v1 ne porte pas de recadrage')
   assert.match(serialized, /\n  "format": "sylloge-films"/, 'Le JSON doit être indenté et lisible')
   assert.doesNotMatch(serialized, /secret|api[_-]?key|data:image|imageData/i, 'L’export ne doit contenir ni secret ni image téléchargée')
 }
@@ -489,10 +497,11 @@ const completeExport = createLibraryExport({
 
   const jsonPreview = validateLibraryImport(JSON.stringify(historicalDocument))
   assert.equal(jsonPreview.errors.length, 0, 'Un JSON v1 historique avec des chaînes facultatives vides doit rester réimportable')
+  const { bannerPosition: _historicalPosition, ...completeV1Film } = completeTransferFilm
   assert.deepEqual(
     jsonPreview.document?.films[0],
     {
-      ...completeTransferFilm,
+      ...completeV1Film,
       originalTitle: null,
       watchedAt: null,
       personalNote: 'Texte  historique  préservé.',
@@ -1602,8 +1611,11 @@ const completeExport = createLibraryExport({
 
 {
   const partiallyInvalid = structuredClone(completeExport)
+  // Le document reste au format Films v1 : il ne porte pas le recadrage (v9),
+  // qu'un validateur v1 refuserait comme clé inconnue.
+  const { bannerPosition: _invalidPosition, ...v1TemplateFilm } = completeTransferFilm
   partiallyInvalid.films.push({
-    ...completeTransferFilm,
+    ...v1TemplateFilm,
     id: 'invalid-film-id',
     title: 'Entrée invalide',
     rating: 4.75,
@@ -1670,13 +1682,16 @@ const completeExport = createLibraryExport({
   assert.equal(importedPayload.profile.id, 'new-profile-id', 'L’import doit créer un nouvel identifiant de profil')
   assert.equal(importedPayload.films[0].id, 'new-film-id', 'L’import doit recréer les identifiants Film pour éviter les conflits')
   assert.equal(importedPayload.films[0].profileId, 'new-profile-id', 'Chaque film doit cibler exclusivement le nouveau profil')
-  // Le format v1 ne porte pas la bannière ; la transaction native la reçoit à
-  // null (colonne de la migration 0026), sans rien changer aux champs v1.
-  const { bannerUrl: importedBanner, ...importedV1Film } = importedPayload.films[0]
+  // Le format v1 ne porte ni la bannière ni son recadrage ; la transaction
+  // native les reçoit à null (migrations 0026 et 0028), sans rien changer aux
+  // champs v1.
+  const { bannerUrl: importedBanner, bannerPosition: importedPosition, ...importedV1Film } = importedPayload.films[0]
   assert.equal(importedBanner, null, 'Un import v1 n’apporte aucune bannière')
+  assert.equal(importedPosition, null, 'Un import v1 n’apporte aucun recadrage')
+  const { bannerPosition: _payloadPosition, ...completeV1 } = completeTransferFilm
   assert.deepEqual(
     { ...importedV1Film, id: completeTransferFilm.id, profileId: completeTransferFilm.profileId },
-    completeTransferFilm,
+    completeV1,
     'Tous les autres champs V1 doivent être transmis sans perte à la transaction',
   )
   assert.equal(importedLibrary.profile.id, 'new-profile-id', 'Le nouveau profil doit être relu après la transaction')
@@ -2039,6 +2054,7 @@ const atriumHomeSource = readFileSync(new URL('../src/components/AtriumHome.tsx'
 const posterSource = readFileSync(new URL('../src/components/Poster.tsx', import.meta.url), 'utf8')
 const formSource = readFileSync(new URL('../src/components/FilmForm.tsx', import.meta.url), 'utf8')
 const detailSource = readFileSync(new URL('../src/components/FilmDetail.tsx', import.meta.url), 'utf8')
+const bannerPositionDetailsSource = readFileSync(new URL('../src/components/DetailBanner.tsx', import.meta.url), 'utf8')
 // Paramètres (22 octobre 2026) : coquille Portability.tsx et une page par fichier dans components/settings.
 const settingsSurfaceSource = () => ['Portability.tsx', 'settings/SettingsLayout.tsx', 'settings/ProfilesSettings.tsx', 'settings/BackupSettings.tsx', 'settings/TransferSettings.tsx', 'settings/GeneralSettings.tsx', 'settings/AboutSettings.tsx']
   .map((file) => readFileSync(new URL(`../src/components/${file}`, import.meta.url), 'utf8')).join('\n')
@@ -2269,6 +2285,20 @@ assert.match(databaseMigrationSource, /version: 8/, 'La migration de cache TMDB 
   assert.doesNotMatch(airYearsMigration, /\b(UPDATE|DELETE|DROP)\b/, 'La migration des années de diffusion reste additive : aucune ligne réécrite')
   assert.doesNotMatch(airYearsMigration, /ALTER TABLE (films|books|mangas|games|artworks)/, 'Seules les séries et les animés portent une période de diffusion')
   assert.match(databaseMigrationSource, /version: 27,[\s\S]{0,200}series_air_years/, 'La migration 0027 doit être enregistrée')
+}
+// Recadrage vertical des bannières (31 octobre 2026) : ajout pur sur quatre tables, document v9.
+{
+  const positionMigration = readFileSync(new URL('../src-tauri/migrations/0028_banner_position.sql', import.meta.url), 'utf8')
+  for (const table of ['films', 'series', 'anime', 'games']) {
+    assert.match(positionMigration, new RegExp(`ALTER TABLE ${table} ADD COLUMN banner_position INTEGER`), `Le recadrage doit être ajouté à ${table}`)
+  }
+  assert.match(positionMigration, /CHECK \(banner_position IS NULL OR \(banner_position BETWEEN 0 AND 100\)\)/, 'Le recadrage doit rester borné à 0–100, NULL compris')
+  assert.doesNotMatch(positionMigration, /\b(UPDATE|DELETE|DROP)\b/, 'La migration du recadrage reste additive : aucune ligne réécrite')
+  assert.doesNotMatch(positionMigration, /ALTER TABLE (books|mangas|artworks)/, 'Les livres et l’Art ne portent pas de bannière')
+  assert.match(databaseMigrationSource, /version: 28,[\s\S]{0,200}banner_position/, 'La migration 0028 doit être enregistrée')
+  assert.match(bannerPositionDetailsSource, /50% \$\{shownPosition\}%/, 'Le bandeau doit appliquer la position en object-position')
+  assert.match(bannerPositionDetailsSource, /bannerPositionAfterDrag/, 'Le glissement doit passer par la fonction pure testée en Node')
+  assert.match(bannerPositionDetailsSource, /role="slider"/, 'Le bandeau en recadrage doit porter le rôle de curseur')
 }
 assert.match(tmdbCacheMigration, /CREATE TABLE film_tmdb_cache/, 'Le cache TMDB doit vivre dans une table séparée')
 assert.match(tmdbCacheMigration, /REFERENCES films\(id\) ON DELETE CASCADE/, 'La suppression d’un Film doit supprimer son cache TMDB')
@@ -2578,7 +2608,7 @@ assert.doesNotMatch(libraryDocumentSource, /film_tmdb_cache|payload_json/, 'Le d
 
   const document = createLibraryDocument(library, '2026-07-19T12:00:00.000Z')
   assert.equal(document.format, 'sylloge-library', 'Le document doit porter le format sylloge-library')
-  assert.equal(document.version, 8, 'Le document doit porter la version 8 (années de diffusion)')
+  assert.equal(document.version, 9, 'Le document doit porter la version 9 (recadrage de la bannière)')
 
   const serialized = serializeLibraryDocument(document)
   const preview = validateLibraryDocument(serialized)
@@ -3616,6 +3646,7 @@ assert.doesNotMatch(artworkDetailSource, /\brating\b/, 'La fiche Art ne doit aff
     playedAt: '2026-07-22',
     coverUrl: null,
     bannerUrl: null,
+    bannerPosition: null,
     personalNote: 'Avis local\npréservé.',
     createdAt: timestamp,
     updatedAt: timestamp,

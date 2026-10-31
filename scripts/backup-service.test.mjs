@@ -20,7 +20,7 @@ const series = (id, category = 'série télé') => ({
   ...identity(id), showrunner: text, casting: text, summary: text, category,
   status: 'à voir', rating: 0.5, isFavorite: true, seasonsSeen: 0, seasonsTotal: 12,
   progressUpdatedAt: timestamp, startedAt: '2026-10-01', posterUrl: 'https://example.invalid/series.jpg',
-  bannerUrl: 'https://example.invalid/series-banner.jpg',
+  bannerUrl: 'https://example.invalid/series-banner.jpg', bannerPosition: null,
   firstAirYear: 2017, lastAirYear: 2020, personalNote: text,
 })
 const book = (id, category = 'livre') => ({
@@ -44,12 +44,12 @@ const library = {
   films: [{ ...identity('film'), originalTitle: text, year: 2024, status: 'en attente', isFavorite: true,
     rating: 4.5, watchedAt: '2026-10-01', personalNote: text, director: text, summary: text,
     providerName: 'Source synthétique', providerId: 'fixture-42', posterUrl: 'https://example.invalid/film.jpg',
-    bannerUrl: 'https://example.invalid/film-banner.jpg' }],
+    bannerUrl: 'https://example.invalid/film-banner.jpg', bannerPosition: null }],
   series: [series('series')], anime: [series('anime', 'animation')],
   books: [book('book')], mangas: [book('manga', 'manga')],
   games: [{ ...identity('game'), developer: text, platform: text, year: 2024, status: 'à jouer',
     rating: 0.5, isFavorite: true, playedAt: '2026-10-01', coverUrl: 'https://example.invalid/game.jpg',
-    bannerUrl: 'https://example.invalid/game-banner.jpg', personalNote: text }],
+    bannerUrl: 'https://example.invalid/game-banner.jpg', bannerPosition: null, personalNote: text }],
   artworks: [{ ...identity('artwork'), artist: text, year: 2024, form: 'peinture', location: text,
     exhibition: text, status: 'à découvrir', isFavorite: true, discoveredAt: '2026-10-01',
     imageUrl: 'https://example.invalid/art.jpg', personalNote: text, customFields: [{ name: 'Technique', value: text }], details: { text: 'Vers un\n\n    Vers deux', collection: 'Recueil 日本語' } }],
@@ -92,7 +92,7 @@ function harness({ loadLibrary = async () => structuredClone(library), now = () 
 function assertSevenSections(contents, expected = library, exportedAt = timestamp) {
   const document = JSON.parse(contents)
   assert.equal(document.format, 'sylloge-library')
-  assert.equal(document.version, 8)
+  assert.equal(document.version, 9)
   assert.equal(document.exportedAt, exportedAt)
   assert.deepEqual(document.profile, expected.profile)
   // v5 : le bloc experience est toujours écrit, même vide — il ne dépend pas de l'appelant.

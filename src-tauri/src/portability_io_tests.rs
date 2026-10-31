@@ -149,7 +149,7 @@ fn io_complete_document_value(profile_id: &str) -> serde_json::Value {
             "rating": 4.5, "watchedAt": "2026-10-01", "personalNote": note,
             "director": note, "summary": note, "providerName": "Source", "providerId": "123",
             "posterUrl": "https://example.test/film.jpg",
-            "bannerUrl": "https://example.test/film-banner.jpg"
+            "bannerUrl": "https://example.test/film-banner.jpg", "bannerPosition": 20
         })
         .as_object()
         .unwrap()
@@ -163,8 +163,8 @@ fn io_complete_document_value(profile_id: &str) -> serde_json::Value {
                 "status": "à voir", "rating": 0.5, "isFavorite": true, "seasonsSeen": 0,
                 "seasonsTotal": 12, "progressUpdatedAt": timestamp, "startedAt": "2026-10-01",
                 "posterUrl": "https://example.test/series.jpg",
-                "bannerUrl": "https://example.test/series-banner.jpg", "personalNote": note,
-                "firstAirYear": 2017, "lastAirYear": 2020
+                "bannerUrl": "https://example.test/series-banner.jpg", "bannerPosition": 65,
+                "personalNote": note, "firstAirYear": 2017, "lastAirYear": 2020
             })
             .as_object()
             .unwrap()
@@ -187,7 +187,8 @@ fn io_complete_document_value(profile_id: &str) -> serde_json::Value {
     game.as_object_mut().unwrap().extend(serde_json::json!({
         "developer": note, "platform": note, "year": 2024, "status": "à jouer", "rating": 0.5,
         "isFavorite": true, "playedAt": "2026-10-01", "coverUrl": "https://example.test/game.jpg",
-        "bannerUrl": "https://example.test/game-banner.jpg", "personalNote": note
+        "bannerUrl": "https://example.test/game-banner.jpg", "bannerPosition": 80,
+        "personalNote": note
     }).as_object().unwrap().clone());
     serde_json::json!({
         "profile": {"id": profile_id, "name": "Profil de contrôle", "createdAt": timestamp, "updatedAt": timestamp},
@@ -355,29 +356,33 @@ fn banner_url_travels_with_a_document_and_survives_a_merge_without_one() {
             .await
             .unwrap();
 
-        for (table, id, banner) in [
-            ("films", "film-io", "https://example.test/film-banner.jpg"),
-            ("series", "series-io", "https://example.test/series-banner.jpg"),
-            ("anime", "anime-io", "https://example.test/series-banner.jpg"),
-            ("games", "game-io", "https://example.test/game-banner.jpg"),
+        for (table, id, banner, position) in [
+            ("films", "film-io", "https://example.test/film-banner.jpg", 20),
+            ("series", "series-io", "https://example.test/series-banner.jpg", 65),
+            ("anime", "anime-io", "https://example.test/series-banner.jpg", 65),
+            ("games", "game-io", "https://example.test/game-banner.jpg", 80),
         ] {
-            let stored: Option<String> =
-                sqlx::query_scalar(&format!("SELECT banner_url FROM {table} WHERE id = $1"))
-                    .bind(id)
-                    .fetch_one(&pool)
-                    .await
-                    .unwrap();
-            assert_eq!(stored.as_deref(), Some(banner), "{table}.banner_url");
+            let stored: (Option<String>, Option<i64>) = sqlx::query_as(&format!(
+                "SELECT banner_url, banner_position FROM {table} WHERE id = $1"
+            ))
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert_eq!(
+                stored,
+                (Some(banner.to_string()), Some(position)),
+                "{table} : la bannière et son recadrage viennent du document"
+            );
         }
 
         // Import d'une collection sans bannière (le cas d'un CSV, qui ne la porte
-        // pas) : la fusion ne l'efface pas.
+        // pas) : la fusion ne l'efface pas. Le recadrage suit la même règle.
         let mut without_banner = io_complete_document_value("banner-io");
         for section in ["films", "series", "anime", "games"] {
-            without_banner[section][0]
-                .as_object_mut()
-                .unwrap()
-                .remove("bannerUrl");
+            let object = without_banner[section][0].as_object_mut().unwrap();
+            object.remove("bannerUrl");
+            object.remove("bannerPosition");
         }
         fn empty_plan<T>(profile_id: &str) -> CollectionImportPlan<T> {
             CollectionImportPlan {
@@ -409,16 +414,21 @@ fn banner_url_travels_with_a_document_and_survives_a_merge_without_one() {
             ("anime", "anime-io", "https://example.test/series-banner.jpg"),
             ("games", "game-io", "https://example.test/game-banner.jpg"),
         ] {
-            let stored: Option<String> =
-                sqlx::query_scalar(&format!("SELECT banner_url FROM {table} WHERE id = $1"))
-                    .bind(id)
-                    .fetch_one(&pool)
-                    .await
-                    .unwrap();
+            let stored: (Option<String>, Option<i64>) = sqlx::query_as(&format!(
+                "SELECT banner_url, banner_position FROM {table} WHERE id = $1"
+            ))
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
             assert_eq!(
-                stored.as_deref(),
+                stored.0.as_deref(),
                 Some(banner),
                 "une fusion sans bannière ne doit pas effacer {table}.banner_url"
+            );
+            assert!(
+                stored.1.is_some(),
+                "une fusion sans bannière ne doit pas effacer {table}.banner_position"
             );
         }
     });
@@ -540,6 +550,7 @@ fn a_merged_new_series_keeps_its_note_banner_and_dates_in_place() {
                 "bannerUrl".into(),
                 serde_json::json!("https://image.tmdb.org/t/p/original/fond.jpg"),
             );
+            object.insert("bannerPosition".into(), serde_json::json!(35));
             object.insert("createdAt".into(), serde_json::json!("2026-01-02T03:04:05.000Z"));
             object.insert("updatedAt".into(), serde_json::json!("2026-02-03T04:05:06.000Z"));
             if section == "series" {
@@ -559,8 +570,8 @@ fn a_merged_new_series_keeps_its_note_banner_and_dates_in_place() {
                 };
                 write_anime_import_plan(&pool, &plan).await.unwrap();
             }
-            let stored: (Option<String>, Option<String>, String, String) = sqlx::query_as(&format!(
-                "SELECT personal_note, banner_url, created_at, updated_at FROM {section} WHERE id = $1"
+            let stored: (Option<String>, Option<String>, Option<i64>, String, String) = sqlx::query_as(&format!(
+                "SELECT personal_note, banner_url, banner_position, created_at, updated_at FROM {section} WHERE id = $1"
             ))
             .bind(&id)
             .fetch_one(&pool)
@@ -571,12 +582,116 @@ fn a_merged_new_series_keeps_its_note_banner_and_dates_in_place() {
                 (
                     Some("Ma note".to_string()),
                     Some("https://image.tmdb.org/t/p/original/fond.jpg".to_string()),
+                    Some(35),
                     "2026-01-02T03:04:05.000Z".to_string(),
                     "2026-02-03T04:05:06.000Z".to_string(),
                 ),
                 "{section} : chaque colonne à sa place après une fusion"
             );
         }
+    });
+}
+
+/// Recadrage de bannière (v9) : une fusion qui ajoute un film ou un jeu écrit
+/// la position dans `banner_position`, jamais dans la note personnelle — la
+/// régression de colonne décalée reste couverte pour les quatre tables.
+#[test]
+fn a_merged_film_or_game_keeps_its_banner_position_in_its_own_column() {
+    tauri::async_runtime::block_on(async {
+        let pool = test_pool_with_tmdb_migrations().await;
+        let base = io_complete_document_value("merge-position");
+        write_library_document_import(
+            &pool,
+            &serde_json::from_value(base.clone()).unwrap(),
+            true,
+        )
+        .await
+        .unwrap();
+
+        for section in ["films", "games"] {
+            let mut entry = base[section][0].clone();
+            let object = entry.as_object_mut().unwrap();
+            let id = format!("{section}-merge-position");
+            object.insert("id".into(), serde_json::json!(id));
+            object.insert("personalNote".into(), serde_json::json!("Ma note"));
+            object.insert("bannerPosition".into(), serde_json::json!(35));
+
+            if section == "films" {
+                let plan = CollectionImportPlan::<ImportFilm> {
+                    profile_id: "merge-position".to_string(),
+                    replace_existing: false,
+                    inserts: vec![serde_json::from_value(entry).unwrap()],
+                    updates: Vec::new(),
+                };
+                write_films_import_plan(&pool, &plan).await.unwrap();
+            } else {
+                let plan = CollectionImportPlan::<ImportGame> {
+                    profile_id: "merge-position".to_string(),
+                    replace_existing: false,
+                    inserts: vec![serde_json::from_value(entry).unwrap()],
+                    updates: Vec::new(),
+                };
+                write_games_import_plan(&pool, &plan).await.unwrap();
+            }
+
+            let stored: (Option<String>, Option<i64>) = sqlx::query_as(&format!(
+                "SELECT personal_note, banner_position FROM {section} WHERE id = $1"
+            ))
+            .bind(&id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+            assert_eq!(
+                stored,
+                (Some("Ma note".to_string()), Some(35)),
+                "{section} : le recadrage arrive sur sa propre colonne après une fusion"
+            );
+        }
+    });
+}
+
+/// Fusion d'un film déjà présent : la même image sans position garde son
+/// recadrage ; une autre image repart avec le sien, ou centrée.
+#[test]
+fn a_merged_film_keeps_its_crop_only_for_the_same_banner() {
+    tauri::async_runtime::block_on(async {
+        let pool = test_pool_with_tmdb_migrations().await;
+        let base = io_complete_document_value("merge-crop");
+        write_library_document_import(&pool, &serde_json::from_value(base.clone()).unwrap(), true)
+            .await
+            .unwrap();
+        let id = base["films"][0]["id"].as_str().unwrap().to_string();
+        sqlx::query("UPDATE films SET banner_url = 'https://image.tmdb.org/t/p/original/a.jpg', banner_position = 20 WHERE id = $1")
+            .bind(&id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        let merge = |banner: &str| {
+            let mut entry = base["films"][0].clone();
+            entry["bannerUrl"] = serde_json::json!(banner);
+            entry["bannerPosition"] = serde_json::Value::Null;
+            CollectionImportPlan::<ImportFilm> {
+                profile_id: "merge-crop".to_string(),
+                replace_existing: false,
+                inserts: Vec::new(),
+                updates: vec![serde_json::from_value(entry).unwrap()],
+            }
+        };
+        let position = |pool: sqlx::SqlitePool, id: String| async move {
+            sqlx::query_scalar::<_, Option<i64>>("SELECT banner_position FROM films WHERE id = $1")
+                .bind(id)
+                .fetch_one(&pool)
+                .await
+                .unwrap()
+        };
+        write_films_import_plan(&pool, &merge("https://image.tmdb.org/t/p/original/a.jpg"))
+            .await
+            .unwrap();
+        assert_eq!(position(pool.clone(), id.clone()).await, Some(20), "même image : le recadrage reste");
+        write_films_import_plan(&pool, &merge("https://image.tmdb.org/t/p/original/b.jpg"))
+            .await
+            .unwrap();
+        assert_eq!(position(pool.clone(), id.clone()).await, None, "autre image : elle repart centrée");
     });
 }
 

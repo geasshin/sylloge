@@ -326,6 +326,10 @@ pub struct ImportFilm {
     /// Bannière 16:9 (document v7, migration 0026) : absente avant la v7.
     #[serde(default)]
     banner_url: Option<String>,
+    /// Recadrage vertical de la bannière (document v9, migration 0028) : absent
+    /// avant la v9, `null` pour un centrage.
+    #[serde(default)]
+    banner_position: Option<i64>,
     created_at: String,
     updated_at: String,
 }
@@ -350,6 +354,9 @@ pub struct ImportSeries {
     poster_url: Option<String>,
     #[serde(default)]
     banner_url: Option<String>,
+    /// Recadrage vertical de la bannière (document v9, migration 0028).
+    #[serde(default)]
+    banner_position: Option<i64>,
     personal_note: Option<String>,
     /// Années de diffusion (document v8, migration 0027) : absentes avant la v8.
     #[serde(default)]
@@ -384,6 +391,9 @@ pub struct ImportAnime {
     poster_url: Option<String>,
     #[serde(default)]
     banner_url: Option<String>,
+    /// Recadrage vertical de la bannière (document v9, migration 0028).
+    #[serde(default)]
+    banner_position: Option<i64>,
     personal_note: Option<String>,
     /// Années de diffusion (document v8, migration 0027) : absentes avant la v8.
     #[serde(default)]
@@ -472,6 +482,9 @@ pub struct ImportGame {
     cover_url: Option<String>,
     #[serde(default)]
     banner_url: Option<String>,
+    /// Recadrage vertical de la bannière (document v9, migration 0028).
+    #[serde(default)]
+    banner_position: Option<i64>,
     personal_note: Option<String>,
     created_at: String,
     updated_at: String,
@@ -2711,9 +2724,10 @@ async fn write_import(
             "INSERT INTO films (
                 id, profile_id, title, original_title, year, status, is_favorite, rating,
                 watched_at, personal_note, director, summary, provider_name, provider_id,
-                poster_url, banner_url, created_at, updated_at
+                poster_url, banner_url, banner_position, created_at, updated_at
              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+                $19
              )",
         )
         .bind(&film.id)
@@ -2732,6 +2746,7 @@ async fn write_import(
         .bind(provider_id)
         .bind(poster_url)
         .bind(canonical_optional_text(&film.banner_url))
+        .bind(checked_banner_position(film.banner_position, &film.title)?)
         .bind(&film.created_at)
         .bind(&film.updated_at)
         .execute(&mut *transaction)
@@ -2793,6 +2808,7 @@ struct AnimeRecord<'a> {
     started_at: Option<&'a str>,
     poster_url: Option<&'a str>,
     banner_url: Option<&'a str>,
+    banner_position: Option<i64>,
     personal_note: Option<&'a str>,
     created_at: &'a str,
     updated_at: &'a str,
@@ -2818,6 +2834,7 @@ impl<'a> From<&'a ImportSeries> for AnimeRecord<'a> {
             started_at: canonical_optional_text(&series.started_at),
             poster_url: canonical_optional_text(&series.poster_url),
             banner_url: canonical_optional_text(&series.banner_url),
+            banner_position: series.banner_position,
             personal_note: canonical_optional_text(&series.personal_note),
             created_at: &series.created_at,
             updated_at: &series.updated_at,
@@ -2845,6 +2862,7 @@ impl<'a> From<&'a ImportAnime> for AnimeRecord<'a> {
             started_at: canonical_optional_text(&anime.started_at),
             poster_url: canonical_optional_text(&anime.poster_url),
             banner_url: canonical_optional_text(&anime.banner_url),
+            banner_position: anime.banner_position,
             personal_note: canonical_optional_text(&anime.personal_note),
             created_at: &anime.created_at,
             updated_at: &anime.updated_at,
@@ -3227,6 +3245,48 @@ fn validate_banner_urls(payload: &ImportLibraryDocumentPayload) -> Result<(), St
     Ok(())
 }
 
+/// Recadrage vertical d'une bannière (document v9, migration 0028) : un entier
+/// de 0 à 100, `null` pour le centrage. La borne est celle de la contrainte
+/// CHECK ; la vérifier ici donne un message lisible plutôt qu'une erreur SQLite.
+fn checked_banner_position(position: Option<i64>, title: &str) -> Result<Option<i64>, String> {
+    match position {
+        Some(value) if !(0..=100).contains(&value) => Err(format!(
+            "La position de la bannière de « {title} » doit être nulle ou un entier de 0 à 100."
+        )),
+        other => Ok(other),
+    }
+}
+
+/// Contrôle des recadrages d'un document global, avant toute écriture.
+fn validate_banner_positions(payload: &ImportLibraryDocumentPayload) -> Result<(), String> {
+    for (title, position) in payload
+        .films
+        .iter()
+        .map(|film| (&film.title, film.banner_position))
+        .chain(
+            payload
+                .series
+                .iter()
+                .map(|series| (&series.title, series.banner_position)),
+        )
+        .chain(
+            payload
+                .anime
+                .iter()
+                .map(|anime| (&anime.title, anime.banner_position)),
+        )
+        .chain(
+            payload
+                .games
+                .iter()
+                .map(|game| (&game.title, game.banner_position)),
+        )
+    {
+        checked_banner_position(position, title)?;
+    }
+    Ok(())
+}
+
 fn validate_library_categories(payload: &ImportLibraryDocumentPayload) -> Result<(), String> {
     if payload
         .books
@@ -3266,11 +3326,11 @@ async fn insert_anime_row(
         "INSERT INTO anime (
             id, profile_id, title, showrunner, casting, summary, status, rating,
             is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
-            poster_url, banner_url, personal_note, created_at, updated_at,
+            poster_url, banner_url, banner_position, personal_note, created_at, updated_at,
             first_air_year, last_air_year
          ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20
+            $19, $20, $21
          )",
     )
     .bind(anime.id)
@@ -3288,6 +3348,7 @@ async fn insert_anime_row(
     .bind(anime.started_at)
     .bind(anime.poster_url)
     .bind(anime.banner_url)
+    .bind(anime.banner_position)
     .bind(anime.personal_note)
     .bind(anime.created_at)
     .bind(anime.updated_at)
@@ -3313,11 +3374,11 @@ async fn insert_series_row(
         "INSERT INTO series (
             id, profile_id, title, showrunner, casting, summary, category, status, rating,
             is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
-            poster_url, banner_url, personal_note, created_at, updated_at,
+            poster_url, banner_url, banner_position, personal_note, created_at, updated_at,
             first_air_year, last_air_year
          ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-            $19, $20, $21
+            $19, $20, $21, $22
          )",
     )
     .bind(&series.id)
@@ -3336,6 +3397,10 @@ async fn insert_series_row(
     .bind(canonical_optional_text(&series.started_at))
     .bind(canonical_optional_text(&series.poster_url))
     .bind(canonical_optional_text(&series.banner_url))
+    .bind(checked_banner_position(
+        series.banner_position,
+        &series.title,
+    )?)
     .bind(canonical_optional_text(&series.personal_note))
     .bind(&series.created_at)
     .bind(&series.updated_at)
@@ -3532,6 +3597,7 @@ async fn write_library_document_import(
 
     validate_library_categories(payload)?;
     validate_banner_urls(payload)?;
+    validate_banner_positions(payload)?;
 
     let book_ids: std::collections::HashSet<&str> =
         payload.books.iter().map(|book| book.id.as_str()).collect();
@@ -3626,9 +3692,10 @@ async fn write_library_document_import(
             "INSERT INTO films (
                 id, profile_id, title, original_title, year, status, is_favorite, rating,
                 watched_at, personal_note, director, summary, provider_name, provider_id,
-                poster_url, banner_url, created_at, updated_at
+                poster_url, banner_url, banner_position, created_at, updated_at
              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+                $19
              )",
         )
         .bind(&film.id)
@@ -3647,6 +3714,7 @@ async fn write_library_document_import(
         .bind(provider_id)
         .bind(poster_url)
         .bind(canonical_optional_text(&film.banner_url))
+        .bind(checked_banner_position(film.banner_position, &film.title)?)
         .bind(&film.created_at)
         .bind(&film.updated_at)
         .execute(&mut *transaction)
@@ -3682,9 +3750,10 @@ async fn write_library_document_import(
         sqlx::query(
             "INSERT INTO games (
                 id, profile_id, title, developer, platform, year, status, rating, is_favorite,
-                played_at, cover_url, banner_url, personal_note, created_at, updated_at
+                played_at, cover_url, banner_url, banner_position, personal_note, created_at,
+                updated_at
              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
              )",
         )
         .bind(&game.id)
@@ -3699,6 +3768,7 @@ async fn write_library_document_import(
         .bind(canonical_optional_text(&game.played_at))
         .bind(canonical_optional_text(&game.cover_url))
         .bind(canonical_optional_text(&game.banner_url))
+        .bind(checked_banner_position(game.banner_position, &game.title)?)
         .bind(canonical_optional_text(&game.personal_note))
         .bind(&game.created_at)
         .bind(&game.updated_at)
@@ -4366,7 +4436,11 @@ async fn upsert_film(
     let poster_url = canonical_optional_text(&film.poster_url);
     // Une bannière absente du document ne remplace jamais celle déjà enregistrée :
     // l’import avec fusion comble, il n’efface pas (même règle que les détails d’une œuvre).
+    // Le recadrage suit la même règle : sans position, la bannière existante garde la sienne.
+    // Une AUTRE image arrive avec son propre recadrage (ou centrée) : l’ancien
+    // cadrage ne vaut que pour l’ancienne image.
     let banner_url = canonical_optional_text(&film.banner_url);
+    let banner_position = checked_banner_position(film.banner_position, &film.title)?;
     let (provider_name, provider_id) = canonical_provenance(&film.provider_name, &film.provider_id);
 
     let result = if is_update {
@@ -4375,7 +4449,8 @@ async fn upsert_film(
                 title = $3, original_title = $4, year = $5, status = $6, is_favorite = $7,
                 rating = $8, watched_at = $9, personal_note = $10, director = $11, summary = $12,
                 provider_name = $13, provider_id = $14, poster_url = $15,
-                banner_url = COALESCE($16, banner_url), updated_at = $17
+                banner_url = COALESCE($16, banner_url), updated_at = $17,
+                banner_position = CASE WHEN $16 IS NOT NULL AND $16 IS NOT banner_url THEN $18 ELSE COALESCE($18, banner_position) END
              WHERE id = $1 AND profile_id = $2",
         )
         .bind(&film.id)
@@ -4395,6 +4470,7 @@ async fn upsert_film(
         .bind(poster_url)
         .bind(banner_url)
         .bind(&film.updated_at)
+        .bind(banner_position)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -4408,9 +4484,10 @@ async fn upsert_film(
             "INSERT INTO films (
                 id, profile_id, title, original_title, year, status, is_favorite, rating,
                 watched_at, personal_note, director, summary, provider_name, provider_id,
-                poster_url, banner_url, created_at, updated_at
+                poster_url, banner_url, banner_position, created_at, updated_at
              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+                $19
              )",
         )
         .bind(&film.id)
@@ -4429,6 +4506,7 @@ async fn upsert_film(
         .bind(provider_id)
         .bind(poster_url)
         .bind(banner_url)
+        .bind(banner_position)
         .bind(&film.created_at)
         .bind(&film.updated_at)
         .execute(&mut **transaction)
@@ -4458,6 +4536,7 @@ async fn upsert_series(
     let started_at = canonical_optional_text(&series.started_at);
     let poster_url = canonical_optional_text(&series.poster_url);
     let banner_url = canonical_optional_text(&series.banner_url);
+    let banner_position = checked_banner_position(series.banner_position, &series.title)?;
     let personal_note = canonical_optional_text(&series.personal_note);
 
     let result = if is_update {
@@ -4468,7 +4547,8 @@ async fn upsert_series(
                 seasons_total = $12, progress_updated_at = $13, started_at = $14,
                 poster_url = $15, banner_url = COALESCE($16, banner_url),
                 personal_note = $17, first_air_year = COALESCE($18, first_air_year),
-                last_air_year = COALESCE($19, last_air_year), updated_at = $20
+                last_air_year = COALESCE($19, last_air_year), updated_at = $20,
+                banner_position = CASE WHEN $16 IS NOT NULL AND $16 IS NOT banner_url THEN $21 ELSE COALESCE($21, banner_position) END
              WHERE id = $1 AND profile_id = $2",
         )
         .bind(&series.id)
@@ -4491,6 +4571,7 @@ async fn upsert_series(
         .bind(series.first_air_year)
         .bind(series.last_air_year)
         .bind(&series.updated_at)
+        .bind(banner_position)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -4504,11 +4585,11 @@ async fn upsert_series(
             "INSERT INTO series (
                 id, profile_id, title, showrunner, casting, summary, category, status, rating,
                 is_favorite, seasons_seen, seasons_total, progress_updated_at, started_at,
-                poster_url, banner_url, personal_note, created_at, updated_at,
+                poster_url, banner_url, banner_position, personal_note, created_at, updated_at,
                 first_air_year, last_air_year
              ) VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
-                $19, $20, $21
+                $19, $20, $21, $22
              )",
         )
         .bind(&series.id)
@@ -4527,6 +4608,7 @@ async fn upsert_series(
         .bind(started_at)
         .bind(poster_url)
         .bind(banner_url)
+        .bind(banner_position)
         .bind(personal_note)
         .bind(&series.created_at)
         .bind(&series.updated_at)
@@ -4568,7 +4650,8 @@ async fn upsert_anime(
             progress_updated_at = $12, started_at = $13, poster_url = $14,
             banner_url = COALESCE($15, banner_url), personal_note = $16,
             first_air_year = COALESCE($17, first_air_year),
-            last_air_year = COALESCE($18, last_air_year), updated_at = $19
+            last_air_year = COALESCE($18, last_air_year),
+            banner_position = CASE WHEN $15 IS NOT NULL AND $15 IS NOT banner_url THEN $19 ELSE COALESCE($19, banner_position) END, updated_at = $20
          WHERE id = $1 AND profile_id = $2",
     )
     .bind(anime.id)
@@ -4589,6 +4672,7 @@ async fn upsert_anime(
     .bind(anime.personal_note)
     .bind(anime.first_air_year)
     .bind(anime.last_air_year)
+    .bind(anime.banner_position)
     .bind(anime.updated_at)
     .execute(&mut **transaction)
     .await
@@ -4809,13 +4893,15 @@ async fn upsert_game(
     let played_at = canonical_optional_text(&game.played_at);
     let cover_url = canonical_optional_text(&game.cover_url);
     let banner_url = canonical_optional_text(&game.banner_url);
+    let banner_position = checked_banner_position(game.banner_position, &game.title)?;
     let personal_note = canonical_optional_text(&game.personal_note);
     let result = if is_update {
         sqlx::query(
             "UPDATE games SET
                 title = $3, developer = $4, platform = $5, year = $6, status = $7,
                 rating = $8, is_favorite = $9, played_at = $10, cover_url = $11,
-                banner_url = COALESCE($12, banner_url), personal_note = $13, updated_at = $14
+                banner_url = COALESCE($12, banner_url), personal_note = $13, updated_at = $14,
+                banner_position = CASE WHEN $12 IS NOT NULL AND $12 IS NOT banner_url THEN $15 ELSE COALESCE($15, banner_position) END
              WHERE id = $1 AND profile_id = $2",
         )
         .bind(&game.id)
@@ -4832,6 +4918,7 @@ async fn upsert_game(
         .bind(banner_url)
         .bind(personal_note)
         .bind(&game.updated_at)
+        .bind(banner_position)
         .execute(&mut **transaction)
         .await
         .map_err(|error| {
@@ -4844,8 +4931,9 @@ async fn upsert_game(
         sqlx::query(
             "INSERT INTO games (
                 id, profile_id, title, developer, platform, year, status, rating, is_favorite,
-                played_at, cover_url, banner_url, personal_note, created_at, updated_at
-             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+                played_at, cover_url, banner_url, personal_note, created_at, updated_at,
+                banner_position
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)",
         )
         .bind(&game.id)
         .bind(&game.profile_id)
@@ -4862,6 +4950,7 @@ async fn upsert_game(
         .bind(personal_note)
         .bind(&game.created_at)
         .bind(&game.updated_at)
+        .bind(banner_position)
         .execute(&mut **transaction)
         .await
         .map_err(|error| format!("Impossible d’importer le jeu « {} » : {error}", game.title))?
@@ -5289,6 +5378,7 @@ mod tests {
                     provider_id: Some(String::new()),
                     poster_url: Some(String::new()),
                     banner_url: None,
+                    banner_position: None,
                     created_at: timestamp.clone(),
                     updated_at: timestamp,
                 }],
@@ -6078,6 +6168,7 @@ mod tests {
                     provider_id: None,
                     poster_url: None,
                     banner_url: None,
+                    banner_position: None,
                     created_at: timestamp.clone(),
                     updated_at: timestamp,
                 }],
@@ -6167,6 +6258,7 @@ mod tests {
             include_str!("../migrations/0025_artwork_details.sql"),
             include_str!("../migrations/0026_media_banner_url.sql"),
             include_str!("../migrations/0027_series_air_years.sql"),
+            include_str!("../migrations/0028_banner_position.sql"),
         ] {
             sqlx::raw_sql(migration)
                 .execute(&pool)
@@ -6205,6 +6297,7 @@ mod tests {
                     provider_id: None,
                     poster_url: None,
                     banner_url: None,
+                    banner_position: None,
                     created_at: timestamp.clone(),
                     updated_at: timestamp.clone(),
                 }],
@@ -6301,6 +6394,7 @@ mod tests {
                     provider_id: Some("source-ete-42".to_string()),
                     poster_url: None,
                     banner_url: None,
+                    banner_position: None,
                     created_at: timestamp.clone(),
                     updated_at: timestamp,
                 }],
@@ -6364,6 +6458,7 @@ mod tests {
                     provider_id: None,
                     poster_url: None,
                     banner_url: None,
+                    banner_position: None,
                     created_at: timestamp.clone(),
                     updated_at: timestamp.clone(),
                 }],
@@ -6385,6 +6480,7 @@ mod tests {
                     poster_url: None,
                     personal_note: None,
                     banner_url: None,
+                    banner_position: None,
                     first_air_year: Some(2019),
                     last_air_year: Some(2023),
                     created_at: timestamp.clone(),
@@ -6433,6 +6529,7 @@ mod tests {
                     cover_url: None,
                     personal_note: None,
                     banner_url: None,
+                    banner_position: None,
                     created_at: timestamp.clone(),
                     updated_at: timestamp.clone(),
                 }],
@@ -6552,6 +6649,7 @@ mod tests {
                 provider_id: None,
                 poster_url: None,
                 banner_url: None,
+                banner_position: None,
                 created_at: timestamp.clone(),
                 updated_at: timestamp.clone(),
             };
@@ -6802,6 +6900,7 @@ mod tests {
                 cover_url: None,
                 personal_note: Some("Avis local".to_string()),
                 banner_url: None,
+                banner_position: None,
                 created_at: timestamp.to_string(),
                 updated_at: timestamp.to_string(),
             };
@@ -6972,6 +7071,7 @@ mod tests {
             poster_url: None,
             personal_note: Some("Note de série.".to_string()),
             banner_url: None,
+            banner_position: None,
             first_air_year: Some(2017),
             last_air_year: Some(2020),
             created_at: "2026-01-01T00:00:00.000Z".to_string(),
@@ -7003,6 +7103,7 @@ mod tests {
             poster_url: Some("https://example.test/anime.jpg".to_string()),
             personal_note: Some("Note animé.".to_string()),
             banner_url: None,
+            banner_position: None,
             first_air_year: Some(2022),
             last_air_year: None,
             created_at: "2026-01-02T00:00:00.000Z".to_string(),

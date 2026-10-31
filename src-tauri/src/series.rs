@@ -55,6 +55,9 @@ struct SeriesWriteInput {
     poster_url: Option<String>,
     /// Bannière 16:9 (migration 0026) : une adresse d'image, jamais un fichier.
     banner_url: Option<String>,
+    /// Recadrage vertical (migration 0028) : un pourcentage d'object-position,
+    /// `null` pour le centrage par défaut.
+    banner_position: Option<i64>,
     personal_note: Option<String>,
     created_at: String,
     updated_at: String,
@@ -155,10 +158,11 @@ async fn insert_series_row(
                id, profile_id, title, showrunner, casting, summary, category,
                status, rating, is_favorite, seasons_seen, seasons_total,
                progress_updated_at, started_at, poster_url, banner_url,
-               personal_note, created_at, updated_at, first_air_year, last_air_year
+               banner_position, personal_note, created_at, updated_at,
+               first_air_year, last_air_year
              ) VALUES (
                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-               $15, $16, $17, $18, $19, $20, $21
+               $15, $16, $17, $18, $19, $20, $21, $22
              )",
             )
             .bind(&series.id)
@@ -177,6 +181,7 @@ async fn insert_series_row(
             .bind(&series.started_at)
             .bind(&series.poster_url)
             .bind(&series.banner_url)
+            .bind(series.banner_position)
             .bind(&series.personal_note)
             .bind(&series.created_at)
             .bind(&series.updated_at)
@@ -192,10 +197,11 @@ async fn insert_series_row(
                id, profile_id, title, showrunner, casting, summary, status,
                rating, is_favorite, seasons_seen, seasons_total,
                progress_updated_at, started_at, poster_url, banner_url,
-               personal_note, created_at, updated_at, first_air_year, last_air_year
+               banner_position, personal_note, created_at, updated_at,
+               first_air_year, last_air_year
              ) VALUES (
                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
-               $15, $16, $17, $18, $19, $20
+               $15, $16, $17, $18, $19, $20, $21
              )",
             )
             .bind(&series.id)
@@ -213,6 +219,7 @@ async fn insert_series_row(
             .bind(&series.started_at)
             .bind(&series.poster_url)
             .bind(&series.banner_url)
+            .bind(series.banner_position)
             .bind(&series.personal_note)
             .bind(&series.created_at)
             .bind(&series.updated_at)
@@ -348,6 +355,7 @@ mod tests {
                started_at TEXT,
                poster_url TEXT,
                banner_url TEXT,
+               banner_position INTEGER CHECK (banner_position IS NULL OR banner_position BETWEEN 0 AND 100),
                personal_note TEXT,
                created_at TEXT NOT NULL,
                updated_at TEXT NOT NULL,
@@ -372,6 +380,7 @@ mod tests {
                started_at TEXT,
                poster_url TEXT,
                banner_url TEXT,
+               banner_position INTEGER CHECK (banner_position IS NULL OR banner_position BETWEEN 0 AND 100),
                personal_note TEXT,
                created_at TEXT NOT NULL,
                updated_at TEXT NOT NULL,
@@ -428,6 +437,7 @@ mod tests {
             started_at: Some("2026-07-01".to_string()),
             poster_url: Some("https://image.tmdb.org/t/p/w500/affiche.jpg".to_string()),
             banner_url: Some("https://image.tmdb.org/t/p/w1280/fond.jpg".to_string()),
+            banner_position: Some(20),
             personal_note: Some("Avis personnel conservé.".to_string()),
             created_at: "2026-07-22T10:00:00.000Z".to_string(),
             updated_at: "2026-07-23T09:00:00.000Z".to_string(),
@@ -505,7 +515,7 @@ mod tests {
             let row = sqlx::query(
                 "SELECT title, showrunner, casting, summary, status, rating, is_favorite,
                         seasons_seen, seasons_total, progress_updated_at, started_at,
-                        poster_url, banner_url, personal_note, created_at, updated_at,
+                        poster_url, banner_url, banner_position, personal_note, created_at, updated_at,
                         first_air_year, last_air_year
                  FROM anime WHERE id = 'series-1' AND profile_id = 'default'",
             )
@@ -590,7 +600,8 @@ mod tests {
 
             let row = sqlx::query(
                 "SELECT category, title, rating, is_favorite, seasons_seen, poster_url,
-                        banner_url, personal_note, created_at, first_air_year, last_air_year
+                        banner_url, banner_position, personal_note, created_at,
+                        first_air_year, last_air_year
                  FROM series WHERE id = 'series-1' AND profile_id = 'default'",
             )
             .fetch_one(&pool)
@@ -607,6 +618,11 @@ mod tests {
                 row.get::<String, _>("banner_url"),
                 "https://image.tmdb.org/t/p/w1280/fond.jpg",
                 "la bannière suit la fiche déplacée dans les deux sens"
+            );
+            assert_eq!(
+                row.get::<i64, _>("banner_position"),
+                20,
+                "le recadrage de la bannière suit la fiche déplacée"
             );
             assert_eq!(
                 row.get::<String, _>("created_at"),
@@ -719,7 +735,7 @@ mod tests {
     }
 
     /// Colonnes que `insert_series_row` recopie, dans l'ordre du schéma.
-    const MOVED_COLUMNS: [&str; 20] = [
+    const MOVED_COLUMNS: [&str; 21] = [
         "id",
         "profile_id",
         "title",
@@ -735,6 +751,7 @@ mod tests {
         "started_at",
         "poster_url",
         "banner_url",
+        "banner_position",
         "personal_note",
         "created_at",
         "updated_at",

@@ -2011,10 +2011,12 @@ type SqliteFilmDetailProps = {
   onPosterChange: (url: string | null) => Promise<void>
   /** Enregistre (ou retire, avec null) la bannière 16:9 de la fiche. */
   onBannerChange: (url: string | null) => Promise<void>
+  /** Enregistre le recadrage vertical de la bannière (v9). */
+  onBannerPositionChange: (position: number) => Promise<void>
   tmdbNotice?: string | null
 }
 
-function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, onBannerChange, tmdbNotice }: SqliteFilmDetailProps) {
+function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel, onEdit, onDelete, onAssociateTmdb, onPosterChange, onBannerChange, onBannerPositionChange, tmdbNotice }: SqliteFilmDetailProps) {
   const [state, setState] = useState<{ status: 'loading' } | { status: 'ready'; film: Film } | { status: 'error' }>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
 
@@ -2042,7 +2044,7 @@ function SqliteFilmDetail({ profileId, filmId, detailRevision, onBack, backLabel
   }, [attempt, detailRevision, filmId, profileId])
 
   if (state.status === 'ready') {
-    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} onPosterChange={onPosterChange} onBannerChange={onBannerChange} tmdbNotice={tmdbNotice} />
+    return <FilmDetail film={state.film} onBack={onBack} backLabel={backLabel} onEdit={onEdit} onDelete={onDelete} onAssociateTmdb={onAssociateTmdb} onPosterChange={onPosterChange} onBannerChange={onBannerChange} onBannerPositionChange={onBannerPositionChange} tmdbNotice={tmdbNotice} />
   }
 
   return (
@@ -3026,9 +3028,19 @@ function App() {
           const updatedAt = await filmsRepository.updateFilmBanner(library.profile.id, view.filmId, url)
           // La grille Films lit la collection maître et la fiche se relit sur
           // `updatedAt` : mettre à jour la collection suffit aux deux.
+          // Une nouvelle image repart centrée : la position écrite est `null`.
           const updatedLibrary: FilmLibrary = {
             ...library,
-            films: library.films.map((entry) => (entry.id === view.filmId ? { ...entry, bannerUrl: url, updatedAt } : entry)),
+            films: library.films.map((entry) => (entry.id === view.filmId ? { ...entry, bannerUrl: url, bannerPosition: null, updatedAt } : entry)),
+          }
+          setLibraryState({ status: 'ready', library: updatedLibrary })
+          requestAutomaticBackup(updatedLibrary)
+        }}
+        onBannerPositionChange={async (position) => {
+          const updatedAt = await filmsRepository.setFilmBannerPosition(library.profile.id, view.filmId, position)
+          const updatedLibrary: FilmLibrary = {
+            ...library,
+            films: library.films.map((entry) => (entry.id === view.filmId ? { ...entry, bannerPosition: position, updatedAt } : entry)),
           }
           setLibraryState({ status: 'ready', library: updatedLibrary })
           requestAutomaticBackup(updatedLibrary)
@@ -3112,7 +3124,13 @@ function App() {
           }}
           onBannerChange={async (url: string | null) => {
             const updatedAt = await mediaRepository.setSeriesBanner(library.profile.id, series.id, url, seriesLibraryForCategory(series.category))
-            setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...entry, bannerUrl: url, updatedAt } : entry)))
+            // Une nouvelle image repart centrée : la position écrite est `null`.
+            setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...entry, bannerUrl: url, bannerPosition: null, updatedAt } : entry)))
+            refreshLibraryQuery('série')
+          }}
+          onBannerPositionChange={async (position: number) => {
+            const updatedAt = await mediaRepository.setSeriesBannerPosition(library.profile.id, series.id, position, seriesLibraryForCategory(series.category))
+            setSeriesCollection((current) => current.map((entry) => (entry.id === series.id ? { ...entry, bannerPosition: position, updatedAt } : entry)))
             refreshLibraryQuery('série')
           }}
           onDelete={async () => {
@@ -3257,7 +3275,13 @@ function App() {
           }}
           onBannerChange={async (url: string | null) => {
             const updatedAt = await mediaRepository.setGameBanner(library.profile.id, game.id, url)
-            setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...entry, bannerUrl: url, updatedAt } : entry)))
+            // Une nouvelle image repart centrée : la position écrite est `null`.
+            setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...entry, bannerUrl: url, bannerPosition: null, updatedAt } : entry)))
+            refreshLibraryQuery('jeu')
+          }}
+          onBannerPositionChange={async (position: number) => {
+            const updatedAt = await mediaRepository.setGameBannerPosition(library.profile.id, game.id, position)
+            setGameCollection((current) => current.map((entry) => (entry.id === game.id ? { ...entry, bannerPosition: position, updatedAt } : entry)))
             refreshLibraryQuery('jeu')
           }}
           onDelete={async () => {

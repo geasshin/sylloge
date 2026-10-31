@@ -21,6 +21,9 @@ const portrait = (slug: string) => `https://picsum.photos/seed/sylloge-cast-${sl
  */
 const FILMS_WITH_BANNER = new Set(['Portrait de la jeune fille en feu'])
 const SERIES_WITH_BANNER = new Set(['Succession'])
+/** Recadrage vertical des fixtures (migration 0028) : une fiche déjà bannière
+ *  part légèrement vers le haut, pour que la recette lise une valeur non nulle. */
+const BANNER_POSITIONS: Record<string, number> = { Succession: 20 }
 
 /**
  * Période de diffusion des fiches de démonstration (30 octobre 2026) : une
@@ -192,6 +195,7 @@ export function seedFilms(): { films: Row[]; tmdbCache: Row[] } {
       provider_id: tmdb ? String(900_000 + index) : null,
       poster_url: hasPoster ? poster(slugify(title)) : null,
       banner_url: FILMS_WITH_BANNER.has(title) ? banner(`film-${slugify(title)}`) : null,
+      banner_position: FILMS_WITH_BANNER.has(title) ? BANNER_POSITIONS[title] ?? null : null,
       created_at: at(addedDaysAgo),
       updated_at: at(Math.max(0, addedDaysAgo - 1)),
     })
@@ -263,6 +267,7 @@ export function seedSeries(): { series: Row[]; anime: Row[] } {
       started_at: status === 'à voir' ? null : day(addedDaysAgo + 10),
       poster_url: hasPoster ? poster(`series-${slugify(title)}`) : null,
       banner_url: SERIES_WITH_BANNER.has(title) ? banner(`series-${slugify(title)}`) : null,
+      banner_position: SERIES_WITH_BANNER.has(title) ? BANNER_POSITIONS[title] ?? null : null,
       first_air_year: SERIES_AIR_YEARS[title]?.[0] ?? null,
       last_air_year: SERIES_AIR_YEARS[title]?.[1] ?? null,
       personal_note: null,
@@ -362,6 +367,7 @@ export function seedGames(): Row[] {
     is_favorite: favorite,
     played_at: status === 'joué' ? day(addedDaysAgo - 1 > 0 ? addedDaysAgo - 1 : 0) : null,
     cover_url: hasCover ? poster(`game-${slugify(title)}`) : null,
+    banner_position: null,
     personal_note: null,
     created_at: at(addedDaysAgo),
     updated_at: at(Math.max(0, addedDaysAgo - 1)),

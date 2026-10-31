@@ -1,3 +1,5 @@
+import { normalizeBannerPosition } from './bannerImages.ts'
+
 export const SERIES_CATEGORIES = ['série télé', 'animation'] as const
 
 export type SeriesCategory = (typeof SERIES_CATEGORIES)[number]
@@ -36,6 +38,8 @@ export type Series = {
   posterUrl: string | null
   /** Bannière 16:9 (v7) : une adresse d'image, `null` quand aucune n'est choisie. */
   bannerUrl: string | null
+  /** Recadrage vertical (v9, migration 0028) : pourcentage, `null` = centré. */
+  bannerPosition: number | null
   /** Début de diffusion (v8) : l'année du premier épisode, `null` si inconnue. */
   firstAirYear: number | null
   /** Fin de diffusion (v8) : `null` tant que la série continue ou si inconnue. */
@@ -60,6 +64,7 @@ export function normalizeSeries(series: Series): Series {
     startedAt: emptyOptionalTextToNull(series.startedAt),
     posterUrl: emptyOptionalTextToNull(series.posterUrl),
     bannerUrl: emptyOptionalTextToNull(series.bannerUrl),
+    bannerPosition: normalizeBannerPosition(series.bannerPosition),
     firstAirYear: series.firstAirYear ?? null,
     lastAirYear: series.lastAirYear ?? null,
     personalNote: emptyOptionalTextToNull(series.personalNote),

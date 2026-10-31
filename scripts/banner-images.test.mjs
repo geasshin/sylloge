@@ -2,13 +2,19 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   BANNER_MAX_CANDIDATES,
+  BANNER_POSITION_DEFAULT,
   bannerCropWarning,
   bannerDisplayUrl,
+  bannerPositionAfterDrag,
+  clampBannerPosition,
+  hiddenBannerPixels,
   sameBannerImage,
   isBannerCandidate,
   isBannerUrl,
+  normalizeBannerPosition,
   normalizeBannerUrl,
   orderBannerCandidates,
+  parseBannerPosition,
 } from '../src/domain/bannerImages.ts'
 
 /** @param {Record<string, unknown> & { url: string }} overrides */
@@ -127,4 +133,52 @@ test('une ancienne bannière w1280 reste reconnue comme le candidat original', (
   assert.equal(sameBannerImage('https://image.tmdb.org/t/p/w1280/abc.jpg', 'https://image.tmdb.org/t/p/original/abc.jpg'), true)
   assert.equal(sameBannerImage('https://image.tmdb.org/t/p/original/abc.jpg', 'https://image.tmdb.org/t/p/original/def.jpg'), false)
   assert.equal(sameBannerImage(null, 'https://image.tmdb.org/t/p/original/abc.jpg'), false)
+})
+
+
+test('le recadrage d’une bannière reste un entier de 0 à 100, centré par défaut', () => {
+  assert.equal(clampBannerPosition(0), 0, 'le haut de l’image est permis')
+  assert.equal(clampBannerPosition(100), 100, 'le bas de l’image est permis')
+  assert.equal(clampBannerPosition(-5), 0, 'sous zéro, on borne au haut')
+  assert.equal(clampBannerPosition(150), 100, 'au-delà de cent, on borne au bas')
+  assert.equal(clampBannerPosition(42.6), 43, 'la position est arrondie à l’entier')
+  assert.equal(clampBannerPosition(Number.NaN), BANNER_POSITION_DEFAULT, 'une valeur absurde revient au centre')
+
+  assert.equal(normalizeBannerPosition(null), null, 'NULL vaut centré, comme avant la migration 0028')
+  assert.equal(normalizeBannerPosition(undefined), null, 'une clé absente (document v8 et avant) vaut centré')
+  assert.equal(normalizeBannerPosition(20), 20)
+  assert.equal(normalizeBannerPosition(-3), 0, 'une valeur lue hors bornes est ramenée dans le cadre')
+
+  assert.equal(parseBannerPosition(null), null)
+  assert.equal(parseBannerPosition(42.6), 43, 'le geste peut rendre un décimal : il est arrondi')
+  assert.throws(() => parseBannerPosition(-1), /position de la bannière/u, 'une position négative est refusée')
+  assert.throws(() => parseBannerPosition(101), /position de la bannière/u, 'une position au-delà de cent est refusée')
+  assert.throws(() => parseBannerPosition(Number.NaN), /position de la bannière/u, 'NaN est refusé')
+})
+
+test('la hauteur cachée se calcule sur l’image rendue à la largeur du bandeau', () => {
+  // Image 16:9 (1 920 × 1 080) dans un bandeau 3:1 de 1 200 × 400 px :
+  // rendue 1 200 × 675, il reste 275 px cachés.
+  assert.equal(Math.round(hiddenBannerPixels(1200, 400, 1920, 1080)), 275)
+  // Une image déjà au format du bandeau ne cache rien.
+  assert.equal(hiddenBannerPixels(1200, 400, 1800, 600), 0)
+  // Une image moins haute que le bandeau ne cache rien non plus (elle est agrandie).
+  assert.equal(hiddenBannerPixels(1200, 400, 2400, 600), 0)
+  // Dimensions inconnues : aucun geste à proposer.
+  assert.equal(hiddenBannerPixels(1200, 400, null, null), 0)
+  assert.equal(hiddenBannerPixels(0, 400, 1920, 1080), 0)
+})
+
+test('glisser vers le bas montre le haut de l’image et fait baisser le pourcentage', () => {
+  // 240 px cachés : 60 px de glissement vers le bas valent 25 points de moins.
+  assert.equal(bannerPositionAfterDrag(50, 60, 240), 25)
+  // Vers le haut, l’image descend dans le cadre : le pourcentage augmente.
+  assert.equal(bannerPositionAfterDrag(50, -60, 240), 75)
+  // Un grand geste est borné au cadre, jamais au-delà.
+  assert.equal(bannerPositionAfterDrag(10, 600, 240), 0)
+  assert.equal(bannerPositionAfterDrag(90, -600, 240), 100)
+  // Sans hauteur cachée (image au format du bandeau), la position ne bouge pas.
+  assert.equal(bannerPositionAfterDrag(37, 120, 0), 37)
+  // Le résultat reste un entier, comme la colonne SQLite.
+  assert.equal(Number.isInteger(bannerPositionAfterDrag(50, 33, 240)), true)
 })

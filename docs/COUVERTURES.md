@@ -14,7 +14,7 @@ reste légère, la sauvegarde JSON aussi.
 | Jeux | `cover_url` | idem |
 | Art | `image_url` | idem |
 | Bibliothèques personnalisées (dont Recettes) | `cover_url` | idem |
-| Films, Séries, Animation japonaise, Jeux | `banner_url` (bannière 16:9) | bouton crayon du bandeau |
+| Films, Séries, Animation japonaise, Jeux | `banner_url` (bannière 16:9), `banner_position` (recadrage vertical) | bouton crayon du bandeau, bouton « Recadrer » |
 
 Le crayon ouvre un dialogue d'adresse commun : champ, **aperçu de l'image avant d'enregistrer**, message
 si l'adresse ne mène pas à une image. Un champ vidé retire le lien. Seules les adresses `http://` et
@@ -109,6 +109,31 @@ Les livres, les mangas, l’Art et les bibliothèques personnalisées ne sont pa
 - Une bannière enregistrée est toujours `https://`, bornée à 2 048 caractères. Voir
   docs/PORTABILITE.md pour ce qu’elle devient dans une sauvegarde et dans un CSV.
 
+### Recadrage vertical (31 octobre 2026)
+
+Le bandeau est en 3:1 et l’image en 16:9 : `object-fit: cover` cache environ 40 % de
+sa hauteur. La personne choisit la bande visible — `banner_position` (migration 0028),
+un pourcentage vertical d’`object-position` : 0 montre le haut de l’image, 50 le centre,
+100 le bas. `NULL` vaut centré, le comportement d’avant la migration.
+
+- Sur une fiche modifiable dont l’image a une hauteur cachée, un second bouton rond
+  « Recadrer la bannière » (flèches haut et bas) vit à gauche du crayon. Son gabarit est
+  celui du crayon ; une image déjà au format du bandeau ne le propose pas.
+- Le geste se fait dans le bandeau : glisser verticalement déplace l’image en direct.
+  Le calcul part de la hauteur réellement cachée (`largeur du bandeau × hauteur de
+  l’image / largeur de l’image − hauteur du bandeau`, fonction pure
+  `bannerPositionAfterDrag`) ; glisser vers le bas montre le haut et fait baisser le
+  pourcentage. Le bandeau prend le focus et se pilote au clavier (`role="slider"`,
+  flèches ±2, Maj ±10, Entrée valide, Échap annule).
+- **Rien n’est écrit avant « Valider »** ; « Annuler » restaure la position enregistrée.
+  Une nouvelle image de bannière remet la position à `NULL` : elle repart centrée.
+- La position voyage dans le document de profil v9 (`bannerPosition`) et suit un
+  déplacement Séries ↔ Animation japonaise, comme l’adresse.
+- `scripts/banner-images.test.mjs` couvre les fonctions pures (bornes, arrondi, hauteur
+  cachée, sens du glissement) ; `scripts/qa-banner-crop.js` couvre le geste dans une
+  fiche Film et une fiche Série (valeur par défaut, glisser, annuler, valider, relecture
+  en base, clavier, changement d’image).
+
 ## Vérifications
 
 - `npm run test:covers` : la règle d'affichage, huit cas (fiche associée sans affiche locale, choix de la
@@ -138,5 +163,8 @@ Les livres, les mangas, l’Art et les bibliothèques personnalisées ne sont pa
   retrait qui fait revenir le bouton — pour un Film, une Série, un Animé et un Jeu ; un
   Livre et une œuvre d’Art n’ont aucun bouton. Vérifie aussi qu’une fiche déjà pourvue
   (fixtures) affiche son crayon, et l’anglais.
+- `scripts/qa-banner-crop.js` : le recadrage vertical dans une fiche Film (centre par
+  défaut, glisser, Annuler, Valider, relecture en base, flèches et Échap, nouvelle image
+  qui recentre) puis dans une fiche Série (position 20 des fixtures honorée).
 - Non couvert : un lien réellement distant. Le harnais sert des images `picsum.photos` ; l'application native
   n'a pas été lancée pour ce lot.

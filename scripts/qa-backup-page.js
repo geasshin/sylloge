@@ -71,17 +71,23 @@ async page => {
       { medium: 'films', name: 'À revoir', criteria, createdAt: at, updatedAt: at },
     ]
     const withExperience = serializeLibraryDocument(createLibraryDocument(library, undefined, buildExperience(views, { theme: 'dark', homeAutoplay: 'off' })))
-    // Version courante : 7 (bannière 16:9, 30 octobre 2026) ; « plus récente » = 8.
-    const newer = JSON.stringify({ ...JSON.parse(withExperience), version: 8 })
+    // Version courante : 9 (recadrage de la bannière, 31 octobre 2026) ;
+    // « plus récente » = 10.
+    const newer = JSON.stringify({ ...JSON.parse(withExperience), version: 10 })
     // Un vrai v4 n’a ni expérience ni champs de forme sur ses œuvres.
     const v4 = (() => {
       const d = JSON.parse(withExperience)
       d.version = 4
       delete d.experience
       d.artworks = d.artworks.map(({ details: _details, ...artwork }) => artwork)
-      // Ni la bannière 16:9, apparue en v7 : une clé inconnue ferait refuser le document.
+      // Ni la bannière 16:9 (v7) ni son recadrage (v9) : une clé inconnue
+      // ferait refuser le document.
       for (const section of ['films', 'series', 'anime', 'games']) {
-        d[section] = d[section].map(({ bannerUrl: _banner, ...entry }) => entry)
+        d[section] = d[section].map(({ bannerUrl: _banner, bannerPosition: _position, ...entry }) => entry)
+      }
+      // Ni la période de diffusion, apparue en v8.
+      for (const section of ['series', 'anime']) {
+        d[section] = d[section].map(({ firstAirYear: _first, lastAirYear: _last, ...entry }) => entry)
       }
       return JSON.stringify(d)
     })()

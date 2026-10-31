@@ -1,3 +1,5 @@
+import { normalizeBannerPosition } from './bannerImages.ts'
+
 export const FILM_STATUSES = ['à découvrir', 'en attente', 'terminé', 'abandonné'] as const
 
 export type FilmStatus = (typeof FILM_STATUSES)[number]
@@ -27,6 +29,11 @@ export type Film = {
   posterUrl: string | null
   /** Bannière 16:9 (v7) : une adresse d'image, `null` quand aucune n'est choisie. */
   bannerUrl: string | null
+  /**
+   * Recadrage vertical (v9, migration 0028) : pourcentage d'`object-position`,
+   * 0 pour le haut de l'image, 100 pour le bas. `null` = centré.
+   */
+  bannerPosition: number | null
   createdAt: string
   updatedAt: string
 }
@@ -52,6 +59,7 @@ export function normalizeFilm(film: Film): Film {
     providerId: hasCompleteProvenance ? providerId : null,
     posterUrl: emptyOptionalTextToNull(film.posterUrl),
     bannerUrl: emptyOptionalTextToNull(film.bannerUrl),
+    bannerPosition: normalizeBannerPosition(film.bannerPosition),
   }
 }
 

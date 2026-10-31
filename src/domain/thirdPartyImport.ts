@@ -516,7 +516,8 @@ function makeFilm(
   return {
     id: 'import-preview', profileId: 'import-preview-profile', title, originalTitle: null, year: null,
     status, isFavorite: false, rating, watchedAt, personalNote, director: null, summary: null,
-    providerName: null, providerId: null, posterUrl: null, bannerUrl: null, createdAt: importedAt, updatedAt: importedAt,
+    providerName: null, providerId: null, posterUrl: null, bannerUrl: null, bannerPosition: null,
+    createdAt: importedAt, updatedAt: importedAt,
   }
 }
 
@@ -532,7 +533,7 @@ function makeSeries(
   return {
     id: 'import-preview', profileId: 'import-preview-profile', title, showrunner: null, casting: null,
     summary: null, category, status, rating, isFavorite: false, seasonsSeen: null, seasonsTotal: null,
-    progressUpdatedAt: null, startedAt, posterUrl: null, bannerUrl: null,
+    progressUpdatedAt: null, startedAt, posterUrl: null, bannerUrl: null, bannerPosition: null,
     firstAirYear: null, lastAirYear: null, personalNote, createdAt: importedAt, updatedAt: importedAt,
   }
 }
