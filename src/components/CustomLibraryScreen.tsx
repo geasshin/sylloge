@@ -16,8 +16,9 @@ import { FocusDialog } from './FocusDialog.tsx'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { Select } from './Select.tsx'
-import { StatusBadge, statusTone } from './VerdictControls.tsx'
-import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { DetailVerdict, statusTone } from './VerdictControls.tsx'
+import { DetailLayout } from './DetailLayout.tsx'
+import { verdictLine } from '../domain/verdictLine.ts'
 import { useIncrementalList } from './useIncrementalList.ts'
 import { SearchIcon, ArrowLeftIcon, PencilIcon, TrashIcon } from './icons.tsx'
 
@@ -497,11 +498,6 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
   const progress = progressText(entry)
   const extraDetails = Object.entries(entry.details).filter(([key]) => !template.fields.some((field) => field.key === key))
   /** Une source est un fait, pas une signature : elle vit dans les faits, pas sous le titre. */
-  const detailByline = [
-    template.showsYear !== false && entry.creator ? sourceLabel(entry.creator) : null,
-    entry.year !== null && template.showsYear !== false ? formatNumber(entry.year, { useGrouping: false }) : null,
-  ].filter(Boolean).join(' · ')
-
   // Le prototype a montré qu'une recette se lit autrement : sa photo, son
   // statut et ses ingrédients vivent dans la colonne gauche, ses étapes
   // numérotées et ses notes dans la colonne de lecture.
@@ -517,17 +513,16 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
     && !denseKeys.includes(field.key))
 
   const factRows: { key: string; label: ReactNode; value: ReactNode }[] = []
-  // La ligne sous le titre porte déjà le créateur et l'année (hors recettes) :
-  // la grille ne les répète pas.
-  const bylineCarries = !isRecipe && detailByline !== ''
-  if (entry.creator && !(bylineCarries && template.showsYear !== false)) {
+  // Toutes les informations dans la grille, sous le même filet : le créateur
+  // et l'année d'abord (31 octobre 2026), plus de ligne sous le titre.
+  if (entry.creator) {
     factRows.push({
       key: 'creator',
       label: label(template.creatorLabel),
       value: isHttpsSource(entry.creator) ? <a href={entry.creator}>{sourceLabel(entry.creator)}</a> : entry.creator,
     })
   }
-  if (template.showsYear !== false && entry.year !== null && !bylineCarries) {
+  if (template.showsYear !== false && entry.year !== null) {
     factRows.push({ key: 'year', label: t('Année'), value: formatNumber(entry.year, { useGrouping: false }) })
   }
   for (const field of template.fields.filter((candidate) => denseKeys.includes(candidate.key))) {
@@ -623,40 +618,23 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
           </div>
         )}
         verdict={(
-          <>
-            <div className="detail-status">
-              <StatusBadge status={entry.status} labels={Object.fromEntries(Object.entries(template.statusLabels).map(([status, label]) => [status, t(label)]))} />
-            </div>
-            {(entry.rating !== null || entry.isFavorite) && (
-              <div className="detail-rate">
-                {entry.rating !== null && (
-                  <>
-                    <span className="stars-display" aria-label={t('Note {rating} sur 5', { rating: formatNumber(entry.rating) })}>
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const fill = Math.max(0, Math.min(1, (entry.rating ?? 0) - star + 1))
-                        return (
-                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                            <span className="star-glyph" aria-hidden="true">★</span>
-                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                          </span>
-                        )
-                      })}
-                    </span>
-                    <span className="rate-value">{formatNumber(entry.rating)}/5</span>
-                  </>
-                )}
-                {entry.isFavorite && <span className="heart-display on" aria-label={t('Coup de cœur')}>♥</span>}
-              </div>
-            )}
-          </>
+          <DetailVerdict
+            rating={entry.rating}
+            favorite={entry.isFavorite}
+            status={entry.status}
+            line={verdictLine({
+              status: t(template.statusLabels[entry.status]),
+              date: entry.finishedAt ? formatCalendarDate(entry.finishedAt) : null,
+              mode: 'reached',
+              matches: entry.status === 'terminé' || entry.status === 'abandonné' || entry.status === 'maîtrisée',
+              dateLabel: label(template.dateLabel),
+            })}
+          />
         )}
         heading={(
           <>
             <p className="eyebrow">{kind ? displayFieldValue(libraryId, template.fields.find((field) => field.key === template.kindField), kind) : label(template.label)}</p>
             <h1 className="display-title">{entry.title}</h1>
-            {/* Une recette porte sa source et ses temps sur une ligne dense ;
-                les autres modèles gardent leur signature (source, millésime). */}
-            {detailByline && !isRecipe && <p className="detail-factline">{detailByline}</p>}
           </>
         )}
         facts={factRows.length > 0 ? (
@@ -677,9 +655,6 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
               <div className="detail-long-texts">{longTextNodes}</div>
             )}
           </>
-        )}
-        notebook={entry.finishedAt && (
-          <DetailDate label={label(template.dateLabel)} value={formatCalendarDate(entry.finishedAt)} />
         )}
         review={reviewNode}
         reviewLabel={template.noteLabel ? label(template.noteLabel) : undefined}

@@ -172,11 +172,18 @@ async page => {
   assert(await addButton().count() === 0, 'Fixture Film : aucun bouton d’ajout quand la bannière existe')
   const seededEdit = await banner().locator('.banner-edit-overlay').getAttribute('aria-label')
   assert(seededEdit.includes('Modifier la bannière de « Portrait de la jeune fille en feu »'), `Fixture Film : le crayon est nommé (${seededEdit})`)
-  // Un bandeau 2:1 (l'image 16:9 perd environ 11 % de sa hauteur), pas plus
-  // haut que 60 vh (retour d'Aurélien, 30 octobre 2026).
-  const seeded = await page.evaluate(() => { const r = document.querySelector('.detail-banner')?.getBoundingClientRect(); return r ? { width: r.width, height: r.height } : { width: 0, height: 1 } })
-  assert(Math.abs(seeded.width / seeded.height - 2) < 0.02, `Fixture Film : bandeau au format 2:1 (${(seeded.width / seeded.height).toFixed(2)})`)
-  assert(seeded.height <= Math.ceil(900 * 0.6) + 1, `Fixture Film : hauteur du bandeau bornée à 60 vh (${Math.round(seeded.height)} px)`)
+  // Bord à bord, format 3:1, sans coins arrondis, pas plus haut que 50 vh
+  // (choix d'Aurélien, 31 octobre 2026).
+  const seeded = await page.evaluate(() => {
+    const r = document.querySelector('.detail-banner')?.getBoundingClientRect()
+    const m = document.querySelector('.detail-page-main')?.getBoundingClientRect()
+    const radius = getComputedStyle(document.querySelector('.detail-banner')).borderTopLeftRadius
+    return r && m ? { width: r.width, height: r.height, left: r.left, right: r.right, mainLeft: m.left, mainRight: m.right, radius } : { width: 0, height: 1 }
+  })
+  assert(Math.abs(seeded.width / seeded.height - 3) < 0.02, `Fixture Film : bandeau au format 3:1 (${(seeded.width / seeded.height).toFixed(2)})`)
+  assert(Math.abs(seeded.left - seeded.mainLeft) <= 1 && Math.abs(seeded.right - seeded.mainRight) <= 1, `Fixture Film : bandeau bord à bord (${Math.round(seeded.left)}–${Math.round(seeded.right)})`)
+  assert(seeded.radius === '0px', `Fixture Film : bandeau sans coins arrondis (${seeded.radius})`)
+  assert(seeded.height <= Math.ceil(900 * 0.5) + 1, `Fixture Film : hauteur du bandeau bornée à 50 vh (${Math.round(seeded.height)} px)`)
   await page.locator('.back-button').first().click()
   await page.getByRole('heading', { level: 1, name: 'Films', exact: true }).waitFor()
   await settle()

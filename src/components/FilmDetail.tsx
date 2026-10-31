@@ -7,12 +7,13 @@ import {
   setFilmTmdbPoster,
   type CachedFilmTmdbPresentation,
 } from '../data/tmdbService.ts'
-import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
+import { t, formatDate, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { TmdbPosterDialog } from './TmdbPosterDialog.tsx'
-import { StatusBadge } from './VerdictControls.tsx'
-import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { DetailVerdict } from './VerdictControls.tsx'
+import { DetailLayout } from './DetailLayout.tsx'
+import { verdictLine } from '../domain/verdictLine.ts'
 import { BannerAddButton, DetailBanner } from './DetailBanner.tsx'
 import { useBannerEditor } from './useBannerEditor.tsx'
 import { icon } from '../main.tsx'
@@ -188,32 +189,18 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
           </div>
         )}
         verdict={(
-          <>
-            <div className="detail-status">
-              <StatusBadge status={film.status} labels={FILM_STATUS_LABELS} />
-            </div>
-            {(film.rating !== null || film.isFavorite) && (
-              <div className="detail-rate">
-                {film.rating !== null && (
-                  <>
-                    <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(film.rating) })}>
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const fill = Math.max(0, Math.min(1, film.rating! - star + 1))
-                        return (
-                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                            <span className="star-glyph" aria-hidden="true">★</span>
-                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                          </span>
-                        )
-                      })}
-                    </span>
-                    <span className="rate-value">{formatNumber(film.rating)}/5</span>
-                  </>
-                )}
-                {film.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
-              </div>
-            )}
-          </>
+          <DetailVerdict
+            rating={film.rating}
+            favorite={film.isFavorite}
+            status={film.status}
+            line={verdictLine({
+              status: t(FILM_STATUS_LABELS[film.status]),
+              date: film.watchedAt ? formatDate(film.watchedAt, { dateStyle: 'long' }) : null,
+              mode: 'reached',
+              matches: film.status === 'terminé' || film.status === 'abandonné',
+              dateLabel: t("Vu le"),
+            })}
+          />
         )}
         heading={(
           <>
@@ -221,18 +208,19 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
             {displayOriginalTitle && displayOriginalTitle !== displayTitle && (
               <p className="original-title">{displayOriginalTitle}</p>
             )}
-            {/* Sous le titre : qui et quand. La grille donne le reste, sans
-                rien répéter (retour d'Aurélien, 30 octobre 2026). */}
-            {(displayDirector || displayYear) && (
-              <p className="detail-factline">
-                {[displayDirector, displayYear].filter(Boolean).join(' · ')}
-              </p>
-            )}
           </>
         )}
         facts={(
           <>
+            {/* Toutes les informations dans la grille, sous le même filet :
+                qui et quand d'abord, puis le reste (31 octobre 2026). */}
             <dl className="detail-facts">
+              {displayDirector && (
+                <div><dt>{t("Réalisation")}</dt><dd>{displayDirector}</dd></div>
+              )}
+              {displayYear && (
+                <div><dt>{t("Année")}</dt><dd>{displayYear}</dd></div>
+              )}
               {displayCast && (
                 <div><dt>{t("Casting")}</dt><dd>{displayCast}</dd></div>
               )}
@@ -252,9 +240,6 @@ export function FilmDetail({ film, onBack, backLabel, onEdit, onDelete, onAssoci
         )}
         /* Associer / Dissocier restent dans la barre d'actions ; l'attribution
            TMDB vit dans Paramètres › À propos (30 octobre 2026). */
-        notebook={film.watchedAt && (
-          <DetailDate label={t("Vu le")} value={formatDate(film.watchedAt, { dateStyle: 'long' })} />
-        )}
         review={film.personalNote ? (
           <>
             <blockquote className="review-personal">{film.personalNote}</blockquote>

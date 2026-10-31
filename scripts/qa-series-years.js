@@ -1,7 +1,7 @@
 // Recette « période de diffusion » des séries et animés (30 octobre 2026).
-// Sous le titre : « créateurs · 2017–2020 », « · 2022– » pour une série en
-// cours, une seule année quand elle tient dans un an ; jamais répétée dans la
-// grille. Le formulaire refuse une fin avant le début et enregistre les deux
+// Dans la grille (31 octobre 2026) : « Création » puis « Diffusion »
+// « 2017–2020 », « 2022– » pour une série en cours, une seule année quand elle
+// tient dans un an ; jamais ailleurs. Le formulaire refuse une fin avant le début et enregistre les deux
 // années en base. Aucun service externe : le seed porte les années.
 async (page) => {
   page.setDefaultTimeout(6000)
@@ -27,9 +27,14 @@ async (page) => {
   const openFiche = async (library, title) => {
     await openLibrary(library)
     await page.getByRole('button', { name: `Ouvrir la fiche de ${title}`, exact: true }).click()
-    await page.locator('.detail-factline').first().waitFor()
+    await page.locator('.detail-facts').first().waitFor()
   }
-  const factline = () => page.locator('.detail-factline').first().innerText()
+  // « Création · Diffusion » lus dans la grille, comme le ferait la personne.
+  const fact = async (label) => {
+    const row = page.locator('.detail-facts > div').filter({ has: page.locator('dt', { hasText: new RegExp(`^${label}$`, 'i') }) })
+    return (await row.count()) === 1 ? (await row.locator('dd').innerText()).trim() : null
+  }
+  const factline = async (creatorLabel = 'Création', periodLabel = 'Diffusion') => [await fact(creatorLabel), await fact(periodLabel)].filter(Boolean).join(' · ')
   const facts = () => page.locator('.detail-facts').first().innerText()
   const back = async () => { await page.locator('.back-button').first().click(); await settle() }
 
@@ -38,21 +43,22 @@ async (page) => {
 
   // ── 1. Série terminée : « créateurs · 2017–2020 », rien dans la grille ──────────
   await openFiche('Séries', 'Le Bureau des légendes')
-  assert(await factline() === 'Éric Rochant · 2017–2020', `Série terminée : ligne sous le titre (${await factline()})`)
-  assert(!/2017|2020/.test(await facts()), 'Série terminée : la période n’est pas répétée dans la grille')
-  checks.push('Série terminée : « Éric Rochant · 2017–2020 » sous le titre, absente de la grille')
+  assert(await factline() === 'Éric Rochant · 2017–2020', `Série terminée : grille (${await factline()})`)
+  assert((await facts()).match(/2017–2020/g)?.length === 1, 'Série terminée : la période n’apparaît qu’une fois')
+  assert(await page.locator('.detail-factline').count() === 0, 'Série terminée : plus de ligne sous le titre')
+  checks.push('Série terminée : Création « Éric Rochant », Diffusion « 2017–2020 » dans la grille, une seule fois')
   await back()
 
   // ── 2. Série en cours : « 2022– » ─────────────────────────────────────────────
   await openFiche('Séries', 'Severance')
-  assert(await factline() === 'Dan Erickson · 2022–', `Série en cours : ligne sous le titre (${await factline()})`)
-  checks.push('Série en cours : « Dan Erickson · 2022– »')
+  assert(await factline() === 'Dan Erickson · 2022–', `Série en cours : grille (${await factline()})`)
+  checks.push('Série en cours : Diffusion « 2022– »')
   await back()
 
   // ── 3. Animé sur une seule année : « 1998 » ───────────────────────────────────
   await openFiche('Animation japonaise', 'Cowboy Bebop')
-  assert(await factline() === 'Shinichirō Watanabe · 1998', `Animé d’une année : ligne sous le titre (${await factline()})`)
-  checks.push('Animé sur une seule année : « Shinichirō Watanabe · 1998 »')
+  assert(await factline() === 'Shinichirō Watanabe · 1998', `Animé d’une année : grille (${await factline()})`)
+  checks.push('Animé sur une seule année : Diffusion « 1998 »')
   await back()
 
   // ── 4. Formulaire : fin avant début refusée, puis période enregistrée ─────────
@@ -100,8 +106,8 @@ async (page) => {
   if (await all.count()) await all.first().click()
   await settle()
   await page.locator('.film-card-top > b', { hasText: /^Severance$/ }).first().click()
-  await page.locator('.detail-factline').first().waitFor()
-  assert(await factline() === 'Dan Erickson · 2022–', `Anglais : ligne sous le titre (${await factline()})`)
+  await page.locator('.detail-facts').first().waitFor()
+  assert(await factline('Created by', 'Aired') === 'Dan Erickson · 2022–', `Anglais : grille (${await factline('Created by', 'Aired')})`)
   await page.locator('.detail-actions').getByRole('button', { name: 'Edit', exact: true }).click()
   await dialog.waitFor()
   assert(await dialog.getByText('Broadcast period', { exact: true }).count() === 1, 'Anglais : « Broadcast period »')

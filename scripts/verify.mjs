@@ -5154,7 +5154,12 @@ assert.match(appStylesSource067, /\.editor-dialog\.dialog-associate/, 'La pop-up
   }
   for (const [label, path] of Object.entries(layoutScreens)) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8')
-    assert.match(source, /import \{ DetailDate, DetailLayout \} from '\.\/DetailLayout\.tsx'/, `${label} : la fiche importe la composition commune`)
+    assert.match(source, /import \{ DetailLayout \} from '\.\/DetailLayout\.tsx'/, `${label} : la fiche importe la composition commune`)
+    // 31 octobre 2026 : étoiles et cœur, puis statut et date en une phrase ;
+    // qui et quand dans la grille, plus de ligne sous le titre.
+    assert.match(source, /<DetailVerdict/, `${label} : le verdict vient du composant partagé`)
+    assert.match(source, /verdictLine\(\{/, `${label} : statut et date forment une seule phrase`)
+    assert.doesNotMatch(source, /detail-factline|rate-value|DetailDate/, `${label} : ni ligne sous le titre, ni note écrite, ni date à part`)
     assert.match(source, /<DetailLayout/, `${label} : la fiche rend la composition commune`)
     assert.doesNotMatch(source, /<article className="detail-layout"/, `${label} : la fiche ne recompose plus sa disposition elle-même`)
     assert.doesNotMatch(source, /className="detail-side"/, `${label} : la colonne gauche vient du composant partagé`)

@@ -7,8 +7,9 @@ import {
 import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
-import { StatusBadge } from './VerdictControls.tsx'
-import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { DetailVerdict } from './VerdictControls.tsx'
+import { DetailLayout } from './DetailLayout.tsx'
+import { verdictLine } from '../domain/verdictLine.ts'
 import { BannerAddButton, DetailBanner } from './DetailBanner.tsx'
 import { useBannerEditor, useBannerProviderId } from './useBannerEditor.tsx'
 import { icon } from '../main.tsx'
@@ -48,10 +49,9 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
       : t(series.seasonsSeen === 1 ? '{count} saison vue' : '{count} saisons vues', { count: series.seasonsSeen })
     : null
 
-  // Sous le titre : qui, et quand la série a été diffusée. L'avancement et le
-  // casting vivent dans la grille juste en dessous, sans rien y répéter.
+  // Toutes les informations dans la grille, sous le même filet : qui et quand
+  // d'abord, puis le casting et l'avancement (31 octobre 2026).
   const airPeriod = formatAirPeriod(series.firstAirYear, series.lastAirYear)
-  const factline = [series.showrunner, airPeriod].filter(Boolean).join(' · ')
 
   const deleteSeries = async () => {
     setDeleting(true)
@@ -106,43 +106,33 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
           </div>
         )}
         verdict={(
-          <>
-            <div className="detail-status">
-              <StatusBadge status={series.status} labels={SERIES_STATUS_LABELS} />
-            </div>
-            {(series.rating !== null || series.isFavorite) && (
-              <div className="detail-rate">
-                {series.rating !== null && (
-                  <>
-                    <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(series.rating) })}>
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const fill = Math.max(0, Math.min(1, series.rating! - star + 1))
-                        return (
-                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                            <span className="star-glyph" aria-hidden="true">★</span>
-                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                          </span>
-                        )
-                      })}
-                    </span>
-                    <span className="rate-value">{formatNumber(series.rating)}/5</span>
-                  </>
-                )}
-                {series.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
-              </div>
-            )}
-          </>
+          <DetailVerdict
+            rating={series.rating}
+            favorite={series.isFavorite}
+            status={series.status}
+            line={verdictLine({
+              status: t(SERIES_STATUS_LABELS[series.status]),
+              date: series.startedAt ? formatDate(series.startedAt, { dateStyle: 'long' }) : null,
+              mode: 'started-f',
+              matches: series.status === 'en cours',
+              dateLabel: t("Début du visionnage"),
+            })}
+          />
         )}
         heading={(
           <>
             <p className="eyebrow">{t(series.category === 'animation' ? "Animation japonaise" : "Série télé")}</p>
             <h1 className="display-title">{series.title}</h1>
-            {/* Sous le titre : qui et quand. L'avancement vit dans la grille. */}
-            {factline !== '' && <p className="detail-factline">{factline}</p>}
           </>
         )}
         facts={(
           <dl className="detail-facts">
+            {series.showrunner && (
+              <div><dt>{t("Création")}</dt><dd>{series.showrunner}</dd></div>
+            )}
+            {airPeriod && (
+              <div><dt>{t("Diffusion")}</dt><dd>{airPeriod}</dd></div>
+            )}
             {series.casting && (
               <div><dt>{t("Casting")}</dt><dd>{series.casting}</dd></div>
             )}
@@ -155,9 +145,6 @@ export function SeriesDetail({ series, onBack, backLabel, onEdit, onPosterEdit, 
           <div className="synopsis-block">
             <p>{series.summary}</p>
           </div>
-        )}
-        notebook={series.startedAt && (
-          <DetailDate label={t("Début du visionnage")} value={formatDate(series.startedAt, { dateStyle: 'long' })} />
         )}
         review={series.personalNote ? (
           <>

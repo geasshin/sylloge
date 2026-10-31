@@ -149,10 +149,10 @@ try {
     })
     const before = JSON.stringify(entry)
     const html = render(custom.CustomEntryDetail, { libraryId: 'comics', entry, onBack() {}, onEdit() {}, async onCoverEdit() {}, async onDelete() {} })
-    for (const copy of ['Back to Comics', 'Edit entry', 'Volumes read', 'Finished on', '8 March 2024', '4.5/5', '1,234 / 2,345']) {
+    for (const copy of ['Back to Comics', 'Edit entry', 'Volumes read', ' on 8 March 2024', '1,234 / 2,345']) {
       assert.ok(html.includes(copy), `English detail copy is rendered: ${copy}`)
     }
-    for (const raw of ['<h1 class="display-title">Musique</h1>', 'class="detail-factline">Réalisation · 2024</p>', '<dd>Série</dd>', '<dd>Artiste</dd>', '<dd>Éditeur</dd>', '<dt>Champ français</dt><dd>Coups de cœur</dd>', '<p>Derniers ajouts</p>', 'class="review-personal">Pioche du jour</blockquote>']) {
+    for (const raw of ['<h1 class="display-title">Musique</h1>', '<dd>Réalisation</dd>', '<dd>2024</dd>', '<dd>Série</dd>', '<dd>Artiste</dd>', '<dd>Éditeur</dd>', '<dt>Champ français</dt><dd>Coups de cœur</dd>', '<p>Derniers ajouts</p>', 'class="review-personal">Pioche du jour</blockquote>']) {
       assert.ok(html.includes(raw), `User-authored French remains untouched: ${raw}`)
     }
     const card = render(custom.CustomEntryCard, { libraryId: 'comics', entry, onOpen() {} })
@@ -180,10 +180,10 @@ try {
     assert.ok(comicHtml.includes('<dd>Craig Thompson</dd>'))
     const podcast = entry({ creator: 'Autrice intacte', details: Object.freeze({ format: 'Interview', theme: 'Technologie' }) })
     const podcastHtml = render(custom.CustomEntryDetail, { libraryId: 'podcasts', entry: podcast, onBack() {}, onEdit() {}, async onCoverEdit() {}, async onDelete() {} })
-    // shared.ts: 'podcasts\u0004Animation' => 'Host', not the art form. The detail
-    // shows the host under the title (no repeated row), the form keeps the label.
-    assert.ok(podcastHtml.includes('class="detail-factline">Autrice intacte · 2020</p>'), 'The host stays intact under the title')
-    assert.ok(!podcastHtml.includes('<dd>Autrice intacte</dd>'), 'The host is not repeated in the facts')
+    // shared.ts: 'podcasts\u0004Animation' => 'Host', not the art form. Since
+    // 31 October 2026 the host is a row of the facts grid, never under the title.
+    assert.ok(podcastHtml.includes('<dt>Host</dt><dd>Autrice intacte</dd>'), 'The host stays intact in the facts, labelled Host')
+    assert.ok(!podcastHtml.includes('detail-factline'), 'No line under the title any more')
     const { CustomEntryForm } = await server.ssrLoadModule('/src/components/CustomEntryForm.tsx')
     const podcastForm = render(CustomEntryForm, { libraryId: 'podcasts', entry: podcast, onCancel() {}, onSave: async () => {} })
     assert.ok(podcastForm.includes('Host'), 'The podcast host credit is not the animation medium')

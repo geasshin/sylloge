@@ -9,8 +9,9 @@ import { t, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { FocusDialog } from './FocusDialog.tsx'
-import { StatusBadge } from './VerdictControls.tsx'
-import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { DetailVerdict } from './VerdictControls.tsx'
+import { DetailLayout } from './DetailLayout.tsx'
+import { verdictLine } from '../domain/verdictLine.ts'
 import { icon } from '../main.tsx'
 
 type BookDetailProps = {
@@ -81,49 +82,33 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
           </div>
         )}
         verdict={(
-          <>
-            <div className="detail-status">
-              <StatusBadge status={book.status} labels={BOOK_STATUS_LABELS} />
-            </div>
-            {(book.rating !== null || book.isFavorite) && (
-              <div className="detail-rate">
-                {book.rating !== null && (
-                  <>
-                    <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(book.rating) })}>
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const fill = Math.max(0, Math.min(1, book.rating! - star + 1))
-                        return (
-                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                            <span className="star-glyph" aria-hidden="true">★</span>
-                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                          </span>
-                        )
-                      })}
-                    </span>
-                    <span className="rate-value">{formatNumber(book.rating)}/5</span>
-                  </>
-                )}
-                {book.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
-              </div>
-            )}
-          </>
+          <DetailVerdict
+            rating={book.rating}
+            favorite={book.isFavorite}
+            status={book.status}
+            line={verdictLine({
+              status: t(BOOK_STATUS_LABELS[book.status]),
+              date: book.startedAt ? formatDate(book.startedAt, { dateStyle: 'long' }) : null,
+              mode: 'started-m',
+              matches: book.status === 'en cours',
+              dateLabel: t("Début de la lecture"),
+            })}
+          />
         )}
         heading={(
           <>
             <p className="eyebrow">{t(BOOK_CATEGORY_LABELS[book.category])}</p>
             <h1 className="display-title">{book.title}</h1>
-            {(book.author || book.year !== null) && (
-              <p className="detail-factline">
-                {[
-                  book.author,
-                  book.year !== null ? String(book.year) : null,
-                ].filter(Boolean).join(' · ')}
-              </p>
-            )}
           </>
         )}
         facts={(
           <dl className="detail-facts">
+            {book.author && (
+              <div><dt>{t("Auteur")}</dt><dd>{book.author}</dd></div>
+            )}
+            {book.year !== null && (
+              <div><dt>{t("Année")}</dt><dd>{String(book.year)}</dd></div>
+            )}
             {progress && (
               <div><dt>{t("Avancement")}</dt><dd>{progress}</dd></div>
             )}
@@ -133,9 +118,6 @@ export function BookDetail({ book, onBack, backLabel, onEdit, onCoverEdit, onAss
           <div className="synopsis-block">
             <p>{book.summary}</p>
           </div>
-        )}
-        notebook={book.startedAt && (
-          <DetailDate label={t("Début de la lecture")} value={formatDate(book.startedAt, { dateStyle: 'long' })} />
         )}
         review={book.personalNote ? (
           <>

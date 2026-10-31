@@ -11,20 +11,21 @@ import { t } from '../i18n/core.ts'
  * leur contenu en blocs, jamais leur disposition :
  *
  * - `visual`   le visuel de l'œuvre (affiche, couverture, image) ;
- * - `verdict`  statut, note, cœur ;
- * - `heading`  surtitre, titre, ligne de faits ;
- * - `facts`    grille de faits (et son état d'association) ;
+ * - `verdict`  étoiles et cœur, puis statut et date en une phrase
+ *              (« Terminé le 29 novembre 2024 », `DetailVerdict`) ;
+ * - `heading`  surtitre et titre ;
+ * - `facts`    grille de faits, qui et quand compris (31 octobre 2026), et
+ *              son état d'association ;
  * - `synopsis` résumé ;
- * - `notebook` date personnelle (vu le, lu le…), centrée sous le verdict,
- *   sans libellé : la date se lit d'elle-même. Le lien fournisseur vit dans la
- *   barre d'actions (Associer / Dissocier) et l'attribution dans Paramètres ;
+ * Le lien fournisseur vit dans la barre d'actions (Associer / Dissocier) et
+ * l'attribution dans Paramètres.
  * - `review`   avis personnel ;
  * - `appendices` citations ou poème.
  *
  * Deux compositions particulières, décidées le même jour :
  * - Art : l'œuvre en majesté, centrée, sur un mur neutre, puis un bloc centré
- *   de 880 px — surtitre, titre et « artiste · année » centrés, cartel de
- *   musée à gauche, carnet à droite ;
+ *   de 880 px — surtitre et titre centrés, cartel de musée (artiste et année
+ *   en tête) à gauche, carnet à droite ;
  * - Recettes : photo 4:3, statut et ingrédients dans la colonne gauche, étapes
  *   numérotées en grand et notes en encadré dans la colonne de lecture.
  *
@@ -36,7 +37,6 @@ export type DetailLayoutProps = {
   visual: ReactNode
   verdict: ReactNode
   heading: ReactNode
-  notebook?: ReactNode
   facts?: ReactNode
   synopsis?: ReactNode
   review?: ReactNode
@@ -50,21 +50,6 @@ export type DetailLayoutProps = {
 }
 
 const REVIEW_LABEL = 'Mon avis'
-
-/** Date personnelle du carnet : libellé puis valeur, sur une ligne. */
-export function DetailDate({ label, value }: { label: ReactNode; value: ReactNode }) {
-  return (
-    <p className="detail-notebook-date">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
-      <span>{label}</span>{' '}
-      <b>{value}</b>
-    </p>
-  )
-}
-
-function Notebook({ children }: { children: ReactNode }) {
-  return <div className="detail-notebook">{children}</div>
-}
 
 function Review({ label, children }: { label?: ReactNode; children: ReactNode }) {
   return (
@@ -80,7 +65,6 @@ export function DetailLayout({
   visual,
   verdict,
   heading,
-  notebook,
   facts,
   synopsis,
   review,
@@ -101,7 +85,6 @@ export function DetailLayout({
             {art.cartel && <dl className="detail-facts detail-cartel">{art.cartel}</dl>}
             <aside className="detail-art-notebook">
               <div className="detail-verdict">{verdict}</div>
-              {notebook && <Notebook>{notebook}</Notebook>}
               {review && <Review label={reviewLabel}>{review}</Review>}
             </aside>
           </div>
@@ -119,7 +102,6 @@ export function DetailLayout({
         <div className="detail-visual">{visual}</div>
         {/* Verdict et date forment un seul groupe centré sous le visuel. */}
         <div className="detail-verdict">{verdict}</div>
-        {notebook && <Notebook>{notebook}</Notebook>}
         {recipe?.ingredients}
       </div>
       <div className="detail-body">

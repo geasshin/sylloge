@@ -100,7 +100,6 @@ async page => {
       body: box(one('.detail-body')),
       status: box(one('.detail-status')),
       rate: box(one('.detail-rate')),
-      notebook: box(one('.detail-notebook')),
       facts: [...document.querySelectorAll('.detail-facts dt')].map(term => ({
         text: term.textContent?.trim() ?? '',
         lines: lines(term),
@@ -124,7 +123,17 @@ async page => {
         if (kids.length === 0) return null
         return { left: Math.min(...kids.map(r => r.left)), right: Math.max(...kids.map(r => r.right)) }
       })(),
-      date: box(one('.detail-side .detail-notebook-date')),
+      // 31 octobre 2026 : statut et date en une phrase, sur une ligne.
+      statusLine: (() => {
+        const badge = one('.detail-side .detail-status .status-badge')
+        if (!badge) return null
+        const style = getComputedStyle(badge)
+        const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.3
+        const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth)
+        return { text: badge.innerText.trim(), lines: Math.round((badge.getBoundingClientRect().height - padding) / lineHeight), clipped: badge.scrollWidth > badge.clientWidth + 1 }
+      })(),
+      factline: Boolean(one('.detail-factline')),
+      rateValue: Boolean(one('.rate-value')),
       attribution: Boolean(one('.detail-attribution-line')),
       notebookLabel: /mon carnet|my notebook/i.test(one('.detail-side')?.innerText ?? ''),
       reviewLabel: one('.mine-label')?.innerText?.trim() ?? null,
@@ -155,10 +164,14 @@ async page => {
     assert(info.body !== null && info.side.right < info.body.left, `${label} : la colonne de lecture est à droite du visuel`)
     assert(info.status !== null && info.status.bottom <= info.viewport.height, `${label} : le statut est visible sans défiler (${info.status?.bottom} ≤ ${info.viewport.height})`)
     assert(info.rate !== null && info.rate.bottom <= info.viewport.height, `${label} : la note est visible sans défiler (${info.rate?.bottom} ≤ ${info.viewport.height})`)
-    assert(info.notebook === null || info.notebook.bottom <= info.viewport.height, `${label} : la date est visible sans défiler`)
     const center = range => (range.left + range.right) / 2
     assert(info.poster !== null && info.verdictContent !== null && Math.abs(center(info.verdictContent) - center(info.poster)) < 3, `${label} : statut, note et cœur sont centrés sur le visuel (écart ${info.poster && info.verdictContent ? Math.abs(center(info.verdictContent) - center(info.poster)).toFixed(1) : '?'} px)`)
-    assert(info.date === null || Math.abs(center(info.date) - center(info.poster)) < 3, `${label} : la date est centrée sur le visuel`)
+    assert(info.rate === null || info.rate.bottom <= info.status.top + 1, `${label} : étoiles et cœur d'abord, statut dessous`)
+    assert(info.rate === null || Math.abs(center(info.rate) - center(info.poster)) < 3, `${label} : étoiles et cœur centrés sur le visuel`)
+    assert(Math.abs(center(info.status) - center(info.poster)) < 3, `${label} : statut centré sur le visuel`)
+    assert(info.statusLine !== null && info.statusLine.lines === 1 && !info.statusLine.clipped, `${label} : statut et date tiennent sur une ligne (« ${info.statusLine?.text} »)`)
+    assert(!info.factline, `${label} : plus de ligne sous le titre, tout est dans la grille`)
+    assert(!info.rateValue, `${label} : la note ne s'écrit plus en chiffres`)
     assert(!info.notebookLabel, `${label} : aucun libellé « Mon carnet »`)
     assert(!info.attribution, `${label} : aucune ligne « Présentation enrichie par » dans la fiche`)
     assert(info.overflow <= 1, `${label} : aucun débordement horizontal (${info.overflow} px)`)

@@ -9,8 +9,9 @@ import { t, tc, formatDate, translateMessage } from '../i18n/core.ts'
 import { ArtworkVisual, useArtworkFrame } from './ArtworkVisual.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
 import { searchArtworkImages } from '../data/artImageSearch.ts'
-import { StatusBadge } from './VerdictControls.tsx'
-import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { DetailVerdict } from './VerdictControls.tsx'
+import { DetailLayout } from './DetailLayout.tsx'
+import { verdictLine } from '../domain/verdictLine.ts'
 import { icon } from '../main.tsx'
 
 type ArtworkDetailProps = {
@@ -36,6 +37,10 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
   // Cartel de musée : une ligne par fait, l'étiquette devant la valeur. Une
   // œuvre sans aucun champ n'en a pas (le carnet prend alors la largeur).
   const cartelRows = [
+    // L'auteur et l'année ouvrent le cartel, sous le même filet que le reste
+    // (31 octobre 2026) : plus de ligne sous le titre.
+    artwork.artist ? <div key="artist"><dt>{tc('artworks', profile.creatorLabel)}</dt><dd>{artwork.artist}</dd></div> : null,
+    artwork.year !== null ? <div key="year"><dt>{t("Année")}</dt><dd>{String(artwork.year)}</dd></div> : null,
     ...factFields.map((field) => (
       <div key={field.key}><dt>{tc('artworks', field.label)}</dt><dd>{artwork.details[field.key]}</dd></div>
     )),
@@ -88,30 +93,23 @@ export function ArtworkDetail({ artwork, onBack, backLabel, onEdit, onImageEdit,
           </div>
         )}
         verdict={(
-          <>
-            <div className="detail-status">
-              <StatusBadge status={artwork.status} labels={ARTWORK_STATUS_LABELS} />
-            </div>
-            {artwork.isFavorite && (
-              <div className="detail-rate">
-                <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>
-              </div>
-            )}
-          </>
+          <DetailVerdict
+            favorite={artwork.isFavorite}
+            status={artwork.status}
+            line={verdictLine({
+              status: t(ARTWORK_STATUS_LABELS[artwork.status]),
+              date: artwork.discoveredAt ? formatDate(artwork.discoveredAt, { dateStyle: 'long' }) : null,
+              mode: 'reached',
+              matches: artwork.status === 'découverte',
+              dateLabel: tc('artworks', "Date de découverte"),
+            })}
+          />
         )}
         heading={(
           <>
             <p className="eyebrow">{t(ARTWORK_FORM_LABELS[artwork.form])}</p>
             <h1 className="display-title">{artwork.title}</h1>
-            {(artwork.artist || artwork.year !== null) && (
-              <p className="detail-factline">
-                {[artwork.artist, artwork.year !== null ? String(artwork.year) : null].filter(Boolean).join(' · ')}
-              </p>
-            )}
           </>
-        )}
-        notebook={artwork.discoveredAt && (
-          <DetailDate label={tc('artworks', "Date de découverte")} value={formatDate(artwork.discoveredAt, { dateStyle: 'long' })} />
         )}
         review={artwork.personalNote ? (
           <>

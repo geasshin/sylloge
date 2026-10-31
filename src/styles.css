@@ -1997,7 +1997,13 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .form-error { margin: 0; padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-danger-soft); color: var(--color-danger); font-size: var(--text-md); line-height: 1.5; }
 .form-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); padding-top: var(--space-1); }
 
-.detail-page-main { padding: var(--space-8) var(--page-gutter) var(--space-20); }
+.detail-page-main {
+  /* La marge latérale est aussi lue par la bannière bord à bord : elle reste
+     une variable, redéfinie avec le padding aux petites largeurs. */
+  --detail-gutter: var(--page-gutter);
+  padding: var(--space-8) var(--detail-gutter) var(--space-20);
+  container-type: inline-size;
+}
 
 /* ===== Fiche détail : langage validé (maquette 09-fiche-v5) ===== */
 .detail-actions { display: flex; align-items: center; gap: var(--space-2); }
@@ -2022,7 +2028,14 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 /* Emplacement facultatif des bannières 16:9 : pleine largeur, au-dessus des
    deux colonnes ; absent, il ne rend rien. Le bandeau porte son propre cadre ;
    l'emplacement ne fait que réserver la rangée et l'écart. */
-.detail-banner-slot { grid-column: 1 / -1; margin-bottom: var(--space-6); }
+.detail-banner-slot {
+  grid-column: 1 / -1;
+  /* Bord à bord (choix d'Aurélien, 31 octobre 2026) : la bannière sort du cadre
+     de 1180 px et de la marge de page pour couvrir toute la zone de contenu, de
+     la barre latérale au bord de la fenêtre. 100cqw = largeur intérieure de la
+     page ; on y ajoute les deux marges. */
+  margin: calc(-1 * var(--space-6)) calc((100% - 100cqw) / 2 - var(--detail-gutter)) var(--space-6);
+}
 .detail-side {
   position: sticky;
   top: var(--space-6);
@@ -2051,19 +2064,15 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   width: min(100%, var(--detail-visual-height, 62vh));
   aspect-ratio: 1 / 1;
 }
-.detail-verdict { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); }
-/* Sous le visuel, statut, note, cœur et date forment un groupe centré sur
-   l'affiche (30 octobre 2026). L'Art garde son carnet aligné à côté du cartel. */
-.detail-side .detail-verdict { justify-content: center; }
+.detail-verdict { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2-5); }
+/* Sous le visuel, deux lignes centrées sur l'affiche (31 octobre 2026) : les
+   étoiles et le cœur, puis le statut et sa date en une phrase. L'Art garde son
+   carnet aligné à côté du cartel. */
+.detail-side .detail-verdict { align-items: center; }
 .detail-verdict .detail-status,
 .detail-verdict .detail-rate { margin: 0; }
-
-/* La date personnelle : une légende sous le verdict, sans libellé ni filet. */
-.detail-notebook { display: grid; gap: var(--space-1); }
-.detail-side .detail-notebook { justify-items: center; text-align: center; margin-top: calc(-1 * var(--space-2)); }
-.detail-notebook-date { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.5; }
-.detail-notebook-date svg { margin-right: var(--space-2); vertical-align: -1px; opacity: .55; }
-.detail-notebook-date b { color: var(--color-text); font-weight: 600; }
+/* « Abandonnée · commencée le 27 août 2026 » tient sur une ligne. */
+.detail-verdict .status-badge { white-space: nowrap; }
 
 .detail-review {
   margin-top: var(--space-8);
@@ -2141,7 +2150,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 
 .detail-body { min-width: 0; padding-top: var(--space-1); }
 .original-title { margin: var(--space-4) 0 0; color: var(--color-text-muted); font-size: var(--text-lg); font-style: italic; overflow-wrap: anywhere; }
-.detail-factline { margin: var(--space-3) 0 0; color: var(--color-text-muted); font-size: var(--text-md); }
 .detail-facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2264,7 +2272,6 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .detail-art-head { text-align: center; }
 .detail-art-head .display-title { text-align: center; }
 .detail-art-head .eyebrow { margin: 0 0 var(--space-2); }
-.detail-art-head .detail-factline { margin-top: var(--space-3); }
 .detail-art-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2276,8 +2283,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
 .detail-cartel { grid-template-columns: minmax(0, 1fr); margin: 0; }
 .detail-cartel > div { grid-template-columns: minmax(104px, max-content) minmax(0, 1fr); }
 .detail-art-notebook { display: grid; gap: var(--space-6); align-content: start; min-width: 0; }
-.detail-art-notebook .detail-notebook { padding-top: 0; border-top: 0; }
-.detail-art-notebook .detail-verdict { justify-content: flex-start; }
+.detail-art-notebook .detail-verdict { align-items: flex-start; }
 .detail-art-notebook .detail-review { margin-top: 0; padding-top: 0; border-top: 0; }
 .detail-art-appendix { margin-top: var(--space-10); }
 /* Sans cartel (une œuvre sans aucun champ de forme), le carnet prend toute la
@@ -2461,16 +2467,16 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
    défaut, donc aucun cadre vide quand la fiche n'en porte pas. */
 .detail-banner {
   position: relative;
-  /* Un vrai bandeau, sans perdre de définition (retour d'Aurélien, 30 octobre
-     2026) : l'image d'origine (16:9) est montrée au format 2:1, soit environ
-     11 % de sa hauteur rognés, moitié en haut, moitié en bas. Le 21:9 d'avant
-     en coupait le quart. Sur une fenêtre basse, le bandeau garde son format et
-     se resserre en largeur (60 vh de haut au plus). */
-  width: min(100%, calc(60vh * 2));
-  aspect-ratio: 2 / 1;
-  margin: 0 auto;
+  /* Un bandeau de cinéma (31 octobre 2026) : bord à bord, format 3:1, sans
+     coins arrondis. L'image d'origine (16:9, 1 920 px ou plus) est recadrée au
+     centre : environ 40 % de sa hauteur ne se voient pas, sans perte de
+     définition. Sur un grand écran, la hauteur s'arrête à 50 vh. */
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  max-height: 50vh;
+  margin: 0;
   overflow: hidden;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   background: var(--color-surface-muted);
 }
 .detail-banner img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
@@ -3985,6 +3991,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
     padding-inline: var(--space-2);
   }
   .home-main, .library-main, .editor-main, .detail-page-main, .portability-main { padding-inline: var(--space-8); }
+  .detail-page-main { --detail-gutter: var(--space-8); }
   .onboarding-shell { grid-template-columns: 1fr; }
   .onboarding-aside { padding: var(--space-6) var(--space-8); display: grid; grid-template-columns: 1fr auto; align-items: end; gap: var(--space-5); }
   .onboarding-logo { width: 38px; height: 38px; margin-bottom: var(--space-4); }
@@ -4409,6 +4416,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .detail-page-main,
   .portability-main,
   .app-settings .portability-main { padding-inline: var(--space-5); }
+  .detail-page-main { --detail-gutter: var(--space-5); }
   .atrium-home { padding-inline: var(--space-5); padding-bottom: calc(var(--space-20) + env(safe-area-inset-bottom)); }
   .at-inner { max-width: none; }
   .at-section-title { font-size: var(--text-lg); }
@@ -4543,6 +4551,7 @@ nav { display: flex; flex-direction: column; gap: var(--space-0-5); }
   .detail-page-main,
   .portability-main,
   .app-settings .portability-main { padding-inline: var(--space-4); }
+  .detail-page-main { --detail-gutter: var(--space-4); }
   .atrium-home { padding-inline: var(--space-4); padding-bottom: calc(var(--space-20) + env(safe-area-inset-bottom)); }
   .at-lane,
   .at-files .at-lane { --at-lane-count: 2; --at-lane-gap: var(--space-3); }

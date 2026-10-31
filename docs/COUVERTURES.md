@@ -99,9 +99,10 @@ Les livres, les mangas, l’Art et les bibliothèques personnalisées ne sont pa
   paysage entre 1,6 et 2,0 de ratio, largeur ≥ 1 280, images sans texte d’abord puis la
   langue de l’interface, 24 candidats au plus. Une adresse collée est prévisualisée en
   16:9 ; un avertissement paraît si l’image est plus haute que large.
-- `DetailBanner` affiche un bandeau au format 2:1 sur toute la largeur, coins arrondis :
-  l’image d’origine (16:9) perd environ 11 % de sa hauteur, rognés au centre, sans perte de
-  définition ; sur une fenêtre basse, il se resserre en largeur (60 vh de haut au plus). Une image TMDB s’affiche toujours en définition
+- `DetailBanner` affiche un bandeau de cinéma bord à bord (choix d’Aurélien, 31 octobre
+  2026) : de la barre latérale au bord de la fenêtre, format 3:1, sans coins arrondis, 50 vh
+  de haut au plus. L’image d’origine (16:9) est recadrée au centre — environ 40 % de sa
+  hauteur ne se voient pas — sans perte de définition. Une image TMDB s’affiche toujours en définition
   d’origine (`original`, 1 920 px ou plus) : `bannerDisplayUrl()` relit aussi en `original`
   les bannières enregistrées en `w1280` avant le 30 octobre 2026, sans réécrire la base.
   Une image qui ne se charge plus laisse un bouton « Bannière introuvable · La remplacer ».

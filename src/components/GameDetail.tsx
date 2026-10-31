@@ -6,8 +6,9 @@ import {
 import { t, tc, formatDate, formatNumber, translateMessage } from '../i18n/core.ts'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
-import { StatusBadge } from './VerdictControls.tsx'
-import { DetailDate, DetailLayout } from './DetailLayout.tsx'
+import { DetailVerdict } from './VerdictControls.tsx'
+import { DetailLayout } from './DetailLayout.tsx'
+import { verdictLine } from '../domain/verdictLine.ts'
 import { BannerAddButton, DetailBanner } from './DetailBanner.tsx'
 import { useBannerEditor, useBannerProviderId } from './useBannerEditor.tsx'
 import { icon } from '../main.tsx'
@@ -93,52 +94,36 @@ export function GameDetail({ game, onBack, backLabel, onEdit, onCoverEdit, onAss
           </div>
         )}
         verdict={(
-          <>
-            <div className="detail-status">
-              <StatusBadge status={game.status} labels={GAME_STATUS_LABELS} />
-            </div>
-            {(game.rating !== null || game.isFavorite) && (
-              <div className="detail-rate">
-                {game.rating !== null && (
-                  <>
-                    <span className="stars-display" aria-label={t('{rating} sur 5', { rating: formatNumber(game.rating) })}>
-                      {[1, 2, 3, 4, 5].map((star) => {
-                        const fill = Math.max(0, Math.min(1, game.rating! - star + 1))
-                        return (
-                          <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
-                            <span className="star-glyph" aria-hidden="true">★</span>
-                            <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
-                          </span>
-                        )
-                      })}
-                    </span>
-                    <span className="rate-value">{formatNumber(game.rating)}/5</span>
-                  </>
-                )}
-                {game.isFavorite && <span className="heart-display on" aria-label={t("Coup de cœur")}>♥</span>}
-              </div>
-            )}
-          </>
+          <DetailVerdict
+            rating={game.rating}
+            favorite={game.isFavorite}
+            status={game.status}
+            line={verdictLine({
+              status: t(GAME_STATUS_LABELS[game.status]),
+              date: game.playedAt ? formatDate(game.playedAt, { dateStyle: 'long' }) : null,
+              mode: 'reached',
+              matches: game.status === 'joué' || game.status === 'abandonné',
+              dateLabel: tc('games', "Partie"),
+            })}
+          />
         )}
         heading={(
           <>
             <h1 className="display-title">{game.title}</h1>
-            {(game.developer || game.year !== null) && (
-              <p className="detail-factline">
-                {[game.developer, game.year !== null ? String(game.year) : null].filter(Boolean).join(' · ')}
-              </p>
-            )}
           </>
         )}
         facts={(
           <dl className="detail-facts">
+            {game.developer && (
+              <div><dt>{t("Studio")}</dt><dd>{game.developer}</dd></div>
+            )}
+            {game.year !== null && (
+              <div><dt>{t("Année")}</dt><dd>{String(game.year)}</dd></div>
+            )}
             {game.platform && (
               <div><dt>{t("Plateforme")}</dt><dd>{game.platform}</dd></div>
             )}
           </dl>
-        )}
-        notebook={game.playedAt && (
-          <DetailDate label={tc('games', "Partie")} value={formatDate(game.playedAt, { dateStyle: 'long' })} />
         )}
         review={game.personalNote ? (
           <>

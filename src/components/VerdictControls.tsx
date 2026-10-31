@@ -1,6 +1,7 @@
 import { t, formatNumber } from '../i18n/core.ts'
 import type { ReactNode } from 'react'
 import { statusTone } from '../domain/statusTone.ts'
+import type { VerdictLine } from '../domain/verdictLine.ts'
 
 type StatusLabels = { readonly [key: string]: string }
 
@@ -8,12 +9,45 @@ type StatusLabels = { readonly [key: string]: string }
 export { statusTone }
 export type { StatusTone } from '../domain/statusTone.ts'
 
-/** Badge de statut unique : un seul état visible, rendu monochrome par famille. */
-export function StatusBadge({ status, labels }: { status: string; labels: StatusLabels }) {
+/**
+ * Verdict d'une fiche (31 octobre 2026) : les étoiles et le cœur sur une
+ * première ligne, sans « 4,5/5 » écrit (les étoiles le disent déjà, la note
+ * reste lue par le lecteur d'écran) ; puis le statut et la date en une seule
+ * phrase, « Terminé le 29 novembre 2024 » (voir `verdictLine`).
+ */
+export function DetailVerdict({ rating = null, favorite, status, line }: {
+  rating?: number | null
+  favorite: boolean
+  /** Valeur stockée du statut : elle donne la famille de la pastille. */
+  status: string
+  line: VerdictLine
+}) {
   return (
-    <span className={`status-badge tone-${statusTone(status)}`} role="status">
-      {t(labels[status])}
-    </span>
+    <>
+      {(rating !== null || favorite) && (
+        <div className="detail-rate">
+          {rating !== null && (
+            <span className="stars-display" role="img" aria-label={t('{rating} sur 5', { rating: formatNumber(rating) })}>
+              {[1, 2, 3, 4, 5].map((star) => {
+                const fill = Math.max(0, Math.min(1, rating - star + 1))
+                return (
+                  <span key={star} className={`star-slot ${fill > 0 ? 'filled' : ''}`}>
+                    <span className="star-glyph" aria-hidden="true">★</span>
+                    <span className="star-fill" style={{ width: `${fill * 100}%` }} aria-hidden="true">★</span>
+                  </span>
+                )
+              })}
+            </span>
+          )}
+          {favorite && <span className="heart-display on" role="img" aria-label={t('Coup de cœur')}>♥</span>}
+        </div>
+      )}
+      <div className="detail-status">
+        <span className={`status-badge tone-${statusTone(status)}`} role="status">
+          {t(line.template, line.params)}
+        </span>
+      </div>
+    </>
   )
 }
 

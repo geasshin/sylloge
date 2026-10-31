@@ -164,10 +164,10 @@ async page => {
 
     // ── 4. Fiche : faits de la forme et poème en entier ────────────────────────────────────────────
     const facts = await page.locator('.detail-facts').innerText()
-    // Depuis le 30 octobre 2026, l'artiste et l'année sont la ligne centrée
-    // sous le titre ; le cartel garde les champs de la forme.
+    // Depuis le 31 octobre 2026, l'artiste et l'année ouvrent le cartel, sous le
+    // libellé de la forme (« Poète ») ; plus de ligne sous le titre.
     const artHeading = await page.locator('.detail-art-head').innerText()
-    assert(artHeading.includes('Victor Hugo'), 'La fiche nomme le poète')
+    assert(!artHeading.includes('Victor Hugo') && /Poète\s*Victor Hugo/i.test(facts), 'La fiche nomme le poète dans le cartel')
     assert(facts.includes('Les Contemplations'), 'La fiche montre le recueil')
     const fullPoem = await page.locator('.artwork-poem-text').innerText()
     assert(fullPoem === poem, 'La fiche montre le poème entier, vers et strophes conservés')

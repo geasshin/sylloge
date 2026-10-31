@@ -75,10 +75,10 @@ async page => {
   assert(await stored('films', film) === textless, 'Film : l’adresse choisie est écrite dans films.banner_url')
   assert(await card(film).locator('.detail-banner img').getAttribute('src') === textless, 'Film : le bandeau affiche l’image choisie')
   const box = await card(film).locator('.detail-banner').boundingBox()
-  // Un bandeau 2:1 : l'image 16:9 ne perd qu'environ 11 % de sa hauteur, et le
-  // bandeau ne dépasse pas 60vh, quitte à se resserrer en largeur.
-  assert(Math.abs(box.width / box.height - 2) < 0.02, `Bandeau : format 2:1 (${(box.width / box.height).toFixed(2)})`)
-  assert(box.height <= Math.ceil(viewport.height * 0.6) + 1, `Bandeau : hauteur bornée à 60vh (${Math.round(box.height)} px)`)
+  // Format 3:1, jamais plus haut que 50vh (31 octobre 2026). Le bord à bord se
+  // mesure dans une vraie fiche : scripts/qa-banners-fiches.js.
+  assert(box.height <= Math.ceil(viewport.height * 0.5) + 1, `Bandeau : hauteur bornée à 50vh (${Math.round(box.height)} px)`)
+  assert(box.height >= Math.floor(viewport.height * 0.5) - 1 || Math.abs(box.width / box.height - 3) < 0.02, `Bandeau : format 3:1 sous la borne (${(box.width / box.height).toFixed(2)})`)
 
   // ── 4. Fermer sans Enregistrer ne retient rien ────────────────────────────────────────────
   await openEdit(film)

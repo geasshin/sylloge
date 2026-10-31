@@ -13,7 +13,7 @@
   "test:i18n": "node --experimental-strip-types --test scripts/i18n*.test.mjs",
   "test:update-notice": "node --experimental-strip-types --test scripts/update-notice.test.mjs",
   "test:release": "node --experimental-strip-types --test scripts/updater-manifest.test.mjs",
-  "test:covers": "node --experimental-strip-types --test scripts/film-poster.test.mjs scripts/image-quality.test.mjs",
+  "test:covers": "node --experimental-strip-types --test scripts/film-poster.test.mjs scripts/image-quality.test.mjs scripts/verdict-line.test.mjs",
   "test:recipes": "node --experimental-strip-types --test scripts/recipes-library.test.mjs",
   "test:links": "node --experimental-strip-types --test scripts/external-links.test.mjs",
   "test:services": "node --experimental-strip-types --test scripts/letterboxd-export.test.mjs scripts/service-exports.test.mjs",
