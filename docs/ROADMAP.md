@@ -4,18 +4,19 @@
 
 ## Actualisation du 31 octobre 2026
 
-**Publié : v0.6.20 à v0.6.23** (30 et 31 octobre). Tout ce qui était « en cours » le 30 octobre est livré, sauf la galerie d’affiches des séries.
+**Publié : v0.6.20 à v0.6.24** (30 et 31 octobre). Tout ce qui était « en cours » le 30 octobre est livré.
 
 - **Fiches recomposées** (v0.6.20 à v0.6.22) : deux colonnes, visuel net (TMDB en w780, IGDB en 720p dans la fiche), Art sans cadre et jamais agrandi au-delà de sa taille réelle. Le verdict tient en deux lignes : étoiles et cœur, puis statut et date en une phrase (« Terminé le 29 novembre 2024 », `verdictLine`). Qui et quand sont dans la grille de faits, plus aucune ligne sous le titre, aucune information en double.
 - **Bannières** (v0.6.20 à v0.6.23) : original TMDB à l’affichage, bandeau 3:1 presque bord à bord, coins arrondis, et recadrage vertical par fiche (« Recadrer », `banner_position`, migration 0028, document v9).
 - **Période de diffusion des séries et animés** (v0.6.21, migration 0027, document v8) : années de début et de fin copiées de TMDB, jamais écrasées. Les 174 fiches d’Aurélien ont été remplies le 31 octobre (sauvegarde `sauvegarde-avant-annees-diffusion-2026-10-31`, répétition sur copie, même SQL).
 - **Imports et exports vers les services connus** : publiés avec la v0.6.20.
-- **Mise à jour automatique** : l’installation garde la version vérifiée jusqu’à sa réussite et ne relit plus le manifeste (correctif `c3d22aa`, à publier avec la prochaine version).
+- **Mise à jour automatique** : l’installation garde la version vérifiée jusqu’à sa réussite et ne relit plus le manifeste (correctif `c3d22aa`, publié en v0.6.24).
 - **Recettes navigateur** : `qa-custom-libraries` et `qa-library-separation` sont de nouveau vertes (attente des cartes, barre latérale repliée avant de cliquer, sélecteur « Bibliothèque de la fiche », version du document non figée).
+
+- **Galerie d’affiches TMDB pour les séries et animés** (v0.6.24) : le crayon de l’affiche ouvre la galerie quand la fiche est reliée à TMDB (`fetch_poster_candidates`, `/tv/{id}/images`, français puis sans texte puis anglais, 40 au plus).
 
 ### En cours (31 octobre)
 
-- **Galerie d’affiches TMDB pour les séries et animés**, sur le modèle des films.
 - **Site de téléchargement** : textes mis à jour (bibliothèques ajoutables, champs réels, fonctions récentes), en français et en anglais ; les captures d’écran viendront dans un second temps.
 
 ### Proposé, à décider
@@ -36,7 +37,7 @@
 - **Recettes de cuisine : rien à faire.** Il n’y a pas d’import dans l’application et il n’en faut pas : les recettes s’ajoutent par le « + » comme toute fiche. Le script Notion a servi une fois et ne fait pas partie du produit.
 - **Non exercé** : l’application native (WKWebView) pour ces trois lots ; le harnais simule le pont natif.
 
-### Demandes du 30 octobre (livrées le 31 octobre, sauf la galerie des séries)
+### Demandes du 30 octobre (livrées le 31 octobre)
 
 - **Séries et animés rattachés à TMDB** (fait le 30 octobre sur les données réelles, sauvegarde `sauvegarde-avant-tmdb-series-2026-10-30`) : 174 fiches liées, 38 choisies à la main (Shōgun 2024, Dark Matter 2024, Drifters et Seven Deadly Sins animés, *Liebes Kind*…) ; créateurs, distribution, total de saisons et résumés vides remplis ; affiches, titres, statuts et saisons vues conservés.
 - **Galerie d’affiches pour les séries et animés** : TMDB en publie plusieurs par série (`/tv/{id}/images`), mais seule la fiche Film propose de choisir dans la galerie. À faire sur le modèle des films (`set_film_tmdb_poster` et `filmPoster.ts`), sans priorité.
