@@ -428,6 +428,13 @@ const messages: Record<string, string> = {
   "Faites glisser l’image": "Drag the image",
   "Le recadrage n’a pas pu être enregistré.": "The crop could not be saved.",
   "Bannières 16:9 — démonstration": "Banners 16:9 — demo",
+  // Recettes : ajustement des portions sur la fiche (25 novembre 2026).
+  "Ajuster les portions": "Adjust servings",
+  "Retirer une portion": "One fewer serving",
+  "Ajouter une portion": "One more serving",
+  "Portions de base : {servings}": "Base servings: {servings}",
+  "Portions non indiquées dans la recette : base par défaut de {count}": "Servings not given in the recipe: default base of {count}",
+  "portions": "servings",
 }
 
 export default messages

@@ -121,7 +121,25 @@ async page => {
   assert(details.dish === 'Dessert' && details.prepTime === '1 h 10' && details.cookTime === '40 min', 'Base : type de plat, préparation et cuisson')
   assert(!('duration' in details), 'Base : aucun champ « Durée » hérité')
 
-  // ── 4. Modification : le formulaire se rouvre rempli, une ligne modifiée suffit ────────────────────
+  // ── 4. Portions : le − / + ajuste les quantités sans réécrire la fiche ─────────────────────────────
+  assert(await page.locator('.recipe-servings').count() === 1, 'Portions : le réglage − / + est sur la fiche')
+  assert((await page.locator('.recipe-servings-count').innerText()).trim() === '6', 'Portions : la base de la fiche est reprise')
+  await page.getByRole('button', { name: 'Retirer une portion', exact: true }).click()
+  assert((await page.locator('.recipe-servings-count').innerText()).trim() === '5', 'Portions : le − retire une portion')
+  const reduced = await shownList('ingredients')
+  assert(reduced.includes('167 g de farine'), `Portions : 200 g × 5/6 arrondi (${reduced})`)
+  assert(reduced.includes('83,3 g de beurre') && reduced.includes('3 ⅓ pommes'), `Portions : les quantités suivent (${reduced})`)
+  assert((await page.locator('.detail-facts').innerText()).includes('5 personnes'), 'Portions : le fait Portions suit le compteur')
+  assert((await page.locator('.recipe-servings-note').innerText()).includes('Portions de base : 6 personnes'), 'Portions : la base reste rappelée')
+  assert(JSON.parse((await sql("SELECT details FROM recipes WHERE title = 'Tarte aux pommes'"))[0].details).ingredients === INGREDIENTS.join('\n'), 'Portions : rien n’est enregistré')
+  await page.locator('.recipe-servings-note').getByRole('button', { name: 'Réinitialiser', exact: true }).click()
+  assert(await shownList('ingredients') === INGREDIENTS.join('\n'), 'Portions : Réinitialiser retrouve la recette')
+  await page.getByRole('button', { name: 'Ajouter une portion', exact: true }).click()
+  assert((await page.locator('.recipe-servings-count').innerText()).trim() === '7', 'Portions : le + ajoute une portion')
+  assert((await shownList('ingredients')).includes('233 g de farine'), 'Portions : 200 g × 7/6 arrondi')
+  await page.locator('.recipe-servings-note').getByRole('button', { name: 'Réinitialiser', exact: true }).click()
+
+  // ── 5. Modification : le formulaire se rouvre rempli, une ligne modifiée suffit ────────────────────
   await page.getByRole('button', { name: /^Modifier/ }).first().click()
   const edit = page.locator('.editor-dialog-embedded, .editor-dialog, [role="dialog"]').first()
   await edit.getByLabel('Ingrédients', { exact: true }).first().waitFor()
@@ -134,7 +152,7 @@ async page => {
   assert(await shownList('ingredients') === EDITED.join('\n'), 'Modification : la fiche montre la ligne modifiée')
   assert(JSON.parse((await sql("SELECT details FROM recipes WHERE title = 'Tarte aux pommes'"))[0].details).steps === STEPS.join('\n'), 'Modification : la préparation n’a pas bougé')
 
-  // ── 5. Bibliothèque : vues par état et par type de plat, seconde recette ───────────────────────────
+  // ── 6. Bibliothèque : vues par état et par type de plat, seconde recette ───────────────────────────
   await page.getByRole('button', { name: 'Retour à Recettes', exact: true }).click()
   await page.getByRole('heading', { level: 1, name: 'Recettes' }).waitFor()
   await page.getByRole('button', { name: 'Ajouter une recette', exact: true }).first().click()
@@ -145,6 +163,12 @@ async page => {
   await page.getByRole('heading', { level: 1, name: 'Soupe de potimarron' }).waitFor()
   assert(await page.locator('.detail-poster .poster-fallback').count() === 1, 'Recette sans photo : repli lisible')
   assert((await sql("SELECT status FROM recipes WHERE title = 'Soupe de potimarron'"))[0].status === 'à découvrir', 'Statut par défaut : « À tester » (à découvrir)')
+  // Sans champ « Portions », le réglage part d'une base de 4 et le dit.
+  assert((await page.locator('.recipe-servings-count').innerText()).trim() === '4', 'Portions : base de 4 quand la fiche ne précise rien')
+  assert((await page.locator('.recipe-servings-note').innerText()).includes('non indiquées'), 'Portions : la base supposée est annoncée')
+  await page.getByRole('button', { name: 'Retirer une portion', exact: true }).click()
+  assert((await shownList('ingredients')).includes('¾ potimarron'), 'Portions : la base supposée ajuste aussi les quantités')
+  await page.locator('.recipe-servings-note').getByRole('button', { name: 'Réinitialiser', exact: true }).click()
   await page.getByRole('button', { name: 'Retour à Recettes', exact: true }).click()
   await page.getByRole('heading', { level: 1, name: 'Recettes' }).waitFor()
   await settle()

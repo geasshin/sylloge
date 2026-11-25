@@ -114,3 +114,36 @@ Décisions d’Aurélien : trois états seulement (À tester, Testée, Maîtris�
 - Les paragraphes Notion hors sections (« Pour 2 portions », conservation, quantités) atterrissent dans le bloc **Notes**, faute d’un champ dédié.
 - `fixtures/recettes-notion.json` contient les vraies recettes d’Aurélien : à garder hors Git ou à assumer dans l’historique.
 - 15 recettes ont une préparation vide **dans Notion** (blocs vides, méthode restée dans la vidéo source) : l’import ne peut pas inventer ce qui n’y est pas.
+
+---
+
+## Mise à jour du 25 novembre 2026 : les quantités suivent les portions
+
+**Implémenté localement, non commité, non publié.**
+
+Demande d’Aurélien : sur la fiche d’une recette, un « + » et un « − » pour cuisiner pour moins ou plus de personnes, sur la plupart des recettes.
+
+### Ce qui a changé
+
+| Couche | Fichiers | Contenu |
+|---|---|---|
+| Calcul | `src/domain/recipeScaling.ts`, `scripts/recipe-scaling.test.mjs` | Fonctions pures : lecture du nombre de portions dans le champ libre (`6 personnes`, `8 manakish`, `2 à 3 personnes`), mise à l’échelle des lignes, écriture des quantités. Seule la **première** quantité d’une ligne est multipliée ; les lignes sans quantité et les nombres entre parenthèses restent intacts. Fractions et fourchettes sont conservées (`½` × 2 = `1`, `1 à 2 gousses` × 2 = `2 à 4 gousses`). |
+| Interface | `src/components/RecipeIngredients.tsx`, `CustomLibraryScreen.tsx`, `styles.css` | Compteur `− 4 + personnes` à droite du titre « Ingrédients ». À portions égales, la liste est rendue telle quelle. Sinon, un rappel « Portions de base : 4 personnes » et un lien « Réinitialiser » apparaissent ; le fait « Portions » de l’en-tête suit le compteur. Sans champ Portions, la base est **4** et l’écran l’annonce (« Portions non indiquées dans la recette : base par défaut de 4 »). Rien n’est enregistré. |
+| Traductions | `catalogs/entries.ts` | Six chaînes françaises et anglaises : ajuster, retirer, ajouter, portions de base, portions non indiquées, portions par défaut. `Réinitialiser` réutilise la traduction existante. |
+| Recette navigateur | `scripts/qa-recipes.js` | 62 contrôles, dont 14 sur les portions : fiche avec `6 personnes`, passage à 5 (167 g pour 200 g, 83,3 g, 3 ⅓ pommes, fait « Portions » à 5), inchangé en base, réinitialisation, passage à 7 (233 g), et fiche sans Portions (base 4 annoncée, ¾ potimarron). |
+
+### Vérifications exécutées
+
+- `npm run test:recipes` : 19 tests réussis, dont 8 sur le calcul (lecture des portions, décimaux, fractions, fourchettes, lignes sans quantité, masse et volume, ratio 1, tableau non modifié).
+- `npm run typecheck`, `npm run verify` (134 tests i18n compris), `npm run build` : verts.
+- Navigateur, `qa-app.html?scenario=full` (base SQLite en mémoire) : `scripts/qa-recipes.js` **62/62**, aucune erreur de page.
+- Rendu examiné en clair à 1440 × 900 : fiche avec portions connues (compteur `4 personnes`), fiche sans portions (base de 4 annoncée), état ajusté et état réinitialisé. Aucun débordement horizontal.
+
+### Limites et points non exercés
+
+- **Aucune écriture** : l’ajustement est une vue. Rouvrir la fiche retrouve les proportions enregistrées ; pour changer durablement les quantités, il faut modifier la fiche.
+- Seule la première quantité d’une ligne est mise à l’échelle. Un ingrédient écrit sur plusieurs nombres (`1 sachet de 8 g`, `1 boîte (400 ml)`) garde les nombres du produit : c’est voulu, un sachet reste un sachet.
+- Les lignes sans nombre en tête (« Sel, poivre », « Pour la garniture : », « Un oignon ») ne changent pas.
+- La base par défaut de 4 est une convention d’affichage pour les 51 recettes importées sans champ Portions ; elle est annoncée à l’écran et ne modifie pas la fiche.
+- **Application native non lancée** sur ce lot : la preuve vient du navigateur et des tests Node.
+- La fiche réelle « Manakish au zaatar » a été recalibrée sur 255 g de farine (6 manakish) hors application, avec l’accord d’Aurélien : sauvegarde `sauvegarde-avant-manakish-2026-11-25`, répétition sur copie, transaction unique, `integrity_check` et `foreign_key_check` propres.

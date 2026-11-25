@@ -15,10 +15,12 @@ import { CustomEntryForm, customCoverLabel } from './CustomEntryForm.tsx'
 import { FocusDialog } from './FocusDialog.tsx'
 import { Poster } from './Poster.tsx'
 import { PosterUrlDialog } from './PosterUrlDialog.tsx'
+import { RecipeIngredients } from './RecipeIngredients.tsx'
 import { Select } from './Select.tsx'
 import { DetailVerdict, statusTone } from './VerdictControls.tsx'
 import { DetailLayout } from './DetailLayout.tsx'
 import { verdictLine } from '../domain/verdictLine.ts'
+import { parseServings } from '../domain/recipeScaling.ts'
 import { useIncrementalList } from './useIncrementalList.ts'
 import { SearchIcon, ArrowLeftIcon, PencilIcon, TrashIcon } from './icons.tsx'
 
@@ -502,6 +504,15 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
   // statut et ses ingrédients vivent dans la colonne gauche, ses étapes
   // numérotées et ses notes dans la colonne de lecture.
   const isRecipe = libraryId === 'recipes'
+  // Portions ajustées à la lecture : le compteur des ingrédients et le fait
+  // « Portions » disent la même chose. Rien n'est enregistré ; changer la
+  // valeur enregistrée du champ remet l'affichage à sa base.
+  const servingsBase = parseServings(entry.details.servings)
+  const servingsBaseCount = servingsBase ? Math.max(1, Math.round(servingsBase.count)) : 4
+  const servingsUnit = servingsBase?.unit || t('portions')
+  const [servingsCount, setServingsCount] = useState<number | null>(null)
+  useEffect(() => { setServingsCount(null) }, [entry.id, entry.details.servings])
+  const shownServingsCount = servingsCount ?? servingsBaseCount
   const fieldLines = (key: string) => (entry.details[key] ?? '').split('\n').map((line) => line.trim()).filter((line) => line !== '')
   const ingredientsField = template.fields.find((field) => field.key === 'ingredients')
   const stepsField = template.fields.find((field) => field.key === 'steps')
@@ -526,7 +537,11 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
     factRows.push({ key: 'year', label: t('Année'), value: formatNumber(entry.year, { useGrouping: false }) })
   }
   for (const field of template.fields.filter((candidate) => denseKeys.includes(candidate.key))) {
-    if (entry.details[field.key]) factRows.push({ key: field.key, label: label(field.label), value: displayFieldValue(libraryId, field, entry.details[field.key]) })
+    if (!entry.details[field.key]) continue
+    const value = field.key === 'servings' && isRecipe
+      ? `${formatNumber(shownServingsCount)}${servingsUnit ? ` ${servingsUnit}` : ''}`
+      : displayFieldValue(libraryId, field, entry.details[field.key])
+    factRows.push({ key: field.key, label: label(field.label), value })
   }
   for (const field of detailFactFields) {
     factRows.push({ key: field.key, label: label(field.label), value: displayFieldValue(libraryId, field, entry.details[field.key]) })
@@ -564,10 +579,18 @@ function CustomEntryDetail({ libraryId, entry, onBack, onEdit, onCoverEdit, onDe
 
   const recipeNode = isRecipe ? {
     ingredients: ingredientsField && fieldLines('ingredients').length > 0 ? (
-      <section className="detail-long-text detail-recipe-ingredients" data-field="ingredients">
-        <h2>{label(ingredientsField.label)}</h2>
-        <ul className="detail-list">{fieldLines('ingredients').map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}</ul>
-      </section>
+      <RecipeIngredients
+        key={`${entry.id}-${entry.details.servings ?? ''}`}
+        title={label(ingredientsField.label)}
+        lines={fieldLines('ingredients')}
+        servings={entry.details.servings}
+        baseCount={servingsBaseCount}
+        count={shownServingsCount}
+        unit={servingsUnit}
+        assumed={servingsBase === null}
+        onChange={setServingsCount}
+        onReset={() => setServingsCount(null)}
+      />
     ) : undefined,
     steps: stepsField && fieldLines('steps').length > 0 ? (
       <section className="detail-long-text detail-recipe-steps" data-field="steps">
